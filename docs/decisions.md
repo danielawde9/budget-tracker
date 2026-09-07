@@ -243,3 +243,21 @@ sensitive session material substantially harder.
 Supabase client needs a separate threat model, storage/lifetime decision, and
 tests proving the credential cannot reach rendering, logs, screenshots, or
 another user's application state.
+
+## 2026-09-08 — Auth content is gated until session resolution
+
+**Decision:** The application renders no financial workspace until the initial
+browser session resolves. Auth changes are authoritative over older in-flight
+session reads; an unexpected loss of a previously authenticated session shows
+an expired-session recovery state, while an explicit sign-out returns directly
+to the signed-out state.
+
+**Why:** This prevents a flash of private financial content and prevents a late
+session read from restoring the wrong user after a refresh, sign-out, or account
+change. Separating expiry from explicit sign-out gives the manager a useful next
+step without implying the application lost data.
+
+**If changed:** Optimistic financial rendering or a different event priority
+needs race tests proving that stale reads and prior-user content can never become
+visible. Merging expiry into generic sign-out would simplify copy but remove the
+specific recovery explanation.
