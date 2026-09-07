@@ -42,3 +42,16 @@ upgrade: reset through `20260907146000`, insert a minimal Budget-only journal
 seed, run `supabase migration up --local`, then verify the seed event and
 movement remained while migration history advanced to `20260907147000`.
 Connection strings and credentials remain in ignored local test configuration.
+
+The independent Loans audit repeated this proof without resetting the live
+Budget schema: a disposable database on the same Budget PostgreSQL cluster
+applied the first 11 migrations through `20260907146000`, retained one seed
+event and wallet movement with amount `4242`, and advanced to 14 migrations
+through `20260907149000`. The disposable database was dropped after proof.
+
+An independent audit later on 2026-09-07 confirmed the configured Budget
+endpoint, PostgreSQL `170006`, and migration journal, but the live cluster now
+reports system identifier `7682837243973648421`. This supersedes the earlier
+identifier above for current database-operation checks; a recreated PostgreSQL
+cluster receives a new identifier even when the Budget host and port stay the
+same.

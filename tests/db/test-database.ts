@@ -114,23 +114,29 @@ export async function financialWriterFunctionNames(): Promise<string[]> {
   return result.rows.map((row) => row.proname);
 }
 
-export async function financialTableWritePrivileges(): Promise<Array<{ table_name: string; writable: boolean }>> {
+export async function financialTableWritePrivileges(
+  roleName: 'authenticated' | 'service_role' = 'authenticated',
+): Promise<Array<{ table_name: string; writable: boolean }>> {
   const result = await pool.query<{ table_name: string; writable: boolean }>(
     `select
        table_name,
-       has_table_privilege('authenticated', format('public.%I', table_name), 'insert')
-         or has_table_privilege('authenticated', format('public.%I', table_name), 'update')
-         or has_table_privilege('authenticated', format('public.%I', table_name), 'delete')
-         or has_table_privilege('authenticated', format('public.%I', table_name), 'truncate') as writable
-     from unnest($1::text[]) as table_name
+       has_table_privilege($1, format('public.%I', table_name), 'insert')
+         or has_table_privilege($1, format('public.%I', table_name), 'update')
+         or has_table_privilege($1, format('public.%I', table_name), 'delete')
+         or has_table_privilege($1, format('public.%I', table_name), 'truncate') as writable
+     from unnest($2::text[]) as table_name
      order by table_name`,
-    [[
-      'financial_events',
-      'wallet_movements',
-      'loans',
-      'loan_postings',
-      'loan_monthly_target_revisions',
-    ]],
+    [
+      roleName,
+      [
+        'wallets',
+        'financial_events',
+        'wallet_movements',
+        'loans',
+        'loan_postings',
+        'loan_monthly_target_revisions',
+      ],
+    ],
   );
 
   return result.rows;

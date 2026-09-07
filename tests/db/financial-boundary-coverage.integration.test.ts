@@ -39,6 +39,18 @@ describe('financial posting boundary coverage', () => {
       { table_name: 'loan_postings', writable: false },
       { table_name: 'loans', writable: false },
       { table_name: 'wallet_movements', writable: false },
+      { table_name: 'wallets', writable: false },
+    ]);
+  });
+
+  it('keeps all financial and planning history tables non-writable by background clients', async () => {
+    expect(await financialTableWritePrivileges('service_role')).toEqual([
+      { table_name: 'financial_events', writable: false },
+      { table_name: 'loan_monthly_target_revisions', writable: false },
+      { table_name: 'loan_postings', writable: false },
+      { table_name: 'loans', writable: false },
+      { table_name: 'wallet_movements', writable: false },
+      { table_name: 'wallets', writable: false },
     ]);
   });
 });

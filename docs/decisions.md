@@ -171,6 +171,21 @@ detects an unclassified future writer or a privilege bypass.
 inventory classification, privileges/RLS proof, and real-Postgres rejection
 and reconstruction coverage in the same change.
 
+## 2026-09-07 — Background roles share the financial posting boundary
+
+**Decision:** Supabase's `service_role`, like browser roles, has no direct
+INSERT, UPDATE, DELETE, or TRUNCATE privilege on wallets or financial,
+loan-principal, and planning-history tables. A future background entry path
+must use a classified protected command rather than bypassing the journal.
+
+**Why:** The independent Loans audit found that Supabase's default
+`service_role` table grants bypassed the documented whole-app boundary even
+though no background caller exists yet.
+
+**If changed:** Any direct background writer requires a new authorization,
+idempotency, reconciliation, and immutable-history design plus explicit
+real-Postgres coverage; granting a table privilege alone is not sufficient.
+
 ## 2026-09-07 — Loans UI is a command-backed ledger workspace
 
 **Decision:** Build the first application surface as a React/Vite SPA with one

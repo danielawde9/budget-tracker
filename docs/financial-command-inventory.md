@@ -3,8 +3,8 @@
 ## Implemented posting commands
 
 All actual money and outstanding-principal changes below are written only by
-the protected PostgreSQL commands. The browser role has read access only; it
-does not receive direct table-write privileges.
+the protected PostgreSQL commands. Browser and background API roles have read
+access only; they do not receive direct financial-table write privileges.
 
 | Command | Current entry path | Posted effects |
 | --- | --- | --- |

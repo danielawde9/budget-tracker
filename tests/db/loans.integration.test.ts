@@ -330,6 +330,46 @@ describe('loans ledger', () => {
     );
   });
 
+  it('caps a future monthly reservation after an earlier repayment reduces outstanding principal', async () => {
+    const owner = asUser(ownerId);
+    const space = await owner.createSpace('Capped future reservation', 'personal');
+    const wallet = await owner.createWallet(space.id, 'USD', 'USD');
+    const loan = await owner.openLoanOutstanding({
+      spaceId: space.id,
+      requestId: '20000000-0000-4000-8000-000000000029',
+      direction: 'i_owe_them',
+      personName: 'Future target lender',
+      currency: 'USD',
+      amountMinor: '10000',
+      effectiveDate: '2026-08-01',
+    });
+
+    await owner.setLoanMonthlyTarget({
+      spaceId: space.id,
+      requestId: '20000000-0000-4000-8000-000000000030',
+      loanId: loan.loan_id,
+      month: '2026-09-01',
+      targetMinor: '8000',
+    });
+    await owner.repayLoan({
+      spaceId: space.id,
+      requestId: '20000000-0000-4000-8000-000000000031',
+      loanId: loan.loan_id,
+      walletId: wallet.id,
+      amountMinor: '7000',
+      effectiveDate: '2026-08-15',
+    });
+
+    await expect(owner.monthlyLoanPlan(space.id, '2026-09-15')).resolves.toContainEqual(
+      expect.objectContaining({
+        loan_id: loan.loan_id,
+        target_minor: '8000',
+        actual_repayment_minor: '0',
+        remaining_reservation_minor: '3000',
+      }),
+    );
+  });
+
   it('summarizes due, planned, actual, and expected amounts per currency without inventing cash', async () => {
     const owner = asUser(ownerId);
     const space = await owner.createSpace('Currency summary', 'personal');
