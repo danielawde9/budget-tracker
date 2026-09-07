@@ -38,6 +38,19 @@ export interface LoanOpeningInput {
   note?: string;
 }
 
+export interface CashLoanInput extends LoanOpeningInput {
+  walletId: string;
+}
+
+export interface LoanRepaymentInput {
+  spaceId: string;
+  requestId: string;
+  loanId: string;
+  walletId: string;
+  amountMinor: string;
+  effectiveDate: string;
+}
+
 function databaseUrl(): string {
   const value = process.env.BUDGET_TEST_DATABASE_URL;
 
@@ -121,6 +134,58 @@ export function asUser(userId: string) {
         return loan;
       });
     },
+    async recordCashLoan(input: CashLoanInput): Promise<{ loan_id: string; event_id: string }> {
+      return withUserSession(userId, async (client) => {
+        const result = await client.query<{ loan_id: string; event_id: string }>(
+          `select *
+           from public.record_cash_loan(
+             $1, $2, $3::public.loan_direction, $4, $5::public.currency_code,
+             $6, $7, $8::date, $9::date, $10
+           )`,
+          [
+            input.spaceId,
+            input.requestId,
+            input.direction,
+            input.personName,
+            input.currency,
+            input.walletId,
+            input.amountMinor,
+            input.effectiveDate,
+            input.dueDate ?? null,
+            input.note ?? null,
+          ],
+        );
+        const loan = result.rows[0];
+
+        if (!loan) {
+          throw new Error('record_cash_loan returned no loan');
+        }
+
+        return loan;
+      });
+    },
+    async repayLoan(input: LoanRepaymentInput): Promise<{ event_id: string }> {
+      return withUserSession(userId, async (client) => {
+        const result = await client.query<{ event_id: string }>(
+          'select * from public.record_loan_repayment($1, $2, $3, $4, $5, $6::date)',
+          [
+            input.spaceId,
+            input.requestId,
+            input.loanId,
+            input.walletId,
+            input.amountMinor,
+            input.effectiveDate,
+          ],
+        );
+        const repayment = result.rows[0];
+
+        if (!repayment) {
+          throw new Error('record_loan_repayment returned no event');
+        }
+
+        return repayment;
+      });
+    },
     async createSpace(name: string, kind: SpaceKind): Promise<Space> {
       return withUserSession(userId, async (client) => {
         const result = await client.query<Space>(
@@ -187,6 +252,16 @@ export function asUser(userId: string) {
         );
 
         return result.rows[0]?.amount_minor ?? '0';
+      });
+    },
+    async loanBalance(loanId: string): Promise<string> {
+      return withUserSession(userId, async (client) => {
+        const result = await client.query<{ outstanding_minor: string }>(
+          'select outstanding_minor from public.loan_balances where loan_id = $1',
+          [loanId],
+        );
+
+        return result.rows[0]?.outstanding_minor ?? '0';
       });
     },
     async reverseEvent(
