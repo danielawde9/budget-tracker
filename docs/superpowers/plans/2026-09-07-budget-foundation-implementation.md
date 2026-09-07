@@ -171,7 +171,7 @@ tailscale ping 100.124.228.75
 ssh daniel@100.124.228.75 'hostname && command -v rsync && command -v docker && command -v supabase'
 ```
 
-Expected: Tailscale reports reachability and the host returns command paths. If it does not, stop before creating a stack and record the precise blocker.
+Expected: Tailscale reports reachability and the host returns Docker and Supabase command paths. The replacement host does not have `rsync`; use the repository's secure-copy lifecycle script rather than installing it. If it does not, stop before creating a stack and record the precise blocker.
 
 - [ ] **Step 2: Add the failing lifecycle test.**
 
@@ -240,6 +240,11 @@ esac
 ```
 
 Mark it executable. Create `supabase/config.toml` using the Supabase CLI-generated project configuration, change only `project_id` to `budget-supabase`, and use ports not occupied by the Sandooq stack. Append a decision recording the actual assigned port set after inspecting the Ubuntu host.
+
+The installed CLI creates most services with `unless-stopped`; after each
+`start`, list containers whose names contain `budget-supabase` and apply
+`docker update --restart=no` to their IDs. Expose that safeguard as
+`disable-restart` so it can be reapplied without restarting services.
 
 Run:
 
@@ -636,6 +641,7 @@ ssh daniel@100.124.228.75 "cd /home/daniel/budget-supabase && supabase status"
 ```
 
 Expected: only the Budget project ID and its selected ports are reported. Confirm its database system identifier is not the Sandooq identifier and that neither stack lists the other stack's tables.
+Confirm every `budget-supabase` container has restart policy `no`.
 
 - [ ] **Step 2: Run the complete evidence set.**
 

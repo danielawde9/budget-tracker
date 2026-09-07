@@ -53,3 +53,18 @@ unnecessary RAM use and preserves host-service boundaries.
 
 **If changed:** Moving the host or enabling automatic restart requires a new
 capacity, port-collision, network-access, and recovery review.
+
+## 2026-09-07 — Explicitly enforce no restart policy
+
+**Decision:** After every Budget `supabase start`, the lifecycle script runs
+`docker update --restart=no` for Budget containers. A `disable-restart` command
+applies the same requirement to a running stack.
+
+**Why:** The installed Supabase CLI created most containers with
+`unless-stopped`, contrary to the opt-in RAM-use requirement. The host firewall
+was independently verified to admit Docker traffic over Tailscale and deny it
+from the LAN interface.
+
+**If changed:** Removing this enforcement would cause Budget to start after a
+host reboot; any firewall change requires another ingress verification before
+Budget is started.

@@ -5,6 +5,7 @@ readonly remote_host='daniel@100.124.228.75'
 readonly remote_dir='/home/daniel/budget-supabase'
 readonly remote_marker='.budget-project'
 readonly local_dir='supabase'
+readonly project_id='budget-supabase'
 
 ensure_remote_directory() {
   ssh "${remote_host}" "
@@ -19,8 +20,14 @@ ensure_remote_directory() {
 
 sync_project() {
   ensure_remote_directory
-  rsync -az --delete --exclude '.temp/' --exclude "${remote_marker}" \
-    "${local_dir}/" "${remote_host}:${remote_dir}/"
+  scp -r "${local_dir}" "${remote_host}:${remote_dir}/"
+}
+
+disable_restart_policy() {
+  ssh "${remote_host}" "
+    docker ps -aq --filter 'name=${project_id}' |
+      xargs -r docker update --restart=no >/dev/null
+  "
 }
 
 case "${1:-}" in
@@ -30,6 +37,7 @@ case "${1:-}" in
   start)
     sync_project
     ssh "${remote_host}" "cd '${remote_dir}' && supabase start"
+    disable_restart_policy
     ;;
   reset)
     sync_project
@@ -42,8 +50,11 @@ case "${1:-}" in
       ssh "${remote_host}" "cd '${remote_dir}' && supabase status"
     fi
     ;;
+  disable-restart)
+    disable_restart_policy
+    ;;
   *)
-    printf '%s\n' 'usage: remote-supabase.sh {sync|start|reset|status}' >&2
+    printf '%s\n' 'usage: remote-supabase.sh {sync|start|reset|status|disable-restart}' >&2
     exit 64
     ;;
 esac
