@@ -66,6 +66,13 @@ function nullableText(value: Row, key: string): string | null {
   return result;
 }
 
+function minorValue(value: Row, key: string): string {
+  const result = value[key];
+  if (typeof result === 'string' && /^-?\d+$/.test(result)) return result;
+  if (typeof result === 'number' && Number.isSafeInteger(result)) return String(result);
+  throw new Error(`The database row has an unsafe ${key} money value.`);
+}
+
 async function rows(resultPromise: Promise<DataResult>, label: string): Promise<Row[]> {
   const result = await resultPromise;
   if (result.error) throw result.error;
@@ -84,11 +91,11 @@ function query(client: LoansDataClient, relation: string, spaceId?: string): Pro
 
 function planFrom(rowValue: Row | undefined): LoanPlan {
   return {
-    targetMinor: rowValue ? textValue(rowValue, 'target_minor') : '0',
-    actualRepaymentMinor: rowValue ? textValue(rowValue, 'actual_repayment_minor') : '0',
-    remainingReservationMinor: rowValue ? textValue(rowValue, 'remaining_reservation_minor') : '0',
-    dueAmountMinor: rowValue ? textValue(rowValue, 'due_amount_minor') : '0',
-    expectedCollectionMinor: rowValue ? textValue(rowValue, 'expected_collection_minor') : '0',
+    targetMinor: rowValue ? minorValue(rowValue, 'target_minor') : '0',
+    actualRepaymentMinor: rowValue ? minorValue(rowValue, 'actual_repayment_minor') : '0',
+    remainingReservationMinor: rowValue ? minorValue(rowValue, 'remaining_reservation_minor') : '0',
+    dueAmountMinor: rowValue ? minorValue(rowValue, 'due_amount_minor') : '0',
+    expectedCollectionMinor: rowValue ? minorValue(rowValue, 'expected_collection_minor') : '0',
   };
 }
 
@@ -141,7 +148,7 @@ export function createSupabaseLoansGateway(client: LoansDataClient): LoansGatewa
         currency: textValue(value, 'currency') as Currency, archivedAt: nullableText(value, 'archived_at'),
       }));
       const walletNames = new Map(wallets.map((wallet) => [wallet.id, wallet.name]));
-      const balances = new Map(balanceRows.map((value) => [textValue(value, 'loan_id'), textValue(value, 'outstanding_minor')]));
+      const balances = new Map(balanceRows.map((value) => [textValue(value, 'loan_id'), minorValue(value, 'outstanding_minor')]));
       const plans = new Map(planResult.map((value) => [textValue(value, 'loan_id'), value]));
       const events = new Map(eventRows.map((value) => [textValue(value, 'id'), value]));
       const reversedBy = new Map<string, string>();
@@ -170,17 +177,17 @@ export function createSupabaseLoansGateway(client: LoansDataClient): LoansGatewa
             kind: textValue(event, 'kind') as LoanHistoryItem['kind'],
             effectiveDate: textValue(event, 'effective_date'),
             createdAt: textValue(event, 'created_at'),
-            principalDeltaMinor: textValue(posting, 'principal_delta_minor'),
-            repaymentEffectMinor: textValue(posting, 'repayment_effect_minor'),
+            principalDeltaMinor: minorValue(posting, 'principal_delta_minor'),
+            repaymentEffectMinor: minorValue(posting, 'repayment_effect_minor'),
             walletName: movement ? walletNames.get(textValue(movement, 'wallet_id')) ?? null : null,
-            walletAmountMinor: movement ? textValue(movement, 'amount_minor') : null,
+            walletAmountMinor: movement ? minorValue(movement, 'amount_minor') : null,
             reversalOf: nullableText(event, 'reversal_of'),
             reversedBy: reversedBy.get(eventId) ?? null,
           };
         }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
         const opening = history.find((item) => item.kind !== 'reversal' && BigInt(item.principalDeltaMinor) > 0n);
         const outstandingMinor = balances.get(loanId) ?? '0';
-        const totalRepaidMinor = loanPostings.reduce((sum, posting) => sum + BigInt(textValue(posting, 'repayment_effect_minor')), 0n).toString();
+        const totalRepaidMinor = loanPostings.reduce((sum, posting) => sum + BigInt(minorValue(posting, 'repayment_effect_minor')), 0n).toString();
         const dueDate = nullableText(value, 'due_date');
         return {
           id: loanId,
@@ -202,13 +209,13 @@ export function createSupabaseLoansGateway(client: LoansDataClient): LoansGatewa
 
       const summaries: CurrencySummary[] = summaryResult.map((value) => ({
         currency: textValue(value, 'currency') as Currency,
-        owedToMeMinor: textValue(value, 'owed_to_me_minor'),
-        iOweMinor: textValue(value, 'i_owe_minor'),
-        targetMinor: textValue(value, 'planned_repayment_minor'),
-        actualRepaymentMinor: textValue(value, 'actual_repayment_minor'),
-        remainingReservationMinor: textValue(value, 'remaining_reservation_minor'),
-        dueAmountMinor: textValue(value, 'due_amount_minor'),
-        expectedCollectionMinor: textValue(value, 'expected_collection_minor'),
+        owedToMeMinor: minorValue(value, 'owed_to_me_minor'),
+        iOweMinor: minorValue(value, 'i_owe_minor'),
+        targetMinor: minorValue(value, 'planned_repayment_minor'),
+        actualRepaymentMinor: minorValue(value, 'actual_repayment_minor'),
+        remainingReservationMinor: minorValue(value, 'remaining_reservation_minor'),
+        dueAmountMinor: minorValue(value, 'due_amount_minor'),
+        expectedCollectionMinor: minorValue(value, 'expected_collection_minor'),
       }));
 
       return { space, month, wallets, loans, summaries };

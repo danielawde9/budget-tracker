@@ -122,6 +122,34 @@ describe('Supabase loans command gateway', () => {
     expect(recorder.fromCalls).toEqual(['spaces', 'wallets', 'loans', 'loan_balances', 'financial_events', 'loan_postings', 'wallet_movements']);
   });
 
+  it('normalizes populated PostgREST bigint money fields to exact domain strings', async () => {
+    const relationRows: Record<string, unknown[]> = {
+      spaces: [{ id: 'space-1', name: 'Personal', kind: 'personal' }],
+      wallets: [{ id: 'wallet-1', space_id: 'space-1', name: 'Cash', currency: 'USD', archived_at: null }],
+      loans: [{ id: 'loan-1', space_id: 'space-1', direction: 'they_owe_me', person_name: 'Maya', currency: 'USD', effective_date: '2026-09-01', due_date: null, note: null }],
+      loan_balances: [{ loan_id: 'loan-1', outstanding_minor: 7500 }],
+      financial_events: [{ id: 'event-1', kind: 'loan_lend', effective_date: '2026-09-01', created_at: '2026-09-01T00:00:00Z', reversal_of: null }],
+      loan_postings: [{ event_id: 'event-1', loan_id: 'loan-1', principal_delta_minor: 10000, repayment_effect_minor: 2500 }],
+      wallet_movements: [{ event_id: 'event-1', wallet_id: 'wallet-1', amount_minor: -10000 }],
+    };
+    const client: LoansDataClient = {
+      from(relation) {
+        const result = Promise.resolve({ data: relationRows[relation] ?? [], error: null });
+        const builder = { select: () => builder, eq: () => builder, is: () => builder, order: () => builder, limit: () => result };
+        return builder;
+      },
+      async rpc(name) {
+        if (name === 'loan_monthly_plan') return { data: [{ loan_id: 'loan-1', target_minor: 5000, actual_repayment_minor: 2500, remaining_reservation_minor: 2500, due_amount_minor: 0, expected_collection_minor: 7500 }], error: null };
+        return { data: [{ currency: 'USD', owed_to_me_minor: 7500, i_owe_minor: 0, due_amount_minor: 0, planned_repayment_minor: 5000, actual_repayment_minor: 2500, remaining_reservation_minor: 2500, expected_collection_minor: 7500 }], error: null };
+      },
+    };
+
+    const dashboard = await createSupabaseLoansGateway(client).loadDashboard('space-1', '2026-09-01');
+
+    expect(dashboard.loans[0]).toMatchObject({ outstandingMinor: '7500', originalPrincipalMinor: '10000', totalRepaidMinor: '2500' });
+    expect(dashboard.summaries[0]).toMatchObject({ owedToMeMinor: '7500', targetMinor: '5000' });
+  });
+
   it('contains no direct write builder and only the approved mutation RPCs', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/features/loans/supabase-loans-gateway.ts'), 'utf8');
     expect(source).not.toMatch(/\.(?:insert|update|delete|upsert)\s*\(/);
