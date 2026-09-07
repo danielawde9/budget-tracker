@@ -19,11 +19,12 @@ Loans gateway uses it to persist planning history only, and it cannot create
 wallet or loan postings. The same gateway reads `public.loan_monthly_plan` and
 `public.loan_monthly_currency_summary` as read-only projections.
 
-The Loans UI remains the only implemented financial entry path and is now
-mounted inside the authenticated application shell. Authentication, visible
-space selection, and onboarding do not add a financial posting path;
-onboarding calls only `public.create_space` and `public.create_wallet`. No
-import, offline-sync, scheduled, or external integration entry path exists yet.
+The Loans UI is the first application entry path. It remains the only
+implemented financial entry path and is now mounted inside the authenticated
+application shell. Authentication, visible space selection, and onboarding do
+not add a financial posting path; onboarding calls only `public.create_space`
+and `public.create_wallet`. No import, offline-sync,
+scheduled, or external integration entry path exists yet.
 When one is introduced, it must call one of the protected commands or add a new
 classified command here with a real-Postgres rejection and reconciliation test.
 It must never write a wallet balance, loan balance, event, movement, posting, or
