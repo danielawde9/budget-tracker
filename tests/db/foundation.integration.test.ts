@@ -87,4 +87,27 @@ describe('financial journal foundation', () => {
     expect(replay.id).toEqual(first.id);
     await expect(owner.walletBalance(wallet.id)).resolves.toEqual('10000');
   });
+
+  it('rejects an unbalanced transfer without changing either wallet', async () => {
+    const owner = asUser(ownerId);
+    const space = await owner.createSpace('Atomic transfer space', 'personal');
+    const source = await owner.createWallet(space.id, 'Source USD', 'USD');
+    const destination = await owner.createWallet(space.id, 'Destination USD', 'USD');
+
+    await expect(
+      owner.recordEvent({
+        spaceId: space.id,
+        requestId: '10000000-0000-4000-8000-000000000005',
+        kind: 'transfer',
+        effectiveDate: '2026-09-01',
+        movements: [
+          { walletId: source.id, amountMinor: '-10000' },
+          { walletId: destination.id, amountMinor: '9999' },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: 'P0001' });
+
+    await expect(owner.walletBalance(source.id)).resolves.toEqual('0');
+    await expect(owner.walletBalance(destination.id)).resolves.toEqual('0');
+  });
 });
