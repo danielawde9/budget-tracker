@@ -14,9 +14,10 @@ interface LoansPageProps {
   onLocaleChange?(): void;
   onSpaceChange?(spaceId: string): void;
   onSpaceUnavailable?(): void;
+  embedded?: boolean;
 }
 
-export function LoansPage({ gateway, locale: controlledLocale, spaces: controlledSpaces, spaceId, onLocaleChange, onSpaceChange, onSpaceUnavailable }: LoansPageProps) {
+export function LoansPage({ gateway, locale: controlledLocale, spaces: controlledSpaces, spaceId, onLocaleChange, onSpaceChange, onSpaceUnavailable, embedded = false }: LoansPageProps) {
   const state = useLoans(gateway, spaceId === undefined ? undefined : {
     spaceId,
     ...(onSpaceUnavailable ? { onSpaceUnavailable } : {}),
@@ -29,23 +30,24 @@ export function LoansPage({ gateway, locale: controlledLocale, spaces: controlle
   const [subdialog, setSubdialog] = useState<'repay' | 'target' | null>(null);
   const [correctionEventId, setCorrectionEventId] = useState<string | null>(null);
   const selectedLoan = state.dashboard?.loans.find((loan) => loan.id === selectedLoanId) ?? null;
+  const Root = embedded ? 'div' : 'main';
 
   useEffect(() => {
     document.documentElement.lang = locale;
     document.documentElement.dir = locale === 'ar' ? 'rtl' : 'ltr';
   }, [locale]);
 
-  return <main className="app-shell">
+  return <Root className={embedded ? 'loans-workspace' : 'app-shell'}>
     <header className="topbar">
-      <div><span className="brand">Budget ledger</span><h1>{translate(locale, 'loans')}</h1><p>{translate(locale, 'subtitle')}</p></div>
-      <button type="button" className="locale-button" onClick={() => onLocaleChange ? onLocaleChange() : setInternalLocale(locale === 'en' ? 'ar' : 'en')}>{locale === 'en' ? translate(locale, 'arabic') : translate(locale, 'english')}</button>
+      <div>{embedded ? null : <span className="brand">Budget ledger</span>}<h1>{translate(locale, 'loans')}</h1><p>{translate(locale, 'subtitle')}</p></div>
+      {embedded ? null : <button type="button" className="locale-button" onClick={() => onLocaleChange ? onLocaleChange() : setInternalLocale(locale === 'en' ? 'ar' : 'en')}>{locale === 'en' ? translate(locale, 'arabic') : translate(locale, 'english')}</button>}
     </header>
 
     <section className="controls" aria-label="Loans controls">
-      <label>{translate(locale, 'space')}<select value={state.spaceId} onChange={(event) => onSpaceChange ? onSpaceChange(event.target.value) : state.setSpaceId(event.target.value)}>{spaces.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}</select></label>
+      {embedded ? null : <label>{translate(locale, 'space')}<select value={state.spaceId} onChange={(event) => onSpaceChange ? onSpaceChange(event.target.value) : state.setSpaceId(event.target.value)}>{spaces.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}</select></label>}
       <label>{translate(locale, 'month')}<input type="month" value={state.month.slice(0, 7)} onChange={(event) => state.setMonth(event.target.value)} /></label>
       <button type="button" onClick={() => setCreating(true)} disabled={!state.dashboard}>{translate(locale, 'addLoan')}</button>
-      {state.dashboard ? <span className="space-kind">{translate(locale, state.dashboard.space.kind)}</span> : null}
+      {!embedded && state.dashboard ? <span className="space-kind">{translate(locale, state.dashboard.space.kind)}</span> : null}
     </section>
 
     {state.loading && !state.dashboard ? <div className="state-panel" role="status">Loading the ledger…</div> : null}
@@ -63,5 +65,5 @@ export function LoansPage({ gateway, locale: controlledLocale, spaces: controlle
     {selectedLoan && subdialog === 'repay' && state.dashboard ? <RepaymentDialog loan={selectedLoan} wallets={state.dashboard.wallets} locale={locale} onClose={() => setSubdialog(null)} onSave={state.recordRepayment} /> : null}
     {selectedLoan && subdialog === 'target' ? <TargetDialog loan={selectedLoan} month={state.month} locale={locale} onClose={() => setSubdialog(null)} onSave={state.setMonthlyTarget} /> : null}
     {selectedLoan && correctionEventId ? <CorrectionDialog loan={selectedLoan} eventId={correctionEventId} locale={locale} onClose={() => setCorrectionEventId(null)} onSave={state.reverseEvent} /> : null}
-  </main>;
+  </Root>;
 }

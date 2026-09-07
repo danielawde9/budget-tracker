@@ -312,3 +312,22 @@ request succeeded but its response was lost.
 gains a reviewed idempotency key and conflicting-retry behavior with real
 Postgres tests. Matching rules must also change if duplicate names become a
 supported intentional onboarding choice.
+
+## 2026-09-08 — The application shell owns global context
+
+**Decision:** A persistent pine ledger rail owns product identity, visible-space
+selection, language, primary navigation, and account actions. Loans is embedded
+as the one active workspace and keeps ownership of its month, projections, and
+protected dialogs. Wallets and reports appear only as disabled coming-later
+labels, not navigable features.
+
+**Why:** A non-technical manager needs one stable place to understand whose
+space is open and how to leave or change language. Lifting global controls above
+Loans removes duplicated context without rewriting the already verified Loans
+domain and command flows. The pine/paper ledger treatment extends the existing
+financial visual language without a generic grid of application cards.
+
+**If changed:** A top navigation or route-based shell must still keep one global
+selected space and locale, label unfinished features honestly, use sourced-name
+isolation, and mount the same command-backed Loans workspace without duplicating
+its mutation logic.
