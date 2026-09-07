@@ -110,4 +110,30 @@ describe('financial journal foundation', () => {
     await expect(owner.walletBalance(source.id)).resolves.toEqual('0');
     await expect(owner.walletBalance(destination.id)).resolves.toEqual('0');
   });
+
+  it('serializes generic-journal retries and rejects an out-of-bound amount without a partial write', async () => {
+    const owner = asUser(ownerId);
+    const space = await owner.createSpace('Generic retry safety', 'personal');
+    const wallet = await owner.createWallet(space.id, 'Cash USD', 'USD');
+    const input = {
+      spaceId: space.id,
+      requestId: '10000000-0000-4000-8000-000000000006',
+      kind: 'income' as const,
+      effectiveDate: '2026-09-05',
+      movements: [{ walletId: wallet.id, amountMinor: '1' }],
+    };
+
+    const retries = await Promise.allSettled([owner.recordEvent(input), owner.recordEvent(input)]);
+    expect(retries.filter((result) => result.status === 'fulfilled')).toHaveLength(2);
+    expect(await owner.walletBalance(wallet.id)).toEqual('1');
+
+    await expect(
+      owner.recordEvent({
+        ...input,
+        requestId: '10000000-0000-4000-8000-000000000007',
+        movements: [{ walletId: wallet.id, amountMinor: '1000000000000000' }],
+      }),
+    ).rejects.toMatchObject({ code: 'P0001' });
+    expect(await owner.walletBalance(wallet.id)).toEqual('1');
+  });
 });
