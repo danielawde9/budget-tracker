@@ -227,3 +227,19 @@ allowlisted.
 component, build, and rendered-flow verification. Adding a runtime demo mode
 would require a new data-isolation decision and must be impossible to enable in
 a real financial environment.
+
+## 2026-09-08 — Authentication state excludes reusable credentials
+
+**Decision:** The application authentication boundary stores and distributes only
+the current user's ID and optional email address. Supabase remains the sole owner
+of browser session persistence and refresh behavior; application state, errors,
+tests, and logs never copy reusable session credentials or raw auth responses.
+
+**Why:** The shell needs identity and lifecycle events, not reusable credentials.
+A narrow gateway makes accidental rendering, logging, or cross-user retention of
+sensitive session material substantially harder.
+
+**If changed:** Any feature that requires a reusable credential outside the
+Supabase client needs a separate threat model, storage/lifetime decision, and
+tests proving the credential cannot reach rendering, logs, screenshots, or
+another user's application state.
