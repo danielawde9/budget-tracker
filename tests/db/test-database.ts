@@ -147,6 +147,26 @@ export function asUser(userId: string) {
         return result.rows[0]?.amount_minor ?? '0';
       });
     },
+    async reverseEvent(
+      spaceId: string,
+      requestId: string,
+      eventId: string,
+      effectiveDate: string,
+    ): Promise<{ id: string }> {
+      return withUserSession(userId, async (client) => {
+        const result = await client.query<{ id: string }>(
+          'select * from public.reverse_financial_event($1, $2, $3, $4::date)',
+          [spaceId, requestId, eventId, effectiveDate],
+        );
+        const event = result.rows[0];
+
+        if (!event) {
+          throw new Error('reverse_financial_event returned no event');
+        }
+
+        return event;
+      });
+    },
     async incomeEventCount(spaceId: string): Promise<number> {
       return withUserSession(userId, async (client) => {
         const result = await client.query<{ count: string }>(
