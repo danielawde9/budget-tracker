@@ -129,6 +129,7 @@ export type LoanErrorCode =
   | 'retry_collision'
   | 'missing_membership'
   | 'dependent_repayment'
+  | 'target_above_outstanding'
   | 'database_rejection';
 
 export interface LoanErrorView {

@@ -9,8 +9,8 @@ const localized = (locale: Locale, english: string, arabic: string) => locale ==
 
 function Modal({ title, locale, onClose, children, wide = false }: ModalProps) {
   const panel = useRef<HTMLDivElement>(null);
+  const returnFocus = useRef<HTMLElement | null>(document.activeElement as HTMLElement | null);
   useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
     panel.current?.focus();
     const keydown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
@@ -25,7 +25,7 @@ function Modal({ title, locale, onClose, children, wide = false }: ModalProps) {
       }
     };
     document.addEventListener('keydown', keydown);
-    return () => { document.removeEventListener('keydown', keydown); previous?.focus(); };
+    return () => { document.removeEventListener('keydown', keydown); returnFocus.current?.focus(); };
   }, [onClose]);
   return (
     <div className="overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
@@ -44,6 +44,7 @@ function ErrorNotice({ error, locale }: { error: LoanErrorView; locale: Locale }
     retry_collision: ['تغيّر هذا الطلب أثناء إعادة المحاولة', 'راجع السجل الحالي ثم أرسل التفاصيل المصححة كطلب جديد.'],
     missing_membership: ['لم يعد لديك وصول إلى هذه المساحة', 'انتقل إلى مساحة أخرى أو اطلب من مدير المنزل إعادة عضويتك.'],
     dependent_repayment: ['تعتمد دفعات لاحقة على هذا القيد', 'اعكس الدفعات اللاحقة أولًا، ثم أعد محاولة هذا التصحيح.'],
+    target_above_outstanding: ['الهدف أكبر من القرض المتبقي', 'أدخل هدفًا شهريًا لا يتجاوز أصل الدين المتبقي.'],
     database_rejection: ['لم يتم تسجيل التغيير', 'راجع التفاصيل وحدّث السجل ثم حاول مجددًا.'],
   } as const;
   const translated = arabic[error.code];

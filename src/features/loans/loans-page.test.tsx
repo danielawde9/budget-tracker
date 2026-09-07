@@ -120,6 +120,42 @@ describe('LoansPage', () => {
     expect(gateway.calls.find((call) => call.name === 'setMonthlyTarget')?.input).toMatchObject({ targetMinor: '40000' });
   });
 
+  it('clears a monthly target with zero and rejects a target above outstanding', async () => {
+    const { gateway, user } = await renderPage();
+    await user.click(screen.getByRole('button', { name: 'Open Karim loan' }));
+    await user.click(screen.getByRole('button', { name: 'Change monthly target' }));
+    let target = screen.getByRole('dialog', { name: 'Monthly target for Karim' });
+    const input = within(target).getByLabelText('Target amount');
+    await user.clear(input);
+    await user.type(input, '1300');
+    await user.click(within(target).getByRole('button', { name: 'Save target' }));
+    expect(await within(target).findByText('Target is above the remaining loan')).toBeInTheDocument();
+    expect(gateway.calls.some((call) => call.name === 'setMonthlyTarget')).toBe(false);
+
+    await user.clear(input);
+    await user.type(input, '0');
+    await user.click(within(target).getByRole('button', { name: 'Save target' }));
+    await waitFor(() => expect(gateway.calls.some((call) => call.name === 'setMonthlyTarget')).toBe(true));
+    expect(gateway.calls.find((call) => call.name === 'setMonthlyTarget')?.input).toMatchObject({ targetMinor: '0' });
+  });
+
+  it('records a partial repayment and restores trigger focus after Escape', async () => {
+    const { gateway, user } = await renderPage();
+    const addLoan = screen.getByRole('button', { name: 'Add loan' });
+    await user.click(addLoan);
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'Add a loan' })).not.toBeInTheDocument();
+    expect(addLoan).toHaveFocus();
+
+    await user.click(screen.getByRole('button', { name: 'Open Maya loan' }));
+    await user.click(screen.getByRole('button', { name: 'Receive repayment' }));
+    const repayment = screen.getByRole('dialog', { name: 'Receive repayment from Maya' });
+    await user.type(within(repayment).getByLabelText('Repayment amount'), '25');
+    await user.click(within(repayment).getByRole('button', { name: 'Receive $25.00' }));
+    await waitFor(() => expect(gateway.calls.some((call) => call.name === 'recordRepayment')).toBe(true));
+    expect(gateway.calls.find((call) => call.name === 'recordRepayment')?.input).toMatchObject({ amountMinor: '2500' });
+  });
+
   it('explains dependent repayment rejection and preserves correction recovery', async () => {
     const gateway = new InMemoryLoansGateway();
     const { user } = await renderPage(gateway);

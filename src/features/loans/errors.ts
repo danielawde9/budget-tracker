@@ -56,6 +56,15 @@ export function classifyLoanError(error: unknown): LoanErrorView {
     };
   }
 
+  if (message.includes('monthly target cannot exceed')) {
+    return {
+      code: 'target_above_outstanding',
+      title: 'Target is above the remaining loan',
+      message,
+      recovery: 'Enter a monthly target no higher than the remaining principal.',
+    };
+  }
+
   return {
     code: 'database_rejection',
     title: 'The change was not recorded',

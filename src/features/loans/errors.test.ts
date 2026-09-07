@@ -8,6 +8,7 @@ describe('classifyLoanError', () => {
     ['request ID was already used with different data', 'retry_collision'],
     ['an active space membership is required', 'missing_membership'],
     ['the correction would invalidate dependent repayments', 'dependent_repayment'],
+    ['the monthly target cannot exceed outstanding principal', 'target_above_outstanding'],
   ] as const)('classifies %s as %s', (message, code) => {
     expect(classifyLoanError({ message })).toMatchObject({ code });
   });
