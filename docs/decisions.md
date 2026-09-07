@@ -68,3 +68,16 @@ from the LAN interface.
 **If changed:** Removing this enforcement would cause Budget to start after a
 host reboot; any firewall change requires another ingress verification before
 Budget is started.
+
+## 2026-09-07 — Journal functions use a fixed extension-aware search path
+
+**Decision:** Financial command functions use a fixed `pg_catalog, extensions`
+search path and fully qualify application schemas.
+
+**Why:** The first journal test proved that an empty search path prevents the
+`pgcrypto` digest lookup. Adding only the trusted extension schema preserves the
+search-path defense while allowing request fingerprints.
+
+**If changed:** Any newly referenced function must be schema-qualified or live
+in an explicitly reviewed trusted schema; broadening to a mutable application
+schema would reintroduce function-shadowing risk.
