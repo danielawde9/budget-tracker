@@ -70,6 +70,59 @@ export interface LoansDashboard {
   summaries: readonly CurrencySummary[];
 }
 
+export interface CreateLoanInput {
+  mode: 'opening' | 'cash';
+  spaceId: string;
+  requestId: string;
+  direction: LoanDirection;
+  personName: string;
+  currency: Currency;
+  walletId?: string;
+  amountMinor: string;
+  effectiveDate: string;
+  dueDate: string | null;
+  note: string | null;
+}
+
+export interface RepaymentInput {
+  spaceId: string;
+  requestId: string;
+  loanId: string;
+  walletId: string;
+  amountMinor: string;
+  effectiveDate: string;
+}
+
+export interface MonthlyTargetInput {
+  spaceId: string;
+  requestId: string;
+  loanId: string;
+  month: string;
+  targetMinor: string;
+}
+
+export interface ReversalInput {
+  spaceId: string;
+  requestId: string;
+  eventId: string;
+  effectiveDate: string;
+}
+
+export interface CommandResult {
+  eventId?: string;
+  loanId?: string;
+  id?: string;
+}
+
+export interface LoansGateway {
+  listSpaces(): Promise<readonly Space[]>;
+  loadDashboard(spaceId: string, month: string): Promise<LoansDashboard>;
+  createLoan(input: CreateLoanInput): Promise<CommandResult>;
+  recordRepayment(input: RepaymentInput): Promise<CommandResult>;
+  setMonthlyTarget(input: MonthlyTargetInput): Promise<CommandResult>;
+  reverseEvent(input: ReversalInput): Promise<CommandResult>;
+}
+
 export type LoanErrorCode =
   | 'wrong_currency'
   | 'overpayment'
