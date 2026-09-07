@@ -75,6 +75,21 @@ const pool = new Pool({
   max: 2,
 });
 
+export async function grantFinancialHistoryWritesForTest(): Promise<void> {
+  await pool.query(
+    `grant update, delete, truncate on public.financial_events, public.wallet_movements,
+       public.loan_postings to authenticated`,
+  );
+  await pool.query(
+    `create policy financial_events_test_write on public.financial_events
+       for update to authenticated using (true) with check (true)`,
+  );
+  await pool.query(
+    `create policy loan_postings_test_delete on public.loan_postings
+       for delete to authenticated using (true)`,
+  );
+}
+
 async function withUserSession<T>(
   userId: string,
   action: (client: PoolClient) => Promise<T>,
@@ -222,6 +237,19 @@ export function asUser(userId: string) {
         return result.rows;
       });
     },
+    async monthlyLoanCurrencySummary(
+      spaceId: string,
+      month: string,
+    ): Promise<Array<Record<string, string | null>>> {
+      return withUserSession(userId, async (client) => {
+        const result = await client.query<Record<string, string | null>>(
+          'select * from public.loan_monthly_currency_summary($1, $2::date)',
+          [spaceId, month],
+        );
+
+        return result.rows;
+      });
+    },
     async createSpace(name: string, kind: SpaceKind): Promise<Space> {
       return withUserSession(userId, async (client) => {
         const result = await client.query<Space>(
@@ -298,6 +326,48 @@ export function asUser(userId: string) {
         );
 
         return result.rows[0]?.outstanding_minor ?? '0';
+      });
+    },
+    async reconstructedLoanBalance(loanId: string): Promise<string> {
+      return withUserSession(userId, async (client) => {
+        const result = await client.query<{ amount_minor: string }>(
+          `select coalesce(sum(principal_delta_minor), 0)::text as amount_minor
+           from public.loan_postings
+           where loan_id = $1`,
+          [loanId],
+        );
+
+        return result.rows[0]?.amount_minor ?? '0';
+      });
+    },
+    async reconstructedWalletBalance(walletId: string): Promise<string> {
+      return withUserSession(userId, async (client) => {
+        const result = await client.query<{ amount_minor: string }>(
+          `select coalesce(sum(amount_minor), 0)::text as amount_minor
+           from public.wallet_movements
+           where wallet_id = $1`,
+          [walletId],
+        );
+
+        return result.rows[0]?.amount_minor ?? '0';
+      });
+    },
+    async updatePostedEvent(eventId: string): Promise<void> {
+      return withUserSession(userId, async (client) => {
+        await client.query(
+          'update public.financial_events set effective_date = effective_date where id = $1',
+          [eventId],
+        );
+      });
+    },
+    async deleteLoanPosting(eventId: string): Promise<void> {
+      return withUserSession(userId, async (client) => {
+        await client.query('delete from public.loan_postings where event_id = $1', [eventId]);
+      });
+    },
+    async truncateLoanPostings(): Promise<void> {
+      return withUserSession(userId, async (client) => {
+        await client.query('truncate public.loan_postings');
       });
     },
     async reverseEvent(

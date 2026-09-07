@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
 
-import { asUser, closeDatabase } from './test-database.js';
+import { asUser, closeDatabase, grantFinancialHistoryWritesForTest } from './test-database.js';
 
 const ownerId = '00000000-0000-4000-8000-000000000001';
 const otherUserId = '00000000-0000-4000-8000-000000000002';
@@ -274,5 +274,83 @@ describe('loans ledger', () => {
         due_amount_minor: '8000',
       }),
     );
+  });
+
+  it('summarizes due, planned, actual, and expected amounts per currency without inventing cash', async () => {
+    const owner = asUser(ownerId);
+    const space = await owner.createSpace('Currency summary', 'personal');
+    const wallet = await owner.createWallet(space.id, 'USD', 'USD');
+    await owner.openLoanOutstanding({
+      spaceId: space.id,
+      requestId: '20000000-0000-4000-8000-000000000020',
+      direction: 'they_owe_me',
+      personName: 'Expected payer',
+      currency: 'USD',
+      amountMinor: '4000',
+      effectiveDate: '2026-09-01',
+    });
+    const debt = await owner.openLoanOutstanding({
+      spaceId: space.id,
+      requestId: '20000000-0000-4000-8000-000000000021',
+      direction: 'i_owe_them',
+      personName: 'Payable lender',
+      currency: 'USD',
+      amountMinor: '7000',
+      effectiveDate: '2026-09-01',
+      dueDate: '2026-09-30',
+    });
+    await owner.setLoanMonthlyTarget({
+      spaceId: space.id,
+      requestId: '20000000-0000-4000-8000-000000000022',
+      loanId: debt.loan_id,
+      month: '2026-09-01',
+      targetMinor: '3000',
+    });
+    await owner.repayLoan({
+      spaceId: space.id,
+      requestId: '20000000-0000-4000-8000-000000000023',
+      loanId: debt.loan_id,
+      walletId: wallet.id,
+      amountMinor: '1000',
+      effectiveDate: '2026-09-15',
+    });
+
+    await expect(owner.monthlyLoanCurrencySummary(space.id, '2026-09-15')).resolves.toContainEqual(
+      expect.objectContaining({
+        currency: 'USD',
+        owed_to_me_minor: '4000',
+        i_owe_minor: '6000',
+        due_amount_minor: '6000',
+        planned_repayment_minor: '3000',
+        actual_repayment_minor: '1000',
+        remaining_reservation_minor: '2000',
+        expected_collection_minor: '4000',
+      }),
+    );
+    expect(await owner.walletBalance(wallet.id)).toEqual('-1000');
+    expect(await owner.reconstructedWalletBalance(wallet.id)).toEqual('-1000');
+    expect(await owner.loanBalance(debt.loan_id)).toEqual(
+      await owner.reconstructedLoanBalance(debt.loan_id),
+    );
+  });
+
+  it('rejects UPDATE, DELETE, and TRUNCATE even if a financial-table privilege is granted', async () => {
+    const owner = asUser(ownerId);
+    const space = await owner.createSpace('Immutable history', 'personal');
+    const loan = await owner.openLoanOutstanding({
+      spaceId: space.id,
+      requestId: '20000000-0000-4000-8000-000000000024',
+      direction: 'they_owe_me',
+      personName: 'History',
+      currency: 'USD',
+      amountMinor: '100',
+      effectiveDate: '2026-09-04',
+    });
+
+    await grantFinancialHistoryWritesForTest();
+    await expect(owner.updatePostedEvent(loan.event_id)).rejects.toMatchObject({ code: '42501' });
+    await expect(owner.deleteLoanPosting(loan.event_id)).rejects.toMatchObject({ code: '42501' });
+    await expect(owner.truncateLoanPostings()).rejects.toMatchObject({ code: '42501' });
+    expect(await owner.loanBalance(loan.loan_id)).toEqual('100');
   });
 });
