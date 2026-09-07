@@ -277,3 +277,20 @@ command visible instead of encouraging a direct table write.
 **If changed:** Adding invitations, member management, or another onboarding
 mutation requires a reviewed protected database command with authorization,
 rejection, and RLS tests before any UI can call it.
+
+## 2026-09-08 — Space selection is visible-set and user scoped
+
+**Decision:** The selected space is stored under the authenticated user ID and
+restored only after a fresh RLS-visible space read confirms it is still
+available. Switching or losing a space clears the current Loans projection
+before another request begins, and request sequencing prevents late responses
+from restoring data for an older space.
+
+**Why:** A remembered UUID is not authorization. Revalidating it against the
+current visible set and blanking the previous projection prevent stale household
+or prior-user data from remaining on screen during navigation and membership
+changes.
+
+**If changed:** Global or URL-based selection must retain the same fresh
+visibility check, per-user separation, synchronous data clearing, and stale-read
+rejection before it can replace local per-user selection.
