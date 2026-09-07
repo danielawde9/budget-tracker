@@ -67,6 +67,7 @@ dd { margin: 8px 0 0; font-weight: 760; white-space: nowrap; }
 .detail-hero > strong { display: grid; text-align: end; font-size: 2rem; }
 .detail-hero small { font-weight: 500; }
 .detail-figures { display: grid; grid-template-columns: repeat(4, 1fr); border-block: 1px solid #c7cfc7; margin: 0 0 20px; }
+.detail-figures-three { grid-template-columns: repeat(3, 1fr); }
 .detail-figures div { padding: 16px 10px; border-inline-end: 1px solid #d6ddd6; }
 .section-heading { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; }
 .section-heading h3 { font-size: 1.35rem; }
