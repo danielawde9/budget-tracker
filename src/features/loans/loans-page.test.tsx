@@ -67,6 +67,24 @@ describe('LoansPage', () => {
       mode: 'opening', direction: 'they_owe_me', amountMinor: '9050',
     });
     expect(creation).not.toHaveProperty('walletId');
+
+    await user.click(screen.getByRole('button', { name: 'Add loan' }));
+    const lendingDialog = screen.getByRole('dialog', { name: 'Add a loan' });
+    await user.click(within(lendingDialog).getByRole('radio', { name: 'I lent money' }));
+    await user.type(within(lendingDialog).getByLabelText('Person'), 'Jad');
+    await user.type(within(lendingDialog).getByLabelText('Amount'), '120');
+    await user.click(within(lendingDialog).getByRole('button', { name: 'Record lending' }));
+
+    await user.click(screen.getByRole('button', { name: 'Add loan' }));
+    const borrowingDialog = screen.getByRole('dialog', { name: 'Add a loan' });
+    await user.click(within(borrowingDialog).getByRole('radio', { name: 'I borrowed money' }));
+    await user.type(within(borrowingDialog).getByLabelText('Person'), 'Lina');
+    await user.type(within(borrowingDialog).getByLabelText('Amount'), '80');
+    await user.click(within(borrowingDialog).getByRole('button', { name: 'Record borrowing' }));
+
+    const creations = gateway.calls.filter((call) => call.name === 'createLoan').map((call) => call.input);
+    expect(creations[1]).toMatchObject({ mode: 'cash', direction: 'they_owe_me', walletId: 'usd-wallet', amountMinor: '12000' });
+    expect(creations[2]).toMatchObject({ mode: 'cash', direction: 'i_owe_them', walletId: 'usd-wallet', amountMinor: '8000' });
   });
 
   it('records partial or full repayment with a same-currency wallet', async () => {
@@ -125,5 +143,70 @@ describe('LoansPage', () => {
     expect(await screen.findByText('You no longer have access to this space')).toBeInTheDocument();
     expect(screen.getByText('Switch spaces or ask a household manager to restore your membership.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+  });
+
+  it('translates creation fields in Arabic and keeps keyboard focus inside the overlay', async () => {
+    const { user } = await renderPage();
+    await user.click(screen.getByRole('button', { name: 'العربية' }));
+    await user.click(screen.getByRole('button', { name: 'إضافة قرض' }));
+    const dialog = screen.getByRole('dialog', { name: 'إضافة قرض' });
+
+    expect(within(dialog).getByLabelText('الشخص')).toBeInTheDocument();
+    const close = within(dialog).getByRole('button', { name: 'إغلاق' });
+    close.focus();
+    await user.tab({ shift: true });
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
+  });
+
+  it('keeps an overpayment visible and never changes the displayed ledger balance', async () => {
+    const { gateway, user } = await renderPage();
+    await user.click(screen.getByRole('button', { name: 'Open Maya loan' }));
+    await user.click(screen.getByRole('button', { name: 'Receive repayment' }));
+    const dialog = screen.getByRole('dialog', { name: 'Receive repayment from Maya' });
+    await user.type(within(dialog).getByLabelText('Repayment amount'), '800');
+    await user.click(within(dialog).getByRole('button', { name: 'Receive $800.00' }));
+
+    expect(await within(dialog).findByText('Amount is above the remaining loan')).toBeInTheDocument();
+    expect(within(dialog).getByDisplayValue('800')).toBeInTheDocument();
+    expect(gateway.calls.some((call) => call.name === 'recordRepayment')).toBe(false);
+  });
+
+  it.each([
+    ['the wallet must be active, in the requested space, and in the loan currency', 'Choose a matching wallet'],
+    ['request ID was already used with different data', 'This request changed during retry'],
+    ['The database rejected this effective date.', 'The change was not recorded'],
+  ])('shows recoverable database rejection: %s', async (message, title) => {
+    const gateway = new InMemoryLoansGateway();
+    const { user } = await renderPage(gateway);
+    await user.click(screen.getByRole('button', { name: 'Open Maya loan' }));
+    await user.click(screen.getByRole('button', { name: 'Receive repayment' }));
+    const dialog = screen.getByRole('dialog', { name: 'Receive repayment from Maya' });
+    await user.type(within(dialog).getByLabelText('Repayment amount'), '10');
+    gateway.error = new Error(message);
+    await user.click(within(dialog).getByRole('button', { name: 'Receive $10.00' }));
+
+    expect(await within(dialog).findByText(title)).toBeInTheDocument();
+    expect(within(dialog).getByDisplayValue('10')).toBeInTheDocument();
+  });
+
+  it('reuses a request ID for an unchanged retry and rotates it after input changes', async () => {
+    const gateway = new InMemoryLoansGateway();
+    const { user } = await renderPage(gateway);
+    await user.click(screen.getByRole('button', { name: 'Open Maya loan' }));
+    await user.click(screen.getByRole('button', { name: 'Receive repayment' }));
+    const dialog = screen.getByRole('dialog', { name: 'Receive repayment from Maya' });
+    const amount = within(dialog).getByLabelText('Repayment amount');
+    await user.type(amount, '10');
+    gateway.error = new Error('Network request failed');
+    await user.click(within(dialog).getByRole('button', { name: 'Receive $10.00' }));
+    await within(dialog).findByText('The change was not recorded');
+    await user.click(within(dialog).getByRole('button', { name: 'Receive $10.00' }));
+    await user.clear(amount);
+    await user.type(amount, '20');
+    await user.click(within(dialog).getByRole('button', { name: 'Receive $20.00' }));
+
+    const attempts = gateway.calls.filter((call) => call.name === 'recordRepayment').map((call) => call.input as { requestId: string });
+    expect(attempts[0]?.requestId).toBe(attempts[1]?.requestId);
+    expect(attempts[2]?.requestId).not.toBe(attempts[1]?.requestId);
   });
 });
