@@ -170,3 +170,25 @@ detects an unclassified future writer or a privilege bypass.
 **If changed:** A new financial feature must add its protected command,
 inventory classification, privileges/RLS proof, and real-Postgres rejection
 and reconstruction coverage in the same change.
+
+## 2026-09-07 — Loans UI is a command-backed ledger workspace
+
+**Decision:** Build the first application surface as a React/Vite SPA with one
+typed Loans gateway. The browser may read existing RLS-protected ledger rows and
+the two monthly projections, while loan mutations are allowlisted to the five
+approved loan commands. The visual system uses ledger-like rows, restrained
+paper/ink/jade/saffron/brick tokens, tabular figures, large intentional dialogs,
+and mirrored logical layouts for English and Arabic. Automated component tests
+use an injected in-memory gateway; production startup never selects fixture
+data.
+
+**Why:** The repository has no application layer to preserve, so a small SPA
+keeps Supabase integration explicit and independently testable. A ledger-shaped
+interface helps a non-technical manager distinguish actual money, obligations,
+due amounts, and monthly reservations without editable balance controls or a
+generic grid of metric cards.
+
+**If changed:** Adopting another application framework must preserve the same
+gateway allowlist, RLS read boundary, request-ID behavior, bilingual accessibility,
+and visual evidence. A different visual language may change components and CSS,
+but it must keep currencies and planned-versus-actual values visibly separate.
