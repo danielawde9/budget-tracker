@@ -123,3 +123,50 @@ cash history and avoid treating planned repayments as money already paid.
 interest or installments would need explicit charge/schedule rules;
 cross-currency settlement would need linked exchange postings. Importing full
 pre-app loan history would need a separate cutover and deduplication design.
+
+## 2026-09-07 — Loan principal is an immutable linked subledger
+
+**Decision:** Every loan action creates a financial event and one immutable
+loan-principal posting. Cash lending, borrowing, and repayment add exactly one
+linked wallet movement in the loan currency; opening obligations add no wallet
+movement. Outstanding principal is the sum of loan postings, not a mutable
+loan total.
+
+**Why:** One event identifier makes wallet and obligation effects atomic,
+reversible together, and reconstructable. It also lets the database reject an
+overpayment while serializing concurrent repayments of one loan.
+
+**If changed:** Supporting interest, fees, forgiveness, multi-loan settlement,
+or cross-currency payments requires explicit additional posting types and
+reconciliation tests; it cannot edit a principal total.
+
+## 2026-09-07 — Monthly targets retain planning history without posting money
+
+**Decision:** Monthly repayment target changes append a target revision. A
+target of zero clears the current target through another revision; no target
+revision creates a financial event, wallet movement, or loan posting. The
+monthly projection caps remaining reservation at zero and uses the net
+repayment effect from journal history.
+
+**Why:** This preserves a attributable planning history while keeping planned
+allocation distinct from cash and principal. It prevents an actual payment
+from being counted both as a payment and as an untouched reservation.
+
+**If changed:** Automatic carry-forward, schedule allocation, or a mutable
+target row would need new historical and reconciliation rules.
+
+## 2026-09-07 — Financial boundary inventory is a test-enforced contract
+
+**Decision:** The active actual-money and principal writers are
+`record_financial_event`, `reverse_financial_event`,
+`open_loan_outstanding`, `record_cash_loan`, and
+`record_loan_repayment`. The integration gate discovers public functions that
+write journal tables, requires every one to appear in the inventory, and
+checks that authenticated roles have no direct financial/history writes.
+
+**Why:** A written command list alone would drift; the database catalog check
+detects an unclassified future writer or a privilege bypass.
+
+**If changed:** A new financial feature must add its protected command,
+inventory classification, privileges/RLS proof, and real-Postgres rejection
+and reconstruction coverage in the same change.

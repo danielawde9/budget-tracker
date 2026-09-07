@@ -136,6 +136,26 @@ export async function financialTableWritePrivileges(): Promise<Array<{ table_nam
   return result.rows;
 }
 
+export async function anonymousWalletBalance(walletId: string): Promise<string> {
+  const client = await pool.connect();
+
+  try {
+    await client.query('begin');
+    await client.query('set local role anon');
+    const result = await client.query<{ amount_minor: string }>(
+      'select amount_minor from public.wallet_balances where wallet_id = $1',
+      [walletId],
+    );
+    await client.query('commit');
+    return result.rows[0]?.amount_minor ?? '0';
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function withUserSession<T>(
   userId: string,
   action: (client: PoolClient) => Promise<T>,

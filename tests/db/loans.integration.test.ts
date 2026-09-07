@@ -212,6 +212,51 @@ describe('loans ledger', () => {
     expect(await owner.walletBalance(wallet.id)).toEqual('3000');
   });
 
+  it('settles a loan in full and reverses an independent cash-loan correction as linked history', async () => {
+    const owner = asUser(ownerId);
+    const space = await owner.createSpace('Settlement and correction', 'personal');
+    const wallet = await owner.createWallet(space.id, 'USD', 'USD');
+    const settled = await owner.openLoanOutstanding({
+      spaceId: space.id,
+      requestId: '20000000-0000-4000-8000-000000000025',
+      direction: 'they_owe_me',
+      personName: 'Settled loan',
+      currency: 'USD',
+      amountMinor: '100',
+      effectiveDate: '2026-09-04',
+    });
+    await owner.repayLoan({
+      spaceId: space.id,
+      requestId: '20000000-0000-4000-8000-000000000026',
+      loanId: settled.loan_id,
+      walletId: wallet.id,
+      amountMinor: '100',
+      effectiveDate: '2026-09-04',
+    });
+    expect(await owner.loanBalance(settled.loan_id)).toEqual('0');
+
+    const mistaken = await owner.recordCashLoan({
+      spaceId: space.id,
+      requestId: '20000000-0000-4000-8000-000000000027',
+      direction: 'i_owe_them',
+      personName: 'Mistaken loan',
+      currency: 'USD',
+      walletId: wallet.id,
+      amountMinor: '500',
+      effectiveDate: '2026-09-04',
+    });
+    await owner.reverseEvent(
+      space.id,
+      '20000000-0000-4000-8000-000000000028',
+      mistaken.event_id,
+      '2026-09-04',
+    );
+
+    expect(await owner.loanBalance(mistaken.loan_id)).toEqual('0');
+    expect(await owner.walletBalance(wallet.id)).toEqual('100');
+    expect(await owner.reconstructedLoanBalance(mistaken.loan_id)).toEqual('0');
+  });
+
   it('keeps a non-member out of loan commands', async () => {
     const owner = asUser(ownerId);
     const otherUser = asUser(otherUserId);

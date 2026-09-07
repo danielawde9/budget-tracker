@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
 
-import { asUser, closeDatabase } from './test-database.js';
+import { anonymousWalletBalance, asUser, closeDatabase } from './test-database.js';
 
 const ownerId = '00000000-0000-4000-8000-000000000001';
 const otherUserId = '00000000-0000-4000-8000-000000000002';
@@ -67,6 +67,14 @@ describe('financial journal foundation', () => {
     await expect(otherUser.createWallet(space.id, 'Blocked wallet', 'USD')).rejects.toMatchObject({
       code: '42501',
     });
+  });
+
+  it('denies an anonymous wallet-balance read', async () => {
+    const owner = asUser(ownerId);
+    const space = await owner.createSpace('Anonymous read space', 'personal');
+    const wallet = await owner.createWallet(space.id, 'Cash USD', 'USD');
+
+    await expect(anonymousWalletBalance(wallet.id)).rejects.toMatchObject({ code: '42501' });
   });
 
   it('returns the original event for an identical request replay', async () => {

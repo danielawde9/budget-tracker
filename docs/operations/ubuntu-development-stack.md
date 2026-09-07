@@ -29,3 +29,16 @@ UFW defaults to denying inbound traffic, allows the `tailscale0` interface, and
 the Docker `DOCKER-USER` chain drops traffic arriving from `enp1s0`. Recheck
 those rules before any host-network change. `reset` applies only to
 `/home/daniel/budget-supabase`; it must never target the Sandooq project.
+
+## Verified database-test target
+
+On 2026-09-07, the reachable Budget database endpoint was confirmed as the
+Tailscale host on port `54422`; PostgreSQL reported system identifier
+`7682772744672088101` and server version number `170006`. Its Budget containers
+were verified with restart policy `no`.
+
+The migration journal was proved both from an empty schema and as a seeded
+upgrade: reset through `20260907146000`, insert a minimal Budget-only journal
+seed, run `supabase migration up --local`, then verify the seed event and
+movement remained while migration history advanced to `20260907147000`.
+Connection strings and credentials remain in ignored local test configuration.
