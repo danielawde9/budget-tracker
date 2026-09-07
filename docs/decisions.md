@@ -294,3 +294,21 @@ changes.
 **If changed:** Global or URL-based selection must retain the same fresh
 visibility check, per-user separation, synchronous data clearing, and stale-read
 rejection before it can replace local per-user selection.
+
+## 2026-09-08 — Ambiguous onboarding mutations reconcile before retry
+
+**Decision:** `create_space` and `create_wallet` each receive one submission.
+When the client cannot tell whether that request reached PostgreSQL, the
+application completes a fresh RLS-visible space or wallet read and matches the
+safe entered name/type or name/currency before it offers another deliberate
+submission. A discovered record advances setup without sending the mutation
+again.
+
+**Why:** These foundation commands do not accept request IDs. Blind transport
+retries can therefore create duplicate spaces or wallets even when the first
+request succeeded but its response was lost.
+
+**If changed:** Automatic retry is acceptable only after the database command
+gains a reviewed idempotency key and conflicting-retry behavior with real
+Postgres tests. Matching rules must also change if duplicate names become a
+supported intentional onboarding choice.
