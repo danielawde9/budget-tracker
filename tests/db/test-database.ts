@@ -51,6 +51,14 @@ export interface LoanRepaymentInput {
   effectiveDate: string;
 }
 
+export interface LoanMonthlyTargetInput {
+  spaceId: string;
+  requestId: string;
+  loanId: string;
+  month: string;
+  targetMinor: string;
+}
+
 function databaseUrl(): string {
   const value = process.env.BUDGET_TEST_DATABASE_URL;
 
@@ -184,6 +192,34 @@ export function asUser(userId: string) {
         }
 
         return repayment;
+      });
+    },
+    async setLoanMonthlyTarget(input: LoanMonthlyTargetInput): Promise<{ id: string }> {
+      return withUserSession(userId, async (client) => {
+        const result = await client.query<{ id: string }>(
+          'select * from public.set_loan_monthly_target($1, $2, $3, $4::date, $5)',
+          [input.spaceId, input.requestId, input.loanId, input.month, input.targetMinor],
+        );
+        const target = result.rows[0];
+
+        if (!target) {
+          throw new Error('set_loan_monthly_target returned no target');
+        }
+
+        return target;
+      });
+    },
+    async monthlyLoanPlan(
+      spaceId: string,
+      month: string,
+    ): Promise<Array<Record<string, string | null>>> {
+      return withUserSession(userId, async (client) => {
+        const result = await client.query<Record<string, string | null>>(
+          'select * from public.loan_monthly_plan($1, $2::date)',
+          [spaceId, month],
+        );
+
+        return result.rows;
       });
     },
     async createSpace(name: string, kind: SpaceKind): Promise<Space> {

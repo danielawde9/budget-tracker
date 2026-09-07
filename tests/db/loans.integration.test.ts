@@ -220,4 +220,59 @@ describe('loans ledger', () => {
       }),
     ).rejects.toMatchObject({ code: '42501' });
   });
+
+  it('keeps monthly targets separate from money and counts an actual repayment once', async () => {
+    const owner = asUser(ownerId);
+    const space = await owner.createSpace('Monthly repayment plan', 'personal');
+    const wallet = await owner.createWallet(space.id, 'USD', 'USD');
+    const loan = await owner.openLoanOutstanding({
+      spaceId: space.id,
+      requestId: '20000000-0000-4000-8000-000000000017',
+      direction: 'i_owe_them',
+      personName: 'Maya',
+      currency: 'USD',
+      amountMinor: '10000',
+      effectiveDate: '2026-09-01',
+      dueDate: '2026-09-20',
+    });
+
+    await owner.setLoanMonthlyTarget({
+      spaceId: space.id,
+      requestId: '20000000-0000-4000-8000-000000000018',
+      loanId: loan.loan_id,
+      month: '2026-09-01',
+      targetMinor: '6000',
+    });
+
+    expect(await owner.walletBalance(wallet.id)).toEqual('0');
+    expect(await owner.loanBalance(loan.loan_id)).toEqual('10000');
+    await expect(owner.monthlyLoanPlan(space.id, '2026-09-15')).resolves.toContainEqual(
+      expect.objectContaining({
+        loan_id: loan.loan_id,
+        target_minor: '6000',
+        actual_repayment_minor: '0',
+        remaining_reservation_minor: '6000',
+        due_amount_minor: '10000',
+      }),
+    );
+
+    await owner.repayLoan({
+      spaceId: space.id,
+      requestId: '20000000-0000-4000-8000-000000000019',
+      loanId: loan.loan_id,
+      walletId: wallet.id,
+      amountMinor: '2000',
+      effectiveDate: '2026-09-15',
+    });
+
+    await expect(owner.monthlyLoanPlan(space.id, '2026-09-15')).resolves.toContainEqual(
+      expect.objectContaining({
+        loan_id: loan.loan_id,
+        target_minor: '6000',
+        actual_repayment_minor: '2000',
+        remaining_reservation_minor: '4000',
+        due_amount_minor: '8000',
+      }),
+    );
+  });
 });
