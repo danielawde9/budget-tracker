@@ -11,7 +11,7 @@
     "test:db:watch": "vitest tests/db --pool=forks --no-file-parallelism",
     "test:ui": "vitest run --config vitest.ui.config.ts",
     "test:ui:watch": "vitest --config vitest.ui.config.ts",
-    "test:e2e": "playwright test",
+    "test:e2e": "env -u NO_COLOR playwright test",
     "typecheck": "tsc --noEmit",
     "check:ui": "pnpm typecheck && pnpm test:ui && pnpm build",
     "check": "pnpm typecheck && pnpm test:db && pnpm test:ui && pnpm build"
