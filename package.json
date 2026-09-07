@@ -5,16 +5,36 @@
   "type": "module",
   "packageManager": "pnpm@11.17.0",
   "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
     "test:db": "vitest run tests/db --pool=forks --no-file-parallelism",
     "test:db:watch": "vitest tests/db --pool=forks --no-file-parallelism",
+    "test:ui": "vitest run --config vitest.ui.config.ts",
+    "test:ui:watch": "vitest --config vitest.ui.config.ts",
+    "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
-    "check": "pnpm typecheck && pnpm test:db"
+    "check:ui": "pnpm typecheck && pnpm test:ui && pnpm build",
+    "check": "pnpm typecheck && pnpm test:db && pnpm test:ui && pnpm build"
   },
   "devDependencies": {
+    "@playwright/test": "1.55.1",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.7",
     "@types/node": "26.4.1",
     "@types/pg": "8.23.1",
+    "@types/react": "19.1.16",
+    "@types/react-dom": "19.1.9",
+    "@vitejs/plugin-react": "5.0.4",
+    "jsdom": "30.0.1",
     "pg": "8.23.0",
     "typescript": "7.0.2",
+    "vite": "7.1.7",
     "vitest": "5.0.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.116.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   }
 }

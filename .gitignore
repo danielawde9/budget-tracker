@@ -3,4 +3,7 @@ node_modules/
 .env.*
 !.env.test.example
 coverage/
+dist/
+test-results/
+playwright-report/
 .supabase/
