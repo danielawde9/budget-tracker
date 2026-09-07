@@ -3,6 +3,7 @@ import { Pool, type PoolClient } from 'pg';
 export type SpaceKind = 'personal' | 'household';
 export type Currency = 'USD' | 'LBP';
 export type FinancialEventKind = 'opening_balance' | 'income' | 'expense' | 'transfer';
+export type LoanDirection = 'they_owe_me' | 'i_owe_them';
 
 export interface Space {
   id: string;
@@ -23,6 +24,18 @@ export interface FinancialEventInput {
   kind: FinancialEventKind;
   effectiveDate: string;
   movements: MovementInput[];
+}
+
+export interface LoanOpeningInput {
+  spaceId: string;
+  requestId: string;
+  direction: LoanDirection;
+  personName: string;
+  currency: Currency;
+  amountMinor: string;
+  effectiveDate: string;
+  dueDate?: string;
+  note?: string;
 }
 
 function databaseUrl(): string {
@@ -79,6 +92,35 @@ async function withUserSession<T>(
 
 export function asUser(userId: string) {
   return {
+    async openLoanOutstanding(input: LoanOpeningInput): Promise<{ loan_id: string; event_id: string }> {
+      return withUserSession(userId, async (client) => {
+        const result = await client.query<{ loan_id: string; event_id: string }>(
+          `select *
+           from public.open_loan_outstanding(
+             $1, $2, $3::public.loan_direction, $4, $5::public.currency_code,
+             $6, $7::date, $8::date, $9
+           )`,
+          [
+            input.spaceId,
+            input.requestId,
+            input.direction,
+            input.personName,
+            input.currency,
+            input.amountMinor,
+            input.effectiveDate,
+            input.dueDate ?? null,
+            input.note ?? null,
+          ],
+        );
+        const loan = result.rows[0];
+
+        if (!loan) {
+          throw new Error('open_loan_outstanding returned no loan');
+        }
+
+        return loan;
+      });
+    },
     async createSpace(name: string, kind: SpaceKind): Promise<Space> {
       return withUserSession(userId, async (client) => {
         const result = await client.query<Space>(
