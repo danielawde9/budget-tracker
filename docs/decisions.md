@@ -81,3 +81,45 @@ search-path defense while allowing request fingerprints.
 **If changed:** Any newly referenced function must be schema-qualified or live
 in an explicitly reviewed trusted schema; broadening to a mutable application
 schema would reintroduce function-shadowing risk.
+
+## 2026-09-07 — Whole-app financial posting boundary
+
+**Decision:** Daniel confirmed that the shared financial journal must be the
+mandatory control point for every actual money or obligation change throughout
+Budget, including both loan directions and all related financial features.
+Feature-specific protected commands post linked effects atomically; balances
+and report actuals are derived from the journal. Planning targets and drafts
+remain separate from posted money. New financial features must prove their
+coverage and rejection behavior before being described as fully tracked.
+
+**Why:** A single enforced posting boundary prevents wallet balances, loan
+balances, and reports from maintaining conflicting versions of the same money.
+The current foundation source alone does not establish whole-app coverage.
+
+**If changed:** Allowing an independent financial write path requires a new
+consistency, reconciliation, authorization, and audit design across every
+affected feature.
+
+## 2026-09-07 — Loans and monthly repayment planning deferred
+
+**Decision:** Include both "they owe me" and "I owe them" in a later Loans
+milestone, with partial/full repayments, outstanding balances, history, optional
+due dates, and optional monthly targets for money I owe. Principal movements
+remain separate from earned income and ordinary spending. Targets reserve
+planned allocation only; actual repayment posts once through the journal.
+
+**Documented defaults:** Start with same-currency settlement, an explicit
+opening outstanding balance for pre-existing loans, no automatic carry-forward
+of missed monthly targets, and separate per-currency totals. Interest, fees,
+reminders, installment schedules, forgiveness, and cross-currency settlement
+remain later extensions. See the
+[approved direction and acceptance requirements](superpowers/specs/2026-09-07-loans-and-ledger-coverage-design.md).
+
+**Why:** Daniel approved both loan directions and monthly repayment planning
+while accepting delivery after the database foundation. These defaults preserve
+cash history and avoid treating planned repayments as money already paid.
+
+**If changed:** Carry-forward would change monthly allocation calculations;
+interest or installments would need explicit charge/schedule rules;
+cross-currency settlement would need linked exchange postings. Importing full
+pre-app loan history would need a separate cutover and deduplication design.

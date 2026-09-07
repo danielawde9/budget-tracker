@@ -672,3 +672,17 @@ git commit -m "docs: record budget foundation verification"
 - **Spec coverage:** Tasks 3–4 implement immutable events/movements, same-space validation, opening balances, transfers, reversals, RLS, atomicity, and idempotency. Task 2 implements the isolated Ubuntu/Tailscale boundary. Task 5 captures reproducible verification. Categories, savings, debts, reporting, and hosted launch are correctly outside milestone 1.
 - **Placeholder scan:** The plan contains no unresolved work markers. The single generated Supabase configuration is intentionally created by the CLI because its image versions and non-conflicting ports must be measured from the active Ubuntu host; Task 2 records the exact result before it is committed.
 - **Type consistency:** `SpaceKind`, `Currency`, `EventKind`, `MovementInput`, and `EventInput` are defined in `test-database.ts` and used consistently by foundation tests. SQL function names and command arguments are repeated exactly across the migration and test helper.
+
+## Approved follow-on: Loans and whole-app ledger coverage
+
+Daniel approved the [Loans and ledger coverage direction](../specs/2026-09-07-loans-and-ledger-coverage-design.md)
+on 2026-09-07 for delivery after this foundation. It includes both "they owe me"
+and "I owe them," partial/full repayments, loan history, optional due dates,
+and monthly repayment targets integrated into the budget plan.
+
+Every actual money or obligation change in every app feature must use the
+shared protected journal boundary. Loan principal and wallet effects must be
+posted atomically; plans remain separate until payment. The linked document
+records the delivery sequence and acceptance requirements, including a coverage
+inventory and rejection tests. This is deferred scope, not evidence that Loans
+or whole-app enforcement is implemented or that this foundation is complete.
