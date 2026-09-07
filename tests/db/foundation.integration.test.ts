@@ -3,6 +3,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { asUser, closeDatabase } from './test-database.js';
 
 const ownerId = '00000000-0000-4000-8000-000000000001';
+const otherUserId = '00000000-0000-4000-8000-000000000002';
 
 afterAll(async () => {
   await closeDatabase();
@@ -56,5 +57,34 @@ describe('financial journal foundation', () => {
     expect(reversal.id).not.toEqual(income.id);
     await expect(owner.walletBalance(wallet.id)).resolves.toEqual('0');
     await expect(owner.incomeEventCount(space.id)).resolves.toEqual(1);
+  });
+
+  it('denies another user a wallet command in a private space', async () => {
+    const owner = asUser(ownerId);
+    const otherUser = asUser(otherUserId);
+    const space = await owner.createSpace('Private command space', 'personal');
+
+    await expect(otherUser.createWallet(space.id, 'Blocked wallet', 'USD')).rejects.toMatchObject({
+      code: '42501',
+    });
+  });
+
+  it('returns the original event for an identical request replay', async () => {
+    const owner = asUser(ownerId);
+    const space = await owner.createSpace('Replay space', 'personal');
+    const wallet = await owner.createWallet(space.id, 'Pocket USD', 'USD');
+    const input = {
+      spaceId: space.id,
+      requestId: '10000000-0000-4000-8000-000000000004',
+      kind: 'income' as const,
+      effectiveDate: '2026-09-01',
+      movements: [{ walletId: wallet.id, amountMinor: '10000' }],
+    };
+
+    const first = await owner.recordEvent(input);
+    const replay = await owner.recordEvent(input);
+
+    expect(replay.id).toEqual(first.id);
+    await expect(owner.walletBalance(wallet.id)).resolves.toEqual('10000');
   });
 });
