@@ -50,6 +50,26 @@ describe('OnboardingDialog', () => {
     expect(createSpace).toHaveBeenCalledOnce();
   });
 
+  it('preserves the wallet choice after a rejected wallet command', async () => {
+    const user = userEvent.setup();
+    const createWallet = vi.fn(async () => {
+      throw new Error('The wallet was not created. Review the details before trying again.');
+    });
+    render(<OnboardingDialog locale="en" createSpace={async () => ({ id: 'home' })} createWallet={createWallet} onComplete={vi.fn()} />);
+
+    await user.type(screen.getByLabelText('Space name'), 'Our home');
+    await user.click(screen.getByRole('button', { name: 'Create personal space' }));
+    await user.click(screen.getByRole('radio', { name: 'LBP' }));
+    const walletName = screen.getByLabelText('Wallet name');
+    await user.type(walletName, 'Home cash');
+    await user.click(screen.getByRole('button', { name: 'Create LBP wallet' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('The wallet was not created');
+    expect(walletName).toHaveValue('Home cash');
+    expect(screen.getByRole('radio', { name: 'LBP' })).toBeChecked();
+    expect(createWallet).toHaveBeenCalledOnce();
+  });
+
   it('renders Arabic controls and keeps keyboard focus inside the required setup dialog', async () => {
     const user = userEvent.setup();
     render(<OnboardingDialog locale="ar" createSpace={vi.fn()} createWallet={vi.fn()} onComplete={vi.fn()} />);

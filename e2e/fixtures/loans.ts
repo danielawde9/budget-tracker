@@ -1,5 +1,12 @@
 import type { Page, Route } from '@playwright/test';
 
+export interface ApplicationFixtureOptions {
+  authenticated?: boolean;
+  emptySpaces?: boolean;
+  failFirstSignIn?: boolean;
+  ambiguousSpaceOnce?: boolean;
+}
+
 const spaces = [
   { id: 'personal-space', name: 'My money', kind: 'personal', created_at: '2026-01-01T00:00:00Z' },
   { id: 'household-space', name: 'Home budget', kind: 'household', created_at: '2026-01-02T00:00:00Z' },
@@ -62,17 +69,79 @@ function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body), headers: { 'access-control-allow-origin': '*' } });
 }
 
-export async function installLoansApiFixture(page: Page) {
+function authUser(email: string, id = 'visual-user') {
+  return {
+    id, email, aud: 'authenticated', role: 'authenticated',
+    created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+    app_metadata: { provider: 'email', providers: ['email'] }, user_metadata: {}, identities: [],
+  };
+}
+
+function authSession(email = 'manager@example.test', id = 'visual-user') {
+  return {
+    access_token: 'visual-fixture-session', refresh_token: 'visual-fixture-refresh', token_type: 'bearer',
+    expires_in: 7200, expires_at: 4_102_444_800, user: authUser(email, id),
+  };
+}
+
+export async function installLoansApiFixture(page: Page, options: ApplicationFixtureOptions = {}) {
+  const authenticated = options.authenticated ?? true;
+  const visibleSpaces = options.emptySpaces ? [] : [...spaces];
+  const visibleWallets = options.emptySpaces ? [] : [...wallets];
+  let signInAttempts = 0;
+  let ambiguousSpaceRemaining = options.ambiguousSpaceOnce ? 1 : 0;
+
+  if (authenticated) {
+    await page.addInitScript((value) => localStorage.setItem('sb-127-auth-token', JSON.stringify(value)), authSession());
+  } else {
+    await page.addInitScript(() => localStorage.removeItem('sb-127-auth-token'));
+  }
+
+  await page.route('http://127.0.0.1:55432/auth/v1/**', async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' } });
+    if (url.pathname.endsWith('/token')) {
+      signInAttempts += 1;
+      if (options.failFirstSignIn && signInAttempts === 1) return json(route, { message: 'Invalid login credentials' }, 400);
+      const body = request.postDataJSON() as { email?: string };
+      return json(route, authSession(body.email ?? 'manager@example.test', body.email === 'second@example.test' ? 'visual-user-2' : 'visual-user'));
+    }
+    if (url.pathname.endsWith('/signup')) {
+      const body = request.postDataJSON() as { email?: string };
+      return json(route, { user: authUser(body.email ?? 'new@example.test', 'pending-user'), session: null });
+    }
+    if (url.pathname.endsWith('/logout')) return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
+    if (url.pathname.endsWith('/user')) return json(route, authUser('manager@example.test'));
+    return json(route, { message: `Unhandled auth fixture route: ${url.pathname}` }, 404);
+  });
+
   await page.route('http://127.0.0.1:55432/rest/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' } });
+    if (path.endsWith('/rpc/create_space')) {
+      const body = request.postDataJSON() as { p_name: string; p_kind: 'personal' | 'household' };
+      const created = { id: 'created-space', name: body.p_name, kind: body.p_kind, created_at: '2026-09-08T00:00:00Z' };
+      if (!visibleSpaces.some((space) => space.id === created.id)) visibleSpaces.push(created);
+      if (ambiguousSpaceRemaining > 0) {
+        ambiguousSpaceRemaining -= 1;
+        return json(route, { message: 'upstream timeout' }, 504);
+      }
+      return json(route, [{ id: created.id }]);
+    }
+    if (path.endsWith('/rpc/create_wallet')) {
+      const body = request.postDataJSON() as { p_space_id: string; p_name: string; p_currency: 'USD' | 'LBP' };
+      const created = { id: 'created-wallet', space_id: body.p_space_id, name: body.p_name, currency: body.p_currency, archived_at: null };
+      if (!visibleWallets.some((wallet) => wallet.id === created.id)) visibleWallets.push(created);
+      return json(route, [{ id: created.id }]);
+    }
     if (path.endsWith('/rpc/reverse_financial_event')) return json(route, { message: 'the correction would invalidate dependent repayments' }, 400);
     if (path.endsWith('/rpc/loan_monthly_plan')) return json(route, plan);
     if (path.endsWith('/rpc/loan_monthly_currency_summary')) return json(route, summary);
     if (path.includes('/rpc/')) return json(route, [{ id: 'result-id', loan_id: 'new-loan', event_id: 'new-event' }]);
-    if (path.endsWith('/spaces')) return json(route, spaces);
-    if (path.endsWith('/wallets')) return json(route, wallets);
+    if (path.endsWith('/spaces')) return json(route, visibleSpaces);
+    if (path.endsWith('/wallets')) return json(route, visibleWallets);
     if (path.endsWith('/loans')) return json(route, loans);
     if (path.endsWith('/loan_balances')) return json(route, balances);
     if (path.endsWith('/financial_events')) return json(route, events);

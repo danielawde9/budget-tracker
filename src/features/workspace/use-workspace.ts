@@ -5,7 +5,11 @@ import type { CreateSpaceInput, CreateWalletInput, CreatedRecord, WorkspaceGatew
 export type WorkspaceStatus = 'loading' | 'empty' | 'ready' | 'error';
 
 function isAmbiguousTransportFailure(cause: unknown): boolean {
-  const value = cause instanceof Error ? cause.message : '';
+  const value = cause instanceof Error
+    ? cause.message
+    : cause && typeof cause === 'object' && 'message' in cause && typeof cause.message === 'string'
+      ? cause.message
+      : '';
   return /network|failed to fetch|load failed|connection|timeout/i.test(value);
 }
 

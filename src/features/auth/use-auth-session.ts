@@ -44,6 +44,9 @@ export function useAuthSession(gateway: AuthGateway): AuthSessionState {
       if (change.event === 'SIGNED_OUT') {
         setUser(null);
         setStatus(hadUser.current && !explicitSignOut.current ? 'expired' : 'signed-out');
+      } else if (change.event === 'INITIAL_SESSION') {
+        setUser(null);
+        setStatus('signed-out');
       }
     });
 

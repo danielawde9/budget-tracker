@@ -44,7 +44,7 @@ test('mobile English creation and repayment overlays', async ({ page }, testInfo
 test('desktop Arabic household workspace mirrors the ledger', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop');
   await page.getByRole('button', { name: 'العربية' }).click();
-  await page.getByRole('combobox', { name: 'المساحة' }).selectOption('household-space');
+  await page.getByRole('combobox', { name: 'المساحة الحالية' }).selectOption('household-space');
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await expect(page.getByText('مساحة منزلية')).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-ar-household.png'), fullPage: true });

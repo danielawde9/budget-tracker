@@ -7,7 +7,7 @@ import { useWorkspace } from './use-workspace.js';
 class FakeWorkspaceGateway implements WorkspaceGateway {
   spaces = [personalSpace, householdSpace];
   error: Error | null = null;
-  mutationError: Error | null = null;
+  mutationError: unknown = null;
   wallets: Awaited<ReturnType<WorkspaceGateway['listWallets']>> = [];
   calls: string[] = [];
 
@@ -100,7 +100,7 @@ describe('useWorkspace', () => {
     gateway.spaces = [];
     const { result } = renderHook(() => useWorkspace(gateway, 'user-1'));
     await waitFor(() => expect(result.current.status).toBe('empty'));
-    gateway.mutationError = new Error('Failed to fetch');
+    gateway.mutationError = { message: 'upstream timeout' };
     gateway.spaces = [{ id: 'recovered-space', name: 'Our home', kind: 'household' }];
 
     await expect(result.current.createFirstSpace({ name: 'Our home', kind: 'household' })).resolves.toEqual({ id: 'recovered-space' });

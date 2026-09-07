@@ -57,6 +57,8 @@ bdi, dd, strong { font-variant-numeric: tabular-nums; }
 .onboarding-dialog > form > label { display: grid; gap: 8px; color: #415047; font-weight: 650; }
 .onboarding-dialog > form > label input { border: 1px solid #aab5aa; border-radius: 7px; background: white; padding-inline: 12px; }
 .onboarding-boundary { padding: 14px 16px; border-inline-start: 4px solid var(--saffron); background: #f3ead4; color: #65501d; line-height: 1.5; }
+.auth-page .auth-language { color: white; border-color: #789486; }
+.auth-page .auth-language:hover { background: #234b39; }
 .topbar { display: flex; align-items: start; justify-content: space-between; gap: 24px; padding-bottom: 28px; border-bottom: 2px solid #17231d; }
 .brand { display: block; color: #5c695f; font-weight: 650; margin-bottom: 18px; }
 h1 { font-size: clamp(2.7rem, 7vw, 5.8rem); line-height: .9; margin: 0; letter-spacing: -.065em; font-weight: 780; }

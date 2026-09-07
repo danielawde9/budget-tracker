@@ -75,6 +75,15 @@ describe('useAuthSession', () => {
     await waitFor(() => expect(result.current.user?.id).toBe('new-user'));
   });
 
+  it('resolves signed out from Supabase initial-session event while the read is pending', async () => {
+    const gateway = new FakeAuthGateway();
+    gateway.sessionPromise = new Promise(() => undefined);
+    const { result } = renderHook(() => useAuthSession(gateway));
+
+    act(() => gateway.emit('INITIAL_SESSION', null));
+    expect(result.current.status).toBe('signed-out');
+  });
+
   it('reacts to refresh and distinguishes expiry from explicit sign-out', async () => {
     const gateway = new FakeAuthGateway();
     gateway.user = { id: 'user-1', email: 'owner@example.com' };
