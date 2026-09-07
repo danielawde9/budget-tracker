@@ -1,12 +1,21 @@
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, describe, expect, it } from 'vitest';
 
-import { asUser, closeDatabase, grantFinancialHistoryWritesForTest } from './test-database.js';
+import {
+  asUser,
+  closeDatabase,
+  grantFinancialHistoryWritesForTest,
+  revokeFinancialHistoryWritesForTest,
+} from './test-database.js';
 
 const ownerId = '00000000-0000-4000-8000-000000000001';
 const otherUserId = '00000000-0000-4000-8000-000000000002';
 
 afterAll(async () => {
   await closeDatabase();
+});
+
+afterEach(async () => {
+  await revokeFinancialHistoryWritesForTest();
 });
 
 describe('loans ledger', () => {

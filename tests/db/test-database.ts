@@ -90,6 +90,52 @@ export async function grantFinancialHistoryWritesForTest(): Promise<void> {
   );
 }
 
+export async function revokeFinancialHistoryWritesForTest(): Promise<void> {
+  await pool.query('drop policy if exists financial_events_test_write on public.financial_events');
+  await pool.query('drop policy if exists loan_postings_test_delete on public.loan_postings');
+  await pool.query(
+    `revoke update, delete, truncate on public.financial_events, public.wallet_movements,
+       public.loan_postings from authenticated`,
+  );
+}
+
+export async function financialWriterFunctionNames(): Promise<string[]> {
+  const result = await pool.query<{ proname: string }>(
+    `select p.proname
+     from pg_proc as p
+     join pg_namespace as namespace on namespace.oid = p.pronamespace
+     where namespace.nspname = 'public'
+       and p.prokind = 'f'
+       and pg_get_functiondef(p.oid) ~* $1
+     order by p.proname`,
+    ['insert[[:space:]]+into[[:space:]]+public\\.(financial_events|wallet_movements|loan_postings)'],
+  );
+
+  return result.rows.map((row) => row.proname);
+}
+
+export async function financialTableWritePrivileges(): Promise<Array<{ table_name: string; writable: boolean }>> {
+  const result = await pool.query<{ table_name: string; writable: boolean }>(
+    `select
+       table_name,
+       has_table_privilege('authenticated', format('public.%I', table_name), 'insert')
+         or has_table_privilege('authenticated', format('public.%I', table_name), 'update')
+         or has_table_privilege('authenticated', format('public.%I', table_name), 'delete')
+         or has_table_privilege('authenticated', format('public.%I', table_name), 'truncate') as writable
+     from unnest($1::text[]) as table_name
+     order by table_name`,
+    [[
+      'financial_events',
+      'wallet_movements',
+      'loans',
+      'loan_postings',
+      'loan_monthly_target_revisions',
+    ]],
+  );
+
+  return result.rows;
+}
+
 async function withUserSession<T>(
   userId: string,
   action: (client: PoolClient) => Promise<T>,
