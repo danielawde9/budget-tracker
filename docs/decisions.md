@@ -207,3 +207,23 @@ generic grid of metric cards.
 gateway allowlist, RLS read boundary, request-ID behavior, bilingual accessibility,
 and visual evidence. A different visual language may change components and CSS,
 but it must keep currencies and planned-versus-actual values visibly separate.
+
+## 2026-09-07 — Loans UI dependencies are pinned and fixture-free at runtime
+
+**Decision:** Pin React/React DOM 19.2.8, Supabase JS 2.116.0, Vite 7.1.7,
+the Vite React plugin 5.0.4, Playwright 1.55.1, jsdom 30.0.1, and the recorded
+Testing Library packages. The installed package metadata identifies Playwright
+as Apache-2.0 and the other named runtime/test tools as MIT. Browser fixtures
+exist only in component and Playwright test files; the production entry point
+requires Supabase environment values and never selects fixture data.
+
+**Why:** Exact versions and local fixtures make handoff verification
+reproducible without giving a development-only sample ledger a path into the
+runtime application. Using the existing Supabase client preserves its browser
+session and RLS boundary while the Loans gateway keeps financial commands
+allowlisted.
+
+**If changed:** Dependency upgrades require compatibility, license, typecheck,
+component, build, and rendered-flow verification. Adding a runtime demo mode
+would require a new data-isolation decision and must be impossible to enable in
+a real financial environment.
