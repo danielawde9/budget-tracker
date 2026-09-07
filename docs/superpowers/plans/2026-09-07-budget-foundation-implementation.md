@@ -167,8 +167,8 @@ git commit -m "chore: establish budget database test workspace"
 Run:
 
 ```bash
-tailscale ping 100.76.160.91
-ssh lelabo@100.76.160.91 'hostname && command -v rsync && command -v docker && command -v supabase'
+tailscale ping 100.124.228.75
+ssh daniel@100.124.228.75 'hostname && command -v rsync && command -v docker && command -v supabase'
 ```
 
 Expected: Tailscale reports reachability and the host returns command paths. If it does not, stop before creating a stack and record the precise blocker.
@@ -209,8 +209,8 @@ Create `scripts/remote-supabase.sh`:
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly remote_host='lelabo@100.76.160.91'
-readonly remote_dir='/home/lelabo/budget-supabase'
+readonly remote_host='daniel@100.124.228.75'
+readonly remote_dir='/home/daniel/budget-supabase'
 readonly local_dir='supabase'
 
 case "${1:-}" in
@@ -257,7 +257,7 @@ Create `docs/operations/ubuntu-development-stack.md` with these executable comma
 ```markdown
 # Budget Ubuntu development stack
 
-Budget runs only at `/home/lelabo/budget-supabase` on `lelabo@100.76.160.91`.
+Budget runs only at `/home/daniel/budget-supabase` on `daniel@100.124.228.75`.
 The Mac repository is authoritative. Never use `localhost` to reach this stack,
 and never run Sandooq lifecycle commands for Budget.
 
@@ -632,7 +632,7 @@ Run:
 
 ```bash
 ./scripts/remote-supabase.sh status
-ssh lelabo@100.76.160.91 "cd /home/lelabo/budget-supabase && supabase status"
+ssh daniel@100.124.228.75 "cd /home/daniel/budget-supabase && supabase status"
 ```
 
 Expected: only the Budget project ID and its selected ports are reported. Confirm its database system identifier is not the Sandooq identifier and that neither stack lists the other stack's tables.

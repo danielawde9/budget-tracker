@@ -38,3 +38,18 @@ introducing a browser or application framework before the data boundary exists.
 
 **If changed:** Upgrading a pinned dependency requires its own compatibility and
 license review; replacing the test driver changes the integration-test boundary.
+
+## 2026-09-07 — Budget remote host and opt-in lifecycle
+
+**Decision:** Budget's dedicated remote directory is
+`/home/daniel/budget-supabase` on `daniel@100.124.228.75`. Its Supabase ports
+are allocated in the 54420–54429 range, separate from Sandooq's 54321–54324.
+Budget containers must retain Docker restart policy `no` and therefore stay
+stopped after a host reboot until explicitly started.
+
+**Why:** The original Ubuntu endpoint was offline. The available replacement
+host already runs Sandooq with restart policy `no`; leaving Budget opt-in avoids
+unnecessary RAM use and preserves host-service boundaries.
+
+**If changed:** Moving the host or enabling automatic restart requires a new
+capacity, port-collision, network-access, and recovery review.
