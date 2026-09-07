@@ -261,3 +261,19 @@ step without implying the application lost data.
 needs race tests proving that stale reads and prior-user content can never become
 visible. Merging expiry into generic sign-out would simplify copy but remove the
 specific recovery explanation.
+
+## 2026-09-08 — Onboarding has a separate two-command gateway
+
+**Decision:** Initial setup uses a dedicated workspace gateway with bounded RLS
+reads and exactly two mutations: `public.create_space` and
+`public.create_wallet`. It does not extend the Loans gateway, classify these RPCs
+as financial posting commands, or introduce a membership/invitation write path.
+
+**Why:** Space ownership and the first wallet are prerequisites for the Loans
+workspace but are not ledger postings. Keeping their allowlist separate preserves
+the audited Loans command boundary and makes the missing household-membership
+command visible instead of encouraging a direct table write.
+
+**If changed:** Adding invitations, member management, or another onboarding
+mutation requires a reviewed protected database command with authorization,
+rejection, and RLS tests before any UI can call it.
