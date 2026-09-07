@@ -42,6 +42,7 @@ case "${1:-}" in
   reset)
     sync_project
     ssh "${remote_host}" "cd '${remote_dir}' && supabase db reset"
+    disable_restart_policy
     ;;
   status)
     if [[ "${BUDGET_REMOTE_CHECK_ONLY:-}" == '1' ]]; then

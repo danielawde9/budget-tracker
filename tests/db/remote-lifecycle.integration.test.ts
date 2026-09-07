@@ -24,5 +24,6 @@ describe('Budget remote Supabase lifecycle', () => {
     const script = readFileSync('./scripts/remote-supabase.sh', 'utf8');
 
     expect(script).toContain('docker update --restart=no');
+    expect(script).toMatch(/reset\)[\s\S]*?supabase db reset"\n\s+disable_restart_policy/);
   });
 });
