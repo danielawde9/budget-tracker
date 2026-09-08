@@ -444,6 +444,13 @@ describe('household membership schema boundary', () => {
       ).rejects.toMatchObject({ message: 'household membership events are immutable' });
       await expect(
         withUserSession(ownerId, async (client) =>
+          client.query('delete from public.household_membership_events where id = $1', [
+            randomUUID(),
+          ]),
+        ),
+      ).rejects.toMatchObject({ message: 'household membership events are immutable' });
+      await expect(
+        withUserSession(ownerId, async (client) =>
           client.query('delete from public.household_membership_events where id = $1', [eventId]),
         ),
       ).rejects.toMatchObject({ message: 'household membership events are immutable' });

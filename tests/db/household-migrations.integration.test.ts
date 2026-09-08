@@ -231,6 +231,7 @@ async function proofResult(client: Client, seeded: boolean): Promise<MigrationPr
       'household_invitations_require_household_space',
       'space_memberships_preserve_space_owners', 'spaces_preserve_membership_invariants',
       'household_membership_events_reject_row_mutation',
+      'household_membership_events_reject_delete_statement',
       'household_membership_events_reject_truncate',
     ], [
       'space_memberships_household_command_owner', 'household_invitations_command_owner',
@@ -318,15 +319,15 @@ describe('household migration journal', () => {
       exactCommandAclCount: '8',
       forcedRlsCount: '2',
       indexCount: '8',
-      journalCount: '23',
+      journalCount: '24',
       policyCount: '3',
-      triggerCount: '5',
+      triggerCount: '6',
     });
   });
 
   it('backfills memberships and preserves seeded financial data', async () => {
     const proof = await verifyHouseholdMigrations(true);
-    expect(proof.journalCount).toBe('23');
+    expect(proof.journalCount).toBe('24');
     expect(proof.commandCount).toBe('8');
     expect(proof.memberships).toHaveLength(3);
     expect(proof.memberships?.every((row) => row.status === 'active')).toBe(true);
