@@ -191,6 +191,28 @@ describe('WalletsPage', () => {
     expect(within(screen.getByRole('dialog')).queryByRole('radio', { name: 'Former salary' })).not.toBeInTheDocument();
   });
 
+  it('renders a category association inherited by a reversal as read-only history', async () => {
+    const walletGateway = new InMemoryWalletsGateway();
+    walletGateway.events = [{
+      id: 'event-reversal', spaceId: 'personal-space', requestId: 'request-reversal', kind: 'reversal',
+      effectiveDate: '2026-09-08', createdAt: '2026-09-08T12:00:00Z', reversalOf: 'event-income',
+      reversedBy: null, loanLinked: false, movements: [],
+    }, ...walletGateway.events];
+    const categoriesGateway = new InMemoryCategoriesGateway();
+    categoriesGateway.categories = categoriesGateway.categories.map((category) => ({ ...category, spaceId: 'personal-space' }));
+    categoriesGateway.associations = [{
+      eventId: 'event-reversal', categoryId: 'category-salary', categoryKind: 'income',
+      nameEn: 'Salary', nameAr: 'راتب', archivedAt: null,
+    }];
+
+    await renderPage(walletGateway, 'en', categoriesGateway);
+
+    const reversal = screen.getByText('Linked reversal').closest('li');
+    expect(reversal).not.toBeNull();
+    expect(within(reversal!).getByText('Salary').closest('bdi')).not.toBeNull();
+    expect(within(reversal!).queryByRole('button', { name: /category/i })).not.toBeInTheDocument();
+  });
+
   it('refuses same-wallet and cross-currency transfers before submission', async () => {
     const { gateway, user } = await renderPage();
     await user.click(screen.getByRole('button', { name: 'Add transaction' }));
