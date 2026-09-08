@@ -5,6 +5,8 @@ import { findHouseholdDirectWrites, findSensitiveLogging } from './household-sou
 describe('household browser source ratchet', () => {
   it.each([
     `await client.from('space_memberships').update({ role: 'owner' })`,
+    `const tableName = 'space_memberships';
+     await client.from(tableName).update({ role: 'owner' });`,
     `const invitations = client
        .from('household_invitations');
      await invitations.delete().eq('id', invitationId);`,
@@ -24,6 +26,8 @@ describe('household browser source ratchet', () => {
      metrics.track('invite', { refresh_token: session.refresh_token });`,
     `const warn = console.warn;
      warn({ invitation_token });`,
+    `const { error } = console;
+     error({ invitation_token });`,
   ])('detects sensitive data passed to console, logger, analytics, and aliased sinks', (source) => {
     expect(findSensitiveLogging(source)).toHaveLength(1);
   });
@@ -35,6 +39,7 @@ describe('household browser source ratchet', () => {
       const invitation_token = await deriveToken();
       return digest(invitation_token);
       console.error('invitation unavailable');
+      console.error('invitation_token missing');
     `;
     expect(findHouseholdDirectWrites(source)).toEqual([]);
     expect(findSensitiveLogging(source)).toEqual([]);
