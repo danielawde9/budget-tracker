@@ -34,6 +34,45 @@ bdi, dd, strong { font-variant-numeric: tabular-nums; }
 .account-popover bdi { overflow: hidden; text-overflow: ellipsis; }
 .shell-main { min-width: 0; padding: 42px clamp(24px, 4.5vw, 70px) 80px; }
 .loans-workspace { width: min(1180px, 100%); margin-inline: auto; }
+.wallets-workspace { width: min(1180px, 100%); margin-inline: auto; }
+.wallets-topbar { align-items: end; }
+.wallet-actions { display: flex; gap: 10px; flex: 0 0 auto; }
+.wallet-folio { margin-block: 34px 52px; }
+.section-kicker { display: block; color: #68756c; font-size: .82rem; margin-block-end: 5px; }
+.wallet-folio .section-heading, .journal .section-heading { margin: 0; padding-block-end: 12px; border-block-end: 2px solid var(--ink); }
+.wallet-folio .section-heading h2, .journal .section-heading h2 { margin: 0; font-size: 1.7rem; letter-spacing: -.035em; }
+.wallet-folio .section-heading > span { min-inline-size: 32px; padding: 5px 10px; border: 1px solid #aab5aa; border-radius: 999px; text-align: center; }
+.wallet-list, .journal-list, .journal-list > li > ul { list-style: none; margin: 0; padding: 0; }
+.wallet-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 24px; padding: 22px 4px; border-block-end: 1px solid #c7cfc7; }
+.wallet-list li > div { display: grid; gap: 4px; }
+.wallet-list li > div bdi { font-size: 1.1rem; font-weight: 750; }
+.wallet-list li > div span { color: #68756c; }
+.wallet-balance { font-size: clamp(1.35rem, 3vw, 2rem); font-weight: 780; font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
+.wallet-empty { display: grid; justify-items: start; gap: 8px; }
+.wallet-empty p { margin: 0 0 6px; }
+.journal-list > li { padding-block: 20px; border-block-end: 1px solid #c7cfc7; }
+.journal-list > li > header { display: flex; align-items: start; justify-content: space-between; gap: 20px; }
+.journal-list > li > header > div:first-child { display: grid; gap: 4px; }
+.journal-list time, .journal-state { color: #68756c; font-size: .82rem; }
+.journal-state { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.journal-state span { padding: 4px 8px; border: 1px solid #bdc7bd; border-radius: 999px; }
+.journal-list > li > ul { margin-block-start: 14px; border-block-start: 1px solid #e0e5de; }
+.journal-list > li > ul li { display: flex; justify-content: space-between; gap: 18px; padding-block: 10px; border-block-end: 1px solid #e0e5de; }
+.journal-list > li > ul li bdi:last-child { direction: ltr; unicode-bidi: isolate; font-weight: 760; font-variant-numeric: tabular-nums; }
+.amount-positive { color: var(--jade); }
+.amount-negative { color: var(--brick); }
+.journal-list footer { display: flex; justify-content: flex-end; margin-block-start: 8px; }
+.journal-reversal { background: linear-gradient(90deg, rgba(215, 154, 38, .08), transparent 70%); }
+.load-more { margin-block-start: 20px; }
+.wallet-dialog form > label { margin-block-start: 20px; }
+.dialog-result { display: grid; justify-items: start; gap: 12px; padding-block: 32px 8px; }
+.dialog-result strong { font-size: 1.5rem; }
+.dialog-result p { color: #536158; line-height: 1.55; }
+.effect-preview { margin-block-start: 22px; padding: 18px; border-inline-start: 4px solid var(--saffron); background: #f3ead4; }
+.effect-preview h3 { margin-block-start: 0; }
+.effect-preview ul { display: grid; gap: 8px; padding-inline-start: 22px; }
+.effect-preview p { color: #65501d; line-height: 1.5; }
+.retry-command { margin-block-start: 12px; }
 .loans-workspace .topbar { padding-block-end: 24px; }
 .loans-workspace .topbar h1 { font-size: clamp(3rem, 6vw, 5.4rem); }
 .workspace-state-page, .configuration-page, .auth-page { min-height: 100vh; display: grid; place-items: center; padding: 28px; }
@@ -144,6 +183,12 @@ dd { margin: 8px 0 0; font-weight: 760; white-space: nowrap; }
   .app-rail .locale-button, .account-menu summary { border-color: #688174; padding-inline: 10px; }
   .shell-main { padding: 28px 14px 64px; }
   .loans-workspace .topbar h1 { font-size: 3.5rem; }
+  .wallets-topbar { display: grid; }
+  .wallet-actions { inline-size: 100%; }
+  .wallet-actions button { flex: 1; }
+  .wallet-list li { gap: 12px; }
+  .journal-list > li > header { display: grid; }
+  .journal-state { justify-content: flex-start; }
   .auth-page, .configuration-page, .workspace-state-page { padding: 14px; }
   .auth-panel { grid-template-columns: 1fr; }
   .auth-intro { padding: 32px 24px 24px; }
