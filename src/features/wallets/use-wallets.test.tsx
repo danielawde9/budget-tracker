@@ -72,6 +72,59 @@ describe('useWallets', () => {
     expect(result.current.wallets[0]?.name).toBe('Daily');
   });
 
+  it('enriches categorized history while reconciling an ambiguous wallet creation without replaying it', async () => {
+    const event = {
+      id: 'event-income',
+      spaceId: 'space-1',
+      requestId: 'request-income',
+      kind: 'income',
+      effectiveDate: '2026-09-08',
+      createdAt: '2026-09-08T10:00:00Z',
+      reversalOf: null,
+      reversedBy: null,
+      loanLinked: false,
+      movements: [],
+    } satisfies JournalEvent;
+    const loadSnapshot = vi.fn()
+      .mockResolvedValueOnce(emptySnapshot)
+      .mockResolvedValueOnce({ wallets: walletSnapshot.wallets, history: { events: [event], nextCursor: null } });
+    const createWallet = vi.fn(async () => { throw new Error('Network request failed'); });
+    const categories = categoriesGateway({
+      resolveEventCategories: vi.fn(async () => [{
+        eventId: event.id,
+        categoryId: 'category-salary',
+        categoryKind: 'income' as const,
+        nameEn: 'Salary',
+        nameAr: 'راتب',
+        archivedAt: null,
+      }]),
+    });
+    const wallets = gateway({ loadSnapshot, createWallet });
+    const { result } = renderHook(() => useWallets(
+      wallets,
+      'space-1',
+      undefined,
+      undefined,
+      categories,
+    ));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await expect(result.current.createWallet({ name: 'Daily', currency: 'USD' }))
+        .resolves.toEqual({ status: 'success', reconciled: true });
+    });
+
+    expect(createWallet).toHaveBeenCalledOnce();
+    expect(categories.resolveEventCategories).toHaveBeenCalledWith('space-1', [event.id]);
+    expect(result.current.events[0]?.category).toEqual({
+      id: 'category-salary',
+      kind: 'income',
+      nameEn: 'Salary',
+      nameAr: 'راتب',
+      archivedAt: null,
+    });
+  });
+
   it('offers an explicit identical retry after an ambiguous posting is absent', async () => {
     const recordEvent = vi.fn().mockRejectedValueOnce(new Error('Connection timeout')).mockResolvedValueOnce({ eventId: 'event-1' });
     const service = gateway({ recordEvent });

@@ -204,8 +204,12 @@ export function useWallets(
     } catch (cause) {
       if (!isAmbiguousTransportFailure(cause)) throw cause;
       const snapshot = await gateway.loadSnapshot(targetSpaceId);
+      const events = await enrichEvents(targetSpaceId, snapshot.history.events);
       if (currentSpace.current !== targetSpaceId) throw new Error('The selected space changed before wallet reconciliation completed.');
-      applySnapshot(targetSpaceId, snapshot);
+      applySnapshot(targetSpaceId, {
+        ...snapshot,
+        history: { ...snapshot.history, events },
+      });
       const match = snapshot.wallets.find((wallet) =>
         wallet.spaceId === targetSpaceId
         && wallet.name === normalized.name
@@ -214,7 +218,7 @@ export function useWallets(
       if (!match) throw new Error('We checked the visible wallets and found no match. Review the wallet before submitting again.');
       return { status: 'success', reconciled: true };
     }
-  }), [applySnapshot, gateway, refreshAfterCommand, spaceId, withPending]);
+  }), [applySnapshot, enrichEvents, gateway, refreshAfterCommand, spaceId, withPending]);
 
   const reconcileCommand = useCallback(async (
     command: RetryCommand,
