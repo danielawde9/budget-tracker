@@ -568,31 +568,40 @@ describe('categories foundation', () => {
     const owner = asUser(ownerId);
     const space = await owner.createSpace(`Category index plan ${randomUUID()}`, 'personal');
     const prefix = randomUUID();
-    await databaseQuery(
-      `insert into public.categories (space_id, kind, name_en, created_by)
-       select $1, 'expense', $2 || ' ' || series::text, $3
-       from generate_series(1, 2_000) as series`,
-      [space.id, prefix, ownerId],
-    );
-    await databaseQuery('vacuum analyze public.categories');
+    try {
+      await databaseQuery(
+        `insert into public.categories (space_id, kind, name_en, created_by)
+         select $1, 'expense', $2 || ' ' || series::text, $3
+         from generate_series(1, 2_000) as series`,
+        [space.id, prefix, ownerId],
+      );
+      await databaseQuery('vacuum analyze public.categories');
 
-    const pagePlan = await databaseQuery<Record<string, unknown>>(
-      `explain (format json)
-       select id from public.categories
-       where space_id = $1 and kind = 'expense' and archived_at is null
-       order by created_at, id
-       limit 50`,
-      [space.id],
-    );
-    const namePlan = await databaseQuery<Record<string, unknown>>(
-      `explain (format json)
-       select id from public.categories
-       where space_id = $1 and kind = 'expense'
-         and name_en_key = $2 and archived_at is null`,
-      [space.id, `${prefix} 1999`],
-    );
+      const pagePlan = await databaseQuery<Record<string, unknown>>(
+        `explain (format json)
+         select id from public.categories
+         where space_id = $1 and kind = 'expense' and archived_at is null
+         order by created_at, id
+         limit 50`,
+        [space.id],
+      );
+      const namePlan = await databaseQuery<Record<string, unknown>>(
+        `explain (format json)
+         select id from public.categories
+         where space_id = $1 and kind = 'expense'
+           and name_en_key = $2 and archived_at is null`,
+        [space.id, `${prefix} 1999`],
+      );
 
-    expect(JSON.stringify(pagePlan)).toContain('categories_active_page_idx');
-    expect(JSON.stringify(namePlan)).toContain('categories_active_name_en_idx');
+      expect(JSON.stringify(pagePlan)).toContain('categories_active_page_idx');
+      expect(JSON.stringify(namePlan)).toContain('categories_active_name_en_idx');
+    } finally {
+      await databaseQuery('alter table public.categories disable trigger categories_reject_delete');
+      try {
+        await databaseQuery('delete from public.categories where space_id = $1', [space.id]);
+      } finally {
+        await databaseQuery('alter table public.categories enable trigger categories_reject_delete');
+      }
+    }
   });
 });
