@@ -6,6 +6,10 @@ This document defines the reporting read-model contract for Budget. It is a
 design-only deliverable based on repository commit
 `59c2cb4f3cb7b6e20e32cc77dcb343db558bedba`.
 
+Its category semantics follow the authoritative Categories v1 design in commit
+`37716f9527813d0dfbb4cf2d3664d12370dcb414`, which has the same repository
+baseline. That contract is referenced here without merging or implementing it.
+
 This design does not implement SQL, migrations, application code, categories,
 budgets, charts, exports, or UI. It does not change the protected financial
 command inventory or `docs/decisions.md`. A later implementation must use
@@ -45,6 +49,19 @@ The current database is the source of truth:
 - Every exposed space-owned relation is subject to membership-based RLS.
 - The browser and background roles have no direct financial-table write path.
 
+Categories v1 adds a design contract, not a second ledger:
+
+- `public.categories` has one immutable `kind`, exactly `income` or `expense`;
+- `public.financial_event_categories` records at most one immutable category
+  association per eligible financial event and stores no money amount;
+- `public.record_categorized_financial_event` atomically posts a categorized
+  income or expense through the existing journal rules;
+- the unchanged `public.record_financial_event` remains the posting path for
+  uncategorized events;
+- reversal posting copies the original category association, including when the
+  category is archived; and
+- category splits are deferred beyond Categories v1 and this reporting design.
+
 Reports must derive actual money only from posted journal rows. No report table
 or category/budget table may become an alternative authoritative cash balance.
 
@@ -69,8 +86,8 @@ The implementation should expose three report RPCs:
 
 - `public.report_monthly_cash_summary`
 - `public.report_wallet_activity`
-- `public.report_category_actual_vs_budget` after category and budget posting
-  contracts exist
+- `public.report_category_actual_vs_budget` after Categories v1 and a separate
+  budget write contract are implemented
 
 All three are read-only projections. None belongs in the financial command
 inventory because none writes money, principal, or planning history.
@@ -161,15 +178,15 @@ this matrix and the negative multiplier above.
 | Semantic event kind | Monthly metric | Category actual | Wallet activity | Loan-planning actual |
 | --- | --- | --- | --- | --- |
 | `opening_balance` | `opening_net_minor` only | excluded | included | excluded |
-| `income` | `income_net_minor` only | future explicit income allocation, otherwise uncategorized income | included | excluded |
-| `expense` | `expense_net_minor` only | future explicit expense allocation, otherwise uncategorized expense | included | excluded |
+| `income` | `income_net_minor` only | its one income-category association, otherwise uncategorized income | included | excluded |
+| `expense` | `expense_net_minor` only | its one expense-category association, otherwise uncategorized expense | included | excluded |
 | `transfer` | transfer-in/out audit buckets only | excluded | included | excluded |
 | `loan_opening` | excluded because it has no wallet movement | excluded | excluded from wallet activity | excluded |
 | `loan_lend` | `loan_lent_net_minor` only | excluded | included | excluded |
 | `loan_borrow` | `loan_borrowed_net_minor` only | excluded | included | excluded |
 | `loan_receive_repayment` | `loan_repayment_received_net_minor` only | excluded | included | excluded |
 | `loan_repay_borrowing` | `loan_repayment_paid_net_minor` only | excluded | included | included by the existing loan planning projection |
-| `reversal` | bucket of its original semantic kind with multiplier `-1` | bucket of the original allocation with multiplier `-1` | included and linked | net repayment effect is handled by the existing loan projection |
+| `reversal` | bucket of its original semantic kind with multiplier `-1` | copied category association, or original uncategorized bucket, with multiplier `-1` | included and linked | net repayment effect is handled by the existing loan projection |
 
 No event kind has an implicit fallback to ordinary income or ordinary expense.
 Adding an enum value must make report classification tests fail until this matrix
@@ -323,43 +340,43 @@ workspace remains the source for obligation-only history.
 
 ### Prerequisite contract
 
-The repository does not yet contain categories, category allocations, category
-budgets, or archive commands. This report RPC must not be implemented ahead of
-those write-side designs.
+Categories v1 is authoritative for category identity, kind, lifecycle, posting,
+association, reversal inheritance, RLS, and history. It defines stable,
+space-owned `public.categories` rows and at most one immutable
+`public.financial_event_categories` association per eligible event. The
+association stores no amount. Income and expense amounts continue to come only
+from the event's immutable wallet movements.
 
-A future category milestone must first establish:
+This report RPC must not be implemented until Categories v1 is implemented and
+verified. Budgets are explicitly deferred by Categories v1, so a separate
+approved budget design must also establish append-only monthly budget revisions
+keyed by space, category, currency, and normalized target month. Budget planning
+must never create, change, or replace a financial event or wallet movement.
 
-- stable, space-owned category IDs with RLS;
-- one immutable category `flow_kind`, exactly `income` or `expense`; changing a
-  used category's flow requires a new category rather than reclassifying history;
-- archive-not-delete behavior and an `archived_at` timestamp;
-- immutable category allocations linked to a financial event;
-- exact positive minor-unit allocations whose sum equals the corresponding
-  semantic income or expense amount for that event and currency;
-- append-only monthly budget revisions keyed by space, category, flow kind,
-  currency, and normalized target month; and
-- protected commands, rejection tests, privileges, and reconciliation tests for
-  every write path.
-
-Category allocations and budget revisions are metadata and planning state.
-They must never create, change, or replace a wallet movement. Category names,
-notes, and wallet names must never be parsed to infer an allocation.
+No report may parse category names, notes, or wallet names to infer a category.
+No report may create per-movement category facts or divide an event amount among
+categories. Category splits require a separate later design.
 
 ### Historic uncategorized rule
 
 Existing income and expense events predate categories. An applicable event with
-no allocation is reported under one of two reserved synthetic buckets,
+no category association is reported under one of two reserved synthetic buckets,
 `uncategorized:income` or `uncategorized:expense`, for its currency. It is not
-silently omitted. Synthetic buckets cannot receive budgets or new allocations.
+silently omitted. These are report-only keys, not rows inserted into
+`public.categories`, and they cannot receive budgets or category associations.
 
-Once category allocation commands exist, a newly posted event must be either:
+Every eligible event is classified exactly once:
 
-- fully allocated, with allocations exactly reconciling to the event amount; or
-- deliberately uncategorized, with no allocation rows.
+- one association means every income or expense movement on that event is
+  grouped under that category, separately by wallet currency; or
+- no association means every movement is grouped under the matching
+  uncategorized bucket, separately by wallet currency.
 
-Partial allocation is an invalid state and must be rejected at the write
-boundary. The report must fail a reconciliation assertion rather than filling a
-partial residual into `uncategorized`.
+`public.record_categorized_financial_event` creates the event, movements, and
+one association atomically. The unchanged `public.record_financial_event`
+creates an uncategorized event. Because Categories v1 permits at most one
+association and defers splits, the report has no residual, fraction, or
+category-amount rule.
 
 ### RPC bound and result contract
 
@@ -381,12 +398,13 @@ Each row returns:
 | Field | Meaning |
 | --- | --- |
 | `category_key` | stable category UUID key or a reserved uncategorized key |
-| `category_name` | current display name or localized uncategorized UI key |
+| `category_name_en` | stored English name; null for an uncategorized bucket |
+| `category_name_ar` | stored Arabic name; null for an uncategorized bucket |
 | `archived_at` | category archive timestamp, null for active/uncategorized |
-| `flow_kind` | exactly `income` or `expense` |
+| `category_kind` | exactly `income` or `expense` |
 | `currency` | exactly USD or LBP |
 | `period_month` | normalized month start |
-| `actual_net_minor` | signed, reversal-netted actual allocated amount |
+| `actual_net_minor` | signed, reversal-netted sum of classified event movements |
 | `budget_minor` | latest nonnegative budget revision for the exact key |
 | `remaining_minor` | `budget_minor - actual_net_minor`, allowed below zero |
 | `has_more_categories` | whether another category page exists |
@@ -395,19 +413,27 @@ An active category is returned even if all selected actual and budget values are
 zero, so the UI can plan it. An archived category is returned only when it has
 actual activity or a budget revision in the selected window. This preserves
 historical reports without filling current planning screens with irrelevant
-archived rows. Archived categories remain unavailable to new allocations.
-Reports use the category's current display name; historical label revisioning is
-not invented by this scope.
+archived rows. Archived categories remain unavailable to new categorized
+postings. Reports use the retained category's stored `name_en` and `name_ar`;
+category renaming and historical label revisioning are not invented by this
+scope. If one language is absent, the future UI may show the other stored name
+as a fallback but must not transliterate it.
+
+The future UI localizes the two reserved uncategorized keys. The database does
+not manufacture translated category names or persist synthetic category rows.
 
 The "latest budget" is the final revision by
-`(created_at DESC, id DESC)` for the exact space/category/flow/currency/month.
+`(created_at DESC, id DESC)` for the exact space/category/currency/month. The
+category row supplies the immutable income/expense kind.
 A zero revision explicitly clears the budget. Budget revisions do not count as
-actuals and do not appear in wallet activity.
+actuals and do not appear in wallet activity. Both uncategorized buckets always
+return `budget_minor = 0`.
 
 Actuals use only semantic `income` and `expense` events and their reversals.
 Opening balances, transfers, all loan-principal events, loan openings, and loan
-monthly targets are excluded. A reversal reuses the original event's allocation
-with multiplier `-1` and is assigned to the reversal's effective month.
+monthly targets are excluded. A categorized reversal carries the same immutable
+category association as its original; an uncategorized reversal remains
+uncategorized. Both use multiplier `-1` and the reversal's effective month.
 
 ### Loan repayment planning remains separate
 
@@ -448,9 +474,10 @@ Every report RPC must:
 - preserve the existing prohibition on direct financial writes by
   `authenticated` and `service_role`.
 
-Future category/allocation/budget tables must enable RLS before exposure and use
-the same indexed membership policy shape as current space-owned tables. Granting
-read access to a report function is not permission to broaden write privileges.
+Categories, event-category associations, and future budget tables must enable
+RLS before exposure and use the same indexed membership policy shape as current
+space-owned tables. Granting read access to a report function is not permission
+to broaden write privileges.
 
 If implementation evidence later requires a `SECURITY DEFINER` function, that
 is a design change: it must include an explicit caller and membership check,
@@ -484,11 +511,12 @@ IDs for a wallet/date window, evaluate a composite `(wallet_id, event_id)` index
 Future category objects should begin with the access paths their constraints and
 queries require:
 
-- allocations: event lookup plus category lookup, both including `space_id`;
-- budget revisions: equality on space/category/flow/currency/month followed by
+- event-category associations: use the Categories v1 indexes for
+  `(space_id, event_id)` and `(space_id, category_id, event_id)`;
+- budget revisions: equality on space/category/currency/month followed by
   `(created_at DESC, id DESC)` for latest-revision selection; and
 - categories: a space/stable-ID reporting path plus a partial active-category
-  index only for new-allocation selectors.
+  index only for new-posting selectors.
 
 Every foreign-key referencing column needs an index unless an existing composite
 index has it as a usable left prefix. Covering `INCLUDE` columns are allowed only
@@ -553,11 +581,12 @@ following.
     a direct sum of wallet movements.
 11. Transfer-in equals transfer-out at the space/currency level, including
     reversals.
-12. The sum of category income actuals equals ordinary income and the sum of
-    category expense actuals equals ordinary expense for the same window, after
-    category prerequisites exist.
-13. Fully categorized, deliberately uncategorized, and reversed events all
-    reconcile; partial allocation is rejected rather than patched by reports.
+12. The sum of categorized and uncategorized income buckets equals ordinary
+    income, and the equivalent expense buckets equal ordinary expense, for each
+    month and currency after the category prerequisites exist.
+13. Each eligible event is counted exactly once under its single category or
+    the matching uncategorized bucket; categorized, uncategorized, archived, and
+    reversed cases all reconcile directly from wallet movements.
 14. Report queries do not change wallet balances, loan balances, event counts,
     posting counts, or planning revision counts.
 
@@ -582,7 +611,7 @@ following.
 23. Keyset paging with identical effective dates and created timestamps produces
     no duplicate or missing events.
 24. Category reporting returns no more than 25 category buckets, 12 months, and
-    1,200 rows per call.
+    600 rows per call.
 25. Archived categories with in-window history remain visible; archived
     categories without in-window actual/budget are absent; active categories
     remain available with zero values.
@@ -610,7 +639,8 @@ agrees that:
 - USD and LBP never aggregate together;
 - loan targets and category budgets remain planning, not actual money;
 - current/previous and pagination bounds are explicit;
-- category reporting remains blocked on its write-side prerequisite design; and
+- category reporting remains blocked until Categories v1 and a separately
+  approved budget write contract are implemented and verified; and
 - every reported cash value can be reconstructed from immutable wallet
   movements without an exchange rate or mutable report total.
 
