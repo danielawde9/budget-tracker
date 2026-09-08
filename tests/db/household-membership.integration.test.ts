@@ -1331,6 +1331,14 @@ describe('household member administration and bounded owner reads', () => {
           ]),
         ),
       ).rejects.toMatchObject({ message: 'invalid_input' });
+      await expect(
+        withUserSession(ownerId, (client) =>
+          client.query(
+            'select * from public.list_household_invitations($1, $2, null, null)',
+            [household.id, limit],
+          ),
+        ),
+      ).rejects.toMatchObject({ message: 'invalid_input' });
     }
 
     const firstPage = await withUserSession(ownerId, (client) =>
@@ -1364,6 +1372,133 @@ describe('household member administration and bounded owner reads', () => {
     expect(invitationRows.rows).toContainEqual(
       expect.objectContaining({ invitation_id: expired.invitation_id, effective_status: 'expired' }),
     );
+  });
+
+  it('rejects malformed and foreign-space member and invitation cursors', async () => {
+    await ensureAuthUser(ownerId, 'owner-cursor-provenance@budget.invalid');
+    const target = await asUser(ownerId).createSpace(`Cursor target ${randomUUID()}`, 'household');
+    const foreign = await asUser(ownerId).createSpace(`Cursor foreign ${randomUUID()}`, 'household');
+    const foreignMemberId = randomUUID();
+    await addActiveMember(foreign.id, foreignMemberId, 'member');
+    const targetInvitation = await createInvitation(
+      ownerId,
+      target.id,
+      randomUUID(),
+      `cursor-target-${randomUUID()}@budget.invalid`,
+    );
+    const foreignInvitation = await createInvitation(
+      ownerId,
+      foreign.id,
+      randomUUID(),
+      `cursor-foreign-${randomUUID()}@budget.invalid`,
+    );
+
+    await expect(
+      withUserSession(ownerId, (client) =>
+        client.query('select * from public.list_household_members($1, 50, $2)', [
+          target.id,
+          foreignMemberId,
+        ]),
+      ),
+    ).rejects.toMatchObject({ message: 'invalid_input' });
+
+    const foreignCursor = await databaseQuery<{ created_at: Date }>(
+      'select created_at from public.household_invitations where id = $1',
+      [foreignInvitation.invitation_id],
+    );
+    const targetCursor = await databaseQuery<{ created_at: Date }>(
+      'select created_at from public.household_invitations where id = $1',
+      [targetInvitation.invitation_id],
+    );
+    const invalidInvitationCursors: Array<[Date | null, string | null]> = [
+      [foreignCursor[0]!.created_at, foreignInvitation.invitation_id],
+      [new Date(targetCursor[0]!.created_at.getTime() + 1_000), targetInvitation.invitation_id],
+      [targetCursor[0]!.created_at, null],
+      [null, targetInvitation.invitation_id],
+    ];
+    for (const [createdAt, invitationId] of invalidInvitationCursors) {
+      await expect(
+        withUserSession(ownerId, (client) =>
+          client.query('select * from public.list_household_invitations($1, 50, $2, $3)', [
+            target.id,
+            createdAt,
+            invitationId,
+          ]),
+        ),
+      ).rejects.toMatchObject({ message: 'invalid_input' });
+    }
+  });
+
+  it('caps both projections at 100 and continues without overlap', async () => {
+    await ensureAuthUser(ownerId, 'owner-page-cap@budget.invalid');
+    const household = await asUser(ownerId).createSpace(`Page cap ${randomUUID()}`, 'household');
+    await databaseQuery(
+      `with generated as (
+         select extensions.gen_random_uuid() as id from generate_series(1, 101)
+       ), accounts as (
+         insert into auth.users (
+           id, aud, role, email, email_confirmed_at,
+           raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+         )
+         select id, 'authenticated', 'authenticated', id::text || '@page-cap.invalid', now(),
+                '{}', '{}', now(), now()
+         from generated returning id
+       )
+       insert into public.space_memberships (space_id, user_id, role)
+       select $1, id, 'member' from accounts`,
+      [household.id],
+    );
+    const key = await databaseQuery<{ key_version: number }>(
+      'select key_version from private.household_invitation_keys where retired_at is null',
+    );
+    await databaseQuery(
+      `insert into public.household_invitations (
+         space_id, key_version, invitee_identity_digest, token_digest,
+         status, created_by_user_id, created_at, expires_at
+       )
+       select $1, $2,
+              extensions.digest(('cap-identity-' || series.value || $3)::text, 'sha256'),
+              extensions.digest(('cap-token-' || series.value || $3)::text, 'sha256'),
+              'pending', $4, now() - (series.value || ' seconds')::interval,
+              now() - (series.value || ' seconds')::interval + interval '7 days'
+       from generate_series(1, 101) as series(value)`,
+      [household.id, key[0]!.key_version, randomUUID(), ownerId],
+    );
+
+    const membersFirst = await withUserSession(ownerId, (client) =>
+      client.query<{ user_id: string }>(
+        'select * from public.list_household_members($1, 100, null)',
+        [household.id],
+      ),
+    );
+    const membersSecond = await withUserSession(ownerId, (client) =>
+      client.query<{ user_id: string }>(
+        'select * from public.list_household_members($1, 100, $2)',
+        [household.id, membersFirst.rows.at(-1)!.user_id],
+      ),
+    );
+    expect(membersFirst.rows).toHaveLength(100);
+    expect(membersSecond.rows).toHaveLength(2);
+    expect(new Set([...membersFirst.rows, ...membersSecond.rows].map((row) => row.user_id)).size)
+      .toBe(102);
+
+    const invitationsFirst = await withUserSession(ownerId, (client) =>
+      client.query<{ invitation_id: string; created_at: Date }>(
+        'select * from public.list_household_invitations($1, 100, null, null)',
+        [household.id],
+      ),
+    );
+    const invitationCursor = invitationsFirst.rows.at(-1)!;
+    const invitationsSecond = await withUserSession(ownerId, (client) =>
+      client.query<{ invitation_id: string }>(
+        'select * from public.list_household_invitations($1, 100, $2, $3)',
+        [household.id, invitationCursor.created_at, invitationCursor.invitation_id],
+      ),
+    );
+    expect(invitationsFirst.rows).toHaveLength(100);
+    expect(invitationsSecond.rows).toHaveLength(1);
+    expect(new Set([...invitationsFirst.rows, ...invitationsSecond.rows]
+      .map((row) => row.invitation_id)).size).toBe(101);
   });
 
   it('uses the selective membership and invitation indexes after representative ANALYZE', async () => {
