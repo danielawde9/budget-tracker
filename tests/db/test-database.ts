@@ -263,6 +263,25 @@ export async function withAnonymousSession<T>(
   }
 }
 
+export async function withServiceRoleSession<T>(
+  action: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await pool.connect();
+
+  try {
+    await client.query('begin');
+    await client.query('set local role service_role');
+    const result = await action(client);
+    await client.query('commit');
+    return result;
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export async function runConcurrentUserActions<T>(
   actions: Array<{ userId: string; action: (client: PoolClient) => Promise<T> }>,
 ): Promise<PromiseSettledResult<T>[]> {
