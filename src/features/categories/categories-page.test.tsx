@@ -94,6 +94,28 @@ describe('CategoriesPage', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
+  it('localizes initial membership and repeated next-page failures in Arabic', async () => {
+    cleanup();
+    const inaccessible = new InMemoryCategoriesGateway();
+    inaccessible.error = new Error('an active space membership is required');
+    render(<CategoriesPage gateway={inaccessible} spaceId="space-1" locale="ar" onSpaceUnavailable={vi.fn()} />);
+    let alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('لم يعد لديك وصول إلى هذه المساحة');
+    expect(alert).not.toHaveTextContent('You no longer have access');
+
+    cleanup();
+    const paged = new PagedCategoriesGateway();
+    const user = userEvent.setup();
+    render(<CategoriesPage gateway={paged} spaceId="space-1" locale="ar" onSpaceUnavailable={vi.fn()} />);
+    await waitFor(() => expect(screen.queryByRole('status', { name: 'تحميل الفئات' })).not.toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'تحميل المزيد' }));
+    alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('لم يتم قبول طلب الفئة');
+    expect(alert).not.toHaveTextContent('category request was not accepted');
+    await user.click(screen.getByRole('button', { name: 'إعادة محاولة تحميل فئات الدخل' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('لم يتم قبول طلب الفئة');
+  });
+
   it('renders equivalent Arabic management and restores opener focus after Escape', async () => {
     const { user } = await renderPage(new InMemoryCategoriesGateway(), 'ar');
     expect(screen.getByRole('heading', { name: 'الفئات' })).toBeInTheDocument();

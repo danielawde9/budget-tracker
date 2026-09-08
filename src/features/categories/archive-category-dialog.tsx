@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 
 import type { Locale } from '../loans/types.js';
 import { DialogShell } from '../wallets/dialog-shell.js';
-import { classifyCategoryError } from './errors.js';
+import { classifyCategoryError, localizeCategoryError } from './errors.js';
 import type { Category } from './types.js';
 import type { CategoryCommandOutcome } from './use-categories.js';
 
@@ -40,10 +40,8 @@ export function ArchiveCategoryDialog(props: ArchiveCategoryDialogProps) {
         setError(t(props.locale, 'The category was archived, but the current register could not be refreshed.', 'تمت أرشفة الفئة، ولكن تعذّر تحديث السجل الحالي.'));
       } else setError(t(props.locale, 'The result is still unknown. Retry only with this unchanged category.', 'ما زالت النتيجة غير معروفة. أعد المحاولة بهذه الفئة نفسها فقط.'));
     } catch (cause) {
-      const result = classifyCategoryError(cause);
-      setError(props.locale === 'ar'
-        ? result.code === 'already_archived' ? 'هذه الفئة مؤرشفة بالفعل. حدّث القائمة الحالية.' : 'لم تتم أرشفة الفئة. حدّث القائمة وحاول مجددًا.'
-        : `${result.message} ${result.recovery}`);
+      const result = localizeCategoryError(classifyCategoryError(cause), props.locale);
+      setError(`${result.message} ${result.recovery}`);
     }
   }
 

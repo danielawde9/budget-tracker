@@ -206,6 +206,16 @@ describe('WalletsPage', () => {
     expect(within(dialog).getByRole('radio', { name: 'Groceries' })).toBeChecked();
   });
 
+  it('localizes category load failures in the Arabic wallet workspace', async () => {
+    const categoriesGateway = new InMemoryCategoriesGateway();
+    categoriesGateway.error = new Error('an active space membership is required');
+    await renderPage(new InMemoryWalletsGateway(), 'ar', categoriesGateway);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('لم يعد لديك وصول إلى هذه المساحة');
+    expect(alert).not.toHaveTextContent('You no longer have access');
+  });
+
   it('renders an archived historical category label without exposing it in the active picker', async () => {
     const categoriesGateway = new InMemoryCategoriesGateway();
     categoriesGateway.categories = categoriesGateway.categories.map((category) => ({ ...category, spaceId: 'personal-space' }));

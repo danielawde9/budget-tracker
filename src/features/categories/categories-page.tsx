@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { Locale } from '../loans/types.js';
 import { ArchiveCategoryDialog } from './archive-category-dialog.js';
 import { CategoryDialog } from './category-dialog.js';
+import { localizeCategoryError } from './errors.js';
 import type { CategoriesGateway, Category, CategoryKind } from './types.js';
 import { useCategories } from './use-categories.js';
 
@@ -47,6 +48,10 @@ function CategoryRegister(props: RegisterProps) {
 
 export function CategoriesPage({ gateway, spaceId, locale = 'en', onSpaceUnavailable }: CategoriesPageProps) {
   const state = useCategories(gateway, spaceId, onSpaceUnavailable);
+  const loadError = state.error ? localizeCategoryError(state.error, locale) : null;
+  const paginationError = state.paginationError
+    ? { ...state.paginationError, error: localizeCategoryError(state.paginationError.error, locale) }
+    : null;
   const [activeKind, setActiveKind] = useState<CategoryKind>('income');
   const [dialog, setDialog] = useState<OpenDialog>(null);
 
@@ -56,12 +61,12 @@ export function CategoriesPage({ gateway, spaceId, locale = 'en', onSpaceUnavail
     <div className="category-kind-tabs" role="group" aria-label={t(locale, 'Category type', 'نوع الفئة')}><button type="button" className={activeKind === 'income' ? 'category-tab-active' : ''} aria-pressed={activeKind === 'income'} onClick={() => setActiveKind('income')}>{t(locale, 'Income', 'الدخل')}</button><button type="button" className={activeKind === 'expense' ? 'category-tab-active' : ''} aria-pressed={activeKind === 'expense'} onClick={() => setActiveKind('expense')}>{t(locale, 'Expense', 'المصروف')}</button></div>
 
     {state.status === 'loading' && <div className="state-panel" role="status" aria-label={t(locale, 'Loading categories', 'تحميل الفئات')}>{t(locale, 'Loading this space’s categories…', 'جارٍ تحميل فئات هذه المساحة…')}</div>}
-    {state.status === 'error' && <div className="state-panel error-notice" role="alert"><strong>{t(locale, 'Categories are unavailable', 'الفئات غير متاحة')}</strong><p>{state.error?.message}</p><p>{state.error?.recovery}</p><button type="button" onClick={() => void state.refresh()}>{t(locale, 'Try again', 'المحاولة مجددًا')}</button></div>}
+    {state.status === 'error' && <div className="state-panel error-notice" role="alert"><strong>{t(locale, 'Categories are unavailable', 'الفئات غير متاحة')}</strong><p>{loadError?.message}</p><p>{loadError?.recovery}</p><button type="button" onClick={() => void state.refresh()}>{t(locale, 'Try again', 'المحاولة مجددًا')}</button></div>}
     {state.status === 'ready' && <div className="category-registers">
       <CategoryRegister locale={locale} kind="income" categories={state.incomeCategories} activeKind={activeKind} nextCursor={state.incomeNextCursor} loadingMore={state.loadingMore === 'income'} onArchive={(category) => setDialog({ archive: category })} onLoadMore={() => void state.loadMore('income')} />
       <CategoryRegister locale={locale} kind="expense" categories={state.expenseCategories} activeKind={activeKind} nextCursor={state.expenseNextCursor} loadingMore={state.loadingMore === 'expense'} onArchive={(category) => setDialog({ archive: category })} onLoadMore={() => void state.loadMore('expense')} />
     </div>}
-    {state.status === 'ready' && state.paginationError && <div className="state-panel error-notice" role="alert"><strong>{t(locale, 'More categories could not be loaded', 'تعذّر تحميل المزيد من الفئات')}</strong><p>{state.paginationError.error.message}</p><p>{state.paginationError.error.recovery}</p><button type="button" onClick={() => void state.loadMore(state.paginationError!.kind)}>{t(locale, `Retry loading ${state.paginationError.kind} categories`, `إعادة محاولة تحميل فئات ${state.paginationError.kind === 'income' ? 'الدخل' : 'المصروف'}`)}</button></div>}
+    {state.status === 'ready' && paginationError && <div className="state-panel error-notice" role="alert"><strong>{t(locale, 'More categories could not be loaded', 'تعذّر تحميل المزيد من الفئات')}</strong><p>{paginationError.error.message}</p><p>{paginationError.error.recovery}</p><button type="button" onClick={() => void state.loadMore(paginationError.kind)}>{t(locale, `Retry loading ${paginationError.kind} categories`, `إعادة محاولة تحميل فئات ${paginationError.kind === 'income' ? 'الدخل' : 'المصروف'}`)}</button></div>}
 
     {dialog && 'create' in dialog && <CategoryDialog locale={locale} initialKind={dialog.create} pending={state.pending} ambiguous={state.ambiguous?.kind === 'create'} onClose={() => setDialog(null)} onClearAmbiguous={state.clearAmbiguous} onRetry={state.retryAmbiguous} onRefresh={state.recoverRefresh} onSubmit={state.createCategory} />}
     {dialog && 'archive' in dialog && <ArchiveCategoryDialog locale={locale} category={dialog.archive} pending={state.pending} ambiguous={state.ambiguous?.kind === 'archive'} onClose={() => setDialog(null)} onRetry={state.retryAmbiguous} onRefresh={state.recoverRefresh} onSubmit={() => state.archiveCategory(dialog.archive.id)} />}

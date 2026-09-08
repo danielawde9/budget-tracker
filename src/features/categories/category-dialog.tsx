@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 
 import type { Locale } from '../loans/types.js';
 import { DialogShell } from '../wallets/dialog-shell.js';
-import { classifyCategoryError } from './errors.js';
+import { classifyCategoryError, localizeCategoryError } from './errors.js';
 import type { CategoryKind } from './types.js';
 import type { CategoryCommandOutcome, CreateCategoryDraft } from './use-categories.js';
 
@@ -21,17 +21,8 @@ interface CategoryDialogProps {
 const t = (locale: Locale, en: string, ar: string) => locale === 'ar' ? ar : en;
 
 function errorCopy(locale: Locale, cause: unknown): string {
-  const error = classifyCategoryError(cause);
-  if (locale === 'en') return `${error.message} ${error.recovery}`;
-  const messages = {
-    missing_membership: 'لم يعد لديك وصول إلى هذه المساحة. حدّث المساحات المتاحة واختر مساحة يمكنك الوصول إليها.',
-    duplicate_name: 'تستخدم فئة فعالة أحد هذين الاسمين بالفعل. استخدم اسمًا آخر أو أرشف الفئة الحالية أولًا.',
-    invalid_category: 'لم تعد هذه الفئة متاحة. حدّث الفئات واختر فئة فعالة من النوع المطابق.',
-    request_collision: 'لم يعد هذا الطلب يطابق التفاصيل الأصلية. راجع القيم الحالية وأرسلها كطلب جديد.',
-    already_archived: 'هذه الفئة مؤرشفة بالفعل. حدّث سجل الفئات لعرض القائمة الحالية.',
-    unknown: 'لم يتم قبول طلب الفئة. راجع التفاصيل وحاول مجددًا.',
-  } as const;
-  return messages[error.code];
+  const error = localizeCategoryError(classifyCategoryError(cause), locale);
+  return `${error.message} ${error.recovery}`;
 }
 
 export function CategoryDialog(props: CategoryDialogProps) {

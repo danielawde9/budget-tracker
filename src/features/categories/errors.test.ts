@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { classifyCategoryError, isAmbiguousTransportFailure } from './errors.js';
+import { classifyCategoryError, isAmbiguousTransportFailure, localizeCategoryError } from './errors.js';
 
 describe('category errors', () => {
   it('classifies only transport failures as ambiguous', () => {
@@ -28,5 +28,20 @@ describe('category errors', () => {
       message: 'The category request was not accepted.',
       recovery: 'Check the details and try again. If the problem continues, refresh the selected space.',
     });
+  });
+
+  it.each([
+    'missing_membership',
+    'duplicate_name',
+    'invalid_category',
+    'request_collision',
+    'already_archived',
+    'unknown',
+  ] as const)('localizes %s without reusing English fallback copy', (code) => {
+    const result = localizeCategoryError({ code, message: 'English message', recovery: 'English recovery' }, 'ar');
+    expect(result.code).toBe(code);
+    expect(result.message).toMatch(/[\u0600-\u06ff]/);
+    expect(result.recovery).toMatch(/[\u0600-\u06ff]/);
+    expect(`${result.message} ${result.recovery}`).not.toContain('English');
   });
 });

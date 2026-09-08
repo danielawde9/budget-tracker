@@ -73,3 +73,35 @@ export function classifyCategoryError(cause: unknown): CategoryErrorView {
     recovery: 'Check the details and try again. If the problem continues, refresh the selected space.',
   };
 }
+
+const arabicCopy: Record<CategoryErrorCode, Pick<CategoryErrorView, 'message' | 'recovery'>> = {
+  missing_membership: {
+    message: 'لم يعد لديك وصول إلى هذه المساحة.',
+    recovery: 'حدّث المساحات المتاحة، ثم اختر مساحة لا يزال بإمكانك الوصول إليها.',
+  },
+  duplicate_name: {
+    message: 'تستخدم فئة فعالة أحد هذين الاسمين بالفعل.',
+    recovery: 'استخدم اسمًا مختلفًا بالإنجليزية أو العربية، أو أرشف الفئة الحالية أولًا.',
+  },
+  invalid_category: {
+    message: 'لم تعد هذه الفئة متاحة لهذا القيد.',
+    recovery: 'حدّث الفئات واختر فئة فعالة من النوع المطابق.',
+  },
+  request_collision: {
+    message: 'لم يعد هذا الطلب يطابق التفاصيل الأصلية.',
+    recovery: 'راجع القيم الحالية وأرسلها كطلب جديد.',
+  },
+  already_archived: {
+    message: 'هذه الفئة مؤرشفة بالفعل.',
+    recovery: 'حدّث سجل الفئات لعرض القائمة الفعالة الحالية.',
+  },
+  unknown: {
+    message: 'لم يتم قبول طلب الفئة.',
+    recovery: 'راجع التفاصيل وحاول مجددًا. إذا استمرت المشكلة، فحدّث المساحة المحددة.',
+  },
+};
+
+export function localizeCategoryError(error: CategoryErrorView, locale: 'en' | 'ar'): CategoryErrorView {
+  if (locale === 'en') return error;
+  return { code: error.code, ...arabicCopy[error.code] };
+}
