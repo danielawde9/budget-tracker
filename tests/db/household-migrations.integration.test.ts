@@ -8,6 +8,12 @@ import { describe, expect, it } from 'vitest';
 const migrationsDirectory = join(process.cwd(), 'supabase', 'migrations');
 const householdStart = '20260908170000';
 const migrationLimit = 100;
+const disposableDatabaseNamePattern = /^budget_household_migration_[0-9a-f]{12}$/;
+
+type CleanupQuery = (
+  statement: string,
+  values?: unknown[],
+) => Promise<{ rows: Array<Record<string, unknown>> }>;
 
 interface MigrationFile {
   name: string;
@@ -69,6 +75,64 @@ function disposableDatabaseUrl(name: string): string {
   const url = new URL(databaseUrl());
   url.pathname = `/${name}`;
   return url.toString();
+}
+
+function errorDetail(error: unknown): string {
+  return error instanceof Error ? error.message : 'unknown error';
+}
+
+async function cleanupDisposableDatabase(query: CleanupQuery, name: string): Promise<void> {
+  if (!disposableDatabaseNamePattern.test(name)) {
+    throw new Error('refusing unsafe disposable database name');
+  }
+  const ownership = await query(
+    `select pg_get_userbyid(database.datdba) = current_user as is_current_owner
+     from pg_database as database
+     where database.datname = $1
+     limit 1`,
+    [name],
+  );
+  if (ownership.rows.length === 0) return;
+  if (ownership.rows[0]?.is_current_owner !== true) {
+    throw new Error(`refusing to drop disposable database ${name}: current role is not its owner`);
+  }
+
+  const dropStatement = `drop database if exists "${name}"`;
+  let firstDropError: unknown;
+  try {
+    await query(dropStatement);
+    return;
+  } catch (error) {
+    firstDropError = error;
+  }
+
+  let terminationError: unknown;
+  try {
+    await query(
+      `select pg_terminate_backend(activity.pid)
+       from (
+         select pid
+         from pg_stat_activity
+         where datname = $1 and pid <> pg_backend_pid() and usename = current_user
+         order by pid
+         limit 50
+       ) as activity`,
+      [name],
+    );
+  } catch (error) {
+    terminationError = error;
+  }
+
+  try {
+    await query(dropStatement);
+  } catch (secondDropError) {
+    throw new Error(
+      `disposable database ${name} remains after two exact drop attempts; `
+        + `first drop: ${errorDetail(firstDropError)}; `
+        + `backend cleanup: ${errorDetail(terminationError)}; `
+        + `second drop: ${errorDetail(secondDropError)}`,
+    );
+  }
 }
 
 async function bootstrap(client: Client): Promise<void> {
@@ -268,7 +332,7 @@ async function proofResult(client: Client, seeded: boolean): Promise<MigrationPr
 
 async function verifyHouseholdMigrations(seeded: boolean): Promise<MigrationProof> {
   const name = `budget_household_migration_${randomBytes(6).toString('hex')}`;
-  if (!/^budget_household_migration_[0-9a-f]{12}$/.test(name)) {
+  if (!disposableDatabaseNamePattern.test(name)) {
     throw new Error('refusing unsafe disposable database name');
   }
   const admin = new Client({ connectionString: databaseUrl(), connectionTimeoutMillis: 10_000 });
@@ -298,16 +362,72 @@ async function verifyHouseholdMigrations(seeded: boolean): Promise<MigrationProo
     }
     return proof;
   } finally {
-    await database?.end();
-    await admin.query(
-      `select pg_terminate_backend(pid) from pg_stat_activity
-       where datname = $1 and pid <> pg_backend_pid()`,
-      [name],
-    );
-    await admin.query(`drop database if exists "${name}"`);
-    await admin.end();
+    const cleanupErrors: string[] = [];
+    try {
+      await database?.end();
+    } catch (error) {
+      cleanupErrors.push(`database client: ${errorDetail(error)}`);
+    }
+    try {
+      await cleanupDisposableDatabase(
+        async (statement, values) => {
+          const result = await admin.query(statement, values);
+          return { rows: result.rows };
+        },
+        name,
+      );
+    } catch (error) {
+      cleanupErrors.push(`database drop: ${errorDetail(error)}`);
+    }
+    try {
+      await admin.end();
+    } catch (error) {
+      cleanupErrors.push(`admin client: ${errorDetail(error)}`);
+    }
+    if (cleanupErrors.length > 0) {
+      throw new Error(`cleanup failed for disposable database ${name}: ${cleanupErrors.join('; ')}`);
+    }
   }
 }
+
+describe('disposable database cleanup', () => {
+  it('retries the exact drop even when backend termination is denied', async () => {
+    const name = 'budget_household_migration_0123456789ab';
+    const statements: string[] = [];
+    let dropAttempts = 0;
+    const query = async (statement: string): Promise<{ rows: Array<Record<string, unknown>> }> => {
+      statements.push(statement);
+      if (statement.includes('from pg_database')) return { rows: [{ is_current_owner: true }] };
+      if (statement.includes('pg_terminate_backend')) throw new Error('permission denied');
+      if (statement.startsWith('drop database')) {
+        dropAttempts += 1;
+        if (dropAttempts === 1) throw new Error('database is being accessed');
+      }
+      return { rows: [] };
+    };
+
+    await expect(cleanupDisposableDatabase(query, name)).resolves.toBeUndefined();
+    expect(dropAttempts).toBe(2);
+    expect(statements.filter((statement) => statement.startsWith('drop database'))).toEqual([
+      `drop database if exists "${name}"`,
+      `drop database if exists "${name}"`,
+    ]);
+  });
+
+  it('reports the exact recoverable database when both drop attempts fail', async () => {
+    const name = 'budget_household_migration_fedcba987654';
+    const query = async (statement: string): Promise<{ rows: Array<Record<string, unknown>> }> => {
+      if (statement.includes('from pg_database')) return { rows: [{ is_current_owner: true }] };
+      if (statement.includes('pg_terminate_backend')) throw new Error('permission denied');
+      if (statement.startsWith('drop database')) throw new Error('database is being accessed');
+      return { rows: [] };
+    };
+
+    await expect(cleanupDisposableDatabase(query, name)).rejects.toThrow(
+      `disposable database ${name} remains after two exact drop attempts`,
+    );
+  });
+});
 
 describe('household migration journal', () => {
   it('applies from an empty database', async () => {
