@@ -14,6 +14,7 @@ import {
   withServiceRoleSession,
   withUserSession,
 } from './test-database.js';
+import { findHouseholdDirectWrites, findSensitiveLogging } from './household-source-ratchet.js';
 
 const ownerId = '00000000-0000-4000-a000-000000000001';
 
@@ -395,10 +396,8 @@ describe('household defense in depth', () => {
     const source = sourceFiles
       .map((file) => readFileSync(join('src', file), 'utf8'))
       .join('\n');
-    expect(source).not.toMatch(
-      /from\(['"](?:space_memberships|household_invitations|household_membership_events)['"]\)[\s\S]{0,200}\.(?:insert|update|delete|upsert|truncate)\(/,
-    );
-    expect(source).not.toMatch(/console\.(?:log|info|debug)\([^\n]*(?:invitation_token|access_token|refresh_token)/i);
+    expect(findHouseholdDirectWrites(source)).toEqual([]);
+    expect(findSensitiveLogging(source)).toEqual([]);
   });
 
   it('paginates invitation projections without overlap or omission', async () => {
