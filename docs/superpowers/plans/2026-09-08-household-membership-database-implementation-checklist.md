@@ -125,10 +125,11 @@
 
 ## Completion evidence
 
-- Fresh final verification after the second independent review corrections: 96/96 database tests, 107/107 UI tests, production build successful, and Playwright 23 passed with 23 intentional project skips.
+- Fresh final verification after the final independent review corrections: 101/101 database tests, 107/107 UI tests, production build successful, and Playwright 23 passed with 23 intentional project skips.
 - Disposable migration verification passed twice after cleanup hardening. Both empty and seeded databases applied all 27 repository migrations; the seeded proof preserved the complete wallet/event/movement/loan/posting snapshot and backfilled all three memberships to active without changing roles or creation timestamps. No disposable database remained.
 - Catalog verification: one active private invitation key, 11 named constraints, eight required indexes, six required immutable/invariant triggers, three owner policies, two forced-RLS household tables, and eight exact public signatures owned by `household_command_owner` with authenticated-only execution.
 - Independent review corrections also cover concurrent direct last-owner demotions, cross-key live invitation duplicates with old-key replay/acceptance, constant table-name and destructured-logger ratchets with literal-message precision, and retry-safe exact disposable-database cleanup after termination failure.
+- Final review corrections cover `let` and semicolon-free protected-table aliases, bounded sensitive payload/destructuring propagation into logger and analytics sinks (including `identify`), and README wording that distinguishes the verified database commands from the still-unimplemented Household gateway, UI, and email delivery.
 - The shared Budget test database contains the 27 migrations in this worktree plus four separately owned Categories journal entries (`20260908100000` through `20260908103000`); those files and their implementation remain outside this worktree and diff.
 - Scope verification: no diff in `src`, `docs/financial-command-inventory.md`, or any pre-existing `20260907*.sql` migration relative to `14bbf7c`; `.swarm/` remains untracked and excluded from commits.
 - Application/gateway behavior, email provider/DNS/templates/sending, Categories, and household UI remain explicitly unimplemented.
