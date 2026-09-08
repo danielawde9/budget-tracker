@@ -60,9 +60,10 @@ export function TransactionDialog(props: TransactionDialogProps) {
   const categoryLabel = category
     ? (props.locale === 'ar' ? category.nameAr ?? category.nameEn : category.nameEn ?? category.nameAr)
     : null;
+  const mutationLocked = props.pending || refreshRequired;
 
   function edit(action: () => void) {
-    if (refreshRequired) return;
+    if (mutationLocked) return;
     action();
     setMovements(null);
     setError(null);
@@ -168,21 +169,21 @@ export function TransactionDialog(props: TransactionDialogProps) {
       <p className="dialog-intro">{t(props.locale, 'Record one immutable wallet event. Review the signed wallet effects before confirmation.', 'سجّل حدث محفظة واحدًا غير قابل للتعديل. راجع تأثيرات المحافظ الموقّعة قبل التأكيد.')}</p>
       {error && <div className="error-notice" role="alert">{error}{refreshRequired ? <div><button type="button" className="button-secondary retry-command" disabled={refreshing} onClick={() => void refreshAcceptedCommand()}>{refreshing ? t(props.locale, 'Refreshing…', 'جارٍ التحديث…') : t(props.locale, 'Refresh wallets', 'تحديث المحافظ')}</button></div> : props.ambiguous && <div><button type="button" className="button-secondary retry-command" disabled={props.pending} onClick={() => void retry()}>{t(props.locale, 'Retry unchanged transaction', 'إعادة المعاملة دون تغيير')}</button></div>}</div>}
       <div className="form-grid">
-        <label>{t(props.locale, 'Type', 'النوع')}<select data-autofocus value={kind} disabled={refreshRequired} onChange={(event) => edit(() => { setKind(event.target.value as GeneralEventKind); setCategoryId(null); })}><option value="opening_balance">{t(props.locale, 'Opening balance', 'رصيد افتتاحي')}</option><option value="income">{t(props.locale, 'Income', 'دخل')}</option><option value="expense">{t(props.locale, 'Expense', 'مصروف')}</option><option value="transfer">{t(props.locale, 'Transfer', 'تحويل')}</option></select></label>
-        <label>{t(props.locale, 'Effective date', 'تاريخ السريان')}<input type="date" value={effectiveDate} disabled={refreshRequired} onChange={(event) => edit(() => setEffectiveDate(event.target.value))} /></label>
-        <label>{kind === 'transfer' ? t(props.locale, 'From wallet', 'من محفظة') : t(props.locale, 'Wallet', 'المحفظة')}<select value={walletId} disabled={refreshRequired} onChange={(event) => edit(() => setWalletId(event.target.value))}>{props.wallets.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.currency}</option>)}</select></label>
-        {kind === 'transfer' && <label>{t(props.locale, 'To wallet', 'إلى محفظة')}<select value={toWalletId} disabled={refreshRequired} onChange={(event) => edit(() => setToWalletId(event.target.value))}>{props.wallets.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.currency}</option>)}</select></label>}
-        <label className="full-field">{t(props.locale, 'Amount', 'المبلغ')}<input inputMode="decimal" value={amount} disabled={refreshRequired} onChange={(event) => edit(() => setAmount(event.target.value))} /></label>
+        <label>{t(props.locale, 'Type', 'النوع')}<select data-autofocus value={kind} disabled={mutationLocked} onChange={(event) => edit(() => { setKind(event.target.value as GeneralEventKind); setCategoryId(null); })}><option value="opening_balance">{t(props.locale, 'Opening balance', 'رصيد افتتاحي')}</option><option value="income">{t(props.locale, 'Income', 'دخل')}</option><option value="expense">{t(props.locale, 'Expense', 'مصروف')}</option><option value="transfer">{t(props.locale, 'Transfer', 'تحويل')}</option></select></label>
+        <label>{t(props.locale, 'Effective date', 'تاريخ السريان')}<input type="date" value={effectiveDate} disabled={mutationLocked} onChange={(event) => edit(() => setEffectiveDate(event.target.value))} /></label>
+        <label>{kind === 'transfer' ? t(props.locale, 'From wallet', 'من محفظة') : t(props.locale, 'Wallet', 'المحفظة')}<select value={walletId} disabled={mutationLocked} onChange={(event) => edit(() => setWalletId(event.target.value))}>{props.wallets.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.currency}</option>)}</select></label>
+        {kind === 'transfer' && <label>{t(props.locale, 'To wallet', 'إلى محفظة')}<select value={toWalletId} disabled={mutationLocked} onChange={(event) => edit(() => setToWalletId(event.target.value))}>{props.wallets.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.currency}</option>)}</select></label>}
+        <label className="full-field">{t(props.locale, 'Amount', 'المبلغ')}<input inputMode="decimal" value={amount} disabled={mutationLocked} onChange={(event) => edit(() => setAmount(event.target.value))} /></label>
       </div>
       {(kind === 'income' || kind === 'expense') && <fieldset className="category-picker">
         <legend>{t(props.locale, 'Category', 'الفئة')}</legend>
-        <label><input type="radio" name="transaction-category" checked={categoryId === null} disabled={refreshRequired} onChange={() => edit(() => setCategoryId(null))} /><span>{t(props.locale, 'Uncategorized', 'غير مصنّف')}</span></label>
+        <label><input type="radio" name="transaction-category" checked={categoryId === null} disabled={mutationLocked} onChange={() => edit(() => setCategoryId(null))} /><span>{t(props.locale, 'Uncategorized', 'غير مصنّف')}</span></label>
         {eligibleCategories.map((item) => {
           const label = props.locale === 'ar' ? item.nameAr ?? item.nameEn : item.nameEn ?? item.nameAr;
-          return <label key={item.id}><input type="radio" name="transaction-category" checked={categoryId === item.id} disabled={refreshRequired} onChange={() => edit(() => setCategoryId(item.id))} /><bdi>{label}</bdi></label>;
+          return <label key={item.id}><input type="radio" name="transaction-category" checked={categoryId === item.id} disabled={mutationLocked} onChange={() => edit(() => setCategoryId(item.id))} /><bdi>{label}</bdi></label>;
         })}
-        {props.categoryNextCursors?.[kind] && <button type="button" className="button-secondary category-picker-more" disabled={refreshRequired || props.categoryLoadingMore === kind} onClick={() => void props.onLoadMoreCategories?.(kind)}>{props.categoryLoadingMore === kind ? t(props.locale, 'Loading categories…', 'جارٍ تحميل الفئات…') : t(props.locale, `Load more ${kind} categories`, `تحميل المزيد من فئات ${kind === 'income' ? 'الدخل' : 'المصروف'}`)}</button>}
-        {props.categoryPaginationError?.kind === kind && <div className="error-notice category-picker-error" role="alert"><span>{props.categoryPaginationError.error.message} {props.categoryPaginationError.error.recovery}</span><button type="button" className="button-secondary retry-command" disabled={props.categoryLoadingMore === kind} onClick={() => void props.onLoadMoreCategories?.(kind)}>{t(props.locale, `Retry loading ${kind} categories`, `إعادة محاولة تحميل فئات ${kind === 'income' ? 'الدخل' : 'المصروف'}`)}</button></div>}
+        {props.categoryNextCursors?.[kind] && <button type="button" className="button-secondary category-picker-more" disabled={mutationLocked || props.categoryLoadingMore === kind} onClick={() => void props.onLoadMoreCategories?.(kind)}>{props.categoryLoadingMore === kind ? t(props.locale, 'Loading categories…', 'جارٍ تحميل الفئات…') : t(props.locale, `Load more ${kind} categories`, `تحميل المزيد من فئات ${kind === 'income' ? 'الدخل' : 'المصروف'}`)}</button>}
+        {props.categoryPaginationError?.kind === kind && <div className="error-notice category-picker-error" role="alert"><span>{props.categoryPaginationError.error.message} {props.categoryPaginationError.error.recovery}</span><button type="button" className="button-secondary retry-command" disabled={mutationLocked || props.categoryLoadingMore === kind} onClick={() => void props.onLoadMoreCategories?.(kind)}>{t(props.locale, `Retry loading ${kind} categories`, `إعادة محاولة تحميل فئات ${kind === 'income' ? 'الدخل' : 'المصروف'}`)}</button></div>}
       </fieldset>}
       {movements && wallet && <section className="effect-preview" aria-label={t(props.locale, 'Wallet effect preview', 'معاينة تأثير المحافظ')}>
         <h3>{t(props.locale, 'Confirm wallet effects', 'تأكيد تأثيرات المحافظ')}</h3>
@@ -195,7 +196,7 @@ export function TransactionDialog(props: TransactionDialogProps) {
         })}</ul>
         <p>{t(props.locale, 'The resulting balances will come from the refreshed journal; this preview does not calculate them.', 'ستأتي الأرصدة الناتجة من السجل المحدّث؛ لا تحسب هذه المعاينة الأرصدة.')}</p>
       </section>}
-      <div className="dialog-actions"><button type="button" className="button-secondary" disabled={props.pending || refreshing} onClick={props.onClose}>{t(props.locale, refreshRequired ? 'Close' : 'Cancel', refreshRequired ? 'إغلاق' : 'إلغاء')}</button>{movements ? <button type="button" disabled={props.pending || refreshRequired} onClick={() => void submit()}>{props.pending ? t(props.locale, 'Recording…', 'جارٍ التسجيل…') : `${t(props.locale, 'Record', 'تسجيل')} ${kindLabel}`}</button> : <button type="submit" disabled={refreshRequired}>{t(props.locale, 'Review transaction', 'مراجعة المعاملة')}</button>}</div>
+      <div className="dialog-actions"><button type="button" className="button-secondary" disabled={props.pending || refreshing} onClick={props.onClose}>{t(props.locale, refreshRequired ? 'Close' : 'Cancel', refreshRequired ? 'إغلاق' : 'إلغاء')}</button>{movements ? <button type="button" disabled={mutationLocked} onClick={() => void submit()}>{props.pending ? t(props.locale, 'Recording…', 'جارٍ التسجيل…') : `${t(props.locale, 'Record', 'تسجيل')} ${kindLabel}`}</button> : <button type="submit" disabled={mutationLocked}>{t(props.locale, 'Review transaction', 'مراجعة المعاملة')}</button>}</div>
     </form>
   </DialogShell>;
 }

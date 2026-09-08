@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -7,6 +7,12 @@ import { InMemoryWalletsGateway } from '../../test/in-memory-wallets-gateway.js'
 import type { CategoriesGateway } from '../categories/types.js';
 import type { RecordEventInput } from './types.js';
 import { WalletsPage } from './wallets-page.js';
+
+function rejectable<T>() {
+  let reject!: (cause: unknown) => void;
+  const promise = new Promise<T>((_resolve, fail) => { reject = fail; });
+  return { promise, reject };
+}
 
 async function renderPage(
   gateway = new InMemoryWalletsGateway(),
@@ -386,6 +392,57 @@ describe('WalletsPage', () => {
     const alert = await within(dialog).findByRole('alert');
     expect(alert).toHaveTextContent('لم تعد هذه الفئة متاحة لهذا القيد');
     expect(alert).not.toHaveTextContent('must be active');
+  });
+
+  it('locks a categorized payload through delayed submit and retry failures', async () => {
+    const firstAttempt = rejectable<{ eventId?: string }>();
+    const retryAttempt = rejectable<{ eventId?: string }>();
+    const recordCategorizedEvent = vi.fn()
+      .mockImplementationOnce(() => firstAttempt.promise)
+      .mockImplementationOnce(() => retryAttempt.promise);
+    const categoriesGateway = new InMemoryCategoriesGateway();
+    categoriesGateway.categories = categoriesGateway.categories.map((category) => ({ ...category, spaceId: 'personal-space' }));
+    categoriesGateway.recordCategorizedEvent = recordCategorizedEvent;
+    categoriesGateway.findCategorizedEventByRequestId = vi.fn(async () => null);
+    const { user } = await renderPage(new InMemoryWalletsGateway(), 'en', categoriesGateway);
+    await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+    const type = within(dialog).getByLabelText('Type');
+    const salary = within(dialog).getByRole('radio', { name: 'Salary' });
+    await user.click(salary);
+    await user.type(within(dialog).getByLabelText('Amount'), '12.50');
+    await user.click(within(dialog).getByRole('button', { name: 'Review transaction' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Record income' }));
+
+    await waitFor(() => expect(type).toBeDisabled());
+    expect(salary).toBeDisabled();
+    await user.selectOptions(type, 'transfer');
+    await user.click(within(dialog).getByRole('radio', { name: 'Uncategorized' }));
+    expect(type).toHaveValue('income');
+    expect(salary).toBeChecked();
+
+    await act(async () => {
+      firstAttempt.reject(new Error('Connection timeout'));
+      await Promise.resolve();
+    });
+    const retry = await within(dialog).findByRole('button', { name: 'Retry unchanged transaction' });
+    await user.click(retry);
+    await waitFor(() => expect(type).toBeDisabled());
+    expect(salary).toBeDisabled();
+    await user.selectOptions(type, 'expense');
+
+    await act(async () => {
+      retryAttempt.reject(new Error('raw category database failure'));
+      await Promise.resolve();
+    });
+
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent('The category request was not accepted');
+    expect(alert).not.toHaveTextContent('raw category database failure');
+    expect(type).toHaveValue('income');
+    expect(salary).toBeChecked();
+    expect(recordCategorizedEvent).toHaveBeenCalledTimes(2);
+    expect(recordCategorizedEvent.mock.calls[1]?.[0]).toEqual(recordCategorizedEvent.mock.calls[0]?.[0]);
   });
 
   it('localizes a categorized reconciliation failure without exposing its cause in Arabic', async () => {
