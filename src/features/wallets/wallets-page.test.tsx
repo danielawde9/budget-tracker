@@ -4,13 +4,14 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { InMemoryCategoriesGateway } from '../../test/in-memory-categories-gateway.js';
 import { InMemoryWalletsGateway } from '../../test/in-memory-wallets-gateway.js';
+import type { CategoriesGateway } from '../categories/types.js';
 import type { RecordEventInput } from './types.js';
 import { WalletsPage } from './wallets-page.js';
 
 async function renderPage(
   gateway = new InMemoryWalletsGateway(),
   locale: 'en' | 'ar' = 'en',
-  categoriesGateway?: InMemoryCategoriesGateway,
+  categoriesGateway?: CategoriesGateway,
 ) {
   const user = userEvent.setup();
   render(<WalletsPage gateway={gateway} {...(categoriesGateway ? { categoriesGateway } : {})} spaceId="personal-space" locale={locale} onSpaceUnavailable={vi.fn()} onOpenLoans={vi.fn()} />);
@@ -140,6 +141,36 @@ describe('WalletsPage', () => {
       },
     });
     expect(walletGateway.calls.some((call) => call.name === 'recordEvent')).toBe(false);
+  });
+
+  it('loads later bounded category pages into the eligible transaction picker', async () => {
+    const categoriesGateway: CategoriesGateway = new InMemoryCategoriesGateway();
+    const incomeCategories = Array.from({ length: 51 }, (_, index) => ({
+      id: `category-${index + 1}`,
+      spaceId: 'personal-space',
+      kind: 'income' as const,
+      nameEn: `Income ${String(index + 1).padStart(2, '0')}`,
+      nameAr: null,
+      createdAt: `2026-09-08T10:${String(index).padStart(2, '0')}:00Z`,
+      archivedAt: null,
+    }));
+    const reads: Array<{ kind: string; cursor?: string }> = [];
+    categoriesGateway.listCategories = vi.fn(async (_spaceId, kind, cursor) => {
+      reads.push({ kind, ...(cursor ? { cursor } : {}) });
+      if (kind === 'expense') return { categories: [], nextCursor: null };
+      return cursor
+        ? { categories: incomeCategories.slice(50), nextCursor: null }
+        : { categories: incomeCategories.slice(0, 50), nextCursor: 'income-page-2' };
+    });
+    const { user } = await renderPage(new InMemoryWalletsGateway(), 'en', categoriesGateway);
+
+    await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+    expect(within(dialog).queryByRole('radio', { name: 'Income 51' })).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Load more income categories' }));
+
+    expect(await within(dialog).findByRole('radio', { name: 'Income 51' })).toBeInTheDocument();
+    expect(reads).toContainEqual({ kind: 'income', cursor: 'income-page-2' });
   });
 
   it('removes category controls and stale selection when the event kind becomes ineligible', async () => {

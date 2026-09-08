@@ -81,7 +81,7 @@ export function WalletsPage({ gateway, categoriesGateway, spaceId, locale = 'en'
     </>}
 
     {dialog === 'wallet' && <WalletDialog locale={locale} pending={walletState.pending} onClose={() => setDialog(null)} onSubmit={walletState.createWallet} />}
-    {dialog === 'transaction' && <TransactionDialog locale={locale} wallets={walletState.wallets} categories={activeCategories} pending={walletState.pending} ambiguous={walletState.ambiguous?.kind === 'record'} onClose={() => setDialog(null)} onClearAmbiguous={walletState.clearAmbiguous} onRetry={walletState.retryAmbiguous} onSubmit={walletState.recordEvent} />}
+    {dialog === 'transaction' && <TransactionDialog locale={locale} wallets={walletState.wallets} categories={activeCategories} categoryNextCursors={{ income: categoryState.incomeNextCursor, expense: categoryState.expenseNextCursor }} categoryLoadingMore={categoryState.loadingMore} onLoadMoreCategories={categoryState.loadMore} pending={walletState.pending} ambiguous={walletState.ambiguous?.kind === 'record'} onClose={() => setDialog(null)} onClearAmbiguous={walletState.clearAmbiguous} onRetry={walletState.retryAmbiguous} onSubmit={walletState.recordEvent} />}
     {dialog && typeof dialog === 'object' && <CorrectionDialog locale={locale} event={dialog.correction} pending={walletState.pending} ambiguous={walletState.ambiguous?.kind === 'reverse'} onClose={() => setDialog(null)} onClearAmbiguous={walletState.clearAmbiguous} onRetry={walletState.retryAmbiguous} onSubmit={walletState.reverseEvent} />}
   </section>;
 }
