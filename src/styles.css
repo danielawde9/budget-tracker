@@ -35,6 +35,21 @@ bdi, dd, strong { font-variant-numeric: tabular-nums; }
 .shell-main { min-width: 0; padding: 42px clamp(24px, 4.5vw, 70px) 80px; }
 .loans-workspace { width: min(1180px, 100%); margin-inline: auto; }
 .wallets-workspace { width: min(1180px, 100%); margin-inline: auto; }
+.categories-workspace { width: min(1180px, 100%); margin-inline: auto; }
+.categories-topbar { align-items: end; }
+.category-kind-tabs { display: none; }
+.category-registers { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(28px, 5vw, 64px); margin-block-start: 42px; }
+.category-register > header { display: flex; align-items: end; justify-content: space-between; gap: 20px; padding-block-end: 14px; border-block-end: 2px solid var(--ink); }
+.category-register > header h2 { margin: 0; font-size: clamp(1.45rem, 3vw, 1.9rem); letter-spacing: -.035em; }
+.category-register > header > span { min-inline-size: 34px; padding: 5px 10px; border: 1px solid #aab5aa; border-radius: 999px; text-align: center; }
+.category-list { list-style: none; margin: 0; padding: 0; }
+.category-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 18px; min-block-size: 76px; padding-block: 14px; border-block-end: 1px solid #c7cfc7; }
+.category-list li > div { display: grid; gap: 4px; }
+.category-list li > div > bdi { font-size: 1.08rem; font-weight: 750; }
+.category-list small { color: #68756c; }
+.category-empty { min-block-size: 128px; }
+.category-form-grid { margin-block-start: 22px; }
+.category-name-note { align-self: end; padding-block-end: 10px; color: #68756c; font-size: .85rem; }
 .wallets-topbar { align-items: end; }
 .wallet-actions { display: flex; gap: 10px; flex: 0 0 auto; }
 .wallet-folio { margin-block: 34px 52px; }
@@ -184,6 +199,14 @@ dd { margin: 8px 0 0; font-weight: 760; white-space: nowrap; }
   .shell-main { padding: 28px 14px 64px; }
   .loans-workspace .topbar h1 { font-size: 3.5rem; }
   .wallets-topbar { display: grid; }
+  .categories-topbar { display: grid; }
+  .categories-topbar > button { inline-size: 100%; }
+  .category-kind-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-block: 24px; padding: 4px; border: 1px solid #bdc7bd; border-radius: 10px; }
+  .category-kind-tabs button { background: transparent; color: var(--ink); }
+  .category-kind-tabs .category-tab-active { background: var(--pine); color: white; }
+  .category-registers { display: block; margin-block-start: 0; }
+  .category-register { display: none; }
+  .category-register-mobile-active { display: block; }
   .wallet-actions { inline-size: 100%; }
   .wallet-actions button { flex: 1; }
   .wallet-list li { gap: 12px; }
