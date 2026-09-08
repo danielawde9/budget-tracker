@@ -25,12 +25,14 @@
 | `supabase/migrations/20260908176000_reauthorize_invitation_creation_replay.sql` | Reauthorizes the current active owner before deterministic invitation-token replay. |
 | `supabase/migrations/20260908177000_reject_zero_row_event_deletes.sql` | Adds statement-level immutable-event protection for zero-row DELETE attempts. |
 | `supabase/migrations/20260908178000_validate_household_projection_cursors.sql` | Validates cursor provenance and rebinds invitation pagination to the trusted stored timestamp. |
+| `supabase/migrations/20260908179000_serialize_household_owner_invariants.sql` | Serializes deferred owner-count validation on the household space row so direct concurrent demotions cannot remove every owner. |
+| `supabase/migrations/20260908180000_prevent_cross_key_invitation_duplicates.sql` | Rejects one live normalized recipient identity across all retained HMAC key versions while preserving authorized replay and old-key acceptance. |
 | `tests/db/household-membership.integration.test.ts` | Full capability, lifecycle, token/privacy, idempotency, concurrency, atomicity, bounded-read, index, invariant, immutability, owner, and catalog proof. |
 | `tests/db/test-database.ts` | Reusable authenticated/anonymous/admin sessions, invitation command adapters, independent barrier-backed clients, and catalog/test-defense helpers. |
 | `tests/db/financial-boundary-coverage.integration.test.ts` | Regression assertion that household administration is not discovered as a financial writer and financial command inventory remains complete. |
-| `tests/db/household-migrations.integration.test.ts` | Disposable-database empty-journal and seeded pre-membership upgrade proof, including preserved roles and timestamps. |
-| `tests/db/household-source-ratchet.ts` | Bounded browser-source detector for aliased protected-table mutations and sensitive logging sinks. |
-| `tests/db/household-source-ratchet.test.ts` | Positive and negative controls proving the detector catches direct, aliased, multiline, structured-logger, and analytics bypasses. |
+| `tests/db/household-migrations.integration.test.ts` | Disposable-database empty-journal and seeded pre-membership upgrade proof, including retry-safe exact cleanup and preserved roles and timestamps. |
+| `tests/db/household-source-ratchet.ts` | Bounded browser-source detector for literal and constant-aliased protected-table mutations plus direct, aliased, and destructured sensitive logging sinks. |
+| `tests/db/household-source-ratchet.test.ts` | Positive and negative controls proving the detector catches direct, aliased, multiline, structured-logger, and analytics bypasses without flagging token words in message literals. |
 | `docs/decisions.md` | Append-only implementation decision for the protected stateful invitation and membership boundary and documented change consequences. |
 
 `docs/financial-command-inventory.md` remains unchanged unless a test exposes an inaccurate statement: household administration is not a money/principal posting path and must not be classified as one.
@@ -95,7 +97,7 @@
 
 ## Task 6: Prove migration paths and ratchets
 
-- [x] Add a disposable-database harness with a bounded connection timeout and unique generated database names. Bootstrap only the Supabase roles, `auth.users`, and trusted `extensions` schema required by the journal; always terminate its own connections and drop only its exact generated database in `finally`.
+- [x] Add a disposable-database harness with a bounded connection timeout and unique generated database names. Bootstrap only the Supabase roles, `auth.users`, and trusted `extensions` schema required by the journal; verify ownership, try the exact zero-connection drop first, bound same-role termination to 50 sessions only after failure, retry the exact drop, and always close both clients in `finally`.
 - [x] Empty proof: apply every committed migration in lexical order and assert the migration objects, active key, exact function owners/ACLs, constraints, policies, and triggers exist.
 - [x] Seeded proof: apply through `20260907149000`, create personal/household owners plus representative wallet/event/movement/loan state, record membership roles/timestamps and amounts, apply the complete household migration chain, then prove lifecycle backfill and all financial rows remain byte-for-byte/amount-equivalent.
 - [x] Add a source ratchet that scans browser gateway files for direct membership/invitation `.insert()`, `.update()`, `.delete()`, `.upsert()`, or `.truncate()` calls and token/session logging. It must pass without editing application code.
@@ -123,9 +125,10 @@
 
 ## Completion evidence
 
-- Fresh final verification after independent review corrections: 90/90 database tests, 107/107 UI tests, production build successful, and Playwright 23 passed with 23 intentional project skips.
-- Disposable migration verification passed repeatedly. Both empty and seeded databases applied all 25 repository migrations; the seeded proof preserved the complete wallet/event/movement/loan/posting snapshot and backfilled all three memberships to active without changing roles or creation timestamps.
+- Fresh final verification after the second independent review corrections: 96/96 database tests, 107/107 UI tests, production build successful, and Playwright 23 passed with 23 intentional project skips.
+- Disposable migration verification passed twice after cleanup hardening. Both empty and seeded databases applied all 27 repository migrations; the seeded proof preserved the complete wallet/event/movement/loan/posting snapshot and backfilled all three memberships to active without changing roles or creation timestamps. No disposable database remained.
 - Catalog verification: one active private invitation key, 11 named constraints, eight required indexes, six required immutable/invariant triggers, three owner policies, two forced-RLS household tables, and eight exact public signatures owned by `household_command_owner` with authenticated-only execution.
-- Independent review corrections cover space-kind invitation integrity, former-owner token replay, zero-row event DELETE rejection, positive-controlled source ratchets, cursor provenance, and true 100-row projection caps.
-- Scope verification: no diff in `src`, `docs/financial-command-inventory.md`, or any pre-existing `20260907*.sql` migration relative to `14bbf7c`; `.swarm/` remains untracked and untouched.
+- Independent review corrections also cover concurrent direct last-owner demotions, cross-key live invitation duplicates with old-key replay/acceptance, constant table-name and destructured-logger ratchets with literal-message precision, and retry-safe exact disposable-database cleanup after termination failure.
+- The shared Budget test database contains the 27 migrations in this worktree plus four separately owned Categories journal entries (`20260908100000` through `20260908103000`); those files and their implementation remain outside this worktree and diff.
+- Scope verification: no diff in `src`, `docs/financial-command-inventory.md`, or any pre-existing `20260907*.sql` migration relative to `14bbf7c`; `.swarm/` remains untracked and excluded from commits.
 - Application/gateway behavior, email provider/DNS/templates/sending, Categories, and household UI remain explicitly unimplemented.
