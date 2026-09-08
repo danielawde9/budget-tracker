@@ -39,14 +39,18 @@ const categoryRows = [
     name_en: 'Salary', name_ar: 'راتب', created_at: '2026-09-08T10:00:00.000Z', archived_at: null,
   },
 ];
+const eventId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
-function clientWith(overrides: Partial<Record<string, unknown[]>> = {}) {
+function clientWith(
+  overrides: Partial<Record<string, unknown[]>> = {},
+  rpcOverrides: Partial<Record<string, unknown[]>> = {},
+) {
   const operations: Operation[] = [];
   const rpcCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
   const values: Record<string, unknown[]> = {
     categories: categoryRows,
-    financial_events: [{ id: 'event-1', space_id: 'space-1', request_id: 'request-1' }],
-    financial_event_categories: [{ event_id: 'event-1', space_id: 'space-1', category_id: categoryRows[0]?.id, category_kind: 'income' }],
+    financial_events: [{ id: eventId, space_id: 'space-1', request_id: 'request-1' }],
+    financial_event_categories: [{ event_id: eventId, space_id: 'space-1', category_id: categoryRows[0]?.id, category_kind: 'income' }],
     ...overrides,
   };
   const client: CategoriesDataClient = {
@@ -55,10 +59,11 @@ function clientWith(overrides: Partial<Record<string, unknown[]>> = {}) {
     },
     async rpc(name, args) {
       rpcCalls.push({ name, args });
+      if (rpcOverrides[name]) return { data: rpcOverrides[name]!, error: null };
       if (name === 'get_category_command_result') {
         return { data: [{ command_kind: 'create_category', category_id: categoryRows[0]?.id, created_at: '2026-09-08T10:00:00.000Z' }], error: null };
       }
-      return { data: [{ id: name === 'record_categorized_financial_event' ? 'event-new' : categoryRows[0]?.id }], error: null };
+      return { data: [{ id: name === 'record_categorized_financial_event' ? eventId : categoryRows[0]?.id }], error: null };
     },
   };
   return { client, operations, rpcCalls };
@@ -99,6 +104,45 @@ describe('Supabase Categories gateway', () => {
     await expect(gateway.listCategories('space-1', 'income', undefined, 100)).rejects.toThrow('101-row read bound');
   });
 
+  it.each([
+    [{ ...categoryRows[0], id: 'not-a-uuid' }, 'invalid id'],
+    [{ ...categoryRows[0], created_at: 'yesterday' }, 'invalid created_at'],
+    [{ ...categoryRows[0], archived_at: 'yesterday' }, 'invalid archived_at'],
+    [{ ...categoryRows[0], archived_at: '2026-09-08T12:00:00.000Z' }, 'active category row is archived'],
+  ])('rejects malformed active category projections: %s', async (row, message) => {
+    const { client } = clientWith({ categories: [row] });
+    await expect(createSupabaseCategoriesGateway(client).listCategories('space-1', 'income')).rejects.toThrow(message);
+  });
+
+  it('rejects malformed command result identifiers and timestamps', async () => {
+    const malformedId = clientWith({}, {
+      get_category_command_result: [{ command_kind: 'create_category', category_id: 'bad-id', created_at: '2026-09-08T10:00:00.000Z' }],
+    });
+    await expect(createSupabaseCategoriesGateway(malformedId.client).getCommandResult('space-1', 'request-1')).rejects.toThrow('invalid category_id');
+
+    const malformedTimestamp = clientWith({}, {
+      get_category_command_result: [{ command_kind: 'create_category', category_id: categoryRows[0]?.id, created_at: 'not-a-time' }],
+    });
+    await expect(createSupabaseCategoriesGateway(malformedTimestamp.client).getCommandResult('space-1', 'request-1')).rejects.toThrow('invalid created_at');
+  });
+
+  it('rejects malformed mutation and association identifiers', async () => {
+    const mutation = clientWith({}, { create_category: [{ id: 'bad-id' }] });
+    await expect(createSupabaseCategoriesGateway(mutation.client).createCategory({
+      spaceId: 'space-1', requestId: 'request-1', kind: 'income', nameEn: 'Salary', nameAr: null,
+    })).rejects.toThrow('invalid id');
+
+    const association = clientWith({
+      financial_event_categories: [{ event_id: eventId, space_id: 'space-1', category_id: 'bad-id', category_kind: 'income' }],
+    });
+    await expect(createSupabaseCategoriesGateway(association.client).resolveEventCategories('space-1', [eventId])).rejects.toThrow('invalid category_id');
+
+    const event = clientWith({
+      financial_events: [{ id: 'bad-id', space_id: 'space-1', request_id: 'request-1' }],
+    });
+    await expect(createSupabaseCategoriesGateway(event.client).findCategorizedEventByRequestId('space-1', 'request-1')).rejects.toThrow('invalid id');
+  });
+
   it('sends exact lifecycle and categorized-posting RPC payloads', async () => {
     const { client, rpcCalls } = clientWith();
     const gateway = createSupabaseCategoriesGateway(client);
@@ -134,7 +178,7 @@ describe('Supabase Categories gateway', () => {
   it('reconciles a categorized event through bounded event and association reads', async () => {
     const { client, operations } = clientWith();
     const result = await createSupabaseCategoriesGateway(client).findCategorizedEventByRequestId('space-1', 'request-1');
-    expect(result).toEqual({ eventId: 'event-1', categoryId: categoryRows[0]?.id });
+    expect(result).toEqual({ eventId, categoryId: categoryRows[0]?.id });
     expect(operations).toContainEqual({ relation: 'financial_events', name: 'eq', args: ['space_id', 'space-1'] });
     expect(operations).toContainEqual({ relation: 'financial_events', name: 'eq', args: ['request_id', 'request-1'] });
     expect(operations).toContainEqual({ relation: 'financial_events', name: 'limit', args: [2] });
@@ -144,9 +188,9 @@ describe('Supabase Categories gateway', () => {
   it('resolves at most one retained category per event page, including archived labels', async () => {
     const archived = { ...categoryRows[0], archived_at: '2026-09-08T12:00:00.000Z' };
     const { client, operations } = clientWith({ categories: [archived] });
-    const result = await createSupabaseCategoriesGateway(client).resolveEventCategories('space-1', ['event-1']);
-    expect(result).toEqual([{ eventId: 'event-1', categoryId: archived.id, categoryKind: 'income', nameEn: 'Salary', nameAr: 'راتب', archivedAt: archived.archived_at }]);
-    expect(operations).toContainEqual({ relation: 'financial_event_categories', name: 'in', args: ['event_id', ['event-1']] });
+    const result = await createSupabaseCategoriesGateway(client).resolveEventCategories('space-1', [eventId]);
+    expect(result).toEqual([{ eventId, categoryId: archived.id, categoryKind: 'income', nameEn: 'Salary', nameAr: 'راتب', archivedAt: archived.archived_at }]);
+    expect(operations).toContainEqual({ relation: 'financial_event_categories', name: 'in', args: ['event_id', [eventId]] });
     expect(operations).toContainEqual({ relation: 'financial_event_categories', name: 'limit', args: [21] });
     expect(operations).toContainEqual({ relation: 'categories', name: 'in', args: ['id', [archived.id]] });
     expect(operations).not.toContainEqual({ relation: 'categories', name: 'is', args: ['archived_at', null] });

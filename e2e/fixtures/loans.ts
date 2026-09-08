@@ -52,14 +52,19 @@ const walletBalances = [
   { wallet_id: 'household-usd-wallet', space_id: 'household-space', currency: 'USD', amount_minor: '30000' },
 ];
 
+const salaryCategoryId = '11111111-1111-4111-8111-111111111111';
+const groceriesCategoryId = '22222222-2222-4222-8222-222222222222';
+const archivedTravelCategoryId = '33333333-3333-4333-8333-333333333333';
+const generalIncomeEventId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
 const categoryRows: VisualCategory[] = [
-  { id: 'category-salary', space_id: 'personal-space', kind: 'income', name_en: 'Salary', name_ar: 'راتب', created_at: '2026-01-01T08:00:00Z', archived_at: null },
-  { id: 'category-groceries', space_id: 'personal-space', kind: 'expense', name_en: 'Groceries', name_ar: 'بقالة', created_at: '2026-01-02T08:00:00Z', archived_at: null },
-  { id: 'category-archived-travel', space_id: 'personal-space', kind: 'income', name_en: 'Archived travel', name_ar: 'سفر مؤرشف', created_at: '2026-01-03T08:00:00Z', archived_at: '2026-08-01T00:00:00Z' },
+  { id: salaryCategoryId, space_id: 'personal-space', kind: 'income', name_en: 'Salary', name_ar: 'راتب', created_at: '2026-01-01T08:00:00Z', archived_at: null },
+  { id: groceriesCategoryId, space_id: 'personal-space', kind: 'expense', name_en: 'Groceries', name_ar: 'بقالة', created_at: '2026-01-02T08:00:00Z', archived_at: null },
+  { id: archivedTravelCategoryId, space_id: 'personal-space', kind: 'income', name_en: 'Archived travel', name_ar: 'سفر مؤرشف', created_at: '2026-01-03T08:00:00Z', archived_at: '2026-08-01T00:00:00Z' },
 ];
 
 const eventCategoryRows = [
-  { event_id: 'general-income', space_id: 'personal-space', category_id: 'category-archived-travel', category_kind: 'income', created_at: '2026-09-07T14:00:00Z' },
+  { event_id: generalIncomeEventId, space_id: 'personal-space', category_id: archivedTravelCategoryId, category_kind: 'income', created_at: '2026-09-07T14:00:00Z' },
 ];
 
 const loans = [
@@ -75,7 +80,7 @@ const balances = [
 ];
 
 const events: VisualEvent[] = [
-  { id: 'general-income', space_id: 'personal-space', request_id: 'request-general-income', kind: 'income', effective_date: '2026-09-07', created_at: '2026-09-07T14:00:00Z', reversal_of: null },
+  { id: generalIncomeEventId, space_id: 'personal-space', request_id: 'request-general-income', kind: 'income', effective_date: '2026-09-07', created_at: '2026-09-07T14:00:00Z', reversal_of: null },
   { id: 'maya-opening', space_id: 'personal-space', request_id: 'request-maya-opening', kind: 'loan_lend', effective_date: '2026-07-01', created_at: '2026-07-01T12:00:00Z', reversal_of: null },
   { id: 'maya-payment', space_id: 'personal-space', request_id: 'request-maya-payment', kind: 'loan_receive_repayment', effective_date: '2026-09-05', created_at: '2026-09-05T12:00:00Z', reversal_of: null },
   { id: 'karim-opening', space_id: 'personal-space', request_id: 'request-karim-opening', kind: 'loan_borrow', effective_date: '2026-06-01', created_at: '2026-06-01T12:00:00Z', reversal_of: null },
@@ -94,7 +99,7 @@ const postings = [
 ];
 
 const movements = [
-  { event_id: 'general-income', space_id: 'personal-space', wallet_id: 'usd-wallet', amount_minor: '25050' },
+  { event_id: generalIncomeEventId, space_id: 'personal-space', wallet_id: 'usd-wallet', amount_minor: '25050' },
   { event_id: 'maya-opening', space_id: 'personal-space', wallet_id: 'usd-wallet', amount_minor: '-100000' },
   { event_id: 'maya-payment', space_id: 'personal-space', wallet_id: 'usd-wallet', amount_minor: '25000' },
   { event_id: 'karim-opening', space_id: 'personal-space', wallet_id: 'usd-wallet', amount_minor: '200000' },
@@ -215,7 +220,7 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
         categoryCreateRejectionsRemaining -= 1;
         return json(route, { message: 'an active category already uses one of these names' }, 400);
       }
-      const id = `created-category-${visibleCategories.length + 1}`;
+      const id = `c0000000-0000-4000-8000-${String(visibleCategories.length + 1).padStart(12, '0')}`;
       visibleCategories.push({ id, space_id: body.p_space_id, kind: body.p_kind, name_en: body.p_name_en, name_ar: body.p_name_ar, created_at: '2026-09-08T10:00:00Z', archived_at: null });
       categoryCommandResults.set(body.p_request_id, { command_kind: 'create_category', category_id: id, created_at: '2026-09-08T10:00:00Z' });
       if (ambiguousCategoryRemaining > 0) {
@@ -240,7 +245,7 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
     if (path.endsWith('/rpc/record_categorized_financial_event')) {
       const body = request.postDataJSON() as { p_space_id: string; p_request_id: string; p_kind: 'income' | 'expense'; p_effective_date: string; p_movements: Array<{ walletId: string; amountMinor: string }>; p_category_id: string };
       eventSequence += 1;
-      const id = `categorized-event-${eventSequence}`;
+      const id = `e0000000-0000-4000-8000-${String(eventSequence).padStart(12, '0')}`;
       visibleEvents.unshift({ id, space_id: body.p_space_id, request_id: body.p_request_id, kind: body.p_kind, effective_date: body.p_effective_date, created_at: `2026-09-08T11:${String(eventSequence).padStart(2, '0')}:00Z`, reversal_of: null });
       visibleEventCategories.push({ event_id: id, space_id: body.p_space_id, category_id: body.p_category_id, category_kind: body.p_kind, created_at: `2026-09-08T11:${String(eventSequence).padStart(2, '0')}:00Z` });
       for (const movement of body.p_movements) {

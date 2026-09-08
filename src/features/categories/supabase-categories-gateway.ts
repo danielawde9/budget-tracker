@@ -43,8 +43,8 @@ type MutationName = 'create_category' | 'archive_category' | 'record_categorized
 
 const categoryKinds = new Set<CategoryKind>(['income', 'expense']);
 const commandKinds = new Set<CategoryCommandKind>(['create_category', 'archive_category']);
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const timestampPattern = /^\d{4}-\d{2}-\d{2}T[0-9:.+-]+Z?$/;
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const timestampPattern = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,6})?(?:Z|[+-](\d{2}):(\d{2}))$/;
 
 function asRow(value: unknown): Row {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -63,6 +63,38 @@ function nullableText(value: Row, key: string): string | null {
   const result = value[key];
   if (result === null || result === undefined) return null;
   if (typeof result !== 'string') throw new Error(`The category row has invalid ${key}.`);
+  return result;
+}
+
+function uuidValue(value: Row, key: string): string {
+  const result = textValue(value, key);
+  if (!uuidPattern.test(result)) throw new Error(`The category row has invalid ${key}.`);
+  return result;
+}
+
+function validTimestamp(value: string): boolean {
+  const match = timestampPattern.exec(value);
+  if (!match) return false;
+  const [, year, month, day, hour, minute, second, offsetHour = '00', offsetMinute = '00'] = match;
+  const numbers = [year, month, day, hour, minute, second, offsetHour, offsetMinute].map(Number);
+  const [y, m, d, h, min, s, oh, om] = numbers;
+  if (h! > 23 || min! > 59 || s! > 59 || oh! > 23 || om! > 59) return false;
+  const calendar = new Date(Date.UTC(y!, m! - 1, d!));
+  return calendar.getUTCFullYear() === y && calendar.getUTCMonth() === m! - 1 && calendar.getUTCDate() === d;
+}
+
+function timestampValue(value: Row, key: string): string {
+  const result = textValue(value, key);
+  if (!validTimestamp(result)) throw new Error(`The category row has invalid ${key}.`);
+  return result;
+}
+
+function nullableTimestamp(value: Row, key: string): string | null {
+  const result = value[key];
+  if (result === null || result === undefined) return null;
+  if (typeof result !== 'string' || !validTimestamp(result)) {
+    throw new Error(`The category row has invalid ${key}.`);
+  }
   return result;
 }
 
@@ -113,21 +145,23 @@ function decodeCursor(cursor: string): { createdAt: string; id: string } {
   }
 }
 
-function parseCategory(value: Row, spaceId: string, expectedKind?: CategoryKind): Category {
+function parseCategory(value: Row, spaceId: string, expectedKind?: CategoryKind, requireActive = false): Category {
   if (textValue(value, 'space_id') !== spaceId) throw new Error('A category escaped the selected space.');
   const kind = categoryKind(value);
   if (expectedKind && kind !== expectedKind) throw new Error('A category escaped the selected kind.');
   const nameEn = nullableText(value, 'name_en');
   const nameAr = nullableText(value, 'name_ar');
   if (!nameEn && !nameAr) throw new Error('A category row has no display name.');
+  const archivedAt = nullableTimestamp(value, 'archived_at');
+  if (requireActive && archivedAt !== null) throw new Error('An active category row is archived.');
   return {
-    id: textValue(value, 'id'),
+    id: uuidValue(value, 'id'),
     spaceId,
     kind,
     nameEn,
     nameAr,
-    createdAt: textValue(value, 'created_at'),
-    archivedAt: nullableText(value, 'archived_at'),
+    createdAt: timestampValue(value, 'created_at'),
+    archivedAt,
   };
 }
 
@@ -140,7 +174,7 @@ function idResult(data: unknown[] | null, key: 'id' | 'eventId'): { id?: string;
   if ((data?.length ?? 0) > 1) throw new Error('The category command returned more than one result.');
   const value = data?.[0];
   if (!value) return {};
-  const id = textValue(asRow(value), 'id');
+  const id = uuidValue(asRow(value), 'id');
   return key === 'id' ? { id } : { eventId: id };
 }
 
@@ -169,7 +203,7 @@ export function createSupabaseCategoriesGateway(client: CategoriesDataClient): C
         limit + 1,
       );
       const hasMore = values.length > limit;
-      const categories = values.slice(0, limit).map((value) => parseCategory(value, spaceId, kind));
+      const categories = values.slice(0, limit).map((value) => parseCategory(value, spaceId, kind, true));
       const last = categories.at(-1);
       return { categories, nextCursor: hasMore && last ? encodeCursor(last) : null };
     },
@@ -202,8 +236,8 @@ export function createSupabaseCategoriesGateway(client: CategoriesDataClient): C
       if (!value) return null;
       return {
         commandKind: commandKind(value),
-        categoryId: textValue(value, 'category_id'),
-        createdAt: textValue(value, 'created_at'),
+        categoryId: uuidValue(value, 'category_id'),
+        createdAt: timestampValue(value, 'created_at'),
       } satisfies CategoryCommandResult;
     },
 
@@ -233,7 +267,7 @@ export function createSupabaseCategoriesGateway(client: CategoriesDataClient): C
       if (textValue(event, 'space_id') !== spaceId || textValue(event, 'request_id') !== requestId) {
         throw new Error('A reconciled event escaped the requested boundary.');
       }
-      const eventId = textValue(event, 'id');
+      const eventId = uuidValue(event, 'id');
       const associations = await rows(
         client.from('financial_event_categories').select('event_id,space_id,category_id')
           .eq('space_id', spaceId).eq('event_id', eventId).limit(2),
@@ -242,10 +276,10 @@ export function createSupabaseCategoriesGateway(client: CategoriesDataClient): C
       );
       const association = associations[0];
       if (!association) return null;
-      if (textValue(association, 'space_id') !== spaceId || textValue(association, 'event_id') !== eventId) {
+      if (textValue(association, 'space_id') !== spaceId || uuidValue(association, 'event_id') !== eventId) {
         throw new Error('A reconciled category association escaped the requested boundary.');
       }
-      return { eventId, categoryId: textValue(association, 'category_id') };
+      return { eventId, categoryId: uuidValue(association, 'category_id') };
     },
 
     async resolveEventCategories(spaceId, eventIds) {
@@ -262,7 +296,7 @@ export function createSupabaseCategoriesGateway(client: CategoriesDataClient): C
         MAX_EVENT_PAGE_SIZE,
       );
       if (associations.length === 0) return [];
-      const categoryIds = [...new Set(associations.map((value) => textValue(value, 'category_id')))];
+      const categoryIds = [...new Set(associations.map((value) => uuidValue(value, 'category_id')))];
       const categories = await rows(
         client.from('categories').select('id,space_id,kind,name_en,name_ar,created_at,archived_at')
           .eq('space_id', spaceId).in('id', categoryIds).limit(MAX_EVENT_PAGE_SIZE + 1),
@@ -275,9 +309,9 @@ export function createSupabaseCategoriesGateway(client: CategoriesDataClient): C
       }));
       return associations.map((value): EventCategory => {
         if (textValue(value, 'space_id') !== spaceId) throw new Error('A category association escaped the selected space.');
-        const eventId = textValue(value, 'event_id');
+        const eventId = uuidValue(value, 'event_id');
         if (!uniqueEventIds.includes(eventId)) throw new Error('A category association escaped the event page.');
-        const categoryId = textValue(value, 'category_id');
+        const categoryId = uuidValue(value, 'category_id');
         const category = categoryById.get(categoryId);
         const kind = categoryKind(value, 'category_kind');
         if (!category || category.kind !== kind) throw new Error('A category association has no matching category.');
