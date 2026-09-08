@@ -254,6 +254,29 @@ export async function queryAsRole<T extends Record<string, unknown> = Record<str
   }
 }
 
+export async function queryAsRoleWithActor<T extends Record<string, unknown> = Record<string, unknown>>(
+  role: 'anon' | 'authenticated' | 'service_role',
+  userId: string,
+  text: string,
+  values: unknown[] = [],
+): Promise<T[]> {
+  const client = await pool.connect();
+
+  try {
+    await client.query('begin');
+    await client.query("select set_config('request.jwt.claim.sub', $1, true)", [userId]);
+    await client.query(`set local role ${role}`);
+    const result = await client.query<T>(text, values);
+    await client.query('commit');
+    return result.rows;
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export function asUser(userId: string) {
   return {
     async createCategory(input: CategoryInput): Promise<{ id: string }> {

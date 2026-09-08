@@ -7,6 +7,7 @@ import {
   closeDatabase,
   databaseQuery,
   queryAsRole,
+  queryAsRoleWithActor,
   queryAsUser,
   type CategoryKind,
 } from './test-database.js';
@@ -510,6 +511,75 @@ describe('categories foundation', () => {
     await expect(owner.walletBalance(wallet.id)).resolves.toEqual('0');
   });
 
+  it('allows only authenticated callers to execute reversal even when restricted roles supply an actor', async () => {
+    const owner = asUser(ownerId);
+    const space = await owner.createSpace(`Category reversal privilege ${randomUUID()}`, 'personal');
+    const wallet = await owner.createWallet(space.id, 'USD', 'USD');
+    const originals = await Promise.all([1, 2, 3].map((sequence) => owner.recordEvent({
+      spaceId: space.id,
+      requestId: randomUUID(),
+      kind: 'income',
+      effectiveDate: '2026-09-08',
+      movements: [{ walletId: wallet.id, amountMinor: String(sequence) }],
+    })));
+    const restrictedAttempts = await Promise.allSettled([
+      queryAsRoleWithActor(
+        'anon',
+        ownerId,
+        'select * from public.reverse_financial_event($1, $2, $3, $4::date)',
+        [space.id, randomUUID(), originals[0]!.id, '2026-09-09'],
+      ),
+      queryAsRoleWithActor(
+        'service_role',
+        ownerId,
+        'select * from public.reverse_financial_event($1, $2, $3, $4::date)',
+        [space.id, randomUUID(), originals[1]!.id, '2026-09-09'],
+      ),
+    ]);
+
+    expect(restrictedAttempts.map((attempt) => attempt.status)).toEqual(['rejected', 'rejected']);
+    for (const attempt of restrictedAttempts) {
+      if (attempt.status === 'fulfilled') {
+        throw new Error('restricted role unexpectedly executed reverse_financial_event');
+      }
+      expect(attempt.reason).toMatchObject({ code: '42501' });
+    }
+    await expect(owner.reverseEvent(
+      space.id,
+      randomUUID(),
+      originals[2]!.id,
+      '2026-09-09',
+    )).resolves.toHaveProperty('id');
+  });
+
+  it('rejects null reversal arguments on replay without changing the original result', async () => {
+    const owner = asUser(ownerId);
+    const space = await owner.createSpace(`Category reversal null replay ${randomUUID()}`, 'personal');
+    const wallet = await owner.createWallet(space.id, 'USD', 'USD');
+    const original = await owner.recordEvent({
+      spaceId: space.id,
+      requestId: randomUUID(),
+      kind: 'income',
+      effectiveDate: '2026-09-08',
+      movements: [{ walletId: wallet.id, amountMinor: '10' }],
+    });
+    const requestId = randomUUID();
+    const reversal = await owner.reverseEvent(space.id, requestId, original.id, '2026-09-09');
+
+    await expect(owner.reverseEvent(space.id, requestId, original.id, '2026-09-09')).resolves.toEqual(reversal);
+    await expect(queryAsUser(
+      ownerId,
+      'select * from public.reverse_financial_event($1, $2, null::uuid, $3::date)',
+      [space.id, requestId, '2026-09-09'],
+    )).rejects.toMatchObject({ code: 'P0001' });
+    await expect(queryAsUser(
+      ownerId,
+      'select * from public.reverse_financial_event($1, $2, $3, null::date)',
+      [space.id, requestId, original.id],
+    )).rejects.toMatchObject({ code: 'P0001' });
+    await expect(owner.walletBalance(wallet.id)).resolves.toEqual('0');
+  });
+
   it('records one transaction-stable archive timestamp and actor without deleting history', async () => {
     const owner = asUser(ownerId);
     const space = await owner.createSpace(`Category archive evidence ${randomUUID()}`, 'personal');
@@ -647,10 +717,10 @@ describe('categories foundation', () => {
          has_function_privilege('service_role', p.oid, 'execute') as service_exec
        from pg_proc as p join pg_namespace as n on n.oid = p.pronamespace
        where n.nspname = 'public'
-         and p.proname = any(array['create_category','archive_category','get_category_command_result','record_categorized_financial_event'])
+         and p.proname = any(array['create_category','archive_category','get_category_command_result','record_categorized_financial_event','reverse_financial_event'])
        order by p.proname`,
     );
-    expect(functions).toHaveLength(4);
+    expect(functions).toHaveLength(5);
     expect(functions.every((row) =>
       row.search_path.includes('search_path=pg_catalog')
       && !row.public_exec
