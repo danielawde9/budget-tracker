@@ -1276,6 +1276,65 @@ describe('household member administration and bounded owner reads', () => {
     ).rejects.toMatchObject({ message: 'household must retain an active owner' });
   });
 
+  it('serializes concurrent deferred owner checks after direct-write defenses are weakened', async () => {
+    await ensureAuthUser(ownerId, 'owner-invariant-race@budget.invalid');
+    const household = await asUser(ownerId).createSpace(
+      `Invariant race ${randomUUID()}`,
+      'household',
+    );
+    await addActiveMember(household.id, memberId, 'owner');
+    await databaseQuery('grant update on public.space_memberships to authenticated');
+    await databaseQuery(
+      `create policy memberships_test_concurrent_update on public.space_memberships
+       for update to authenticated using (true) with check (true)`,
+    );
+
+    let waiting = 0;
+    let releaseUpdates: (() => void) | undefined;
+    const updatesComplete = new Promise<void>((resolve) => {
+      releaseUpdates = resolve;
+    });
+    const demoteAtBarrier = (targetUserId: string) => async (client: PoolClient) => {
+      await client.query(
+        `update public.space_memberships set role = 'member'
+         where space_id = $1 and user_id = $2`,
+        [household.id, targetUserId],
+      );
+      waiting += 1;
+      if (waiting === 2) releaseUpdates?.();
+      await updatesComplete;
+      return client.query('set constraints space_memberships_preserve_space_owners immediate');
+    };
+
+    let results: PromiseSettledResult<unknown>[] = [];
+    try {
+      results = await runConcurrentUserActions([
+        { userId: ownerId, action: demoteAtBarrier(ownerId) },
+        { userId: memberId, action: demoteAtBarrier(memberId) },
+      ]);
+    } finally {
+      await databaseQuery(
+        `update public.space_memberships set role = 'owner'
+         where space_id = $1 and user_id = $2`,
+        [household.id, ownerId],
+      );
+      await databaseQuery(
+        'drop policy if exists memberships_test_concurrent_update on public.space_memberships',
+      );
+      await databaseQuery('revoke update on public.space_memberships from authenticated');
+    }
+
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    const rejected = results.filter((result) => result.status === 'rejected');
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0] as PromiseRejectedResult).reason).toMatchObject({
+      code: '23514',
+      message: 'household must retain an active owner',
+    });
+    expect(rejected.every((result) => (result as PromiseRejectedResult).reason.code !== '40P01'))
+      .toBe(true);
+  });
+
   it('serializes competing final-two-owner transitions without deadlock or owner loss', async () => {
     await ensureAuthUser(ownerId, 'owner-concurrent-admin@budget.invalid');
     const household = await asUser(ownerId).createSpace(`Owner race ${randomUUID()}`, 'household');

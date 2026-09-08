@@ -319,7 +319,7 @@ describe('household migration journal', () => {
       exactCommandAclCount: '8',
       forcedRlsCount: '2',
       indexCount: '8',
-      journalCount: '25',
+      journalCount: '26',
       policyCount: '3',
       triggerCount: '6',
     });
@@ -327,7 +327,7 @@ describe('household migration journal', () => {
 
   it('backfills memberships and preserves seeded financial data', async () => {
     const proof = await verifyHouseholdMigrations(true);
-    expect(proof.journalCount).toBe('25');
+    expect(proof.journalCount).toBe('26');
     expect(proof.commandCount).toBe('8');
     expect(proof.memberships).toHaveLength(3);
     expect(proof.memberships?.every((row) => row.status === 'active')).toBe(true);
