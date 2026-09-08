@@ -62,9 +62,9 @@ In the migration, add `public.category_kind`; immutable `private.canonical_categ
 
 Add indexed member SELECT RLS only, exact grants/revokes, owner-only effective-role write guards, category archive-only UPDATE guard, DELETE/TRUNCATE history guards, append-only request guards, advisory request serialization, versioned canonical JSON fingerprints with explicit nulls, stable safe conflict messages, and the bounded result lookup. Implement identical replay and changed-command/payload rejection.
 
-- [ ] **Step 4: Verify lifecycle RED becomes GREEN and commit**
+- [ ] **Step 4: Verify lifecycle RED becomes GREEN in a disposable database**
 
-Apply only the new migration through the Budget repository process after repeating the identity preflight. Run the focused normalization/lifecycle tests and `pnpm typecheck`; expected: all focused cases pass without warnings. Run `git diff --check`, stage only lifecycle migration/tests/helpers/docs, and commit `feat: add protected category lifecycle`.
+Rebuild an explicitly named disposable database on the verified Budget PostgreSQL cluster from the committed migrations plus the in-progress migration; never apply a partial migration to the main Budget database. Point the test process at that disposable database through an ephemeral `BUDGET_TEST_DATABASE_URL`, run the focused normalization/lifecycle tests and `pnpm typecheck`, and expect all focused cases to pass without warnings. Keep the migration uncommitted until the entire coherent file is green.
 
 ### Task 3: Add immutable categorized financial posting
 
@@ -85,9 +85,9 @@ Add `(financial_events.id, space_id, kind)` uniqueness; `public.financial_event_
 
 Implement `public.record_categorized_financial_event(uuid, uuid, public.financial_event_kind, date, jsonb, uuid)` as SECURITY DEFINER with the same financial request lock. On replay, validate the legacy base fingerprint plus exact category association; on new posting, accept only active same-space matching categories under `FOR KEY SHARE`, delegate movement validation/posting to the unchanged-signature legacy command, then insert the association atomically. Replace only the legacy command body needed to reject uncategorized replay of a categorized request while preserving its five-argument signature and fingerprint algorithm.
 
-- [ ] **Step 4: Verify categorized posting and commit**
+- [ ] **Step 4: Verify categorized posting in the disposable database**
 
-Run focused category tests, all foundation and loan database tests, typecheck, direct-write/execute privilege probes, and `git diff --check`. Expected: new cases and all legacy cases pass; categorized failure leaves zero event/movement/association rows. Commit `feat: add atomic categorized financial posting`.
+Rebuild the disposable database from the full journal and in-progress migration. Run focused category tests, all foundation and loan database tests, typecheck, direct-write/execute privilege probes, and `git diff --check`. Expected: new cases and all legacy cases pass; categorized failure leaves zero event/movement/association rows. Keep the migration uncommitted until reversal propagation and the catalog ratchet are also green.
 
 ### Task 4: Propagate categories through reversals
 
@@ -103,9 +103,9 @@ Test categorized reversal before and after archive, exact copied association, im
 
 Preserve `public.reverse_financial_event(uuid, uuid, uuid, date)`, legacy fingerprinting, wallet/loan checks, and existing grants. After creating the reversal and linked wallet/loan postings, copy any original category association atomically regardless of archive state; let the association trigger prove exact inheritance.
 
-- [ ] **Step 3: Verify reversal behavior and commit**
+- [ ] **Step 3: Verify reversal behavior in the disposable database**
 
-Run focused category tests plus foundation and loans suites. Confirm balances reconstruct from immutable movements before/after reversals and all loan-aware rules remain green. Commit `feat: preserve categories across reversals`.
+Rebuild the disposable database and run focused category tests plus foundation and loans suites. Confirm balances reconstruct from immutable movements before/after reversals and all loan-aware rules remain green. Do not apply the still-changing migration to the main Budget database.
 
 ### Task 5: Ratchet catalog coverage, bounded reads, and migration safety
 
@@ -125,11 +125,15 @@ Test active category keyset reads with default 50 and hard cap 100, reconciliati
 
 - [ ] **Step 3: Update the command inventory and make the ratchet GREEN**
 
-Classify `public.record_categorized_financial_event` as the categorized income/expense writer. State that `create_category` and `archive_category` are metadata commands, the safe lookup is read-only, existing Wallets remains uncategorized, and no category UI entry path exists. Run the catalog and full database suites and commit `test: ratchet categories database boundary`.
+Classify `public.record_categorized_financial_event` as the categorized income/expense writer. State that `create_category` and `archive_category` are metadata commands, the safe lookup is read-only, existing Wallets remains uncategorized, and no category UI entry path exists. Rebuild the disposable database, run the catalog and full database suites, and commit the now-coherent migration, tests, helpers, and inventory as `feat: add categories database foundation`.
 
 - [ ] **Step 4: Prove empty and seeded-upgrade migration paths**
 
 Create disposable databases only on the verified Budget PostgreSQL cluster. In one, apply all migrations from empty. In another, apply through `20260907149000`, seed Budget-only spaces/wallets/events/movements/loans/reversals/targets and snapshot event IDs, fingerprints, movements, loan postings, balances, reversals, grants, and member-visible results; apply only `20260908100000`; compare snapshots and confirm zero seeded/backfilled categories. Drop only the explicitly named disposable databases after evidence is captured.
+
+- [ ] **Step 5: Apply the finalized migration once to Budget development**
+
+Repeat the remote directory/project/firewall/port/database-identity preflight, synchronize only the repository `supabase/` directory, and run `supabase migration up --local` from `/home/lelabo/budget-supabase`. Verify the journal advances from `20260907149000` to `20260908100000`; never edit the applied migration afterward.
 
 ### Task 6: Final verification and handoff
 
