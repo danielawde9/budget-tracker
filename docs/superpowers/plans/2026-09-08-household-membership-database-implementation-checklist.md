@@ -21,10 +21,16 @@
 | `supabase/migrations/20260908173000_household_member_commands.sql` | Promote/demote, remove, leave, bounded owner reads, and final exact function/table ACL ratchets. |
 | `supabase/migrations/20260908173100_qualify_household_owner_counts.sql` | Forward-only qualification fix for PL/pgSQL output-name shadowing discovered by the role/removal/leave tests. |
 | `supabase/migrations/20260908174000_revoke_household_command_execute.sql` | Forward-only ACL repair that revokes owner-issued default function grants as the dedicated command owner. |
+| `supabase/migrations/20260908175000_protect_household_space_kind_transition.sql` | Rejects converting a household with retained invitations into a personal space. |
+| `supabase/migrations/20260908176000_reauthorize_invitation_creation_replay.sql` | Reauthorizes the current active owner before deterministic invitation-token replay. |
+| `supabase/migrations/20260908177000_reject_zero_row_event_deletes.sql` | Adds statement-level immutable-event protection for zero-row DELETE attempts. |
+| `supabase/migrations/20260908178000_validate_household_projection_cursors.sql` | Validates cursor provenance and rebinds invitation pagination to the trusted stored timestamp. |
 | `tests/db/household-membership.integration.test.ts` | Full capability, lifecycle, token/privacy, idempotency, concurrency, atomicity, bounded-read, index, invariant, immutability, owner, and catalog proof. |
 | `tests/db/test-database.ts` | Reusable authenticated/anonymous/admin sessions, invitation command adapters, independent barrier-backed clients, and catalog/test-defense helpers. |
 | `tests/db/financial-boundary-coverage.integration.test.ts` | Regression assertion that household administration is not discovered as a financial writer and financial command inventory remains complete. |
 | `tests/db/household-migrations.integration.test.ts` | Disposable-database empty-journal and seeded pre-membership upgrade proof, including preserved roles and timestamps. |
+| `tests/db/household-source-ratchet.ts` | Bounded browser-source detector for aliased protected-table mutations and sensitive logging sinks. |
+| `tests/db/household-source-ratchet.test.ts` | Positive and negative controls proving the detector catches direct, aliased, multiline, structured-logger, and analytics bypasses. |
 | `docs/decisions.md` | Append-only implementation decision for the protected stateful invitation and membership boundary and documented change consequences. |
 
 `docs/financial-command-inventory.md` remains unchanged unless a test exposes an inaccurate statement: household administration is not a money/principal posting path and must not be classified as one.
@@ -117,8 +123,9 @@
 
 ## Completion evidence
 
-- Fresh final verification: 77/77 database tests, 107/107 UI tests, production build successful, and Playwright 23 passed with 23 intentional project skips.
-- Disposable migration verification passed twice. Both empty and seeded databases applied all 21 repository migrations; the seeded proof preserved the complete wallet/event/movement/loan/posting snapshot and backfilled all three memberships to active without changing roles or creation timestamps.
-- Catalog verification: one active private invitation key, 11 named constraints, eight required indexes, five required triggers, three owner policies, two forced-RLS household tables, and eight exact public signatures owned by `household_command_owner` with authenticated-only execution.
+- Fresh final verification after independent review corrections: 90/90 database tests, 107/107 UI tests, production build successful, and Playwright 23 passed with 23 intentional project skips.
+- Disposable migration verification passed repeatedly. Both empty and seeded databases applied all 25 repository migrations; the seeded proof preserved the complete wallet/event/movement/loan/posting snapshot and backfilled all three memberships to active without changing roles or creation timestamps.
+- Catalog verification: one active private invitation key, 11 named constraints, eight required indexes, six required immutable/invariant triggers, three owner policies, two forced-RLS household tables, and eight exact public signatures owned by `household_command_owner` with authenticated-only execution.
+- Independent review corrections cover space-kind invitation integrity, former-owner token replay, zero-row event DELETE rejection, positive-controlled source ratchets, cursor provenance, and true 100-row projection caps.
 - Scope verification: no diff in `src`, `docs/financial-command-inventory.md`, or any pre-existing `20260907*.sql` migration relative to `14bbf7c`; `.swarm/` remains untracked and untouched.
 - Application/gateway behavior, email provider/DNS/templates/sending, Categories, and household UI remain explicitly unimplemented.
