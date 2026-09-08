@@ -111,3 +111,23 @@ Arabic keys. The final gate passed 57 database tests, 107 UI tests, the
 production build, and 23 applicable Playwright scenarios with 23 intentional
 project skips. No Categories UI, hosted, production, POS, Sandooq, or deployment
 operation was part of this change.
+
+A later independent review found that the Categories replacement of
+`reverse_financial_event` had preserved explicit `anon` and `service_role`
+EXECUTE grants and still used nullable fingerprint concatenation with a
+three-valued replay comparison. Forward migration `20260908103000` advanced
+only the Budget journal from 17 to 18 migrations, revoked the restricted-role
+grants, kept authenticated execution, rejected null event/date inputs before
+fingerprinting, and made replay comparison null-safe. The tracked and remote
+migration SHA-256 was
+`096c474d9f2e22fa7e4b5aa1dc9b5b310d4b8ec274664b691a9d79e014f8a8b6`.
+
+A disposable 17-to-18 upgrade retained identical contents across all 13
+pre-existing tables and views while removing simulated ACL drift. Focused
+real-Postgres tests first proved both restricted roles could execute and null
+retries returned the prior reversal, then passed after the migration. The
+post-application gate passed 59 database tests, 107 UI tests, the production
+build, and 23 applicable Playwright scenarios with 23 intentional project
+skips. PostgreSQL remained `170006` with system identifier
+`7683090997378195493`; no UI, Sandooq, POS, production, hosted, push, or deploy
+operation was part of this remediation.

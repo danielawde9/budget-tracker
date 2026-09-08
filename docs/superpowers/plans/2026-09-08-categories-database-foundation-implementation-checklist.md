@@ -178,6 +178,29 @@ Run `git diff 14bbf7c --stat`, `git diff 14bbf7c --name-only`, `git status --sho
 
 Report install result, baseline and final counts, typecheck/build/UI/Playwright results, direct-write and protected-command scans, empty/upgrade migration proof, SQL permission/object scope, status, and every commit ID. State explicitly that Categories UI, budgeting, reporting, deployment, hosted operation, and whole-application completion are not claimed.
 
+### Task 8: Remediate reversal-command review findings forward-only
+
+**Files:**
+- Create: `supabase/migrations/20260908103000_harden_reverse_financial_event.sql`
+- Modify: `tests/db/categories.integration.test.ts`
+- Modify: `tests/db/test-database.ts`
+
+- [x] **Step 1: Reproduce both defects on real PostgreSQL**
+
+Prove `anon` and `service_role` can execute the SECURITY DEFINER reversal command when supplied a valid actor context, and prove replay with a null event ID or effective date incorrectly returns the existing reversal. Extend the function ACL ratchet to cover the modified legacy command.
+
+- [x] **Step 2: Add and prove one forward-only migration**
+
+Do not edit migrations already applied through `20260908102000`. Replace the reversal body with explicit required-argument validation before fingerprinting and `IS DISTINCT FROM` replay comparison; revoke EXECUTE from PUBLIC, `anon`, and `service_role`, then grant only `authenticated`. Prove all focused cases and the complete database suite in a disposable 18-migration database.
+
+- [x] **Step 3: Prove upgrade safety and apply only to Budget development**
+
+Seed a disposable 17-migration database, simulate the live ACL drift, snapshot every existing table and view, apply `20260908103000`, and require identical data plus the exact corrected ACL. Reverify the Budget marker, project ID, firewall, port range, restart policy, PostgreSQL identity, and 17-file journal before applying once.
+
+- [x] **Step 4: Run the complete post-application gate**
+
+Run the frozen install, typecheck, all database and UI tests, production build, Playwright matrix, live function/catalog checks, diff checks, scope audit, and disposable-database cleanup before reporting.
+
 ## Self-review
 
 - **Spec coverage:** Tasks cover names/normalization, lifecycle, member authorization, idempotency/concurrency, immutable associations, categorized posting, legacy compatibility, reversal inheritance, RLS/grants/guards, catalog ratchets, bounded reads, indexes, and empty/seeded migration evidence.
