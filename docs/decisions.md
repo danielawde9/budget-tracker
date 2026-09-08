@@ -3,6 +3,22 @@
 Append-only project decisions and assumptions. Each entry records what would
 change if the decision changes.
 
+## 2026-09-08 — Move the Budget development stack to Le Labo Ubuntu
+
+**Decision:** Move the isolated Budget Supabase development stack to
+`/home/lelabo/budget-supabase` on `lelabo@100.76.160.91`. Preserve the existing
+54420–54429 Budget port allocation, permit it only through persistent
+tailnet-only Docker ingress rules, and leave every Sandooq container, directory,
+port, and lifecycle command unchanged. The Mac repository remains authoritative.
+
+**Why:** Daniel selected the reachable Le Labo Ubuntu host after the previous
+Budget host stopped responding. Reusing the established Budget port range keeps
+the new stack separate from Sandooq's 54321–54324 range and the POS lane's
+54331–54334 range.
+
+**If changed:** Another host or port range requires renewed collision, ingress,
+capacity, endpoint, and database-identity verification before any stack starts.
+
 ## 2026-09-07 — Isolated remote development database
 
 **Decision:** Budget will use its own Supabase development stack on the Le

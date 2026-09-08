@@ -29,7 +29,9 @@ describe('financial posting boundary coverage', () => {
     for (const command of await financialWriterFunctionNames()) {
       expect(inventory).toContain(`public.${command}`);
     }
-    expect(inventory).toContain('The Loans UI is the first application entry path.');
+    expect(inventory).toContain(
+      'The Loans and Wallets workspaces are the implemented financial entry paths',
+    );
     expect(inventory).toContain('No import, offline-sync,');
     expect(inventory).toContain('scheduled, or external integration entry path exists yet.');
   });

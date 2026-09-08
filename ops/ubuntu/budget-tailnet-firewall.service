@@ -1,0 +1,12 @@
+[Unit]
+Description=Restrict Budget Supabase Docker ports to the Tailscale network
+After=docker.service tailscaled.service
+Requires=docker.service tailscaled.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/budget-tailnet-firewall
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
