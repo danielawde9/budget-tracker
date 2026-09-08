@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 
-import type { CategoryErrorView } from '../categories/errors.js';
+import { classifyCategoryError, localizeCategoryError, type CategoryErrorView } from '../categories/errors.js';
 import type { Category, CategoryKind } from '../categories/types.js';
 import type { Locale } from '../loans/types.js';
 import { DialogShell } from './dialog-shell.js';
@@ -27,6 +27,11 @@ interface TransactionDialogProps {
 
 const t = (locale: Locale, en: string, ar: string) => locale === 'ar' ? ar : en;
 const today = () => new Date().toISOString().slice(0, 10);
+
+function categoryErrorCopy(locale: Locale, cause: unknown): string {
+  const error = localizeCategoryError(classifyCategoryError(cause), locale);
+  return `${error.message} ${error.recovery}`;
+}
 
 function validDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -113,7 +118,9 @@ export function TransactionDialog(props: TransactionDialogProps) {
         setError(t(props.locale, 'The transaction was recorded, but balances and history could not be refreshed.', 'تم تسجيل المعاملة، ولكن تعذّر تحديث الأرصدة والسجل.'));
       } else setError(t(props.locale, 'The result is still unknown. We found no matching event; retry only if these details are unchanged.', 'ما زالت النتيجة غير معروفة. لم نجد حدثًا مطابقًا؛ أعد المحاولة فقط إذا بقيت التفاصيل كما هي.'));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t(props.locale, 'The transaction was not recorded.', 'لم يتم تسجيل المعاملة.'));
+      setError(categoryId && (kind === 'income' || kind === 'expense')
+        ? categoryErrorCopy(props.locale, cause)
+        : cause instanceof Error ? cause.message : t(props.locale, 'The transaction was not recorded.', 'لم يتم تسجيل المعاملة.'));
     }
   }
 
@@ -127,7 +134,9 @@ export function TransactionDialog(props: TransactionDialogProps) {
         setError(t(props.locale, 'The transaction was recorded, but balances and history could not be refreshed.', 'تم تسجيل المعاملة، ولكن تعذّر تحديث الأرصدة والسجل.'));
       } else setError(t(props.locale, 'The result is still unknown. Check the connection before retrying again.', 'ما زالت النتيجة غير معروفة. تحقق من الاتصال قبل إعادة المحاولة.'));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t(props.locale, 'The transaction was not recorded.', 'لم يتم تسجيل المعاملة.'));
+      setError(categoryId && (kind === 'income' || kind === 'expense')
+        ? categoryErrorCopy(props.locale, cause)
+        : cause instanceof Error ? cause.message : t(props.locale, 'The transaction was not recorded.', 'لم يتم تسجيل المعاملة.'));
     }
   }
 

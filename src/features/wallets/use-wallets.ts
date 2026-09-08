@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { classifyCategoryError, type CategoryErrorView } from '../categories/errors.js';
 import type { CategoriesGateway, CategorizedEventInput, EventCategory } from '../categories/types.js';
 import type {
   CreateWalletInput,
@@ -27,6 +28,7 @@ interface WalletsView {
   events: readonly JournalEvent[];
   nextCursor: string | null;
   error: string | null;
+  categoryError: CategoryErrorView | null;
 }
 
 const emptyView = (spaceId: string): WalletsView => ({
@@ -36,9 +38,16 @@ const emptyView = (spaceId: string): WalletsView => ({
   events: [],
   nextCursor: null,
   error: null,
+  categoryError: null,
 });
 
 const defaultCreateRequestId = () => globalThis.crypto.randomUUID();
+
+class CategoryProjectionFailure extends Error {
+  constructor(readonly categoryError: CategoryErrorView) {
+    super(categoryError.message);
+  }
+}
 
 function isCategoryKind(kind: RecordEventInput['kind']): kind is CategorizedEventInput['kind'] {
   return kind === 'income' || kind === 'expense';
@@ -106,10 +115,15 @@ export function useWallets(
   ): Promise<readonly JournalEvent[]> => {
     if (!categoriesGateway || events.length === 0) return events;
     if (events.length > 20) throw new Error('Wallet history pages must contain at most 20 events.');
-    const associations = await categoriesGateway.resolveEventCategories(
-      targetSpaceId,
-      events.map((event) => event.id),
-    );
+    let associations: readonly EventCategory[];
+    try {
+      associations = await categoriesGateway.resolveEventCategories(
+        targetSpaceId,
+        events.map((event) => event.id),
+      );
+    } catch (cause) {
+      throw new CategoryProjectionFailure(classifyCategoryError(cause));
+    }
     return addCategoryLabels(events, associations);
   }, [categoriesGateway]);
 
@@ -121,6 +135,7 @@ export function useWallets(
       events: snapshot.history.events,
       nextCursor: snapshot.history.nextCursor,
       error: null,
+      categoryError: null,
     });
   }, []);
 
@@ -139,8 +154,14 @@ export function useWallets(
       return true;
     } catch (cause) {
       if (requestSequence.current !== requestId || currentSpace.current !== targetSpaceId) return false;
-      if (surfaceFailure) setView({ ...emptyView(targetSpaceId), status: 'error', error: errorMessage(cause) });
-      if (isSpaceUnavailable(cause)) onSpaceUnavailable?.();
+      const categoryError = cause instanceof CategoryProjectionFailure ? cause.categoryError : null;
+      if (surfaceFailure) setView({
+        ...emptyView(targetSpaceId),
+        status: 'error',
+        error: categoryError?.message ?? errorMessage(cause),
+        categoryError,
+      });
+      if (categoryError?.code === 'missing_membership' || isSpaceUnavailable(cause)) onSpaceUnavailable?.();
       return false;
     }
   }, [applySnapshot, enrichEvents, gateway, onSpaceUnavailable, spaceId]);
@@ -298,6 +319,7 @@ export function useWallets(
     events: visible ? view.events : [],
     nextCursor: visible ? view.nextCursor : null,
     error: visible ? view.error : null,
+    categoryError: visible ? view.categoryError : null,
     pending,
     loadingMore,
     ambiguous: retry ? { kind: retry.kind, requestId: retry.requestId } : null,

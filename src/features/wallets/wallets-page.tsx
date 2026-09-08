@@ -46,11 +46,14 @@ const emptyCategoriesGateway: CategoriesGateway = {
 
 export function WalletsPage({ gateway, categoriesGateway, spaceId, locale = 'en', onSpaceUnavailable, onOpenLoans }: WalletsPageProps) {
   const categoryState = useCategories(categoriesGateway ?? emptyCategoriesGateway, spaceId, onSpaceUnavailable);
+  const walletState = useWallets(gateway, spaceId, onSpaceUnavailable, undefined, categoriesGateway);
   const categoryError = categoryState.error ? localizeCategoryError(categoryState.error, locale) : null;
   const categoryPaginationError = categoryState.paginationError
     ? { ...categoryState.paginationError, error: localizeCategoryError(categoryState.paginationError.error, locale) }
     : null;
-  const walletState = useWallets(gateway, spaceId, onSpaceUnavailable, undefined, categoriesGateway);
+  const journalCategoryError = walletState.categoryError
+    ? localizeCategoryError(walletState.categoryError, locale)
+    : null;
   const [dialog, setDialog] = useState<OpenDialog>(null);
   const activeCategories = [...categoryState.incomeCategories, ...categoryState.expenseCategories];
 
@@ -61,7 +64,7 @@ export function WalletsPage({ gateway, categoriesGateway, spaceId, locale = 'en'
     </header>
 
     {walletState.status === 'loading' && <div className="state-panel" role="status" aria-label="Loading wallets">{t(locale, 'Loading this space’s wallets…', 'جارٍ تحميل محافظ هذه المساحة…')}</div>}
-    {walletState.status === 'error' && <div className="state-panel error-notice" role="alert"><strong>{t(locale, 'Wallets are unavailable', 'المحافظ غير متاحة')}</strong><p>{walletState.error}</p><button type="button" onClick={() => void walletState.refresh()}>{t(locale, 'Try again', 'المحاولة مجددًا')}</button></div>}
+    {walletState.status === 'error' && <div className="state-panel error-notice" role="alert"><strong>{t(locale, 'Wallets are unavailable', 'المحافظ غير متاحة')}</strong><p>{journalCategoryError?.message ?? walletState.error}</p>{journalCategoryError && <p>{journalCategoryError.recovery}</p>}<button type="button" onClick={() => void walletState.refresh()}>{t(locale, 'Try again', 'المحاولة مجددًا')}</button></div>}
     {categoriesGateway && categoryState.status === 'error' && <div className="state-panel error-notice" role="alert"><strong>{t(locale, 'Categories are unavailable', 'الفئات غير متاحة')}</strong><p>{categoryError?.message}</p><p>{categoryError?.recovery}</p><button type="button" onClick={() => void categoryState.refresh()}>{t(locale, 'Try again', 'المحاولة مجددًا')}</button></div>}
     {walletState.status === 'ready' && <>
       <section className="wallet-folio" aria-labelledby="wallet-balances-heading">

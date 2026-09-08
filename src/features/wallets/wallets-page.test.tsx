@@ -20,6 +20,15 @@ async function renderPage(
   return { gateway, user };
 }
 
+async function openArabicCategorizedIncome(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'إضافة معاملة' }));
+  const dialog = screen.getByRole('dialog', { name: 'إضافة معاملة' });
+  await user.click(within(dialog).getByRole('radio', { name: 'راتب' }));
+  await user.type(within(dialog).getByLabelText('المبلغ'), '12.50');
+  await user.click(within(dialog).getByRole('button', { name: 'مراجعة المعاملة' }));
+  return dialog;
+}
+
 describe('WalletsPage', () => {
   it('renders active wallet balances and immutable history with sourced names isolated', async () => {
     await renderPage();
@@ -236,7 +245,9 @@ describe('WalletsPage', () => {
     categoriesGateway.error = new Error('categorized transaction rejected');
     await user.click(within(dialog).getByRole('button', { name: 'Record expense' }));
 
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('categorized transaction rejected');
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent('The category request was not accepted');
+    expect(alert).not.toHaveTextContent('categorized transaction rejected');
     expect(within(dialog).getByDisplayValue('18.75')).toBeInTheDocument();
     expect(within(dialog).getByRole('radio', { name: 'Groceries' })).toBeChecked();
   });
@@ -282,6 +293,67 @@ describe('WalletsPage', () => {
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('لم يعد لديك وصول إلى هذه المساحة');
     expect(alert).not.toHaveTextContent('You no longer have access');
+  });
+
+  it('localizes category history membership failures in the Arabic wallet workspace', async () => {
+    const categoriesGateway = new InMemoryCategoriesGateway();
+    categoriesGateway.categories = categoriesGateway.categories.map((category) => ({ ...category, spaceId: 'personal-space' }));
+    categoriesGateway.resolveEventCategories = vi.fn(async () => {
+      throw new Error('an active space membership is required for category history');
+    });
+    await renderPage(new InMemoryWalletsGateway(), 'ar', categoriesGateway);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('لم يعد لديك وصول إلى هذه المساحة');
+    expect(alert).not.toHaveTextContent('active space membership');
+  });
+
+  it('localizes a categorized submit rejection without exposing its cause in Arabic', async () => {
+    const categoriesGateway = new InMemoryCategoriesGateway();
+    categoriesGateway.categories = categoriesGateway.categories.map((category) => ({ ...category, spaceId: 'personal-space' }));
+    categoriesGateway.recordCategorizedEvent = vi.fn(async () => {
+      throw new Error('the category must be active, in the requested space, and match the event kind');
+    });
+    const { user } = await renderPage(new InMemoryWalletsGateway(), 'ar', categoriesGateway);
+    const dialog = await openArabicCategorizedIncome(user);
+    await user.click(within(dialog).getByRole('button', { name: 'تسجيل دخل' }));
+
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent('لم تعد هذه الفئة متاحة لهذا القيد');
+    expect(alert).not.toHaveTextContent('must be active');
+  });
+
+  it('localizes a categorized explicit retry rejection without exposing its cause in Arabic', async () => {
+    const categoriesGateway = new InMemoryCategoriesGateway();
+    categoriesGateway.categories = categoriesGateway.categories.map((category) => ({ ...category, spaceId: 'personal-space' }));
+    categoriesGateway.recordCategorizedEvent = vi.fn()
+      .mockRejectedValueOnce(new Error('Connection timeout'))
+      .mockRejectedValueOnce(new Error('the category must be active, in the requested space, and match the event kind'));
+    categoriesGateway.findCategorizedEventByRequestId = vi.fn(async () => null);
+    const { user } = await renderPage(new InMemoryWalletsGateway(), 'ar', categoriesGateway);
+    const dialog = await openArabicCategorizedIncome(user);
+    await user.click(within(dialog).getByRole('button', { name: 'تسجيل دخل' }));
+    await user.click(await within(dialog).findByRole('button', { name: 'إعادة المعاملة دون تغيير' }));
+
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent('لم تعد هذه الفئة متاحة لهذا القيد');
+    expect(alert).not.toHaveTextContent('must be active');
+  });
+
+  it('localizes a categorized reconciliation failure without exposing its cause in Arabic', async () => {
+    const categoriesGateway = new InMemoryCategoriesGateway();
+    categoriesGateway.categories = categoriesGateway.categories.map((category) => ({ ...category, spaceId: 'personal-space' }));
+    categoriesGateway.recordCategorizedEvent = vi.fn(async () => { throw new Error('Connection timeout'); });
+    categoriesGateway.findCategorizedEventByRequestId = vi.fn(async () => {
+      throw new Error('English reconciliation read exploded');
+    });
+    const { user } = await renderPage(new InMemoryWalletsGateway(), 'ar', categoriesGateway);
+    const dialog = await openArabicCategorizedIncome(user);
+    await user.click(within(dialog).getByRole('button', { name: 'تسجيل دخل' }));
+
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent('لم يتم قبول طلب الفئة');
+    expect(alert).not.toHaveTextContent('English reconciliation');
   });
 
   it('renders an archived historical category label without exposing it in the active picker', async () => {
