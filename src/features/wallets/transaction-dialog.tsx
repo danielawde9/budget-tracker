@@ -21,6 +21,7 @@ interface TransactionDialogProps {
   onClose(): void;
   onClearAmbiguous(): void;
   onRetry(): Promise<CommandOutcome>;
+  onRefresh(): Promise<boolean>;
   onSubmit(input: { kind: GeneralEventKind; effectiveDate: string; movements: readonly MovementInput[]; categoryId?: string }): Promise<CommandOutcome>;
 }
 
@@ -43,6 +44,8 @@ export function TransactionDialog(props: TransactionDialogProps) {
   const [movements, setMovements] = useState<readonly MovementInput[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [refreshRequired, setRefreshRequired] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const wallet = props.wallets.find((item) => item.id === walletId);
   const toWallet = props.wallets.find((item) => item.id === toWalletId);
   const eligibleCategories = (kind === 'income' || kind === 'expense')
@@ -54,6 +57,7 @@ export function TransactionDialog(props: TransactionDialogProps) {
     : null;
 
   function edit(action: () => void) {
+    if (refreshRequired) return;
     action();
     setMovements(null);
     setError(null);
@@ -104,7 +108,10 @@ export function TransactionDialog(props: TransactionDialogProps) {
         ...(categoryId && (kind === 'income' || kind === 'expense') ? { categoryId } : {}),
       });
       if (outcome.status === 'success') setSuccess(true);
-      else setError(t(props.locale, 'The result is still unknown. We found no matching event; retry only if these details are unchanged.', 'ما زالت النتيجة غير معروفة. لم نجد حدثًا مطابقًا؛ أعد المحاولة فقط إذا بقيت التفاصيل كما هي.'));
+      else if (outcome.status === 'refresh-required') {
+        setRefreshRequired(true);
+        setError(t(props.locale, 'The transaction was recorded, but balances and history could not be refreshed.', 'تم تسجيل المعاملة، ولكن تعذّر تحديث الأرصدة والسجل.'));
+      } else setError(t(props.locale, 'The result is still unknown. We found no matching event; retry only if these details are unchanged.', 'ما زالت النتيجة غير معروفة. لم نجد حدثًا مطابقًا؛ أعد المحاولة فقط إذا بقيت التفاصيل كما هي.'));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t(props.locale, 'The transaction was not recorded.', 'لم يتم تسجيل المعاملة.'));
     }
@@ -115,9 +122,24 @@ export function TransactionDialog(props: TransactionDialogProps) {
     try {
       const outcome = await props.onRetry();
       if (outcome.status === 'success') setSuccess(true);
-      else setError(t(props.locale, 'The result is still unknown. Check the connection before retrying again.', 'ما زالت النتيجة غير معروفة. تحقق من الاتصال قبل إعادة المحاولة.'));
+      else if (outcome.status === 'refresh-required') {
+        setRefreshRequired(true);
+        setError(t(props.locale, 'The transaction was recorded, but balances and history could not be refreshed.', 'تم تسجيل المعاملة، ولكن تعذّر تحديث الأرصدة والسجل.'));
+      } else setError(t(props.locale, 'The result is still unknown. Check the connection before retrying again.', 'ما زالت النتيجة غير معروفة. تحقق من الاتصال قبل إعادة المحاولة.'));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t(props.locale, 'The transaction was not recorded.', 'لم يتم تسجيل المعاملة.'));
+    }
+  }
+
+  async function refreshAcceptedCommand() {
+    setRefreshing(true);
+    try {
+      if (await props.onRefresh()) setSuccess(true);
+      else setError(t(props.locale, 'The transaction was recorded, but balances and history could not be refreshed.', 'تم تسجيل المعاملة، ولكن تعذّر تحديث الأرصدة والسجل.'));
+    } catch {
+      setError(t(props.locale, 'The transaction was recorded, but balances and history could not be refreshed.', 'تم تسجيل المعاملة، ولكن تعذّر تحديث الأرصدة والسجل.'));
+    } finally {
+      setRefreshing(false);
     }
   }
 
@@ -132,25 +154,25 @@ export function TransactionDialog(props: TransactionDialogProps) {
     <div className="dialog-result" role="status"><strong>{t(props.locale, 'Transaction recorded', 'تم تسجيل المعاملة')}</strong><p>{t(props.locale, 'Balances and history were refreshed from the protected journal.', 'تم تحديث الأرصدة والسجل من الدفتر المحمي.')}</p><button type="button" data-autofocus onClick={props.onClose}>{t(props.locale, 'Done', 'تم')}</button></div>
   </DialogShell>;
 
-  return <DialogShell title={t(props.locale, 'Add a transaction', 'إضافة معاملة')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} pending={props.pending} wide>
+  return <DialogShell title={t(props.locale, 'Add a transaction', 'إضافة معاملة')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} pending={props.pending || refreshing} wide>
     <form onSubmit={review}>
       <p className="dialog-intro">{t(props.locale, 'Record one immutable wallet event. Review the signed wallet effects before confirmation.', 'سجّل حدث محفظة واحدًا غير قابل للتعديل. راجع تأثيرات المحافظ الموقّعة قبل التأكيد.')}</p>
-      {error && <div className="error-notice" role="alert">{error}{props.ambiguous && <div><button type="button" className="button-secondary retry-command" disabled={props.pending} onClick={() => void retry()}>{t(props.locale, 'Retry unchanged transaction', 'إعادة المعاملة دون تغيير')}</button></div>}</div>}
+      {error && <div className="error-notice" role="alert">{error}{refreshRequired ? <div><button type="button" className="button-secondary retry-command" disabled={refreshing} onClick={() => void refreshAcceptedCommand()}>{refreshing ? t(props.locale, 'Refreshing…', 'جارٍ التحديث…') : t(props.locale, 'Refresh wallets', 'تحديث المحافظ')}</button></div> : props.ambiguous && <div><button type="button" className="button-secondary retry-command" disabled={props.pending} onClick={() => void retry()}>{t(props.locale, 'Retry unchanged transaction', 'إعادة المعاملة دون تغيير')}</button></div>}</div>}
       <div className="form-grid">
-        <label>{t(props.locale, 'Type', 'النوع')}<select data-autofocus value={kind} onChange={(event) => edit(() => { setKind(event.target.value as GeneralEventKind); setCategoryId(null); })}><option value="opening_balance">{t(props.locale, 'Opening balance', 'رصيد افتتاحي')}</option><option value="income">{t(props.locale, 'Income', 'دخل')}</option><option value="expense">{t(props.locale, 'Expense', 'مصروف')}</option><option value="transfer">{t(props.locale, 'Transfer', 'تحويل')}</option></select></label>
-        <label>{t(props.locale, 'Effective date', 'تاريخ السريان')}<input type="date" value={effectiveDate} onChange={(event) => edit(() => setEffectiveDate(event.target.value))} /></label>
-        <label>{kind === 'transfer' ? t(props.locale, 'From wallet', 'من محفظة') : t(props.locale, 'Wallet', 'المحفظة')}<select value={walletId} onChange={(event) => edit(() => setWalletId(event.target.value))}>{props.wallets.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.currency}</option>)}</select></label>
-        {kind === 'transfer' && <label>{t(props.locale, 'To wallet', 'إلى محفظة')}<select value={toWalletId} onChange={(event) => edit(() => setToWalletId(event.target.value))}>{props.wallets.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.currency}</option>)}</select></label>}
-        <label className="full-field">{t(props.locale, 'Amount', 'المبلغ')}<input inputMode="decimal" value={amount} onChange={(event) => edit(() => setAmount(event.target.value))} /></label>
+        <label>{t(props.locale, 'Type', 'النوع')}<select data-autofocus value={kind} disabled={refreshRequired} onChange={(event) => edit(() => { setKind(event.target.value as GeneralEventKind); setCategoryId(null); })}><option value="opening_balance">{t(props.locale, 'Opening balance', 'رصيد افتتاحي')}</option><option value="income">{t(props.locale, 'Income', 'دخل')}</option><option value="expense">{t(props.locale, 'Expense', 'مصروف')}</option><option value="transfer">{t(props.locale, 'Transfer', 'تحويل')}</option></select></label>
+        <label>{t(props.locale, 'Effective date', 'تاريخ السريان')}<input type="date" value={effectiveDate} disabled={refreshRequired} onChange={(event) => edit(() => setEffectiveDate(event.target.value))} /></label>
+        <label>{kind === 'transfer' ? t(props.locale, 'From wallet', 'من محفظة') : t(props.locale, 'Wallet', 'المحفظة')}<select value={walletId} disabled={refreshRequired} onChange={(event) => edit(() => setWalletId(event.target.value))}>{props.wallets.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.currency}</option>)}</select></label>
+        {kind === 'transfer' && <label>{t(props.locale, 'To wallet', 'إلى محفظة')}<select value={toWalletId} disabled={refreshRequired} onChange={(event) => edit(() => setToWalletId(event.target.value))}>{props.wallets.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.currency}</option>)}</select></label>}
+        <label className="full-field">{t(props.locale, 'Amount', 'المبلغ')}<input inputMode="decimal" value={amount} disabled={refreshRequired} onChange={(event) => edit(() => setAmount(event.target.value))} /></label>
       </div>
       {(kind === 'income' || kind === 'expense') && <fieldset className="category-picker">
         <legend>{t(props.locale, 'Category', 'الفئة')}</legend>
-        <label><input type="radio" name="transaction-category" checked={categoryId === null} onChange={() => edit(() => setCategoryId(null))} /><span>{t(props.locale, 'Uncategorized', 'غير مصنّف')}</span></label>
+        <label><input type="radio" name="transaction-category" checked={categoryId === null} disabled={refreshRequired} onChange={() => edit(() => setCategoryId(null))} /><span>{t(props.locale, 'Uncategorized', 'غير مصنّف')}</span></label>
         {eligibleCategories.map((item) => {
           const label = props.locale === 'ar' ? item.nameAr ?? item.nameEn : item.nameEn ?? item.nameAr;
-          return <label key={item.id}><input type="radio" name="transaction-category" checked={categoryId === item.id} onChange={() => edit(() => setCategoryId(item.id))} /><bdi>{label}</bdi></label>;
+          return <label key={item.id}><input type="radio" name="transaction-category" checked={categoryId === item.id} disabled={refreshRequired} onChange={() => edit(() => setCategoryId(item.id))} /><bdi>{label}</bdi></label>;
         })}
-        {props.categoryNextCursors?.[kind] && <button type="button" className="button-secondary category-picker-more" disabled={props.categoryLoadingMore === kind} onClick={() => void props.onLoadMoreCategories?.(kind)}>{props.categoryLoadingMore === kind ? t(props.locale, 'Loading categories…', 'جارٍ تحميل الفئات…') : t(props.locale, `Load more ${kind} categories`, `تحميل المزيد من فئات ${kind === 'income' ? 'الدخل' : 'المصروف'}`)}</button>}
+        {props.categoryNextCursors?.[kind] && <button type="button" className="button-secondary category-picker-more" disabled={refreshRequired || props.categoryLoadingMore === kind} onClick={() => void props.onLoadMoreCategories?.(kind)}>{props.categoryLoadingMore === kind ? t(props.locale, 'Loading categories…', 'جارٍ تحميل الفئات…') : t(props.locale, `Load more ${kind} categories`, `تحميل المزيد من فئات ${kind === 'income' ? 'الدخل' : 'المصروف'}`)}</button>}
         {props.categoryPaginationError?.kind === kind && <div className="error-notice category-picker-error" role="alert"><span>{props.categoryPaginationError.error.message} {props.categoryPaginationError.error.recovery}</span><button type="button" className="button-secondary retry-command" disabled={props.categoryLoadingMore === kind} onClick={() => void props.onLoadMoreCategories?.(kind)}>{t(props.locale, `Retry loading ${kind} categories`, `إعادة محاولة تحميل فئات ${kind === 'income' ? 'الدخل' : 'المصروف'}`)}</button></div>}
       </fieldset>}
       {movements && wallet && <section className="effect-preview" aria-label={t(props.locale, 'Wallet effect preview', 'معاينة تأثير المحافظ')}>
@@ -164,7 +186,7 @@ export function TransactionDialog(props: TransactionDialogProps) {
         })}</ul>
         <p>{t(props.locale, 'The resulting balances will come from the refreshed journal; this preview does not calculate them.', 'ستأتي الأرصدة الناتجة من السجل المحدّث؛ لا تحسب هذه المعاينة الأرصدة.')}</p>
       </section>}
-      <div className="dialog-actions"><button type="button" className="button-secondary" disabled={props.pending} onClick={props.onClose}>{t(props.locale, 'Cancel', 'إلغاء')}</button>{movements ? <button type="button" disabled={props.pending} onClick={() => void submit()}>{props.pending ? t(props.locale, 'Recording…', 'جارٍ التسجيل…') : `${t(props.locale, 'Record', 'تسجيل')} ${kindLabel}`}</button> : <button type="submit">{t(props.locale, 'Review transaction', 'مراجعة المعاملة')}</button>}</div>
+      <div className="dialog-actions"><button type="button" className="button-secondary" disabled={props.pending || refreshing} onClick={props.onClose}>{t(props.locale, refreshRequired ? 'Close' : 'Cancel', refreshRequired ? 'إغلاق' : 'إلغاء')}</button>{movements ? <button type="button" disabled={props.pending || refreshRequired} onClick={() => void submit()}>{props.pending ? t(props.locale, 'Recording…', 'جارٍ التسجيل…') : `${t(props.locale, 'Record', 'تسجيل')} ${kindLabel}`}</button> : <button type="submit" disabled={refreshRequired}>{t(props.locale, 'Review transaction', 'مراجعة المعاملة')}</button>}</div>
     </form>
   </DialogShell>;
 }

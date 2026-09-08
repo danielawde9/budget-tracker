@@ -12,7 +12,7 @@ import type {
 } from './types.js';
 
 export type WalletsStatus = 'loading' | 'ready' | 'error';
-export interface CommandOutcome { status: 'success' | 'ambiguous'; reconciled: boolean }
+export interface CommandOutcome { status: 'success' | 'ambiguous' | 'refresh-required'; reconciled: boolean }
 
 type RecordDraft = Omit<RecordEventInput, 'spaceId' | 'requestId'> & { categoryId?: string | null };
 type ReverseDraft = Omit<ReverseEventInput, 'spaceId' | 'requestId'>;
@@ -124,22 +124,24 @@ export function useWallets(
     });
   }, []);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (preserveCurrent = false, surfaceFailure = true): Promise<boolean> => {
     const targetSpaceId = spaceId;
     const requestId = ++requestSequence.current;
-    setView(emptyView(targetSpaceId));
+    if (!preserveCurrent) setView(emptyView(targetSpaceId));
     try {
       const snapshot = await gateway.loadSnapshot(targetSpaceId);
       const events = await enrichEvents(targetSpaceId, snapshot.history.events);
-      if (requestSequence.current !== requestId || currentSpace.current !== targetSpaceId) return;
+      if (requestSequence.current !== requestId || currentSpace.current !== targetSpaceId) return false;
       applySnapshot(targetSpaceId, {
         ...snapshot,
         history: { ...snapshot.history, events },
       });
+      return true;
     } catch (cause) {
-      if (requestSequence.current !== requestId || currentSpace.current !== targetSpaceId) return;
-      setView({ ...emptyView(targetSpaceId), status: 'error', error: errorMessage(cause) });
+      if (requestSequence.current !== requestId || currentSpace.current !== targetSpaceId) return false;
+      if (surfaceFailure) setView({ ...emptyView(targetSpaceId), status: 'error', error: errorMessage(cause) });
       if (isSpaceUnavailable(cause)) onSpaceUnavailable?.();
+      return false;
     }
   }, [applySnapshot, enrichEvents, gateway, onSpaceUnavailable, spaceId]);
 
@@ -163,9 +165,9 @@ export function useWallets(
     }
   }, []);
 
-  const refreshAfterCommand = useCallback(async () => {
+  const refreshAfterCommand = useCallback(async (preserveOnFailure = false): Promise<boolean> => {
     setRetry(null);
-    await load();
+    return load(preserveOnFailure, !preserveOnFailure);
   }, [load]);
 
   const createWallet = useCallback(async (
@@ -196,6 +198,7 @@ export function useWallets(
   const reconcileCommand = useCallback(async (
     command: RetryCommand,
   ): Promise<CommandOutcome> => {
+    const categorized = command.kind === 'record' && command.categoryId !== null;
     try {
       if (command.kind === 'reverse') {
         await gateway.reverseEvent(command.input);
@@ -213,8 +216,8 @@ export function useWallets(
       } else {
         await gateway.recordEvent(command.input);
       }
-      await refreshAfterCommand();
-      return { status: 'success', reconciled: false };
+      const refreshed = await refreshAfterCommand(categorized);
+      return { status: categorized && !refreshed ? 'refresh-required' : 'success', reconciled: false };
     } catch (cause) {
       if (!isAmbiguousTransportFailure(cause)) throw cause;
       let event;
@@ -230,8 +233,8 @@ export function useWallets(
         if (command.kind === 'record' && command.categoryId && 'categoryId' in event && event.categoryId !== command.categoryId) {
           throw new Error('The request ID resolved to an event with a different category. Refresh before trying again.');
         }
-        await refreshAfterCommand();
-        return { status: 'success', reconciled: true };
+        const refreshed = await refreshAfterCommand(categorized);
+        return { status: categorized && !refreshed ? 'refresh-required' : 'success', reconciled: true };
       }
       setRetry(command);
       return { status: 'ambiguous', reconciled: false };
@@ -298,7 +301,8 @@ export function useWallets(
     pending,
     loadingMore,
     ambiguous: retry ? { kind: retry.kind, requestId: retry.requestId } : null,
-    refresh: load,
+    refresh: () => load(),
+    recoverRefresh: () => load(true, false),
     loadMore,
     createWallet,
     recordEvent,

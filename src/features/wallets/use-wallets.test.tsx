@@ -151,6 +151,33 @@ describe('useWallets', () => {
     expect(wallets.recordEvent).not.toHaveBeenCalled();
   });
 
+  it('requires refresh-only recovery when a successful categorized post cannot refresh', async () => {
+    const loadSnapshot = vi.fn()
+      .mockResolvedValueOnce(walletSnapshot)
+      .mockRejectedValueOnce(new Error('Refresh failed'))
+      .mockResolvedValueOnce(walletSnapshot);
+    const wallets = gateway({ loadSnapshot });
+    const categories = categoriesGateway();
+    const { result } = renderHook(() => useWallets(wallets, 'space-1', undefined, () => 'request-fixed', categories));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await expect(result.current.recordEvent({
+        kind: 'income',
+        effectiveDate: '2026-09-08',
+        movements: [{ walletId: 'wallet-1', amountMinor: '500' }],
+        categoryId: 'category-salary',
+      })).resolves.toEqual({ status: 'refresh-required', reconciled: false });
+    });
+    expect(result.current.status).toBe('ready');
+    expect(categories.recordCategorizedEvent).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      await expect(result.current.recoverRefresh()).resolves.toBe(true);
+    });
+    expect(categories.recordCategorizedEvent).toHaveBeenCalledOnce();
+  });
+
   it('reconciles an ambiguous categorized post only when the category also matches', async () => {
     const recordCategorizedEvent = vi.fn(async () => { throw new Error('Connection timeout'); });
     const findCategorizedEventByRequestId = vi.fn(async () => ({ eventId: 'event-1', categoryId: 'category-salary' }));
@@ -171,6 +198,36 @@ describe('useWallets', () => {
     expect(recordCategorizedEvent).toHaveBeenCalledOnce();
     expect(findCategorizedEventByRequestId).toHaveBeenCalledWith('space-1', 'request-fixed');
     expect(result.current.ambiguous).toBeNull();
+  });
+
+  it('requires refresh-only recovery when reconciled categorized success cannot refresh', async () => {
+    const loadSnapshot = vi.fn()
+      .mockResolvedValueOnce(walletSnapshot)
+      .mockRejectedValueOnce(new Error('Refresh failed'))
+      .mockResolvedValueOnce(walletSnapshot);
+    const wallets = gateway({ loadSnapshot });
+    const categories = categoriesGateway({
+      recordCategorizedEvent: vi.fn(async () => { throw new Error('Connection timeout'); }),
+      findCategorizedEventByRequestId: vi.fn(async () => ({ eventId: 'event-1', categoryId: 'category-salary' })),
+    });
+    const { result } = renderHook(() => useWallets(wallets, 'space-1', undefined, () => 'request-fixed', categories));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await expect(result.current.recordEvent({
+        kind: 'income',
+        effectiveDate: '2026-09-08',
+        movements: [{ walletId: 'wallet-1', amountMinor: '500' }],
+        categoryId: 'category-salary',
+      })).resolves.toEqual({ status: 'refresh-required', reconciled: true });
+    });
+    expect(result.current.status).toBe('ready');
+    expect(categories.recordCategorizedEvent).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      await expect(result.current.recoverRefresh()).resolves.toBe(true);
+    });
+    expect(categories.recordCategorizedEvent).toHaveBeenCalledOnce();
   });
 
   it('retains the identical categorized command when its reconciliation read fails', async () => {

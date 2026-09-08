@@ -241,6 +241,39 @@ describe('WalletsPage', () => {
     expect(within(dialog).getByRole('radio', { name: 'Groceries' })).toBeChecked();
   });
 
+  it('does not claim categorized success until a failed wallet refresh recovers', async () => {
+    const walletGateway = new InMemoryWalletsGateway();
+    const loadSnapshot = walletGateway.loadSnapshot.bind(walletGateway);
+    let failRefresh = false;
+    walletGateway.loadSnapshot = vi.fn(async (spaceId) => {
+      if (failRefresh) throw new Error('Refresh failed');
+      return loadSnapshot(spaceId);
+    });
+    const categoriesGateway = new InMemoryCategoriesGateway();
+    categoriesGateway.categories = categoriesGateway.categories.map((category) => ({ ...category, spaceId: 'personal-space' }));
+    categoriesGateway.recordCategorizedEvent = vi.fn(async () => {
+      failRefresh = true;
+      return { eventId: 'event-new' };
+    });
+    const { user } = await renderPage(walletGateway, 'en', categoriesGateway);
+    await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+    await user.click(within(dialog).getByRole('radio', { name: 'Salary' }));
+    await user.type(within(dialog).getByLabelText('Amount'), '12.50');
+    await user.click(within(dialog).getByRole('button', { name: 'Review transaction' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Record income' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('recorded, but balances and history could not be refreshed');
+    expect(within(dialog).queryByText('Transaction recorded')).not.toBeInTheDocument();
+    expect(within(dialog).getByDisplayValue('12.50')).toBeInTheDocument();
+    expect(within(dialog).getByRole('radio', { name: 'Salary' })).toBeChecked();
+
+    failRefresh = false;
+    await user.click(within(dialog).getByRole('button', { name: 'Refresh wallets' }));
+    expect(await within(dialog).findByRole('status')).toHaveTextContent('Transaction recorded');
+    expect(categoriesGateway.recordCategorizedEvent).toHaveBeenCalledOnce();
+  });
+
   it('localizes category load failures in the Arabic wallet workspace', async () => {
     const categoriesGateway = new InMemoryCategoriesGateway();
     categoriesGateway.error = new Error('an active space membership is required');
