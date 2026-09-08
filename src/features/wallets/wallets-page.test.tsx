@@ -62,6 +62,57 @@ describe('WalletsPage', () => {
     expect(within(dialog).getByDisplayValue('LBP')).toBeInTheDocument();
   });
 
+  it('uses localized refresh-only recovery after an ambiguous wallet is accepted but category enrichment fails', async () => {
+    const walletGateway = new InMemoryWalletsGateway();
+    const createdWallet = {
+      ...walletGateway.wallets[0]!,
+      id: 'wallet-created',
+      name: 'Travel cash',
+    };
+    const initialSnapshot = {
+      wallets: walletGateway.wallets,
+      history: { events: walletGateway.events, nextCursor: null },
+    };
+    const reconciledSnapshot = {
+      wallets: [...walletGateway.wallets, createdWallet],
+      history: { events: walletGateway.events, nextCursor: null },
+    };
+    walletGateway.loadSnapshot = vi.fn()
+      .mockResolvedValueOnce(initialSnapshot)
+      .mockResolvedValueOnce(reconciledSnapshot)
+      .mockResolvedValueOnce(reconciledSnapshot);
+    walletGateway.createWallet = vi.fn(async () => { throw new Error('Network request failed'); });
+    const categoriesGateway = new InMemoryCategoriesGateway();
+    categoriesGateway.categories = categoriesGateway.categories.map((category) => ({ ...category, spaceId: 'personal-space' }));
+    categoriesGateway.resolveEventCategories = vi.fn()
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error('raw English category failure'))
+      .mockResolvedValueOnce([]);
+    const { user } = await renderPage(walletGateway, 'ar', categoriesGateway);
+    await user.click(screen.getByRole('button', { name: 'محفظة جديدة' }));
+    const dialog = screen.getByRole('dialog', { name: 'إنشاء محفظة' });
+    const name = within(dialog).getByLabelText('اسم المحفظة');
+    const currency = within(dialog).getByLabelText('العملة');
+    await user.type(name, 'Travel cash');
+    await user.click(within(dialog).getByRole('button', { name: 'إنشاء المحفظة' }));
+
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent('تم إنشاء المحفظة، ولكن تعذّر تحديث الفئات والسجل');
+    expect(alert).not.toHaveTextContent('raw English category failure');
+    expect(within(dialog).queryByText('تم إنشاء المحفظة', { selector: 'strong' })).not.toBeInTheDocument();
+    expect(name).toHaveValue('Travel cash');
+    expect(name).toBeDisabled();
+    expect(currency).toBeDisabled();
+    expect(walletGateway.createWallet).toHaveBeenCalledOnce();
+
+    await user.click(within(alert).getByRole('button', { name: 'تحديث المحافظ' }));
+
+    expect(await within(dialog).findByRole('status')).toHaveTextContent('تم إنشاء المحفظة');
+    expect(walletGateway.createWallet).toHaveBeenCalledOnce();
+    await user.click(within(dialog).getByRole('button', { name: 'تم' }));
+    expect(screen.getAllByText('Travel cash').some((element) => element.closest('bdi') !== null)).toBe(true);
+  });
+
   it('previews and records exact minor-unit movement signs for every general event kind', async () => {
     const { gateway, user } = await renderPage();
     await user.click(screen.getByRole('button', { name: 'Add transaction' }));

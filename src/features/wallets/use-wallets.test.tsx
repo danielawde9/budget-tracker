@@ -125,6 +125,91 @@ describe('useWallets', () => {
     });
   });
 
+  it('accepts an ambiguously created new wallet before failed category enrichment and recovers by refresh only', async () => {
+    const existingWallet = { ...walletSnapshot.wallets[0]!, id: 'wallet-existing' };
+    const createdWallet = { ...walletSnapshot.wallets[0]!, id: 'wallet-created' };
+    const event = {
+      id: 'event-income',
+      spaceId: 'space-1',
+      requestId: 'request-income',
+      kind: 'income',
+      effectiveDate: '2026-09-08',
+      createdAt: '2026-09-08T10:00:00Z',
+      reversalOf: null,
+      reversedBy: null,
+      loanLinked: false,
+      movements: [],
+    } satisfies JournalEvent;
+    const reconciledSnapshot = {
+      wallets: [existingWallet, createdWallet],
+      history: { events: [event], nextCursor: null },
+    };
+    const loadSnapshot = vi.fn()
+      .mockResolvedValueOnce({ wallets: [existingWallet], history: { events: [], nextCursor: null } })
+      .mockResolvedValueOnce(reconciledSnapshot)
+      .mockResolvedValueOnce(reconciledSnapshot);
+    const createWallet = vi.fn(async () => { throw new Error('Network request failed'); });
+    const resolveEventCategories = vi.fn()
+      .mockRejectedValueOnce(new Error('raw category history failure'))
+      .mockResolvedValueOnce([{
+        eventId: event.id,
+        categoryId: 'category-salary',
+        categoryKind: 'income' as const,
+        nameEn: 'Salary',
+        nameAr: 'راتب',
+        archivedAt: null,
+      }]);
+    const wallets = gateway({ loadSnapshot, createWallet });
+    const categories = categoriesGateway({ resolveEventCategories });
+    const { result } = renderHook(() => useWallets(wallets, 'space-1', undefined, undefined, categories));
+    await waitFor(() => expect(result.current.wallets.map((wallet) => wallet.id)).toEqual(['wallet-existing']));
+
+    await act(async () => {
+      await expect(result.current.createWallet({ name: 'Daily', currency: 'USD' }))
+        .resolves.toEqual({ status: 'refresh-required', reconciled: true });
+    });
+
+    expect(result.current.wallets.map((wallet) => wallet.id)).toEqual(['wallet-existing', 'wallet-created']);
+    expect(result.current.events).toEqual([]);
+    expect(createWallet).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      await expect(result.current.recoverRefresh()).resolves.toBe(true);
+    });
+
+    expect(result.current.events[0]?.category?.nameEn).toBe('Salary');
+    expect(createWallet).toHaveBeenCalledOnce();
+  });
+
+  it('requires an explicit unchanged resubmission when ambiguous wallet creation adds no matching wallet', async () => {
+    const existingWallet = { ...walletSnapshot.wallets[0]!, id: 'wallet-existing' };
+    const createdWallet = { ...walletSnapshot.wallets[0]!, id: 'wallet-created' };
+    const loadSnapshot = vi.fn()
+      .mockResolvedValueOnce({ wallets: [existingWallet], history: { events: [], nextCursor: null } })
+      .mockResolvedValueOnce({ wallets: [existingWallet], history: { events: [], nextCursor: null } })
+      .mockResolvedValueOnce({ wallets: [existingWallet, createdWallet], history: { events: [], nextCursor: null } });
+    const createWallet = vi.fn()
+      .mockRejectedValueOnce(new Error('Network request failed'))
+      .mockResolvedValueOnce({ id: createdWallet.id });
+    const wallets = gateway({ loadSnapshot, createWallet });
+    const { result } = renderHook(() => useWallets(wallets, 'space-1'));
+    await waitFor(() => expect(result.current.wallets.map((wallet) => wallet.id)).toEqual(['wallet-existing']));
+
+    await act(async () => {
+      await expect(result.current.createWallet({ name: ' Daily ', currency: 'USD' }))
+        .rejects.toThrow('found no match');
+    });
+    expect(createWallet).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      await expect(result.current.createWallet({ name: ' Daily ', currency: 'USD' }))
+        .resolves.toEqual({ status: 'success', reconciled: false });
+    });
+
+    expect(createWallet).toHaveBeenCalledTimes(2);
+    expect(createWallet.mock.calls[1]?.[0]).toEqual(createWallet.mock.calls[0]?.[0]);
+  });
+
   it('offers an explicit identical retry after an ambiguous posting is absent', async () => {
     const recordEvent = vi.fn().mockRejectedValueOnce(new Error('Connection timeout')).mockResolvedValueOnce({ eventId: 'event-1' });
     const service = gateway({ recordEvent });

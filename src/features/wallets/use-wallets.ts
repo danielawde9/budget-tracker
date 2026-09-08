@@ -204,6 +204,9 @@ export function useWallets(
   ): Promise<CommandOutcome> => withPending(async () => {
     const targetSpaceId = spaceId;
     const normalized = { spaceId: targetSpaceId, name: input.name.trim(), currency: input.currency };
+    const knownWalletIds = new Set(
+      view.loadedSpaceId === targetSpaceId ? view.wallets.map((wallet) => wallet.id) : [],
+    );
     if (!normalized.name) throw new Error('Enter a wallet name.');
     try {
       await gateway.createWallet(normalized);
@@ -212,21 +215,31 @@ export function useWallets(
     } catch (cause) {
       if (!isAmbiguousTransportFailure(cause)) throw cause;
       const snapshot = await gateway.loadSnapshot(targetSpaceId);
-      const events = await enrichEvents(targetSpaceId, snapshot.history.events);
       if (currentSpace.current !== targetSpaceId) throw new Error('The selected space changed before wallet reconciliation completed.');
-      applySnapshot(targetSpaceId, {
-        ...snapshot,
-        history: { ...snapshot.history, events },
-      });
       const match = snapshot.wallets.find((wallet) =>
-        wallet.spaceId === targetSpaceId
+        !knownWalletIds.has(wallet.id)
+        && wallet.spaceId === targetSpaceId
         && wallet.name === normalized.name
         && wallet.currency === normalized.currency,
       );
       if (!match) throw new Error('We checked the visible wallets and found no match. Review the wallet before submitting again.');
+      setRetry(null);
+      setView((current) => current.loadedSpaceId === targetSpaceId
+        ? { ...current, wallets: snapshot.wallets, error: null, categoryError: null }
+        : current);
+      let events: readonly JournalEvent[];
+      try {
+        events = await enrichEvents(targetSpaceId, snapshot.history.events);
+      } catch {
+        return { status: 'refresh-required', reconciled: true };
+      }
+      applySnapshot(targetSpaceId, {
+        ...snapshot,
+        history: { ...snapshot.history, events },
+      });
       return { status: 'success', reconciled: true };
     }
-  }), [applySnapshot, enrichEvents, gateway, refreshAfterCommand, spaceId, withPending]);
+  }), [applySnapshot, enrichEvents, gateway, refreshAfterCommand, spaceId, view.loadedSpaceId, view.wallets, withPending]);
 
   const reconcileCommand = useCallback(async (
     command: RetryCommand,
