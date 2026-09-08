@@ -43,7 +43,7 @@ const eventId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 function clientWith(
   overrides: Partial<Record<string, unknown[]>> = {},
-  rpcOverrides: Partial<Record<string, unknown[]>> = {},
+  rpcOverrides: Partial<Record<string, readonly unknown[] | null>> = {},
 ) {
   const operations: Operation[] = [];
   const rpcCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
@@ -59,7 +59,10 @@ function clientWith(
     },
     async rpc(name, args) {
       rpcCalls.push({ name, args });
-      if (rpcOverrides[name]) return { data: rpcOverrides[name]!, error: null };
+      if (Object.hasOwn(rpcOverrides, name)) {
+        const data = rpcOverrides[name];
+        return { data: data ? [...data] : null, error: null };
+      }
       if (name === 'get_category_command_result') {
         return { data: [{ command_kind: 'create_category', category_id: categoryRows[0]?.id, created_at: '2026-09-08T10:00:00.000Z' }], error: null };
       }
@@ -150,6 +153,41 @@ describe('Supabase Categories gateway', () => {
       financial_events: [{ id: 'bad-id', space_id: 'space-1', request_id: 'request-1' }],
     });
     await expect(createSupabaseCategoriesGateway(event.client).findCategorizedEventByRequestId('space-1', 'request-1')).rejects.toThrow('invalid id');
+  });
+
+  it.each([
+    ['null', null, 'exactly one result'],
+    ['empty', [], 'exactly one result'],
+    ['multirow', [{ id: eventId }, { id: eventId }], 'exactly one result'],
+    ['missing-ID', [{}], 'missing id'],
+    ['invalid-UUID', [{ id: 'not-a-uuid' }], 'invalid id'],
+  ] as const)('rejects a %s mutation response for every category command', async (_label, response, message) => {
+    const commands = [
+      {
+        rpc: 'create_category',
+        invoke: (gateway: ReturnType<typeof createSupabaseCategoriesGateway>) => gateway.createCategory({
+          spaceId: 'space-1', requestId: 'request-1', kind: 'income', nameEn: 'Salary', nameAr: null,
+        }),
+      },
+      {
+        rpc: 'archive_category',
+        invoke: (gateway: ReturnType<typeof createSupabaseCategoriesGateway>) => gateway.archiveCategory({
+          spaceId: 'space-1', requestId: 'request-1', categoryId: categoryRows[0]!.id,
+        }),
+      },
+      {
+        rpc: 'record_categorized_financial_event',
+        invoke: (gateway: ReturnType<typeof createSupabaseCategoriesGateway>) => gateway.recordCategorizedEvent({
+          spaceId: 'space-1', requestId: 'request-1', kind: 'income', effectiveDate: '2026-09-08',
+          movements: [{ walletId: 'wallet-1', amountMinor: '1250' }], categoryId: categoryRows[0]!.id,
+        }),
+      },
+    ] as const;
+
+    for (const command of commands) {
+      const { client } = clientWith({}, { [command.rpc]: response });
+      await expect(command.invoke(createSupabaseCategoriesGateway(client))).rejects.toThrow(message);
+    }
   });
 
   it('sends exact lifecycle and categorized-posting RPC payloads', async () => {

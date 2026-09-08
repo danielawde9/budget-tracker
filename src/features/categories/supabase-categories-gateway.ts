@@ -171,10 +171,8 @@ function trimmedOrNull(value: string | null): string | null {
 }
 
 function idResult(data: unknown[] | null, key: 'id' | 'eventId'): { id?: string; eventId?: string } {
-  if ((data?.length ?? 0) > 1) throw new Error('The category command returned more than one result.');
-  const value = data?.[0];
-  if (!value) return {};
-  const id = uuidValue(asRow(value), 'id');
+  if (data?.length !== 1) throw new Error('The category command must return exactly one result.');
+  const id = uuidValue(asRow(data[0]), 'id');
   return key === 'id' ? { id } : { eventId: id };
 }
 
