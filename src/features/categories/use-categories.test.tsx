@@ -136,6 +136,38 @@ describe('useCategories', () => {
     expect(gateway.calls.filter((call) => call.name === 'createCategory')).toHaveLength(1);
   });
 
+  it('reports an accepted create with a failed refresh without replaying the mutation', async () => {
+    const gateway = new FakeCategoriesGateway();
+    const listCategories = gateway.listCategories.bind(gateway);
+    const createCategory = gateway.createCategory.bind(gateway);
+    let readsFail = false;
+    gateway.listCategories = vi.fn(async (spaceId, kind, cursor) => {
+      if (readsFail) throw new Error('Network unavailable');
+      return listCategories(spaceId, kind, cursor);
+    });
+    gateway.createCategory = vi.fn(async (input) => {
+      const result = await createCategory(input);
+      readsFail = true;
+      return result;
+    });
+    const { result } = renderHook(() => useCategories(gateway, 'space-1', undefined, () => 'request-create'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await expect(result.current.createCategory({ kind: 'income', nameEn: 'Bonus', nameAr: null }))
+        .resolves.toEqual({ status: 'refresh-required', reconciled: false });
+    });
+    expect(result.current.status).toBe('ready');
+    expect(result.current.incomeCategories).toEqual([salary]);
+    expect(gateway.createCategory).toHaveBeenCalledOnce();
+
+    readsFail = false;
+    await act(async () => {
+      await expect(result.current.recoverRefresh()).resolves.toBe(true);
+    });
+    expect(gateway.createCategory).toHaveBeenCalledOnce();
+  });
+
   it('reconciles ambiguous create without a second mutation when the command result exists', async () => {
     const gateway = new FakeCategoriesGateway();
     gateway.createCategory = vi.fn(async () => { throw new Error('Connection timeout'); });

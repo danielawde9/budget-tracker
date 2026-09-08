@@ -14,6 +14,7 @@ interface CategoryDialogProps {
   onClose(): void;
   onClearAmbiguous(): void;
   onRetry(): Promise<CategoryCommandOutcome>;
+  onRefresh(): Promise<boolean>;
   onSubmit(input: CreateCategoryDraft): Promise<CategoryCommandOutcome>;
 }
 
@@ -39,6 +40,8 @@ export function CategoryDialog(props: CategoryDialogProps) {
   const [nameAr, setNameAr] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [refreshRequired, setRefreshRequired] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   function edit(action: () => void) {
     action();
@@ -51,7 +54,13 @@ export function CategoryDialog(props: CategoryDialogProps) {
     try {
       const outcome = await action();
       if (outcome.status === 'success') setSuccess(true);
-      else setError(t(props.locale,
+      else if (outcome.status === 'refresh-required') {
+        setRefreshRequired(true);
+        setError(t(props.locale,
+          'The category was saved, but the current register could not be refreshed.',
+          'تم حفظ الفئة، ولكن تعذّر تحديث السجل الحالي.',
+        ));
+      } else setError(t(props.locale,
         'The result is still unknown. We found no matching category command; retry only if these details are unchanged.',
         'ما زالت النتيجة غير معروفة. لم نجد أمر فئة مطابقًا؛ أعد المحاولة فقط إذا بقيت التفاصيل كما هي.',
       ));
@@ -60,8 +69,27 @@ export function CategoryDialog(props: CategoryDialogProps) {
     }
   }
 
+  async function refreshAcceptedCommand() {
+    setRefreshing(true);
+    try {
+      if (await props.onRefresh()) setSuccess(true);
+      else setError(t(props.locale,
+        'The category was saved, but the current register could not be refreshed.',
+        'تم حفظ الفئة، ولكن تعذّر تحديث السجل الحالي.',
+      ));
+    } catch {
+      setError(t(props.locale,
+        'The category was saved, but the current register could not be refreshed.',
+        'تم حفظ الفئة، ولكن تعذّر تحديث السجل الحالي.',
+      ));
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   function submit(event: FormEvent) {
     event.preventDefault();
+    if (refreshRequired) return;
     const trimmedEn = nameEn.trim();
     const trimmedAr = nameAr.trim();
     if (!trimmedEn && !trimmedAr) {
@@ -79,17 +107,17 @@ export function CategoryDialog(props: CategoryDialogProps) {
     <div className="dialog-result" role="status"><strong>{t(props.locale, 'Category created', 'تم إنشاء الفئة')}</strong><p>{t(props.locale, 'The active register was refreshed from the server.', 'تم تحديث سجل الفئات الفعالة من الخادم.')}</p><button type="button" data-autofocus onClick={props.onClose}>{t(props.locale, 'Done', 'تم')}</button></div>
   </DialogShell>;
 
-  return <DialogShell title={t(props.locale, 'Create a category', 'إنشاء فئة')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} pending={props.pending}>
+  return <DialogShell title={t(props.locale, 'Create a category', 'إنشاء فئة')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} pending={props.pending || refreshing}>
     <form onSubmit={submit}>
       <p className="dialog-intro">{t(props.locale, 'Add an income or expense label. Enter either language or both; missing names are never invented.', 'أضف تسمية للدخل أو المصروف. أدخل لغة واحدة أو كلتيهما؛ لا يتم اختلاق الاسم المفقود.')}</p>
-      {error && <div className="error-notice" role="alert">{error}{props.ambiguous && <div><button type="button" className="button-secondary retry-command" disabled={props.pending} onClick={() => void run(props.onRetry)}>{t(props.locale, 'Retry unchanged category', 'إعادة الفئة دون تغيير')}</button></div>}</div>}
+      {error && <div className="error-notice" role="alert">{error}{refreshRequired ? <div><button type="button" className="button-secondary retry-command" disabled={refreshing} onClick={() => void refreshAcceptedCommand()}>{refreshing ? t(props.locale, 'Refreshing…', 'جارٍ التحديث…') : t(props.locale, 'Refresh categories', 'تحديث الفئات')}</button></div> : props.ambiguous && <div><button type="button" className="button-secondary retry-command" disabled={props.pending} onClick={() => void run(props.onRetry)}>{t(props.locale, 'Retry unchanged category', 'إعادة الفئة دون تغيير')}</button></div>}</div>}
       <div className="form-grid category-form-grid">
-        <label>{t(props.locale, 'Type', 'النوع')}<select value={kind} onChange={(event) => edit(() => setKind(event.target.value as CategoryKind))}><option value="income">{t(props.locale, 'Income', 'دخل')}</option><option value="expense">{t(props.locale, 'Expense', 'مصروف')}</option></select></label>
+        <label>{t(props.locale, 'Type', 'النوع')}<select value={kind} disabled={refreshRequired} onChange={(event) => edit(() => setKind(event.target.value as CategoryKind))}><option value="income">{t(props.locale, 'Income', 'دخل')}</option><option value="expense">{t(props.locale, 'Expense', 'مصروف')}</option></select></label>
         <div className="category-name-note">{t(props.locale, 'At least one name is required.', 'مطلوب اسم واحد على الأقل.')}</div>
-        <label>{t(props.locale, 'English name', 'الاسم بالإنجليزية')}<input data-autofocus dir="ltr" maxLength={120} value={nameEn} onChange={(event) => edit(() => setNameEn(event.target.value))} /></label>
-        <label>{t(props.locale, 'Arabic name', 'الاسم بالعربية')}<input dir="rtl" maxLength={120} value={nameAr} onChange={(event) => edit(() => setNameAr(event.target.value))} /></label>
+        <label>{t(props.locale, 'English name', 'الاسم بالإنجليزية')}<input data-autofocus dir="ltr" maxLength={120} value={nameEn} disabled={refreshRequired} onChange={(event) => edit(() => setNameEn(event.target.value))} /></label>
+        <label>{t(props.locale, 'Arabic name', 'الاسم بالعربية')}<input dir="rtl" maxLength={120} value={nameAr} disabled={refreshRequired} onChange={(event) => edit(() => setNameAr(event.target.value))} /></label>
       </div>
-      <div className="dialog-actions"><button type="button" className="button-secondary" disabled={props.pending} onClick={props.onClose}>{t(props.locale, 'Cancel', 'إلغاء')}</button><button type="submit" disabled={props.pending}>{props.pending ? t(props.locale, 'Creating…', 'جارٍ الإنشاء…') : t(props.locale, 'Create category', 'إنشاء الفئة')}</button></div>
+      <div className="dialog-actions"><button type="button" className="button-secondary" disabled={props.pending || refreshing} onClick={props.onClose}>{t(props.locale, refreshRequired ? 'Close' : 'Cancel', refreshRequired ? 'إغلاق' : 'إلغاء')}</button><button type="submit" disabled={props.pending || refreshRequired}>{props.pending ? t(props.locale, 'Creating…', 'جارٍ الإنشاء…') : t(props.locale, 'Create category', 'إنشاء الفئة')}</button></div>
     </form>
   </DialogShell>;
 }

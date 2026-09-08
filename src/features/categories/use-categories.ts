@@ -10,7 +10,7 @@ import type {
 } from './types.js';
 
 export interface CategoryCommandOutcome {
-  status: 'success' | 'ambiguous';
+  status: 'success' | 'ambiguous' | 'refresh-required';
   reconciled: boolean;
 }
 
@@ -77,16 +77,16 @@ export function useCategories(
   const currentSpace = useRef(spaceId);
   currentSpace.current = spaceId;
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (preserveCurrent = false, surfaceFailure = true): Promise<boolean> => {
     const targetSpaceId = spaceId;
     const sequence = ++requestSequence.current;
-    setView(emptyView(targetSpaceId));
+    if (!preserveCurrent) setView(emptyView(targetSpaceId));
     try {
       const [income, expense] = await Promise.all([
         gateway.listCategories(targetSpaceId, 'income'),
         gateway.listCategories(targetSpaceId, 'expense'),
       ]);
-      if (sequence !== requestSequence.current || currentSpace.current !== targetSpaceId) return;
+      if (sequence !== requestSequence.current || currentSpace.current !== targetSpaceId) return false;
       setView({
         loadedSpaceId: targetSpaceId,
         status: 'ready',
@@ -97,11 +97,13 @@ export function useCategories(
         error: null,
         paginationError: null,
       });
+      return true;
     } catch (cause) {
-      if (sequence !== requestSequence.current || currentSpace.current !== targetSpaceId) return;
+      if (sequence !== requestSequence.current || currentSpace.current !== targetSpaceId) return false;
       const error = classifyCategoryError(cause);
-      setView({ ...emptyView(targetSpaceId), status: 'error', error });
+      if (surfaceFailure) setView({ ...emptyView(targetSpaceId), status: 'error', error });
       if (inaccessible(error)) onSpaceUnavailable?.();
+      return false;
     }
   }, [gateway, onSpaceUnavailable, spaceId]);
 
@@ -145,16 +147,16 @@ export function useCategories(
       if (currentSpace.current !== command.input.spaceId) {
         throw new Error('The selected space changed before category reconciliation completed.');
       }
-      await load();
+      const refreshed = await load(true, false);
       setRetry(null);
-      return { status: 'success', reconciled: true };
+      return { status: refreshed ? 'success' : 'refresh-required', reconciled: true };
     }
     if (currentSpace.current !== command.input.spaceId) {
       throw new Error('The selected space changed before the category command completed.');
     }
-    await load();
+    const refreshed = await load(true, false);
     setRetry(null);
-    return { status: 'success', reconciled: false };
+    return { status: refreshed ? 'success' : 'refresh-required', reconciled: false };
   }, [gateway, load]);
 
   const createCategory = useCallback(async (draft: CreateCategoryDraft): Promise<CategoryCommandOutcome> => {
@@ -228,7 +230,8 @@ export function useCategories(
     pending,
     loadingMore,
     ambiguous: retry ? { kind: retry.kind, requestId: retry.requestId } : null,
-    refresh: load,
+    refresh: () => load(),
+    recoverRefresh: () => load(true, false),
     loadMore,
     createCategory,
     archiveCategory,

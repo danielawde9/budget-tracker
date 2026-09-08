@@ -443,3 +443,20 @@ archival without rewriting the immutable journal.
 contract and corresponding rejection/reconstruction proof. Editable or renamed
 historical labels require an explicit audit policy; automatic retry requires
 proof that the identical request ID and payload are retained end to end.
+
+## 2026-09-08 — Accepted category commands recover by read-only refresh
+
+**Decision:** A category create or archive is complete only after its protected
+command is accepted and the active register refresh succeeds. If the command is
+accepted but that read fails, the dialog retains its submitted context, disables
+another mutation, and offers a read-only refresh until the server projection is
+available.
+
+**Why:** Reporting success before the refreshed projection is visible is false,
+while replaying an already accepted mutation risks a duplicate create or a noisy
+second archive. A separate refresh-required state makes that boundary explicit.
+
+**If changed:** Any automatic mutation replay requires end-to-end proof that the
+same request ID and payload remain idempotent. Allowing a dialog to report success
+without a fresh projection requires a separate product definition of accepted
+versus visibly complete work.

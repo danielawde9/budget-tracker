@@ -63,7 +63,7 @@ export function CategoriesPage({ gateway, spaceId, locale = 'en', onSpaceUnavail
     </div>}
     {state.status === 'ready' && state.paginationError && <div className="state-panel error-notice" role="alert"><strong>{t(locale, 'More categories could not be loaded', 'تعذّر تحميل المزيد من الفئات')}</strong><p>{state.paginationError.error.message}</p><p>{state.paginationError.error.recovery}</p><button type="button" onClick={() => void state.loadMore(state.paginationError!.kind)}>{t(locale, `Retry loading ${state.paginationError.kind} categories`, `إعادة محاولة تحميل فئات ${state.paginationError.kind === 'income' ? 'الدخل' : 'المصروف'}`)}</button></div>}
 
-    {dialog && 'create' in dialog && <CategoryDialog locale={locale} initialKind={dialog.create} pending={state.pending} ambiguous={state.ambiguous?.kind === 'create'} onClose={() => setDialog(null)} onClearAmbiguous={state.clearAmbiguous} onRetry={state.retryAmbiguous} onSubmit={state.createCategory} />}
-    {dialog && 'archive' in dialog && <ArchiveCategoryDialog locale={locale} category={dialog.archive} pending={state.pending} ambiguous={state.ambiguous?.kind === 'archive'} onClose={() => setDialog(null)} onRetry={state.retryAmbiguous} onSubmit={() => state.archiveCategory(dialog.archive.id)} />}
+    {dialog && 'create' in dialog && <CategoryDialog locale={locale} initialKind={dialog.create} pending={state.pending} ambiguous={state.ambiguous?.kind === 'create'} onClose={() => setDialog(null)} onClearAmbiguous={state.clearAmbiguous} onRetry={state.retryAmbiguous} onRefresh={state.recoverRefresh} onSubmit={state.createCategory} />}
+    {dialog && 'archive' in dialog && <ArchiveCategoryDialog locale={locale} category={dialog.archive} pending={state.pending} ambiguous={state.ambiguous?.kind === 'archive'} onClose={() => setDialog(null)} onRetry={state.retryAmbiguous} onRefresh={state.recoverRefresh} onSubmit={() => state.archiveCategory(dialog.archive.id)} />}
   </section>;
 }
