@@ -104,6 +104,15 @@ describe('Supabase Categories gateway', () => {
     await expect(gateway.listCategories('space-1', 'income', undefined, 100)).rejects.toThrow('101-row read bound');
   });
 
+  it('rejects a cursor containing an impossible timestamp', async () => {
+    const { client } = clientWith();
+    const cursor = btoa(JSON.stringify({
+      createdAt: '2026-99-99T25:61:61Z',
+      id: categoryRows[0]!.id,
+    })).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
+    await expect(createSupabaseCategoriesGateway(client).listCategories('space-1', 'income', cursor)).rejects.toThrow('cursor is invalid');
+  });
+
   it.each([
     [{ ...categoryRows[0], id: 'not-a-uuid' }, 'invalid id'],
     [{ ...categoryRows[0], created_at: 'yesterday' }, 'invalid created_at'],

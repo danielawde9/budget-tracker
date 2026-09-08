@@ -138,7 +138,7 @@ function decodeCursor(cursor: string): { createdAt: string; id: string } {
     const value = JSON.parse(atob(`${base64}${padding}`)) as Record<string, unknown>;
     const createdAt = typeof value['createdAt'] === 'string' ? value['createdAt'] : '';
     const id = typeof value['id'] === 'string' ? value['id'] : '';
-    if (!timestampPattern.test(createdAt) || !uuidPattern.test(id)) throw new Error('invalid');
+    if (!validTimestamp(createdAt) || !uuidPattern.test(id)) throw new Error('invalid');
     return { createdAt, id };
   } catch {
     throw new Error('The category cursor is invalid.');
