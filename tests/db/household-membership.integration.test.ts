@@ -586,6 +586,95 @@ describe('household invitation creation', () => {
     expect(firstState).toEqual([{ status: 'pending' }]);
   });
 
+  it('prevents live identity duplication across key rotation while preserving old-key replay and acceptance', async () => {
+    const inviteeId = randomUUID();
+    const inviteeEmail = `rotation-invitee-${randomUUID()}@budget.invalid`;
+    await ensureAuthUser(ownerId, 'owner-key-rotation@budget.invalid');
+    await ensureAuthUser(inviteeId, inviteeEmail);
+    const household = await asUser(ownerId).createSpace(
+      `Key rotation ${randomUUID()}`,
+      'household',
+    );
+    const originalRequestId = randomUUID();
+    const original = await createInvitation(
+      ownerId,
+      household.id,
+      originalRequestId,
+      inviteeEmail,
+    );
+    const originalVersion = await databaseQuery<{ key_version: number }>(
+      'select key_version from public.household_invitations where id = $1',
+      [original.invitation_id],
+    );
+    const rotated = await databaseQuery<{ key_version: number }>(
+      `with retired as (
+         update private.household_invitation_keys
+         set retired_at = now()
+         where retired_at is null
+         returning key_version
+       )
+       insert into private.household_invitation_keys (
+         key_version, identity_hmac_key, token_hmac_key
+       )
+       select (select max(key_version) + 1 from private.household_invitation_keys),
+              extensions.gen_random_bytes(32), extensions.gen_random_bytes(32)
+       where exists (select 1 from retired)
+       returning key_version`,
+    );
+    expect(rotated[0]!.key_version).not.toBe(originalVersion[0]!.key_version);
+
+    let duplicateError: unknown;
+    try {
+      const duplicate = await createInvitation(
+        ownerId,
+        household.id,
+        randomUUID(),
+        ` ${inviteeEmail.toUpperCase()} `,
+      );
+      await cancelInvitation(ownerId, household.id, randomUUID(), duplicate.invitation_id);
+    } catch (error) {
+      duplicateError = error;
+    }
+    expect(duplicateError).toMatchObject({ message: 'invitation_already_pending' });
+
+    await expect(
+      createInvitation(ownerId, household.id, originalRequestId, inviteeEmail),
+    ).resolves.toEqual(original);
+    await expect(
+      acceptInvitation(inviteeId, randomUUID(), original.invitation_token),
+    ).resolves.toEqual({
+      space_id: household.id,
+      membership_status: 'active',
+      role: 'member',
+    });
+
+    const concurrentEmail = `rotation-race-${randomUUID()}@budget.invalid`;
+    const race = await runConcurrentUserActions([
+      {
+        userId: ownerId,
+        action: (client) => client.query(
+          'select * from public.create_household_invitation($1, $2, $3)',
+          [household.id, randomUUID(), concurrentEmail],
+        ),
+      },
+      {
+        userId: ownerId,
+        action: (client) => client.query(
+          'select * from public.create_household_invitation($1, $2, $3)',
+          [household.id, randomUUID(), concurrentEmail.toUpperCase()],
+        ),
+      },
+    ]);
+    expect(race.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(race.filter((result) => result.status === 'rejected')).toHaveLength(1);
+    const pending = await databaseQuery<{ count: string }>(
+      `select count(*)::text as count from public.household_invitations
+       where space_id = $1 and status = 'pending'`,
+      [household.id],
+    );
+    expect(pending).toEqual([{ count: '1' }]);
+  });
+
   it('returns one deterministic result for exact replay and rejects changed input globally per actor', async () => {
     await ensureAuthUser(ownerId, 'owner-replay@budget.invalid');
     const household = await asUser(ownerId).createSpace(`Replay ${randomUUID()}`, 'household');
