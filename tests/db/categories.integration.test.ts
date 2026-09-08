@@ -361,6 +361,120 @@ describe('categories foundation', () => {
     await expect(owner.walletBalance(wallet.id)).resolves.toEqual('7');
   });
 
+  it('rejects null required posting arguments on fresh and replayed requests', async () => {
+    const owner = asUser(ownerId);
+    const space = await owner.createSpace(`Category null posting ${randomUUID()}`, 'personal');
+    const wallet = await owner.createWallet(space.id, 'USD', 'USD');
+    const category = await createCategory(space.id, 'income', 'Null protected');
+    const movements = JSON.stringify([{ walletId: wallet.id, amountMinor: '5' }]);
+    const freshCalls = [
+      {
+        sql: `select * from public.record_financial_event($1, $2, null::public.financial_event_kind, $3::date, $4::jsonb)`,
+        values: [space.id, randomUUID(), '2026-09-08', movements],
+      },
+      {
+        sql: `select * from public.record_financial_event($1, $2, 'income', null::date, $3::jsonb)`,
+        values: [space.id, randomUUID(), movements],
+      },
+      {
+        sql: `select * from public.record_financial_event($1, $2, 'income', $3::date, null::jsonb)`,
+        values: [space.id, randomUUID(), '2026-09-08'],
+      },
+      {
+        sql: `select * from public.record_categorized_financial_event($1, $2, null::public.financial_event_kind, $3::date, $4::jsonb, $5)`,
+        values: [space.id, randomUUID(), '2026-09-08', movements, category.id],
+      },
+      {
+        sql: `select * from public.record_categorized_financial_event($1, $2, 'income', null::date, $3::jsonb, $4)`,
+        values: [space.id, randomUUID(), movements, category.id],
+      },
+      {
+        sql: `select * from public.record_categorized_financial_event($1, $2, 'income', $3::date, null::jsonb, $4)`,
+        values: [space.id, randomUUID(), '2026-09-08', category.id],
+      },
+    ];
+
+    for (const call of freshCalls) {
+      const requestId = randomUUID();
+      const values = [...call.values];
+      values[1] = requestId;
+      await expect(queryAsUser(ownerId, call.sql, values)).rejects.toMatchObject({ code: 'P0001' });
+      await expect(databaseQuery('select id from public.financial_events where space_id = $1 and request_id = $2', [space.id, requestId])).resolves.toEqual([]);
+    }
+
+    const uncategorizedRequestId = randomUUID();
+    await owner.recordEvent({
+      spaceId: space.id,
+      requestId: uncategorizedRequestId,
+      kind: 'income',
+      effectiveDate: '2026-09-08',
+      movements: [{ walletId: wallet.id, amountMinor: '5' }],
+    });
+    await expect(queryAsUser(
+      ownerId,
+      `select * from public.record_financial_event($1, $2, null::public.financial_event_kind, $3::date, $4::jsonb)`,
+      [space.id, uncategorizedRequestId, '2026-09-08', movements],
+    )).rejects.toMatchObject({ code: 'P0001' });
+    await expect(queryAsUser(
+      ownerId,
+      `select * from public.record_financial_event($1, $2, 'income', null::date, $3::jsonb)`,
+      [space.id, uncategorizedRequestId, movements],
+    )).rejects.toMatchObject({ code: 'P0001' });
+    await expect(queryAsUser(
+      ownerId,
+      `select * from public.record_financial_event($1, $2, 'income', $3::date, null::jsonb)`,
+      [space.id, uncategorizedRequestId, '2026-09-08'],
+    )).rejects.toMatchObject({ code: 'P0001' });
+
+    const categorizedRequestId = randomUUID();
+    await owner.recordCategorizedEvent({
+      spaceId: space.id,
+      requestId: categorizedRequestId,
+      kind: 'income',
+      effectiveDate: '2026-09-08',
+      movements: [{ walletId: wallet.id, amountMinor: '5' }],
+      categoryId: category.id,
+    });
+    for (const sql of [
+      `select * from public.record_categorized_financial_event($1, $2, null::public.financial_event_kind, $3::date, $4::jsonb, $5)`,
+      `select * from public.record_categorized_financial_event($1, $2, 'income', null::date, $3::jsonb, $4)`,
+      `select * from public.record_categorized_financial_event($1, $2, 'income', $3::date, null::jsonb, $4)`,
+    ]) {
+      const values = sql.includes('null::public.financial_event_kind')
+        ? [space.id, categorizedRequestId, '2026-09-08', movements, category.id]
+        : sql.includes('null::date')
+          ? [space.id, categorizedRequestId, movements, category.id]
+          : [space.id, categorizedRequestId, '2026-09-08', category.id];
+      await expect(queryAsUser(
+        ownerId,
+        sql,
+        values,
+      )).rejects.toMatchObject({ code: 'P0001' });
+    }
+    await expect(owner.walletBalance(wallet.id)).resolves.toEqual('10');
+  });
+
+  it('rejects Arabic names that normalize to an empty key', async () => {
+    const owner = asUser(ownerId);
+    const space = await owner.createSpace(`Category empty Arabic key ${randomUUID()}`, 'personal');
+    const requestId = randomUUID();
+    await expect(owner.createCategory({
+      spaceId: space.id,
+      requestId,
+      kind: 'expense',
+      nameAr: 'ـــًٌِّْ',
+    })).rejects.toMatchObject({ code: 'P0001' });
+    await expect(owner.categoryCommandResult(space.id, requestId)).resolves.toBeUndefined();
+  });
+
+  it('rejects zero-match deletes on every immutable category-history table', async () => {
+    for (const table of ['categories', 'category_command_requests', 'financial_event_categories']) {
+      await expect(databaseQuery(`delete from public.${table} where false`)).rejects.toMatchObject({
+        code: '42501',
+      });
+    }
+  });
+
   it('copies categories to reversals even after archive and leaves uncategorized reversals uncategorized', async () => {
     const owner = asUser(ownerId);
     const space = await owner.createSpace(`Category reversal ${randomUUID()}`, 'personal');
@@ -490,6 +604,31 @@ describe('categories foundation', () => {
     }
   });
 
+  it('keeps ownership and history guards effective for service_role grant drift', async () => {
+    const owner = asUser(ownerId);
+    const space = await owner.createSpace(`Category service guard ${randomUUID()}`, 'personal');
+    const wallet = await owner.createWallet(space.id, 'USD', 'USD');
+    const category = await createCategory(space.id, 'income', 'Service protected');
+    const event = await owner.recordCategorizedEvent({
+      spaceId: space.id,
+      requestId: randomUUID(),
+      kind: 'income',
+      effectiveDate: '2026-09-08',
+      movements: [{ walletId: wallet.id, amountMinor: '1' }],
+      categoryId: category.id,
+    });
+
+    await databaseQuery('grant insert, update, delete, truncate on public.financial_event_categories to service_role');
+    try {
+      await expect(queryAsRole('service_role', `insert into public.financial_event_categories (event_id, space_id, event_kind, category_id, category_kind) values ($1, $2, 'income', $3, 'income')`, [randomUUID(), space.id, category.id])).rejects.toMatchObject({ code: '42501' });
+      await expect(queryAsRole('service_role', 'update public.financial_event_categories set category_id = category_id where event_id = $1', [event.id])).rejects.toMatchObject({ code: '42501' });
+      await expect(queryAsRole('service_role', 'delete from public.financial_event_categories where event_id = $1', [event.id])).rejects.toMatchObject({ code: '42501' });
+      await expect(queryAsRole('service_role', 'truncate public.financial_event_categories cascade')).rejects.toMatchObject({ code: '42501' });
+    } finally {
+      await databaseQuery('revoke insert, update, delete, truncate on public.financial_event_categories from service_role');
+    }
+  });
+
   it('keeps public functions, RLS, policies, and indexes fail closed', async () => {
     const functions = await databaseQuery<{
       name: string;
@@ -597,9 +736,11 @@ describe('categories foundation', () => {
       expect(JSON.stringify(namePlan)).toContain('categories_active_name_en_idx');
     } finally {
       await databaseQuery('alter table public.categories disable trigger categories_reject_delete');
+      await databaseQuery('alter table public.categories disable trigger categories_reject_delete_statement');
       try {
         await databaseQuery('delete from public.categories where space_id = $1', [space.id]);
       } finally {
+        await databaseQuery('alter table public.categories enable trigger categories_reject_delete_statement');
         await databaseQuery('alter table public.categories enable trigger categories_reject_delete');
       }
     }

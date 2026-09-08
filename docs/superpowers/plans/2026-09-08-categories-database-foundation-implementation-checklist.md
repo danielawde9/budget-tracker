@@ -131,11 +131,33 @@ Classify `public.record_categorized_financial_event` as the categorized income/e
 
 Create disposable databases only on the verified Budget PostgreSQL cluster. In one, apply all migrations from empty. In another, apply through `20260907149000`, seed Budget-only spaces/wallets/events/movements/loans/reversals/targets and snapshot event IDs, fingerprints, movements, loan postings, balances, reversals, grants, and member-visible results; apply only `20260908100000`; compare snapshots and confirm zero seeded/backfilled categories. Drop only the explicitly named disposable databases after evidence is captured.
 
-- [ ] **Step 5: Apply the finalized migration once to Budget development**
+- [x] **Step 5: Apply the finalized migration once to Budget development**
 
 Repeat the remote directory/project/firewall/port/database-identity preflight, synchronize only the repository `supabase/` directory, and run `supabase migration up --local` from `/home/lelabo/budget-supabase`. Verify the journal advances from `20260907149000` to `20260908100000`; never edit the applied migration afterward.
 
-### Task 6: Final verification and handoff
+### Task 6: Harden reviewed database boundaries forward-only
+
+**Files:**
+- Create: `supabase/migrations/20260908101000_categories_foundation_hardening.sql`
+- Modify: `tests/db/categories.integration.test.ts`
+
+- [x] **Step 1: Reproduce independent-review findings with rejection tests**
+
+Prove that SQL `NULL` posting inputs do not receive stable boundary errors, Arabic marks-only names produce an empty normalized key, and zero-match deletes bypass row-level history triggers. Add a real `service_role` grant-drift probe rather than relying only on the authenticated role.
+
+- [x] **Step 2: Add a forward-only hardening migration**
+
+Do not edit applied migration `20260908100000`. Add nonempty generated-key constraints, statement-level DELETE guards, explicit required posting-argument checks before fingerprint/replay handling, null-safe replay comparisons, and defer category normalization until after membership validation and request locking.
+
+- [x] **Step 3: Reprove clean and seeded migration paths**
+
+Apply all 16 migrations from empty in one disposable Budget database. In another, seed the 14-migration schema, snapshot every pre-existing table/view and existing grant, apply both Categories migrations, and require identical pre-existing state plus zero category rows.
+
+- [ ] **Step 4: Apply only the hardening migration to Budget development**
+
+Repeat the Budget identity preflight, remove only the exact failed-test category fixture if required for constraint validation, synchronize `supabase/`, and advance the migration journal once to `20260908101000`.
+
+### Task 7: Final verification and handoff
 
 **Files:**
 - Verify only; no UI or adjacent milestone files may change.
