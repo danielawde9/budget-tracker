@@ -386,3 +386,22 @@ reconciliation before another deliberate submission.
 **If changed:** Automatic journal retry requires proof that every participating
 client preserves the same request and payload. Automatic wallet retry remains
 disallowed until its protected command accepts and verifies an idempotency key.
+
+## 2026-09-08 — Categories v1 lifecycle and naming defaults
+
+**Decision:** Every active space member may create and archive categories.
+Active normalized names are unique within a space separately for income and
+expense kind, in each supplied language. Category creation and onboarding seed
+no starter rows.
+
+**Why:** Member-managed lifecycle matches the existing wallet and posting
+authorization boundary. Kind-scoped uniqueness lets one household use the same
+human label on both sides of the ledger without merging meaning. Avoiding seed
+rows keeps product copy, locale, and archival policy out of this database
+foundation.
+
+**If changed:** Owner-only management requires a role-aware private
+authorization helper and new owner/member rejection coverage. A shared naming
+namespace removes kind from the active unique indexes and changes conflict
+behavior. Starter categories require a separate idempotent onboarding design
+with explicit locale and archival rules.
