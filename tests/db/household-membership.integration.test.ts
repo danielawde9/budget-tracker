@@ -609,6 +609,40 @@ describe('household invitation creation', () => {
     expect(counts).toEqual([{ invitations: '1', events: '1' }]);
   });
 
+  it.each(['revoked', 'left'] as const)(
+    'does not return a pending invitation token after its creator becomes %s',
+    async (status) => {
+      const replacementOwnerId = randomUUID();
+      await ensureAuthUser(ownerId, `former-owner-${status}@budget.invalid`);
+      const household = await asUser(ownerId).createSpace(
+        `Former owner replay ${status} ${randomUUID()}`,
+        'household',
+      );
+      await addActiveMember(household.id, replacementOwnerId, 'owner');
+      const requestId = randomUUID();
+      const email = `former-owner-replay-${status}-${randomUUID()}@budget.invalid`;
+      const created = await createInvitation(ownerId, household.id, requestId, email);
+
+      if (status === 'revoked') {
+        await removeMember(replacementOwnerId, household.id, randomUUID(), ownerId);
+      } else {
+        await leaveHousehold(ownerId, household.id, randomUUID());
+      }
+
+      await expect(
+        createInvitation(ownerId, household.id, requestId, email),
+      ).rejects.toMatchObject({ code: '42501', message: 'not_authorized' });
+      const state = await databaseQuery<{ events: string; status: string }>(
+        `select invitation.status::text as status,
+                (select count(*)::text from public.household_membership_events as event
+                 where event.actor_user_id = $2 and event.request_id = $3) as events
+         from public.household_invitations as invitation where invitation.id = $1`,
+        [created.invitation_id, ownerId, requestId],
+      );
+      expect(state).toEqual([{ events: '1', status: 'pending' }]);
+    },
+  );
+
   it('serializes identical concurrent creation at the actor/request barrier', async () => {
     await ensureAuthUser(ownerId, 'owner-concurrent-create@budget.invalid');
     const household = await asUser(ownerId).createSpace(`Concurrent ${randomUUID()}`, 'household');
