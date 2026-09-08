@@ -454,7 +454,7 @@ describe('categories foundation', () => {
     await expect(owner.walletBalance(wallet.id)).resolves.toEqual('10');
   });
 
-  it('rejects Arabic names that normalize to an empty key', async () => {
+  it.each(['ـــًٌِّْ', 'ً ٌ'])('rejects Arabic names that normalize to an empty key', async (nameAr) => {
     const owner = asUser(ownerId);
     const space = await owner.createSpace(`Category empty Arabic key ${randomUUID()}`, 'personal');
     const requestId = randomUUID();
@@ -462,7 +462,7 @@ describe('categories foundation', () => {
       spaceId: space.id,
       requestId,
       kind: 'expense',
-      nameAr: 'ـــًٌِّْ',
+      nameAr,
     })).rejects.toMatchObject({ code: 'P0001' });
     await expect(owner.categoryCommandResult(space.id, requestId)).resolves.toBeUndefined();
   });

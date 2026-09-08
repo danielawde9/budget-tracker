@@ -1,8 +1,8 @@
 alter table public.categories
   add constraint categories_name_en_key_nonempty_check
-    check (name_en_key is null or name_en_key <> ''),
+    check (name_en_key is null or pg_catalog.btrim(name_en_key) <> ''),
   add constraint categories_name_ar_key_nonempty_check
-    check (name_ar_key is null or name_ar_key <> '');
+    check (name_ar_key is null or pg_catalog.btrim(name_ar_key) <> '');
 
 create trigger categories_reject_delete_statement
 before delete on public.categories
@@ -51,8 +51,8 @@ begin
     or (v_name_en is null and v_name_ar is null)
     or (v_name_en is not null and pg_catalog.char_length(v_name_en) > 120)
     or (v_name_ar is not null and pg_catalog.char_length(v_name_ar) > 120)
-    or (v_name_en is not null and private.english_category_key(v_name_en) = '')
-    or (v_name_ar is not null and private.arabic_category_key(v_name_ar) = '') then
+    or (v_name_en is not null and pg_catalog.btrim(private.english_category_key(v_name_en)) = '')
+    or (v_name_ar is not null and pg_catalog.btrim(private.arabic_category_key(v_name_ar)) = '') then
     raise exception using errcode = 'P0001', message = 'a kind and at least one bounded searchable category name are required';
   end if;
 
