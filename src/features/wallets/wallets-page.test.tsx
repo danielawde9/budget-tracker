@@ -2,13 +2,18 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
+import { InMemoryCategoriesGateway } from '../../test/in-memory-categories-gateway.js';
 import { InMemoryWalletsGateway } from '../../test/in-memory-wallets-gateway.js';
 import type { RecordEventInput } from './types.js';
 import { WalletsPage } from './wallets-page.js';
 
-async function renderPage(gateway = new InMemoryWalletsGateway(), locale: 'en' | 'ar' = 'en') {
+async function renderPage(
+  gateway = new InMemoryWalletsGateway(),
+  locale: 'en' | 'ar' = 'en',
+  categoriesGateway?: InMemoryCategoriesGateway,
+) {
   const user = userEvent.setup();
-  render(<WalletsPage gateway={gateway} spaceId="personal-space" locale={locale} onSpaceUnavailable={vi.fn()} onOpenLoans={vi.fn()} />);
+  render(<WalletsPage gateway={gateway} {...(categoriesGateway ? { categoriesGateway } : {})} spaceId="personal-space" locale={locale} onSpaceUnavailable={vi.fn()} onOpenLoans={vi.fn()} />);
   await screen.findByRole('heading', { name: locale === 'ar' ? 'المحافظ' : 'Wallets' });
   await waitFor(() => expect(screen.queryByRole('status', { name: /loading/i })).not.toBeInTheDocument());
   return { gateway, user };
@@ -103,6 +108,87 @@ describe('WalletsPage', () => {
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('transaction rejected by database');
     expect(within(dialog).getByDisplayValue('18.75')).toBeInTheDocument();
     expect(within(dialog).getByLabelText('Type')).toHaveValue('expense');
+  });
+
+  it('offers active categories only for income and expense and records the selected exact category', async () => {
+    const walletGateway = new InMemoryWalletsGateway();
+    const categoriesGateway = new InMemoryCategoriesGateway();
+    categoriesGateway.categories = categoriesGateway.categories.map((category) => ({ ...category, spaceId: 'personal-space' }));
+    const { user } = await renderPage(walletGateway, 'en', categoriesGateway);
+
+    await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+    const picker = within(dialog).getByRole('group', { name: 'Category' });
+    expect(within(picker).getByText('Salary').closest('bdi')).not.toBeNull();
+    expect(within(picker).getByRole('radio', { name: 'Uncategorized' })).toBeChecked();
+    await user.click(within(picker).getByRole('radio', { name: 'Salary' }));
+    await user.type(within(dialog).getByLabelText('Amount'), '12.50');
+    await user.click(within(dialog).getByRole('button', { name: 'Review transaction' }));
+    expect(within(dialog).getByRole('region', { name: 'Wallet effect preview' })).toHaveTextContent('Category Salary');
+    await user.click(within(dialog).getByRole('button', { name: 'Record income' }));
+    await within(dialog).findByText('Transaction recorded');
+
+    expect(categoriesGateway.calls).toContainEqual({
+      name: 'recordCategorizedEvent',
+      input: {
+        spaceId: 'personal-space',
+        requestId: expect.any(String),
+        kind: 'income',
+        effectiveDate: expect.any(String),
+        movements: [{ walletId: 'wallet-usd-1', amountMinor: '1250' }],
+        categoryId: 'category-salary',
+      },
+    });
+    expect(walletGateway.calls.some((call) => call.name === 'recordEvent')).toBe(false);
+  });
+
+  it('removes category controls and stale selection when the event kind becomes ineligible', async () => {
+    const categoriesGateway = new InMemoryCategoriesGateway();
+    categoriesGateway.categories = categoriesGateway.categories.map((category) => ({ ...category, spaceId: 'personal-space' }));
+    const { user } = await renderPage(new InMemoryWalletsGateway(), 'en', categoriesGateway);
+
+    await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+    await user.click(within(dialog).getByRole('radio', { name: 'Salary' }));
+    await user.selectOptions(within(dialog).getByLabelText('Type'), 'opening_balance');
+    expect(within(dialog).queryByRole('group', { name: 'Category' })).not.toBeInTheDocument();
+    await user.selectOptions(within(dialog).getByLabelText('Type'), 'income');
+    expect(within(dialog).getByRole('radio', { name: 'Uncategorized' })).toBeChecked();
+  });
+
+  it('preserves the category choice after a categorized database rejection', async () => {
+    const categoriesGateway = new InMemoryCategoriesGateway();
+    categoriesGateway.categories = categoriesGateway.categories.map((category) => ({ ...category, spaceId: 'personal-space' }));
+    const { user } = await renderPage(new InMemoryWalletsGateway(), 'en', categoriesGateway);
+
+    await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+    await user.selectOptions(within(dialog).getByLabelText('Type'), 'expense');
+    await user.click(within(dialog).getByRole('radio', { name: 'Groceries' }));
+    await user.type(within(dialog).getByLabelText('Amount'), '18.75');
+    await user.click(within(dialog).getByRole('button', { name: 'Review transaction' }));
+    categoriesGateway.error = new Error('categorized transaction rejected');
+    await user.click(within(dialog).getByRole('button', { name: 'Record expense' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('categorized transaction rejected');
+    expect(within(dialog).getByDisplayValue('18.75')).toBeInTheDocument();
+    expect(within(dialog).getByRole('radio', { name: 'Groceries' })).toBeChecked();
+  });
+
+  it('renders an archived historical category label without exposing it in the active picker', async () => {
+    const categoriesGateway = new InMemoryCategoriesGateway();
+    categoriesGateway.categories = categoriesGateway.categories.map((category) => ({ ...category, spaceId: 'personal-space' }));
+    categoriesGateway.associations = [{
+      eventId: 'event-income', categoryId: 'category-archived', categoryKind: 'income',
+      nameEn: 'Former salary', nameAr: 'راتب سابق', archivedAt: '2026-09-08T10:00:00Z',
+    }];
+    const { user } = await renderPage(new InMemoryWalletsGateway(), 'en', categoriesGateway);
+
+    const label = screen.getByText('Former salary');
+    expect(label.closest('bdi')).not.toBeNull();
+    expect(label.closest('.journal-category')).toHaveTextContent('Archived');
+    await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    expect(within(screen.getByRole('dialog')).queryByRole('radio', { name: 'Former salary' })).not.toBeInTheDocument();
   });
 
   it('refuses same-wallet and cross-currency transfers before submission', async () => {

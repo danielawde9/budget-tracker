@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { CategoriesGateway } from '../categories/types.js';
 import type { JournalEvent, WalletsGateway, WalletsSnapshot } from './types.js';
 import { useWallets } from './use-wallets.js';
 
@@ -24,6 +25,19 @@ function gateway(overrides: Partial<WalletsGateway> = {}): WalletsGateway {
     recordEvent: vi.fn(async () => ({ eventId: 'event-new' })),
     reverseEvent: vi.fn(async () => ({ eventId: 'reversal-new' })),
     findEventByRequestId: vi.fn(async () => null),
+    ...overrides,
+  };
+}
+
+function categoriesGateway(overrides: Partial<CategoriesGateway> = {}): CategoriesGateway {
+  return {
+    listCategories: vi.fn(async () => ({ categories: [], nextCursor: null })),
+    createCategory: vi.fn(async () => ({ id: 'category-new' })),
+    archiveCategory: vi.fn(async () => ({ id: 'category-1' })),
+    getCommandResult: vi.fn(async () => null),
+    recordCategorizedEvent: vi.fn(async () => ({ eventId: 'event-new' })),
+    findCategorizedEventByRequestId: vi.fn(async () => null),
+    resolveEventCategories: vi.fn(async () => []),
     ...overrides,
   };
 }
@@ -87,6 +101,95 @@ describe('useWallets', () => {
     expect(result.current.ambiguous).toBeNull();
   });
 
+  it('keeps uncategorized income on the existing wallet command path', async () => {
+    const wallets = gateway();
+    const categories = categoriesGateway();
+    const { result } = renderHook(() => useWallets(wallets, 'space-1', undefined, () => 'request-fixed', categories));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await result.current.recordEvent({
+        kind: 'income',
+        effectiveDate: '2026-09-08',
+        movements: [{ walletId: 'wallet-1', amountMinor: '500' }],
+      });
+    });
+
+    expect(wallets.recordEvent).toHaveBeenCalledWith({
+      spaceId: 'space-1',
+      requestId: 'request-fixed',
+      kind: 'income',
+      effectiveDate: '2026-09-08',
+      movements: [{ walletId: 'wallet-1', amountMinor: '500' }],
+    });
+    expect(categories.recordCategorizedEvent).not.toHaveBeenCalled();
+  });
+
+  it('routes a categorized expense through the protected categories command', async () => {
+    const wallets = gateway();
+    const categories = categoriesGateway();
+    const { result } = renderHook(() => useWallets(wallets, 'space-1', undefined, () => 'request-fixed', categories));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await result.current.recordEvent({
+        kind: 'expense',
+        effectiveDate: '2026-09-08',
+        movements: [{ walletId: 'wallet-1', amountMinor: '-500' }],
+        categoryId: 'category-groceries',
+      });
+    });
+
+    expect(categories.recordCategorizedEvent).toHaveBeenCalledWith({
+      spaceId: 'space-1',
+      requestId: 'request-fixed',
+      kind: 'expense',
+      effectiveDate: '2026-09-08',
+      movements: [{ walletId: 'wallet-1', amountMinor: '-500' }],
+      categoryId: 'category-groceries',
+    });
+    expect(wallets.recordEvent).not.toHaveBeenCalled();
+  });
+
+  it('reconciles an ambiguous categorized post only when the category also matches', async () => {
+    const recordCategorizedEvent = vi.fn(async () => { throw new Error('Connection timeout'); });
+    const findCategorizedEventByRequestId = vi.fn(async () => ({ eventId: 'event-1', categoryId: 'category-salary' }));
+    const wallets = gateway();
+    const categories = categoriesGateway({ recordCategorizedEvent, findCategorizedEventByRequestId });
+    const { result } = renderHook(() => useWallets(wallets, 'space-1', undefined, () => 'request-fixed', categories));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await expect(result.current.recordEvent({
+        kind: 'income',
+        effectiveDate: '2026-09-08',
+        movements: [{ walletId: 'wallet-1', amountMinor: '500' }],
+        categoryId: 'category-salary',
+      })).resolves.toEqual({ status: 'success', reconciled: true });
+    });
+
+    expect(recordCategorizedEvent).toHaveBeenCalledOnce();
+    expect(findCategorizedEventByRequestId).toHaveBeenCalledWith('space-1', 'request-fixed');
+    expect(result.current.ambiguous).toBeNull();
+  });
+
+  it('fails loudly when categorized reconciliation finds a different category', async () => {
+    const categories = categoriesGateway({
+      recordCategorizedEvent: vi.fn(async () => { throw new Error('Connection timeout'); }),
+      findCategorizedEventByRequestId: vi.fn(async () => ({ eventId: 'event-1', categoryId: 'category-other' })),
+    });
+    const wallets = gateway();
+    const { result } = renderHook(() => useWallets(wallets, 'space-1', undefined, () => 'request-fixed', categories));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await expect(result.current.recordEvent({
+        kind: 'income',
+        effectiveDate: '2026-09-08',
+        movements: [{ walletId: 'wallet-1', amountMinor: '500' }],
+        categoryId: 'category-salary',
+    })).rejects.toThrow('different category');
+  });
+
   it('reuses the identical request and payload for an explicit ambiguous reversal retry', async () => {
     const reverseEvent = vi.fn()
       .mockRejectedValueOnce(new Error('Connection timeout'))
@@ -116,6 +219,46 @@ describe('useWallets', () => {
     await act(async () => { await result.current.loadMore(); });
     expect(result.current.events).toEqual([event]);
     expect(result.current.nextCursor).toBeNull();
+  });
+
+  it('enriches each bounded history page with active or archived category labels', async () => {
+    const event = {
+      id: 'event-1',
+      spaceId: 'space-1',
+      requestId: 'request-1',
+      kind: 'expense',
+      effectiveDate: '2026-09-08',
+      createdAt: '2026-09-08T10:00:00Z',
+      reversalOf: null,
+      reversedBy: null,
+      loanLinked: false,
+      movements: [],
+    } satisfies JournalEvent;
+    const wallets = gateway({
+      loadSnapshot: vi.fn(async () => ({ wallets: [], history: { events: [event], nextCursor: null } })),
+    });
+    const categories = categoriesGateway({
+      resolveEventCategories: vi.fn(async () => [{
+        eventId: 'event-1',
+        categoryId: 'category-groceries',
+        categoryKind: 'expense' as const,
+        nameEn: 'Groceries',
+        nameAr: 'بقالة',
+        archivedAt: '2026-09-08T11:00:00Z',
+      }]),
+    });
+
+    const { result } = renderHook(() => useWallets(wallets, 'space-1', undefined, undefined, categories));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    expect(categories.resolveEventCategories).toHaveBeenCalledWith('space-1', ['event-1']);
+    expect(result.current.events[0]?.category).toEqual({
+      id: 'category-groceries',
+      kind: 'expense',
+      nameEn: 'Groceries',
+      nameAr: 'بقالة',
+      archivedAt: '2026-09-08T11:00:00Z',
+    });
   });
 
   it('reports inaccessible space failures to the application shell', async () => {

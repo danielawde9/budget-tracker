@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import type { CategoriesGateway, CategorizedEventInput, EventCategory } from '../categories/types.js';
 import type {
   CreateWalletInput,
   JournalEvent,
@@ -13,10 +14,10 @@ import type {
 export type WalletsStatus = 'loading' | 'ready' | 'error';
 export interface CommandOutcome { status: 'success' | 'ambiguous'; reconciled: boolean }
 
-type RecordDraft = Omit<RecordEventInput, 'spaceId' | 'requestId'>;
+type RecordDraft = Omit<RecordEventInput, 'spaceId' | 'requestId'> & { categoryId?: string | null };
 type ReverseDraft = Omit<ReverseEventInput, 'spaceId' | 'requestId'>;
 type RetryCommand =
-  | { kind: 'record'; requestId: string; input: RecordEventInput }
+  | { kind: 'record'; requestId: string; input: RecordEventInput; categoryId: string | null }
   | { kind: 'reverse'; requestId: string; input: ReverseEventInput };
 
 interface WalletsView {
@@ -36,6 +37,33 @@ const emptyView = (spaceId: string): WalletsView => ({
   nextCursor: null,
   error: null,
 });
+
+const defaultCreateRequestId = () => globalThis.crypto.randomUUID();
+
+function isCategoryKind(kind: RecordEventInput['kind']): kind is CategorizedEventInput['kind'] {
+  return kind === 'income' || kind === 'expense';
+}
+
+function addCategoryLabels(
+  events: readonly JournalEvent[],
+  associations: readonly EventCategory[],
+): readonly JournalEvent[] {
+  const byEventId = new Map(associations.map((association) => [association.eventId, association]));
+  return events.map((event) => {
+    const association = byEventId.get(event.id);
+    if (!association) return { ...event, category: null };
+    return {
+      ...event,
+      category: {
+        id: association.categoryId,
+        kind: association.categoryKind,
+        nameEn: association.nameEn,
+        nameAr: association.nameAr,
+        archivedAt: association.archivedAt,
+      },
+    };
+  });
+}
 
 function isAmbiguousTransportFailure(cause: unknown): boolean {
   const message = cause instanceof Error
@@ -60,7 +88,8 @@ export function useWallets(
   gateway: WalletsGateway,
   spaceId: string,
   onSpaceUnavailable?: () => void,
-  createRequestId: () => string = () => globalThis.crypto.randomUUID(),
+  createRequestId: () => string = defaultCreateRequestId,
+  categoriesGateway?: CategoriesGateway,
 ) {
   const [view, setView] = useState<WalletsView>(() => emptyView(spaceId));
   const [pending, setPending] = useState(false);
@@ -70,6 +99,19 @@ export function useWallets(
   const commandPending = useRef(false);
   const currentSpace = useRef(spaceId);
   currentSpace.current = spaceId;
+
+  const enrichEvents = useCallback(async (
+    targetSpaceId: string,
+    events: readonly JournalEvent[],
+  ): Promise<readonly JournalEvent[]> => {
+    if (!categoriesGateway || events.length === 0) return events;
+    if (events.length > 20) throw new Error('Wallet history pages must contain at most 20 events.');
+    const associations = await categoriesGateway.resolveEventCategories(
+      targetSpaceId,
+      events.map((event) => event.id),
+    );
+    return addCategoryLabels(events, associations);
+  }, [categoriesGateway]);
 
   const applySnapshot = useCallback((targetSpaceId: string, snapshot: WalletsSnapshot) => {
     setView({
@@ -88,14 +130,18 @@ export function useWallets(
     setView(emptyView(targetSpaceId));
     try {
       const snapshot = await gateway.loadSnapshot(targetSpaceId);
+      const events = await enrichEvents(targetSpaceId, snapshot.history.events);
       if (requestSequence.current !== requestId || currentSpace.current !== targetSpaceId) return;
-      applySnapshot(targetSpaceId, snapshot);
+      applySnapshot(targetSpaceId, {
+        ...snapshot,
+        history: { ...snapshot.history, events },
+      });
     } catch (cause) {
       if (requestSequence.current !== requestId || currentSpace.current !== targetSpaceId) return;
       setView({ ...emptyView(targetSpaceId), status: 'error', error: errorMessage(cause) });
       if (isSpaceUnavailable(cause)) onSpaceUnavailable?.();
     }
-  }, [applySnapshot, gateway, onSpaceUnavailable, spaceId]);
+  }, [applySnapshot, enrichEvents, gateway, onSpaceUnavailable, spaceId]);
 
   useEffect(() => {
     setRetry(null);
@@ -151,28 +197,49 @@ export function useWallets(
     command: RetryCommand,
   ): Promise<CommandOutcome> => {
     try {
-      if (command.kind === 'record') await gateway.recordEvent(command.input);
-      else await gateway.reverseEvent(command.input);
+      if (command.kind === 'reverse') {
+        await gateway.reverseEvent(command.input);
+      } else if (command.categoryId) {
+        if (!categoriesGateway) throw new Error('Categorized posting is not available.');
+        if (!isCategoryKind(command.input.kind)) throw new Error('Only income and expense events can be categorized.');
+        await categoriesGateway.recordCategorizedEvent({
+          spaceId: command.input.spaceId,
+          requestId: command.input.requestId,
+          kind: command.input.kind,
+          effectiveDate: command.input.effectiveDate,
+          movements: command.input.movements,
+          categoryId: command.categoryId,
+        });
+      } else {
+        await gateway.recordEvent(command.input);
+      }
       await refreshAfterCommand();
       return { status: 'success', reconciled: false };
     } catch (cause) {
       if (!isAmbiguousTransportFailure(cause)) throw cause;
-      const event = await gateway.findEventByRequestId(command.input.spaceId, command.requestId);
+      const event = command.kind === 'record' && command.categoryId && categoriesGateway
+        ? await categoriesGateway.findCategorizedEventByRequestId(command.input.spaceId, command.requestId)
+        : await gateway.findEventByRequestId(command.input.spaceId, command.requestId);
       if (event) {
+        if (command.kind === 'record' && command.categoryId && 'categoryId' in event && event.categoryId !== command.categoryId) {
+          throw new Error('The request ID resolved to an event with a different category. Refresh before trying again.');
+        }
         await refreshAfterCommand();
         return { status: 'success', reconciled: true };
       }
       setRetry(command);
       return { status: 'ambiguous', reconciled: false };
     }
-  }, [gateway, refreshAfterCommand]);
+  }, [categoriesGateway, gateway, refreshAfterCommand]);
 
   const recordEvent = useCallback(async (input: RecordDraft): Promise<CommandOutcome> => {
     const requestId = createRequestId();
+    const { categoryId = null, ...recordInput } = input;
     const command: RetryCommand = {
       kind: 'record',
       requestId,
-      input: { ...input, spaceId, requestId },
+      input: { ...recordInput, spaceId, requestId },
+      categoryId,
     };
     setRetry(null);
     return withPending(() => reconcileCommand(command));
@@ -202,17 +269,18 @@ export function useWallets(
     setLoadingMore(true);
     try {
       const page = await gateway.loadHistoryPage(targetSpaceId, cursor);
+      const events = await enrichEvents(targetSpaceId, page.events);
       if (requestSequence.current !== requestId || currentSpace.current !== targetSpaceId) return;
       setView((current) => {
         if (current.loadedSpaceId !== targetSpaceId || current.nextCursor !== cursor) return current;
         const byId = new Map(current.events.map((event) => [event.id, event]));
-        for (const event of page.events) byId.set(event.id, event);
+        for (const event of events) byId.set(event.id, event);
         return { ...current, events: [...byId.values()], nextCursor: page.nextCursor };
       });
     } finally {
       if (currentSpace.current === targetSpaceId) setLoadingMore(false);
     }
-  }, [gateway, loadingMore, spaceId, view.loadedSpaceId, view.nextCursor]);
+  }, [enrichEvents, gateway, loadingMore, spaceId, view.loadedSpaceId, view.nextCursor]);
 
   const visible = view.loadedSpaceId === spaceId;
   return {

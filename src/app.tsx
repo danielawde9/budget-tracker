@@ -83,6 +83,7 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
       onSpaceUnavailable={() => void workspace.refresh()}
     /> : activeDestination === 'wallets' ? <Suspense fallback={<div className="state-panel" role="status">{props.locale === 'ar' ? 'جارٍ تحميل المحافظ…' : 'Loading Wallets…'}</div>}><WalletsPage
       gateway={props.walletsGateway}
+      categoriesGateway={props.categoriesGateway}
       locale={props.locale}
       spaceId={workspace.selectedSpaceId}
       onSpaceUnavailable={() => void workspace.refresh()}

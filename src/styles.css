@@ -69,6 +69,10 @@ bdi, dd, strong { font-variant-numeric: tabular-nums; }
 .journal-list > li > header { display: flex; align-items: start; justify-content: space-between; gap: 20px; }
 .journal-list > li > header > div:first-child { display: grid; gap: 4px; }
 .journal-list time, .journal-state { color: #68756c; font-size: .82rem; }
+.journal-category { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-block-start: 10px; color: #536158; font-size: .86rem; }
+.journal-category > span { color: #68756c; }
+.journal-category > bdi { font-weight: 760; color: var(--ink); }
+.journal-category > small { padding: 2px 7px; border: 1px solid #bdc7bd; border-radius: 999px; }
 .journal-state { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .journal-state span { padding: 4px 8px; border: 1px solid #bdc7bd; border-radius: 999px; }
 .journal-list > li > ul { margin-block-start: 14px; border-block-start: 1px solid #e0e5de; }
@@ -87,6 +91,11 @@ bdi, dd, strong { font-variant-numeric: tabular-nums; }
 .effect-preview h3 { margin-block-start: 0; }
 .effect-preview ul { display: grid; gap: 8px; padding-inline-start: 22px; }
 .effect-preview p { color: #65501d; line-height: 1.5; }
+.effect-preview .effect-category { display: flex; gap: 8px; margin-block: 8px 14px; }
+.category-picker { display: flex; flex-wrap: wrap; gap: 10px; margin-block-start: 20px; padding: 14px; border: 1px solid #aab5aa; border-radius: 9px; }
+.category-picker legend { padding-inline: 5px; font-weight: 750; }
+.category-picker label { display: inline-flex; align-items: center; gap: 7px; min-block-size: 38px; padding: 7px 11px; border: 1px solid #c7cfc7; border-radius: 999px; background: #fcfdf9; cursor: pointer; }
+.category-picker label:has(input:checked) { border-color: var(--jade); background: #e4ebe1; }
 .retry-command { margin-block-start: 12px; }
 .loans-workspace .topbar { padding-block-end: 24px; }
 .loans-workspace .topbar h1 { font-size: clamp(3rem, 6vw, 5.4rem); }

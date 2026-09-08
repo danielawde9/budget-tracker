@@ -1,5 +1,3 @@
-import type { GeneralEventKind, MovementInput } from '../wallets/types.js';
-
 export type CategoryKind = 'income' | 'expense';
 export type CategoryCommandKind = 'create_category' | 'archive_category';
 
@@ -50,10 +48,15 @@ export interface ArchiveCategoryInput {
 export interface CategorizedEventInput {
   spaceId: string;
   requestId: string;
-  kind: Extract<GeneralEventKind, CategoryKind>;
+  kind: CategoryKind;
   effectiveDate: string;
-  movements: readonly MovementInput[];
+  movements: readonly CategorizedMovementInput[];
   categoryId: string;
+}
+
+export interface CategorizedMovementInput {
+  walletId: string;
+  amountMinor: string;
 }
 
 export interface CategorizedEventResult {

@@ -26,6 +26,14 @@ export interface JournalMovement {
   amountMinor: string;
 }
 
+export interface JournalCategoryLabel {
+  id: string;
+  kind: 'income' | 'expense';
+  nameEn: string | null;
+  nameAr: string | null;
+  archivedAt: string | null;
+}
+
 export interface JournalEvent {
   id: string;
   spaceId: string;
@@ -37,6 +45,7 @@ export interface JournalEvent {
   reversedBy: string | null;
   loanLinked: boolean;
   movements: readonly JournalMovement[];
+  category?: JournalCategoryLabel | null;
 }
 
 export interface JournalPage {
@@ -92,4 +101,3 @@ export interface WalletsGateway {
 export interface WalletsCopyContext {
   locale: Locale;
 }
-

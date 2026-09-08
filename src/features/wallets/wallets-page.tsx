@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+import type { CategoriesGateway } from '../categories/types.js';
+import { useCategories } from '../categories/use-categories.js';
 import type { Locale } from '../loans/types.js';
 import { CorrectionDialog } from './correction-dialog.js';
 import { formatMinorAmount } from './money.js';
@@ -10,6 +12,7 @@ import { WalletDialog } from './wallet-dialog.js';
 
 interface WalletsPageProps {
   gateway: WalletsGateway;
+  categoriesGateway?: CategoriesGateway;
   spaceId: string;
   locale?: Locale;
   onSpaceUnavailable(): void;
@@ -30,9 +33,21 @@ function eventLabel(locale: Locale, kind: JournalEventKind): string {
 
 const generalKinds = new Set<JournalEventKind>(['opening_balance', 'income', 'expense', 'transfer']);
 
-export function WalletsPage({ gateway, spaceId, locale = 'en', onSpaceUnavailable, onOpenLoans }: WalletsPageProps) {
-  const walletState = useWallets(gateway, spaceId, onSpaceUnavailable);
+const emptyCategoriesGateway: CategoriesGateway = {
+  listCategories: async () => ({ categories: [], nextCursor: null }),
+  createCategory: async () => ({}),
+  archiveCategory: async () => ({}),
+  getCommandResult: async () => null,
+  recordCategorizedEvent: async () => ({}),
+  findCategorizedEventByRequestId: async () => null,
+  resolveEventCategories: async () => [],
+};
+
+export function WalletsPage({ gateway, categoriesGateway, spaceId, locale = 'en', onSpaceUnavailable, onOpenLoans }: WalletsPageProps) {
+  const categoryState = useCategories(categoriesGateway ?? emptyCategoriesGateway, spaceId, onSpaceUnavailable);
+  const walletState = useWallets(gateway, spaceId, onSpaceUnavailable, undefined, categoriesGateway);
   const [dialog, setDialog] = useState<OpenDialog>(null);
+  const activeCategories = [...categoryState.incomeCategories, ...categoryState.expenseCategories];
 
   return <section className="wallets-workspace">
     <header className="topbar wallets-topbar">
@@ -42,6 +57,7 @@ export function WalletsPage({ gateway, spaceId, locale = 'en', onSpaceUnavailabl
 
     {walletState.status === 'loading' && <div className="state-panel" role="status" aria-label="Loading wallets">{t(locale, 'Loading this space’s wallets…', 'جارٍ تحميل محافظ هذه المساحة…')}</div>}
     {walletState.status === 'error' && <div className="state-panel error-notice" role="alert"><strong>{t(locale, 'Wallets are unavailable', 'المحافظ غير متاحة')}</strong><p>{walletState.error}</p><button type="button" onClick={() => void walletState.refresh()}>{t(locale, 'Try again', 'المحاولة مجددًا')}</button></div>}
+    {categoriesGateway && categoryState.status === 'error' && <div className="state-panel error-notice" role="alert"><strong>{t(locale, 'Categories are unavailable', 'الفئات غير متاحة')}</strong><p>{categoryState.error?.message}</p><button type="button" onClick={() => void categoryState.refresh()}>{t(locale, 'Try again', 'المحاولة مجددًا')}</button></div>}
     {walletState.status === 'ready' && <>
       <section className="wallet-folio" aria-labelledby="wallet-balances-heading">
         <div className="section-heading"><div><span className="section-kicker">{t(locale, 'Current space', 'المساحة الحالية')}</span><h2 id="wallet-balances-heading">{t(locale, 'Active balances', 'الأرصدة الفعالة')}</h2></div><span>{walletState.wallets.length}</span></div>
@@ -55,6 +71,7 @@ export function WalletsPage({ gateway, spaceId, locale = 'en', onSpaceUnavailabl
           const canCorrect = generalKinds.has(event.kind) && !event.loanLinked && !event.reversalOf && !event.reversedBy;
           return <li key={event.id} className={event.kind === 'reversal' ? 'journal-reversal' : ''}>
             <header><div><strong>{label}</strong><time dateTime={event.effectiveDate}>{event.effectiveDate}</time></div><div className="journal-state">{event.reversedBy && <span>{t(locale, 'Reversed', 'تم عكسه')}</span>}{event.reversalOf && <span>{t(locale, 'Linked reversal', 'قيد عكسي مرتبط')}</span>}{event.loanLinked && <span>{t(locale, 'Loan-linked', 'مرتبط بقرض')}</span>}</div></header>
+            {categoriesGateway && (event.kind === 'income' || event.kind === 'expense') && <div className="journal-category"><span>{t(locale, 'Category', 'الفئة')}</span> <bdi>{event.category ? (locale === 'ar' ? event.category.nameAr ?? event.category.nameEn : event.category.nameEn ?? event.category.nameAr) : t(locale, 'Uncategorized', 'غير مصنّف')}</bdi>{event.category?.archivedAt && <small>{t(locale, 'Archived', 'مؤرشفة')}</small>}</div>}
             <ul>{event.movements.map((movement) => <li key={`${event.id}-${movement.walletId}`}><bdi>{movement.walletName}</bdi><bdi className={BigInt(movement.amountMinor) < 0n ? 'amount-negative' : 'amount-positive'}>{formatMinorAmount(movement.amountMinor, movement.currency, locale)}</bdi></li>)}</ul>
             <footer>{canCorrect && <button type="button" className="text-button" onClick={() => setDialog({ correction: event })}>{t(locale, `Correct ${label.toLowerCase()}`, `تصحيح ${label}`)}</button>}{event.loanLinked && <button type="button" className="text-button" onClick={onOpenLoans}>{t(locale, 'Manage in Loans', 'الإدارة في القروض')}</button>}</footer>
           </li>;
@@ -64,7 +81,7 @@ export function WalletsPage({ gateway, spaceId, locale = 'en', onSpaceUnavailabl
     </>}
 
     {dialog === 'wallet' && <WalletDialog locale={locale} pending={walletState.pending} onClose={() => setDialog(null)} onSubmit={walletState.createWallet} />}
-    {dialog === 'transaction' && <TransactionDialog locale={locale} wallets={walletState.wallets} pending={walletState.pending} ambiguous={walletState.ambiguous?.kind === 'record'} onClose={() => setDialog(null)} onClearAmbiguous={walletState.clearAmbiguous} onRetry={walletState.retryAmbiguous} onSubmit={walletState.recordEvent} />}
+    {dialog === 'transaction' && <TransactionDialog locale={locale} wallets={walletState.wallets} categories={activeCategories} pending={walletState.pending} ambiguous={walletState.ambiguous?.kind === 'record'} onClose={() => setDialog(null)} onClearAmbiguous={walletState.clearAmbiguous} onRetry={walletState.retryAmbiguous} onSubmit={walletState.recordEvent} />}
     {dialog && typeof dialog === 'object' && <CorrectionDialog locale={locale} event={dialog.correction} pending={walletState.pending} ambiguous={walletState.ambiguous?.kind === 'reverse'} onClose={() => setDialog(null)} onClearAmbiguous={walletState.clearAmbiguous} onRetry={walletState.retryAmbiguous} onSubmit={walletState.reverseEvent} />}
   </section>;
 }
