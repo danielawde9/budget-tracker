@@ -140,7 +140,6 @@ dd { margin: 8px 0 0; font-weight: 760; white-space: nowrap; }
   .space-current-name { grid-template-columns: 1fr auto; align-items: baseline; }
   .primary-nav { display: flex; gap: 8px; overflow-x: auto; }
   .primary-nav > * { inline-size: auto; flex: 0 0 auto; }
-  .primary-nav button { display: none; }
   .rail-footer { position: absolute; inset-block-start: 12px; inset-inline-end: 14px; grid-template-columns: auto auto; margin: 0; padding: 0; border: 0; }
   .app-rail .locale-button, .account-menu summary { border-color: #688174; padding-inline: 10px; }
   .shell-main { padding: 28px 14px 64px; }
