@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -51,7 +51,12 @@ describe('CategoryDialog', () => {
     rerender(<CategoryDialog locale="en" initialKind="income" pending={false} ambiguous onClose={vi.fn()} onClearAmbiguous={vi.fn()} onRetry={retry} onRefresh={vi.fn()} onSubmit={vi.fn()} />);
     await user.click(within(dialog).getByRole('button', { name: 'Retry unchanged category' }));
     expect(retry).toHaveBeenCalledOnce();
-    expect(await within(dialog).findByRole('status')).toHaveTextContent('Category created');
+    const status = await within(dialog).findByRole('status');
+    expect(status).toHaveTextContent('Category created');
+    const description = within(dialog).getByText('The active register was refreshed from the server.');
+    expect(description.id).not.toBe('');
+    expect(dialog).toHaveAttribute('aria-describedby', description.id);
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Done' })).toHaveFocus());
   });
 
   it('keeps accepted values and offers refresh without replaying creation', async () => {

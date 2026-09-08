@@ -8,9 +8,10 @@ interface DialogShellProps {
   pending?: boolean;
   wide?: boolean;
   descriptionId?: string;
+  focusVersion?: string;
 }
 
-export function DialogShell({ title, closeLabel, onClose, children, pending = false, wide = false, descriptionId }: DialogShellProps) {
+export function DialogShell({ title, closeLabel, onClose, children, pending = false, wide = false, descriptionId, focusVersion }: DialogShellProps) {
   const panel = useRef<HTMLDivElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
   const close = useRef(onClose);
@@ -48,7 +49,7 @@ export function DialogShell({ title, closeLabel, onClose, children, pending = fa
       document.removeEventListener('keydown', onKeyDown);
       returnFocus.current?.focus();
     };
-  }, []);
+  }, [focusVersion]);
 
   return <div className="overlay" role="presentation" onMouseDown={(event) => {
     if (event.target === event.currentTarget && !pending) onClose();

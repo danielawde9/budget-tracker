@@ -127,4 +127,18 @@ describe('CategoriesPage', () => {
     expect(dialog).not.toBeInTheDocument();
     expect(opener).toHaveFocus();
   });
+
+  it('restores opener focus when Escape closes a create success state', async () => {
+    const { user } = await renderPage();
+    const opener = screen.getByRole('button', { name: 'New category' });
+    await user.click(opener);
+    const dialog = screen.getByRole('dialog', { name: 'Create a category' });
+    await user.type(within(dialog).getByLabelText('English name'), 'Consulting');
+    await user.click(within(dialog).getByRole('button', { name: 'Create category' }));
+    await within(dialog).findByRole('status');
+    await user.keyboard('{Escape}');
+
+    expect(dialog).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
+  });
 });

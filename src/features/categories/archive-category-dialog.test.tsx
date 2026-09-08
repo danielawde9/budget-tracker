@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -27,7 +27,12 @@ describe('ArchiveCategoryDialog', () => {
     await user.click(within(dialog).getByRole('checkbox'));
     await user.click(within(dialog).getByRole('button', { name: 'Archive category' }));
     expect(save).toHaveBeenCalledOnce();
-    expect(await within(dialog).findByRole('status')).toHaveTextContent('Category archived');
+    const status = await within(dialog).findByRole('status');
+    expect(status).toHaveTextContent('Category archived');
+    const successDescription = within(dialog).getByText('Historical entries keep their original category label.');
+    expect(successDescription.id).not.toBe('');
+    expect(dialog).toHaveAttribute('aria-describedby', successDescription.id);
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Done' })).toHaveFocus());
   });
 
   it('keeps the dialog recoverable after a rejection', async () => {

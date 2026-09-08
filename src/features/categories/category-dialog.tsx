@@ -95,8 +95,8 @@ export function CategoryDialog(props: CategoryDialogProps) {
     void run(() => props.onSubmit({ kind, nameEn: trimmedEn || null, nameAr: trimmedAr || null }));
   }
 
-  if (success) return <DialogShell title={t(props.locale, 'Create a category', 'إنشاء فئة')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose}>
-    <div className="dialog-result" role="status"><strong>{t(props.locale, 'Category created', 'تم إنشاء الفئة')}</strong><p>{t(props.locale, 'The active register was refreshed from the server.', 'تم تحديث سجل الفئات الفعالة من الخادم.')}</p><button type="button" data-autofocus onClick={props.onClose}>{t(props.locale, 'Done', 'تم')}</button></div>
+  if (success) return <DialogShell title={t(props.locale, 'Create a category', 'إنشاء فئة')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} descriptionId={descriptionId} focusVersion="success">
+    <div className="dialog-result" role="status"><strong>{t(props.locale, 'Category created', 'تم إنشاء الفئة')}</strong><p id={descriptionId}>{t(props.locale, 'The active register was refreshed from the server.', 'تم تحديث سجل الفئات الفعالة من الخادم.')}</p><button type="button" data-autofocus onClick={props.onClose}>{t(props.locale, 'Done', 'تم')}</button></div>
   </DialogShell>;
 
   return <DialogShell title={t(props.locale, 'Create a category', 'إنشاء فئة')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} pending={props.pending || refreshing} descriptionId={descriptionId}>

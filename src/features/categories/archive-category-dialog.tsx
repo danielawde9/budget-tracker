@@ -68,8 +68,8 @@ export function ArchiveCategoryDialog(props: ArchiveCategoryDialogProps) {
     void run(props.onSubmit);
   }
 
-  if (success) return <DialogShell title={t(props.locale, 'Archive category', 'أرشفة الفئة')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose}>
-    <div className="dialog-result" role="status"><strong>{t(props.locale, 'Category archived', 'تمت أرشفة الفئة')}</strong><p>{t(props.locale, 'Historical entries keep their original category label.', 'تحتفظ القيود التاريخية بتسمية الفئة الأصلية.')}</p><button type="button" data-autofocus onClick={props.onClose}>{t(props.locale, 'Done', 'تم')}</button></div>
+  if (success) return <DialogShell title={t(props.locale, 'Archive category', 'أرشفة الفئة')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} descriptionId={descriptionId} focusVersion="success">
+    <div className="dialog-result" role="status"><strong>{t(props.locale, 'Category archived', 'تمت أرشفة الفئة')}</strong><p id={descriptionId}>{t(props.locale, 'Historical entries keep their original category label.', 'تحتفظ القيود التاريخية بتسمية الفئة الأصلية.')}</p><button type="button" data-autofocus onClick={props.onClose}>{t(props.locale, 'Done', 'تم')}</button></div>
   </DialogShell>;
 
   return <DialogShell title={t(props.locale, 'Archive category', 'أرشفة الفئة')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} pending={props.pending || refreshing} descriptionId={descriptionId}>
