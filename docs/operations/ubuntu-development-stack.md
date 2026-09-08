@@ -81,3 +81,33 @@ reachable through the Tailscale address and rejected connections through both
 host LAN addresses. The firewall service was enabled and active, every Budget
 container used restart policy `no`, and both existing POS database containers
 remained healthy.
+
+On 2026-09-08, the Categories v1 foundation advanced only the Budget journal
+from 14 migrations through `20260907149000` to 17 migrations through
+`20260908102000`. The three forward-only files add the foundation, harden null
+and statement-delete boundaries, and re-collapse internal whitespace after
+Arabic mark removal. Their tracked and synchronized SHA-256 values were,
+respectively, `313878714f44a26fa0ff659c16662a9bc34330fb72d68623f0f59f12df76a50a`,
+`fd7131ce48c2844fc62d616053a7d6cadb285e85b6e13da21a907669d98a899f`, and
+`bee7904590f8bbb6641429d1f4e2847f7bc2a141e6be0ab5f3d6248c599de622`.
+The target remained PostgreSQL `170006` with system identifier
+`7683090997378195493`.
+
+Disposable from-empty and seeded-upgrade databases on the same dedicated
+Budget cluster proved the full 17-file journal and the 14-to-17 upgrade. The
+seeded comparison retained identical contents for all 10 pre-existing tables
+and views, plus all 30 pre-existing relation-grant and 40 existing
+function-grant checks, with zero category backfill. A separate 16-to-17 proof
+recomputed `دخل  اضافي` as `دخل اضافي`, rejected the resulting duplicate, and
+restored the temporarily disabled archive guard. One category request and one
+category row created by the intentional red test were removed before adding the
+nonempty-key constraint; the row had no financial association. The disposable
+proof databases were dropped afterward.
+
+The post-application catalog has three member-readable/RLS-protected tables,
+three statement-level DELETE guards, no direct write privileges for `anon`,
+`authenticated`, or `service_role`, and no blank, stale, or colliding active
+Arabic keys. The final gate passed 57 database tests, 107 UI tests, the
+production build, and 23 applicable Playwright scenarios with 23 intentional
+project skips. No Categories UI, hosted, production, POS, Sandooq, or deployment
+operation was part of this change.

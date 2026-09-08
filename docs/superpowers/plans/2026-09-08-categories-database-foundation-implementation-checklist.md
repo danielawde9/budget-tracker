@@ -157,7 +157,7 @@ Apply all Categories migrations from empty in one disposable Budget database. In
 
 Repeat the Budget identity preflight, remove only the exact failed-test category fixture if required for constraint validation, synchronize `supabase/`, and advance the migration journal once to `20260908101000`.
 
-- [ ] **Step 5: Close the reviewed internal-whitespace normalization gap**
+- [x] **Step 5: Close the reviewed internal-whitespace normalization gap**
 
 Add a red collision pair with a whitespace-separated Arabic diacritic. In forward migration `20260908102000`, re-collapse whitespace after Arabic mark removal, recompute only stale stored Arabic keys in bounded batches, and prove a 16-to-17 migration converts the stale key and restores uniqueness before applying it to Budget development.
 
@@ -166,15 +166,15 @@ Add a red collision pair with a whitespace-separated Arabic diacritic. In forwar
 **Files:**
 - Verify only; no UI or adjacent milestone files may change.
 
-- [ ] **Step 1: Run the complete evidence set**
+- [x] **Step 1: Run the complete evidence set**
 
 Run `pnpm install --frozen-lockfile`; `pnpm typecheck`; env-loaded `pnpm test:db`; `pnpm test:ui`; `pnpm build`; `CI=1 pnpm test:e2e`; source scans for direct `.insert()/.update()/.delete()/.upsert()` browser writes and protected RPC allowlists; SQL catalog privilege/function/trigger/policy checks; and `git diff --check`.
 
-- [ ] **Step 2: Audit scope and commits**
+- [x] **Step 2: Audit scope and commits**
 
 Run `git diff 14bbf7c --stat`, `git diff 14bbf7c --name-only`, `git status --short`, and `git log --oneline 14bbf7c..HEAD`. Expected: only the migration, database tests/helpers, inventory, decisions, and this plan changed; `.swarm/` remains untouched and untracked.
 
-- [ ] **Step 3: Report exact evidence without overclaiming**
+- [x] **Step 3: Report exact evidence without overclaiming**
 
 Report install result, baseline and final counts, typecheck/build/UI/Playwright results, direct-write and protected-command scans, empty/upgrade migration proof, SQL permission/object scope, status, and every commit ID. State explicitly that Categories UI, budgeting, reporting, deployment, hosted operation, and whole-application completion are not claimed.
 
