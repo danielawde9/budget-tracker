@@ -19,6 +19,7 @@
 | `supabase/migrations/20260908171100_household_invitation_auth_boundary.sql` | Forward-only correction that keeps the dedicated owner out of `auth` while routing actor and active-recipient checks through private definers. |
 | `supabase/migrations/20260908172000_household_invitation_consumption.sql` | Protected invitation acceptance/cancellation, one-time consumption, reactivation, and terminal-state races. |
 | `supabase/migrations/20260908173000_household_member_commands.sql` | Promote/demote, remove, leave, bounded owner reads, and final exact function/table ACL ratchets. |
+| `supabase/migrations/20260908173100_qualify_household_owner_counts.sql` | Forward-only qualification fix for PL/pgSQL output-name shadowing discovered by the role/removal/leave tests. |
 | `tests/db/household-membership.integration.test.ts` | Full capability, lifecycle, token/privacy, idempotency, concurrency, atomicity, bounded-read, index, invariant, immutability, owner, and catalog proof. |
 | `tests/db/test-database.ts` | Reusable authenticated/anonymous/admin sessions, invitation command adapters, independent barrier-backed clients, and catalog/test-defense helpers. |
 | `tests/db/financial-boundary-coverage.integration.test.ts` | Regression assertion that household administration is not discovered as a financial writer and financial command inventory remains complete. |

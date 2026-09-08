@@ -59,6 +59,45 @@ async function cancelInvitation(
   });
 }
 
+async function setMemberRole(
+  userId: string,
+  spaceId: string,
+  requestId: string,
+  memberUserId: string,
+  role: 'owner' | 'member',
+) {
+  return withUserSession(userId, async (client) =>
+    (await client.query(
+      'select * from public.set_household_member_role($1, $2, $3, $4::public.member_role)',
+      [spaceId, requestId, memberUserId, role],
+    )).rows[0],
+  );
+}
+
+async function removeMember(
+  userId: string,
+  spaceId: string,
+  requestId: string,
+  memberUserId: string,
+) {
+  return withUserSession(userId, async (client) =>
+    (await client.query('select * from public.remove_household_member($1, $2, $3)', [
+      spaceId,
+      requestId,
+      memberUserId,
+    ])).rows[0],
+  );
+}
+
+async function leaveHousehold(userId: string, spaceId: string, requestId: string) {
+  return withUserSession(userId, async (client) =>
+    (await client.query('select * from public.leave_household_space($1, $2)', [
+      spaceId,
+      requestId,
+    ])).rows[0],
+  );
+}
+
 async function createInvitation(
   userId: string,
   spaceId: string,
@@ -987,5 +1026,325 @@ describe('household invitation acceptance and cancellation', () => {
     );
     expect(final[0]?.terminal_events).toBe('1');
     expect(final[0]?.memberships).toBe(final[0]?.status === 'accepted' ? '1' : '0');
+  });
+});
+
+describe('household member administration and bounded owner reads', () => {
+  it('lets only an active owner list the complete roster and invitation projection', async () => {
+    await ensureAuthUser(ownerId, 'owner-list@budget.invalid');
+    const household = await asUser(ownerId).createSpace(`Owner reads ${randomUUID()}`, 'household');
+    await addActiveMember(household.id, memberId, 'member');
+    const invitation = await createInvitation(
+      ownerId,
+      household.id,
+      randomUUID(),
+      `list-${randomUUID()}@budget.invalid`,
+    );
+
+    const members = await withUserSession(ownerId, (client) =>
+      client.query('select * from public.list_household_members($1, 50, null)', [household.id]),
+    );
+    expect(members.rows).toEqual([
+      expect.objectContaining({ user_id: ownerId, role: 'owner', status: 'active', is_self: true }),
+      expect.objectContaining({ user_id: memberId, role: 'member', status: 'active', is_self: false }),
+    ].sort((left, right) => String(left.user_id).localeCompare(String(right.user_id))));
+
+    const invitations = await withUserSession(ownerId, (client) =>
+      client.query('select * from public.list_household_invitations($1, 50, null, null)', [
+        household.id,
+      ]),
+    );
+    expect(invitations.rows).toEqual([
+      expect.objectContaining({ invitation_id: invitation.invitation_id, effective_status: 'pending' }),
+    ]);
+    expect(Object.keys(invitations.rows[0] ?? {})).toEqual([
+      'invitation_id',
+      'effective_status',
+      'created_at',
+      'expires_at',
+      'accepted_at',
+      'cancelled_at',
+    ]);
+
+    for (const userId of [memberId, unrelatedId]) {
+      await expect(
+        withUserSession(userId, (client) =>
+          client.query('select * from public.list_household_members($1, 50, null)', [
+            household.id,
+          ]),
+        ),
+      ).rejects.toMatchObject({ message: 'not_authorized' });
+    }
+    await expect(
+      withAnonymousSession((client) =>
+        client.query('select * from public.list_household_invitations($1, 50, null, null)', [
+          household.id,
+        ]),
+      ),
+    ).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('promotes and demotes active members with request-stable receipts', async () => {
+    await ensureAuthUser(ownerId, 'owner-role@budget.invalid');
+    const household = await asUser(ownerId).createSpace(`Roles ${randomUUID()}`, 'household');
+    await addActiveMember(household.id, memberId, 'member');
+    const requestId = randomUUID();
+
+    const promoted = await setMemberRole(ownerId, household.id, requestId, memberId, 'owner');
+    expect(promoted).toEqual({ user_id: memberId, status: 'active', role: 'owner' });
+    await expect(
+      setMemberRole(ownerId, household.id, requestId, memberId, 'owner'),
+    ).resolves.toEqual(promoted);
+    await expect(
+      setMemberRole(ownerId, household.id, requestId, memberId, 'member'),
+    ).rejects.toMatchObject({ message: 'idempotency_conflict' });
+
+    await expect(
+      setMemberRole(ownerId, household.id, randomUUID(), memberId, 'owner'),
+    ).rejects.toMatchObject({ message: 'invalid_input' });
+    await expect(
+      setMemberRole(ownerId, household.id, randomUUID(), memberId, 'member'),
+    ).resolves.toEqual({ user_id: memberId, status: 'active', role: 'member' });
+  });
+
+  it('rejects inactive, invented, cross-space, and member-authorized role/removal targets', async () => {
+    const inactiveId = randomUUID();
+    const inventedId = randomUUID();
+    await ensureAuthUser(ownerId, 'owner-targets@budget.invalid');
+    const household = await asUser(ownerId).createSpace(`Targets ${randomUUID()}`, 'household');
+    const other = await asUser(ownerId).createSpace(`Other targets ${randomUUID()}`, 'household');
+    await addActiveMember(household.id, memberId, 'member');
+    await addActiveMember(other.id, inactiveId, 'member');
+    await databaseQuery(
+      `update public.space_memberships set status = 'revoked', ended_at = now(), ended_by_user_id = $3
+       where space_id = $1 and user_id = $2`,
+      [other.id, inactiveId, ownerId],
+    );
+
+    await expect(
+      setMemberRole(memberId, household.id, randomUUID(), ownerId, 'member'),
+    ).rejects.toMatchObject({ message: 'not_authorized' });
+    for (const target of [inactiveId, inventedId]) {
+      await expect(
+        setMemberRole(ownerId, household.id, randomUUID(), target, 'owner'),
+      ).rejects.toMatchObject({ message: 'membership_not_active' });
+      await expect(
+        removeMember(ownerId, household.id, randomUUID(), target),
+      ).rejects.toMatchObject({ message: 'membership_not_active' });
+    }
+  });
+
+  it('removes another member without deleting history and immediately revokes financial access', async () => {
+    const removedId = randomUUID();
+    const removedEmail = `removed-${randomUUID()}@budget.invalid`;
+    await ensureAuthUser(ownerId, 'owner-remove@budget.invalid');
+    await ensureAuthUser(removedId, removedEmail);
+    const household = await asUser(ownerId).createSpace(`Remove ${randomUUID()}`, 'household');
+    const invitation = await createInvitation(ownerId, household.id, randomUUID(), removedEmail);
+    const acceptanceRequest = randomUUID();
+    await acceptInvitation(removedId, acceptanceRequest, invitation.invitation_token);
+    await expect(asUser(removedId).createWallet(household.id, 'Allowed before removal', 'USD'))
+      .resolves.toMatchObject({ id: expect.any(String) });
+
+    await expect(
+      removeMember(ownerId, household.id, randomUUID(), removedId),
+    ).resolves.toEqual({ user_id: removedId, status: 'revoked' });
+    await expect(asUser(removedId).createWallet(household.id, 'Denied after removal', 'USD'))
+      .rejects.toMatchObject({ code: '42501' });
+    await expect(
+      acceptInvitation(removedId, acceptanceRequest, invitation.invitation_token),
+    ).resolves.toEqual({ space_id: household.id, membership_status: 'active', role: 'member' });
+    const state = await databaseQuery<{ status: string; events: string }>(
+      `select membership.status::text,
+              (select count(*)::text from public.household_membership_events
+               where space_id = membership.space_id and subject_user_id = membership.user_id) as events
+       from public.space_memberships as membership where space_id = $1 and user_id = $2`,
+      [household.id, removedId],
+    );
+    expect(state).toEqual([{ status: 'revoked', events: '2' }]);
+  });
+
+  it('uses leave as the only self-removal path and prohibits personal-space administration', async () => {
+    await ensureAuthUser(ownerId, 'owner-leave@budget.invalid');
+    const household = await asUser(ownerId).createSpace(`Leave ${randomUUID()}`, 'household');
+    const personal = await asUser(ownerId).createSpace(`Personal leave ${randomUUID()}`, 'personal');
+    await addActiveMember(household.id, memberId, 'member');
+
+    await expect(
+      removeMember(ownerId, household.id, randomUUID(), ownerId),
+    ).rejects.toMatchObject({ message: 'invalid_input' });
+    await expect(
+      leaveHousehold(memberId, household.id, randomUUID()),
+    ).resolves.toEqual({ user_id: memberId, status: 'left' });
+    await expect(
+      leaveHousehold(memberId, household.id, randomUUID()),
+    ).rejects.toMatchObject({ message: 'membership_not_active' });
+    await expect(
+      leaveHousehold(ownerId, personal.id, randomUUID()),
+    ).rejects.toMatchObject({ message: 'personal_space_prohibited' });
+    await expect(
+      setMemberRole(ownerId, personal.id, randomUUID(), ownerId, 'member'),
+    ).rejects.toMatchObject({ message: 'personal_space_prohibited' });
+  });
+
+  it('rejects removing, leaving as, or demoting the last active owner at both command and invariant layers', async () => {
+    await ensureAuthUser(ownerId, 'owner-last@budget.invalid');
+    const household = await asUser(ownerId).createSpace(`Last owner ${randomUUID()}`, 'household');
+
+    await expect(
+      setMemberRole(ownerId, household.id, randomUUID(), ownerId, 'member'),
+    ).rejects.toMatchObject({ message: 'last_owner' });
+    await expect(
+      leaveHousehold(ownerId, household.id, randomUUID()),
+    ).rejects.toMatchObject({ message: 'last_owner' });
+
+    await expect(
+      withAdminTransaction(async (client) => {
+        await client.query(
+          `update public.space_memberships
+           set status = 'left', ended_at = now(), ended_by_user_id = user_id
+           where space_id = $1 and user_id = $2`,
+          [household.id, ownerId],
+        );
+      }),
+    ).rejects.toMatchObject({ message: 'household must retain an active owner' });
+  });
+
+  it('serializes competing final-two-owner transitions without deadlock or owner loss', async () => {
+    await ensureAuthUser(ownerId, 'owner-concurrent-admin@budget.invalid');
+    const household = await asUser(ownerId).createSpace(`Owner race ${randomUUID()}`, 'household');
+    await addActiveMember(household.id, memberId, 'owner');
+    const results = await runConcurrentUserActions([
+      {
+        userId: ownerId,
+        action: (client) => client.query('select * from public.leave_household_space($1, $2)', [
+          household.id,
+          randomUUID(),
+        ]),
+      },
+      {
+        userId: memberId,
+        action: (client) => client.query('select * from public.remove_household_member($1, $2, $3)', [
+          household.id,
+          randomUUID(),
+          ownerId,
+        ]),
+      },
+      {
+        userId: ownerId,
+        action: (client) => client.query(
+          'select * from public.set_household_member_role($1, $2, $3, $4::public.member_role)',
+          [household.id, randomUUID(), memberId, 'member'],
+        ),
+      },
+    ]);
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    const failures = results.filter((result) => result.status === 'rejected') as PromiseRejectedResult[];
+    expect(failures).toHaveLength(2);
+    expect(failures.every(({ reason }) => reason.code !== '40P01')).toBe(true);
+    const owners = await databaseQuery<{ count: string }>(
+      `select count(*)::text as count from public.space_memberships
+       where space_id = $1 and status = 'active' and role = 'owner'`,
+      [household.id],
+    );
+    expect(Number(owners[0]?.count)).toBeGreaterThanOrEqual(1);
+  });
+
+  it('enforces 1..100 limits and stable keyset pages with derived invitation expiry', async () => {
+    await ensureAuthUser(ownerId, 'owner-pages@budget.invalid');
+    const household = await asUser(ownerId).createSpace(`Pages ${randomUUID()}`, 'household');
+    const memberIds = [randomUUID(), randomUUID(), randomUUID()].sort();
+    for (const userId of memberIds) await addActiveMember(household.id, userId, 'member');
+
+    for (const limit of [0, 101]) {
+      await expect(
+        withUserSession(ownerId, (client) =>
+          client.query('select * from public.list_household_members($1, $2, null)', [
+            household.id,
+            limit,
+          ]),
+        ),
+      ).rejects.toMatchObject({ message: 'invalid_input' });
+    }
+
+    const firstPage = await withUserSession(ownerId, (client) =>
+      client.query<{ user_id: string }>(
+        'select * from public.list_household_members($1, 2, null)',
+        [household.id],
+      ),
+    );
+    const secondPage = await withUserSession(ownerId, (client) =>
+      client.query<{ user_id: string }>(
+        'select * from public.list_household_members($1, 2, $2)',
+        [household.id, firstPage.rows.at(-1)?.user_id],
+      ),
+    );
+    expect(new Set([...firstPage.rows, ...secondPage.rows].map(({ user_id }) => user_id)).size)
+      .toBe(firstPage.rows.length + secondPage.rows.length);
+
+    const expired = await createInvitation(ownerId, household.id, randomUUID(), `page-expired-${randomUUID()}@budget.invalid`);
+    await databaseQuery(
+      `update public.household_invitations
+       set created_at = created_at - interval '8 days', expires_at = expires_at - interval '8 days'
+       where id = $1`,
+      [expired.invitation_id],
+    );
+    const invitationRows = await withUserSession(ownerId, (client) =>
+      client.query<{ invitation_id: string; effective_status: string }>(
+        'select * from public.list_household_invitations($1, 100, null, null)',
+        [household.id],
+      ),
+    );
+    expect(invitationRows.rows).toContainEqual(
+      expect.objectContaining({ invitation_id: expired.invitation_id, effective_status: 'expired' }),
+    );
+  });
+
+  it('uses the selective membership and invitation indexes after representative ANALYZE', async () => {
+    await ensureAuthUser(ownerId, 'owner-index@budget.invalid');
+    const household = await asUser(ownerId).createSpace(`Indexes ${randomUUID()}`, 'household');
+    const populatedHousehold = await asUser(ownerId).createSpace(
+      `Populated indexes ${randomUUID()}`,
+      'household',
+    );
+    const probeId = randomUUID();
+    await addActiveMember(household.id, probeId, 'member');
+    const key = await databaseQuery<{ key_version: number }>(
+      'select key_version from private.household_invitation_keys where retired_at is null',
+    );
+    await databaseQuery(
+      `insert into public.household_invitations (
+         space_id, key_version, invitee_identity_digest, token_digest,
+         status, created_by_user_id, created_at, expires_at
+       )
+       select $1, $2,
+              extensions.digest(('identity-' || series.value || $3)::text, 'sha256'),
+              extensions.digest(('token-' || series.value || $3)::text, 'sha256'),
+              'pending', $4, now() - (series.value || ' seconds')::interval,
+              now() - (series.value || ' seconds')::interval + interval '7 days'
+       from generate_series(1, 300) as series(value)`,
+      [populatedHousehold.id, key[0]?.key_version, randomUUID(), ownerId],
+    );
+    await databaseQuery('vacuum analyze public.space_memberships');
+    await databaseQuery('vacuum analyze public.household_invitations');
+
+    const membershipPlan = await databaseQuery<{ 'QUERY PLAN': string }>(
+      `explain (costs off)
+       select space_id from public.space_memberships
+       where user_id = $1 and status = 'active'`,
+      [probeId],
+    );
+    expect(membershipPlan.map((row) => row['QUERY PLAN']).join('\n'))
+      .toContain('space_memberships_active_user_space_idx');
+
+    const invitationPlan = await databaseQuery<{ 'QUERY PLAN': string }>(
+      `explain (costs off)
+       select id from public.household_invitations
+       where space_id = $1 and status = 'pending'
+       order by created_at desc, id desc limit 50`,
+      [household.id],
+    );
+    expect(invitationPlan.map((row) => row['QUERY PLAN']).join('\n'))
+      .toContain('household_invitations_space_created_idx');
   });
 });
