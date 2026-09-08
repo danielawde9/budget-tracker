@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 
+import type { CategoryErrorView } from '../categories/errors.js';
 import type { Category, CategoryKind } from '../categories/types.js';
 import type { Locale } from '../loans/types.js';
 import { DialogShell } from './dialog-shell.js';
@@ -13,6 +14,7 @@ interface TransactionDialogProps {
   categories?: readonly Category[];
   categoryNextCursors?: Partial<Record<CategoryKind, string | null>>;
   categoryLoadingMore?: CategoryKind | null;
+  categoryPaginationError?: { kind: CategoryKind; error: CategoryErrorView } | null;
   onLoadMoreCategories?(kind: CategoryKind): Promise<void>;
   pending: boolean;
   ambiguous: boolean;
@@ -149,6 +151,7 @@ export function TransactionDialog(props: TransactionDialogProps) {
           return <label key={item.id}><input type="radio" name="transaction-category" checked={categoryId === item.id} onChange={() => edit(() => setCategoryId(item.id))} /><bdi>{label}</bdi></label>;
         })}
         {props.categoryNextCursors?.[kind] && <button type="button" className="button-secondary category-picker-more" disabled={props.categoryLoadingMore === kind} onClick={() => void props.onLoadMoreCategories?.(kind)}>{props.categoryLoadingMore === kind ? t(props.locale, 'Loading categories…', 'جارٍ تحميل الفئات…') : t(props.locale, `Load more ${kind} categories`, `تحميل المزيد من فئات ${kind === 'income' ? 'الدخل' : 'المصروف'}`)}</button>}
+        {props.categoryPaginationError?.kind === kind && <div className="error-notice category-picker-error" role="alert"><span>{props.categoryPaginationError.error.message} {props.categoryPaginationError.error.recovery}</span><button type="button" className="button-secondary retry-command" disabled={props.categoryLoadingMore === kind} onClick={() => void props.onLoadMoreCategories?.(kind)}>{t(props.locale, `Retry loading ${kind} categories`, `إعادة محاولة تحميل فئات ${kind === 'income' ? 'الدخل' : 'المصروف'}`)}</button></div>}
       </fieldset>}
       {movements && wallet && <section className="effect-preview" aria-label={t(props.locale, 'Wallet effect preview', 'معاينة تأثير المحافظ')}>
         <h3>{t(props.locale, 'Confirm wallet effects', 'تأكيد تأثيرات المحافظ')}</h3>

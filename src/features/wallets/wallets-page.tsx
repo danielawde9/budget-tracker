@@ -47,6 +47,9 @@ const emptyCategoriesGateway: CategoriesGateway = {
 export function WalletsPage({ gateway, categoriesGateway, spaceId, locale = 'en', onSpaceUnavailable, onOpenLoans }: WalletsPageProps) {
   const categoryState = useCategories(categoriesGateway ?? emptyCategoriesGateway, spaceId, onSpaceUnavailable);
   const categoryError = categoryState.error ? localizeCategoryError(categoryState.error, locale) : null;
+  const categoryPaginationError = categoryState.paginationError
+    ? { ...categoryState.paginationError, error: localizeCategoryError(categoryState.paginationError.error, locale) }
+    : null;
   const walletState = useWallets(gateway, spaceId, onSpaceUnavailable, undefined, categoriesGateway);
   const [dialog, setDialog] = useState<OpenDialog>(null);
   const activeCategories = [...categoryState.incomeCategories, ...categoryState.expenseCategories];
@@ -83,7 +86,7 @@ export function WalletsPage({ gateway, categoriesGateway, spaceId, locale = 'en'
     </>}
 
     {dialog === 'wallet' && <WalletDialog locale={locale} pending={walletState.pending} onClose={() => setDialog(null)} onSubmit={walletState.createWallet} />}
-    {dialog === 'transaction' && <TransactionDialog locale={locale} wallets={walletState.wallets} categories={activeCategories} categoryNextCursors={{ income: categoryState.incomeNextCursor, expense: categoryState.expenseNextCursor }} categoryLoadingMore={categoryState.loadingMore} onLoadMoreCategories={categoryState.loadMore} pending={walletState.pending} ambiguous={walletState.ambiguous?.kind === 'record'} onClose={() => setDialog(null)} onClearAmbiguous={walletState.clearAmbiguous} onRetry={walletState.retryAmbiguous} onSubmit={walletState.recordEvent} />}
+    {dialog === 'transaction' && <TransactionDialog locale={locale} wallets={walletState.wallets} categories={activeCategories} categoryNextCursors={{ income: categoryState.incomeNextCursor, expense: categoryState.expenseNextCursor }} categoryLoadingMore={categoryState.loadingMore} categoryPaginationError={categoryPaginationError} onLoadMoreCategories={categoryState.loadMore} pending={walletState.pending} ambiguous={walletState.ambiguous?.kind === 'record'} onClose={() => setDialog(null)} onClearAmbiguous={walletState.clearAmbiguous} onRetry={walletState.retryAmbiguous} onSubmit={walletState.recordEvent} />}
     {dialog && typeof dialog === 'object' && <CorrectionDialog locale={locale} event={dialog.correction} pending={walletState.pending} ambiguous={walletState.ambiguous?.kind === 'reverse'} onClose={() => setDialog(null)} onClearAmbiguous={walletState.clearAmbiguous} onRetry={walletState.retryAmbiguous} onSubmit={walletState.reverseEvent} />}
   </section>;
 }

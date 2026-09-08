@@ -173,6 +173,41 @@ describe('WalletsPage', () => {
     expect(reads).toContainEqual({ kind: 'income', cursor: 'income-page-2' });
   });
 
+  it('keeps picker rows and retries a failed later category page without closing the transaction', async () => {
+    const categoriesGateway: CategoriesGateway = new InMemoryCategoriesGateway();
+    let pageFails = true;
+    categoriesGateway.listCategories = vi.fn(async (_spaceId, kind, cursor) => {
+      if (kind === 'expense') return { categories: [], nextCursor: null };
+      if (!cursor) return {
+        categories: [{
+          id: 'category-income', spaceId: 'personal-space', kind: 'income' as const, nameEn: 'Salary', nameAr: 'راتب',
+          createdAt: '2026-09-08T10:00:00Z', archivedAt: null,
+        }],
+        nextCursor: 'income-page-2',
+      };
+      if (pageFails) throw new Error('Network unavailable');
+      return {
+        categories: [{
+          id: 'category-bonus', spaceId: 'personal-space', kind: 'income' as const, nameEn: 'Bonus', nameAr: 'مكافأة',
+          createdAt: '2026-09-08T11:00:00Z', archivedAt: null,
+        }],
+        nextCursor: null,
+      };
+    });
+    const { user } = await renderPage(new InMemoryWalletsGateway(), 'en', categoriesGateway);
+    await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+
+    await user.click(within(dialog).getByRole('button', { name: 'Load more income categories' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('category request was not accepted');
+    expect(within(dialog).getByRole('radio', { name: 'Salary' })).toBeInTheDocument();
+
+    pageFails = false;
+    await user.click(within(dialog).getByRole('button', { name: 'Retry loading income categories' }));
+    expect(await within(dialog).findByRole('radio', { name: 'Bonus' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('removes category controls and stale selection when the event kind becomes ineligible', async () => {
     const categoriesGateway = new InMemoryCategoriesGateway();
     categoriesGateway.categories = categoriesGateway.categories.map((category) => ({ ...category, spaceId: 'personal-space' }));
