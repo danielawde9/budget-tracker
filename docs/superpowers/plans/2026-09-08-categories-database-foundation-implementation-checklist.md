@@ -39,7 +39,7 @@ Check the marked `/home/lelabo/budget-supabase` directory, `project_id = "budget
 
 Run `pnpm install --frozen-lockfile`, then source only the ignored `.env.test` and run `pnpm check`; run `CI=1 pnpm test:e2e`. Expected: install succeeds, 28 database tests pass, 107 UI tests pass, build succeeds, and 23 applicable Playwright scenarios pass with 23 intentional skips.
 
-- [ ] **Step 4: Commit the decisions and this checklist**
+- [x] **Step 4: Commit the decisions and this checklist**
 
 Run `git add docs/decisions.md docs/superpowers/plans/2026-09-08-categories-database-foundation-implementation-checklist.md && git commit -m "docs: plan categories database foundation"`.
 
@@ -50,19 +50,19 @@ Run `git add docs/decisions.md docs/superpowers/plans/2026-09-08-categories-data
 - Modify: `tests/db/test-database.ts`
 - Create: `supabase/migrations/20260908100000_categories_foundation.sql`
 
-- [ ] **Step 1: Write failing schema and normalization tests**
+- [x] **Step 1: Write failing schema and normalization tests**
 
 Add typed helpers for `create_category`, `archive_category`, `get_category_command_result`, member-visible reads, and privileged catalog probes. Test absent/empty/whitespace/over-120 names; EN-only, AR-only, and bilingual storage; NFKC/case/whitespace collisions; Arabic alef/yeh/teh-marbuta/tatweel/diacritic collisions; unrelated Arabic and cross-script distinctions; same-label other-kind/other-space acceptance; reuse after archive; no seeded rows. Run `pnpm test:db -- tests/db/categories.integration.test.ts`; expected RED because category objects/functions do not exist.
 
-- [ ] **Step 2: Add minimal normalization and schema objects**
+- [x] **Step 2: Add minimal normalization and schema objects**
 
 In the migration, add `public.category_kind`; immutable `private.canonical_category_name`, `private.english_category_key`, and `private.arabic_category_key` functions with fixed search paths; `public.categories`; and `public.category_command_requests`. Use generated stored keys, bounded checks, composite tenant keys/FKs, active per-language partial unique indexes keyed by `(space_id, kind, key)`, and no inserts outside commands.
 
-- [ ] **Step 3: Add lifecycle security and commands**
+- [x] **Step 3: Add lifecycle security and commands**
 
 Add indexed member SELECT RLS only, exact grants/revokes, owner-only effective-role write guards, category archive-only UPDATE guard, DELETE/TRUNCATE history guards, append-only request guards, advisory request serialization, versioned canonical JSON fingerprints with explicit nulls, stable safe conflict messages, and the bounded result lookup. Implement identical replay and changed-command/payload rejection.
 
-- [ ] **Step 4: Verify lifecycle RED becomes GREEN in a disposable database**
+- [x] **Step 4: Verify lifecycle RED becomes GREEN in a disposable database**
 
 Rebuild an explicitly named disposable database on the verified Budget PostgreSQL cluster from the committed migrations plus the in-progress migration; never apply a partial migration to the main Budget database. Point the test process at that disposable database through an ephemeral `BUDGET_TEST_DATABASE_URL`, run the focused normalization/lifecycle tests and `pnpm typecheck`, and expect all focused cases to pass without warnings. Keep the migration uncommitted until the entire coherent file is green.
 
@@ -73,19 +73,19 @@ Rebuild an explicitly named disposable database on the verified Budget PostgreSQ
 - Modify: `tests/db/test-database.ts`
 - Modify: `supabase/migrations/20260908100000_categories_foundation.sql`
 
-- [ ] **Step 1: Write failing association and categorized-posting tests**
+- [x] **Step 1: Write failing association and categorized-posting tests**
 
 Test categorized income/expense wallet effects and one association; reject opening, transfer, loan event kinds, wrong-kind, archived, missing, and cross-space categories atomically; test identical and changed replay in both categorized-to-uncategorized directions; test concurrent identical categorized requests; and prove direct association writes fail. Run the focused file and confirm RED because the association/command is missing.
 
-- [ ] **Step 2: Add the association and declarative guards**
+- [x] **Step 2: Add the association and declarative guards**
 
 Add `(financial_events.id, space_id, kind)` uniqueness; `public.financial_event_categories` with one row per event, composite event/category foreign keys, kind compatibility check, `(space_id, event_id)` and `(space_id, category_id, event_id)` indexes, member SELECT RLS, exact read-only grants, owner-only insert guard, and UPDATE/DELETE/TRUNCATE history guards. Add a reversal-validation trigger that accepts only an exact copy from `reversal_of`.
 
-- [ ] **Step 3: Add categorized posting and cross-mode replay rejection**
+- [x] **Step 3: Add categorized posting and cross-mode replay rejection**
 
 Implement `public.record_categorized_financial_event(uuid, uuid, public.financial_event_kind, date, jsonb, uuid)` as SECURITY DEFINER with the same financial request lock. On replay, validate the legacy base fingerprint plus exact category association; on new posting, accept only active same-space matching categories under `FOR KEY SHARE`, delegate movement validation/posting to the unchanged-signature legacy command, then insert the association atomically. Replace only the legacy command body needed to reject uncategorized replay of a categorized request while preserving its five-argument signature and fingerprint algorithm.
 
-- [ ] **Step 4: Verify categorized posting in the disposable database**
+- [x] **Step 4: Verify categorized posting in the disposable database**
 
 Rebuild the disposable database from the full journal and in-progress migration. Run focused category tests, all foundation and loan database tests, typecheck, direct-write/execute privilege probes, and `git diff --check`. Expected: new cases and all legacy cases pass; categorized failure leaves zero event/movement/association rows. Keep the migration uncommitted until reversal propagation and the catalog ratchet are also green.
 
@@ -95,15 +95,15 @@ Rebuild the disposable database from the full journal and in-progress migration.
 - Modify: `tests/db/categories.integration.test.ts`
 - Modify: `supabase/migrations/20260908100000_categories_foundation.sql`
 
-- [ ] **Step 1: Write failing reversal propagation tests**
+- [x] **Step 1: Write failing reversal propagation tests**
 
 Test categorized reversal before and after archive, exact copied association, immutable original/reversal facts, cancelling wallet balance, uncategorized reversal remaining uncategorized, caller categorization rejection, and unchanged dependent-loan reversal rejection. Confirm RED because existing reversals do not copy associations.
 
-- [ ] **Step 2: Replace the reversal body without changing its contract**
+- [x] **Step 2: Replace the reversal body without changing its contract**
 
 Preserve `public.reverse_financial_event(uuid, uuid, uuid, date)`, legacy fingerprinting, wallet/loan checks, and existing grants. After creating the reversal and linked wallet/loan postings, copy any original category association atomically regardless of archive state; let the association trigger prove exact inheritance.
 
-- [ ] **Step 3: Verify reversal behavior in the disposable database**
+- [x] **Step 3: Verify reversal behavior in the disposable database**
 
 Rebuild the disposable database and run focused category tests plus foundation and loans suites. Confirm balances reconstruct from immutable movements before/after reversals and all loan-aware rules remain green. Do not apply the still-changing migration to the main Budget database.
 
@@ -115,19 +115,19 @@ Rebuild the disposable database and run focused category tests plus foundation a
 - Modify: `tests/db/categories.integration.test.ts`
 - Modify: `docs/financial-command-inventory.md`
 
-- [ ] **Step 1: Write failing fail-closed catalog tests**
+- [x] **Step 1: Write failing fail-closed catalog tests**
 
 Require `record_categorized_financial_event` in discovered journal writers and the inventory. Include `financial_event_categories`, `categories`, and `category_command_requests` in role privilege probes; verify fixed search paths, PUBLIC execute revocation, exact authenticated signatures, table RLS/policies, triggers, and ownership. Confirm RED before updating the inventory/ratchet.
 
-- [ ] **Step 2: Add bounded/index-plan probes**
+- [x] **Step 2: Add bounded/index-plan probes**
 
-Test active category keyset reads with default 50 and hard cap 100, reconciliation returning at most one row, and journal-category resolution constrained to 20 event IDs. Seed representative rows, run `VACUUM ANALYZE`, and assert realistic plans use active-list, request-key, event, and category-history indexes for selective probes without forcing planner settings.
+Test the future-client active-category keyset query shape with an explicit 50-row limit, reconciliation returning at most one row, and the specified association indexes for resolving at most the 20 event IDs already loaded by the existing journal page. Do not add an unapproved public list RPC in this database-only milestone. Seed representative rows, run `VACUUM ANALYZE`, and assert realistic plans use the active-list and normalized-name indexes for selective probes without forcing planner settings; the later gateway must enforce the documented hard cap of 100.
 
-- [ ] **Step 3: Update the command inventory and make the ratchet GREEN**
+- [x] **Step 3: Update the command inventory and make the ratchet GREEN**
 
 Classify `public.record_categorized_financial_event` as the categorized income/expense writer. State that `create_category` and `archive_category` are metadata commands, the safe lookup is read-only, existing Wallets remains uncategorized, and no category UI entry path exists. Rebuild the disposable database, run the catalog and full database suites, and commit the now-coherent migration, tests, helpers, and inventory as `feat: add categories database foundation`.
 
-- [ ] **Step 4: Prove empty and seeded-upgrade migration paths**
+- [x] **Step 4: Prove empty and seeded-upgrade migration paths**
 
 Create disposable databases only on the verified Budget PostgreSQL cluster. In one, apply all migrations from empty. In another, apply through `20260907149000`, seed Budget-only spaces/wallets/events/movements/loans/reversals/targets and snapshot event IDs, fingerprints, movements, loan postings, balances, reversals, grants, and member-visible results; apply only `20260908100000`; compare snapshots and confirm zero seeded/backfilled categories. Drop only the explicitly named disposable databases after evidence is captured.
 

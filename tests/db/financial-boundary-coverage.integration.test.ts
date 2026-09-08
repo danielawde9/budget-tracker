@@ -20,6 +20,7 @@ describe('financial posting boundary coverage', () => {
     expect(await financialWriterFunctionNames()).toEqual([
       'open_loan_outstanding',
       'record_cash_loan',
+      'record_categorized_financial_event',
       'record_financial_event',
       'record_loan_repayment',
       'reverse_financial_event',
@@ -38,6 +39,7 @@ describe('financial posting boundary coverage', () => {
 
   it('keeps all financial and planning history tables non-writable by authenticated clients', async () => {
     expect(await financialTableWritePrivileges()).toEqual([
+      { table_name: 'financial_event_categories', writable: false },
       { table_name: 'financial_events', writable: false },
       { table_name: 'loan_monthly_target_revisions', writable: false },
       { table_name: 'loan_postings', writable: false },
@@ -49,6 +51,7 @@ describe('financial posting boundary coverage', () => {
 
   it('keeps all financial and planning history tables non-writable by background clients', async () => {
     expect(await financialTableWritePrivileges('service_role')).toEqual([
+      { table_name: 'financial_event_categories', writable: false },
       { table_name: 'financial_events', writable: false },
       { table_name: 'loan_monthly_target_revisions', writable: false },
       { table_name: 'loan_postings', writable: false },

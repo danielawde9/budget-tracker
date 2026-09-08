@@ -9,6 +9,7 @@ access only; they do not receive direct financial-table write privileges.
 | Command | Current entry path | Posted effects |
 | --- | --- | --- |
 | `public.record_financial_event` | Foundation integration client and `src/features/wallets/supabase-wallets-gateway.ts` | Opening cash, income, expense, and transfer wallet movements. |
+| `public.record_categorized_financial_event` | Categories database integration client only; no browser or UI entry path exists yet. | Income or expense wallet movements plus one immutable event-category association. |
 | `public.reverse_financial_event` | Foundation/Loans integration clients, `src/features/loans/supabase-loans-gateway.ts`, and `src/features/wallets/supabase-wallets-gateway.ts` | Linked inverse wallet and loan postings when valid. |
 | `public.open_loan_outstanding` | Loans integration client and `src/features/loans/supabase-loans-gateway.ts` | Opening outstanding principal only; no wallet movement. |
 | `public.record_cash_loan` | Loans integration client and `src/features/loans/supabase-loans-gateway.ts` | Lending/borrowing wallet movement and principal posting together. |
@@ -18,6 +19,11 @@ access only; they do not receive direct financial-table write privileges.
 Loans gateway uses it to persist planning history only, and it cannot create
 wallet or loan postings. The same gateway reads `public.loan_monthly_plan` and
 `public.loan_monthly_currency_summary` as read-only projections.
+
+`public.create_category` and `public.archive_category` are protected metadata
+lifecycle commands, not posting commands. `public.get_category_command_result`
+is a bounded read-only reconciliation function. They cannot create a financial
+event, wallet movement, loan posting, or balance effect.
 
 The Loans and Wallets workspaces are the implemented financial entry paths in
 the authenticated application shell. Wallets can create wallets, post the four

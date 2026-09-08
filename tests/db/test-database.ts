@@ -4,6 +4,7 @@ export type SpaceKind = 'personal' | 'household';
 export type Currency = 'USD' | 'LBP';
 export type FinancialEventKind = 'opening_balance' | 'income' | 'expense' | 'transfer';
 export type LoanDirection = 'they_owe_me' | 'i_owe_them';
+export type CategoryKind = 'income' | 'expense';
 
 export interface Space {
   id: string;
@@ -24,6 +25,18 @@ export interface FinancialEventInput {
   kind: FinancialEventKind;
   effectiveDate: string;
   movements: MovementInput[];
+}
+
+export interface CategoryInput {
+  spaceId: string;
+  requestId: string;
+  kind: CategoryKind;
+  nameEn?: string | null;
+  nameAr?: string | null;
+}
+
+export interface CategorizedFinancialEventInput extends FinancialEventInput {
+  categoryId: string;
 }
 
 export interface LoanOpeningInput {
@@ -108,7 +121,9 @@ export async function financialWriterFunctionNames(): Promise<string[]> {
        and p.prokind = 'f'
        and pg_get_functiondef(p.oid) ~* $1
      order by p.proname`,
-    ['insert[[:space:]]+into[[:space:]]+public\\.(financial_events|wallet_movements|loan_postings)'],
+    [
+      'insert[[:space:]]+into[[:space:]]+public\\.(financial_events|wallet_movements|loan_postings|financial_event_categories)',
+    ],
   );
 
   return result.rows.map((row) => row.proname);
@@ -135,7 +150,8 @@ export async function financialTableWritePrivileges(
         'loans',
         'loan_postings',
         'loan_monthly_target_revisions',
-      ],
+        'financial_event_categories',
+        ],
     ],
   );
 
@@ -162,7 +178,7 @@ export async function anonymousWalletBalance(walletId: string): Promise<string> 
   }
 }
 
-async function withUserSession<T>(
+export async function withUserSession<T>(
   userId: string,
   action: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
@@ -198,8 +214,121 @@ async function withUserSession<T>(
   }
 }
 
+export async function databaseQuery<T extends Record<string, unknown> = Record<string, unknown>>(
+  text: string,
+  values: unknown[] = [],
+): Promise<T[]> {
+  const result = await pool.query<T>(text, values);
+  return result.rows;
+}
+
+export async function queryAsUser<T extends Record<string, unknown> = Record<string, unknown>>(
+  userId: string,
+  text: string,
+  values: unknown[] = [],
+): Promise<T[]> {
+  return withUserSession(userId, async (client) => {
+    const result = await client.query<T>(text, values);
+    return result.rows;
+  });
+}
+
+export async function queryAsRole<T extends Record<string, unknown> = Record<string, unknown>>(
+  role: 'anon' | 'authenticated' | 'service_role',
+  text: string,
+  values: unknown[] = [],
+): Promise<T[]> {
+  const client = await pool.connect();
+
+  try {
+    await client.query('begin');
+    await client.query(`set local role ${role}`);
+    const result = await client.query<T>(text, values);
+    await client.query('commit');
+    return result.rows;
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export function asUser(userId: string) {
   return {
+    async createCategory(input: CategoryInput): Promise<{ id: string }> {
+      return withUserSession(userId, async (client) => {
+        const result = await client.query<{ id: string }>(
+          `select * from public.create_category(
+             $1, $2, $3::public.category_kind, $4, $5
+           )`,
+          [input.spaceId, input.requestId, input.kind, input.nameEn ?? null, input.nameAr ?? null],
+        );
+        const category = result.rows[0];
+
+        if (!category) {
+          throw new Error('create_category returned no category');
+        }
+
+        return category;
+      });
+    },
+    async archiveCategory(
+      spaceId: string,
+      requestId: string,
+      categoryId: string,
+    ): Promise<{ id: string }> {
+      return withUserSession(userId, async (client) => {
+        const result = await client.query<{ id: string }>(
+          'select * from public.archive_category($1, $2, $3)',
+          [spaceId, requestId, categoryId],
+        );
+        const category = result.rows[0];
+
+        if (!category) {
+          throw new Error('archive_category returned no category');
+        }
+
+        return category;
+      });
+    },
+    async categoryCommandResult(
+      spaceId: string,
+      requestId: string,
+    ): Promise<{ command_kind: string; category_id: string; created_at: Date } | undefined> {
+      return withUserSession(userId, async (client) => {
+        const result = await client.query<{
+          command_kind: string;
+          category_id: string;
+          created_at: Date;
+        }>('select * from public.get_category_command_result($1, $2)', [spaceId, requestId]);
+        return result.rows[0];
+      });
+    },
+    async recordCategorizedEvent(input: CategorizedFinancialEventInput): Promise<{ id: string }> {
+      return withUserSession(userId, async (client) => {
+        const result = await client.query<{ id: string }>(
+          `select * from public.record_categorized_financial_event(
+             $1, $2, $3::public.financial_event_kind, $4::date, $5::jsonb, $6
+           )`,
+          [
+            input.spaceId,
+            input.requestId,
+            input.kind,
+            input.effectiveDate,
+            JSON.stringify(input.movements),
+            input.categoryId,
+          ],
+        );
+        const event = result.rows[0];
+
+        if (!event) {
+          throw new Error('record_categorized_financial_event returned no event');
+        }
+
+        return event;
+      });
+    },
     async openLoanOutstanding(input: LoanOpeningInput): Promise<{ loan_id: string; event_id: string }> {
       return withUserSession(userId, async (client) => {
         const result = await client.query<{ loan_id: string; event_id: string }>(
