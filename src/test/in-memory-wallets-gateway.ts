@@ -1,6 +1,7 @@
 import type {
   CreateWalletInput,
   JournalEvent,
+  JournalPage,
   RecordEventInput,
   ReverseEventInput,
   WalletProjection,
@@ -46,7 +47,7 @@ export class InMemoryWalletsGateway implements WalletsGateway {
     };
   }
 
-  async loadHistoryPage(spaceId: string, cursor: string) {
+  async loadHistoryPage(spaceId: string, cursor: string): Promise<JournalPage> {
     this.calls.push({ name: 'loadHistoryPage', input: { spaceId, cursor } });
     this.failIfNeeded();
     return { events: [], nextCursor: null };

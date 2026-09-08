@@ -358,6 +358,53 @@ describe('useWallets', () => {
     expect(result.current.nextCursor).toBeNull();
   });
 
+  it('preserves loaded history and retries only the failed older category page', async () => {
+    const currentEvent = { id: 'event-current', requestId: 'request-current' } as JournalEvent;
+    const olderEvent = { id: 'event-older', requestId: 'request-older' } as JournalEvent;
+    const loadHistoryPage = vi.fn(async () => ({ events: [olderEvent], nextCursor: null }));
+    const recordEvent = vi.fn(async () => ({ eventId: 'event-new' }));
+    const wallets = gateway({
+      loadSnapshot: vi.fn(async () => ({
+        wallets: walletSnapshot.wallets,
+        history: { events: [currentEvent], nextCursor: 'older-page' },
+      })),
+      loadHistoryPage,
+      recordEvent,
+    });
+    const resolveEventCategories = vi.fn()
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error('category page lookup failed'))
+      .mockResolvedValueOnce([{
+        eventId: olderEvent.id,
+        categoryId: 'category-older',
+        categoryKind: 'expense' as const,
+        nameEn: 'Older expense',
+        nameAr: 'مصروف أقدم',
+        archivedAt: null,
+      }]);
+    const categories = categoriesGateway({ resolveEventCategories });
+    const { result } = renderHook(() => useWallets(wallets, 'space-1', undefined, undefined, categories));
+    await waitFor(() => expect(result.current.nextCursor).toBe('older-page'));
+
+    await act(async () => {
+      await expect(result.current.loadMore()).resolves.toBeUndefined();
+    });
+
+    expect(result.current.events).toEqual([{ ...currentEvent, category: null }]);
+    expect(result.current.nextCursor).toBe('older-page');
+    expect(result.current.historyPaginationError).not.toBeNull();
+
+    await act(async () => {
+      await result.current.loadMore();
+    });
+
+    expect(loadHistoryPage).toHaveBeenCalledTimes(2);
+    expect(result.current.events.map((event) => event.id)).toEqual([currentEvent.id, olderEvent.id]);
+    expect(result.current.events[1]?.category?.nameEn).toBe('Older expense');
+    expect(result.current.historyPaginationError).toBeNull();
+    expect(recordEvent).not.toHaveBeenCalled();
+  });
+
   it('enriches each bounded history page with active or archived category labels', async () => {
     const event = {
       id: 'event-1',

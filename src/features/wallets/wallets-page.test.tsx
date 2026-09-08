@@ -308,6 +308,54 @@ describe('WalletsPage', () => {
     expect(alert).not.toHaveTextContent('active space membership');
   });
 
+  it('preserves loaded rows and offers localized retry when older category history fails', async () => {
+    const walletGateway = new InMemoryWalletsGateway();
+    const currentEvent = walletGateway.events[0]!;
+    const olderEvent = {
+      ...currentEvent,
+      id: 'event-older',
+      requestId: 'request-older',
+      effectiveDate: '2026-08-31',
+      createdAt: '2026-08-31T10:00:00Z',
+    };
+    walletGateway.loadSnapshot = vi.fn(async () => ({
+      wallets: walletGateway.wallets,
+      history: { events: [currentEvent], nextCursor: 'older-page' },
+    }));
+    walletGateway.loadHistoryPage = vi.fn(async () => ({ events: [olderEvent], nextCursor: null }));
+    const categoriesGateway = new InMemoryCategoriesGateway();
+    categoriesGateway.categories = categoriesGateway.categories.map((category) => ({ ...category, spaceId: 'personal-space' }));
+    categoriesGateway.resolveEventCategories = vi.fn()
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error('raw category history failure'))
+      .mockResolvedValueOnce([{
+        eventId: olderEvent.id,
+        categoryId: 'category-salary',
+        categoryKind: 'income' as const,
+        nameEn: 'Salary',
+        nameAr: 'راتب',
+        archivedAt: null,
+      }]);
+    const { user } = await renderPage(walletGateway, 'ar', categoriesGateway);
+
+    expect(screen.getByText(currentEvent.effectiveDate)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'تحميل قيود أقدم' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('تعذّر تحميل القيود الأقدم');
+    expect(alert).toHaveTextContent('لم يتم قبول طلب الفئة');
+    expect(alert).not.toHaveTextContent('raw category history failure');
+    expect(screen.getByText(currentEvent.effectiveDate)).toBeInTheDocument();
+
+    await user.click(within(alert).getByRole('button', { name: 'إعادة تحميل القيود الأقدم' }));
+
+    expect(await screen.findByText(olderEvent.effectiveDate)).toBeInTheDocument();
+    expect(screen.getByText('راتب').closest('bdi')).not.toBeNull();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(walletGateway.calls.some((call) => call.name === 'recordEvent')).toBe(false);
+    expect(categoriesGateway.calls.some((call) => call.name === 'recordCategorizedEvent')).toBe(false);
+  });
+
   it('localizes a categorized submit rejection without exposing its cause in Arabic', async () => {
     const categoriesGateway = new InMemoryCategoriesGateway();
     categoriesGateway.categories = categoriesGateway.categories.map((category) => ({ ...category, spaceId: 'personal-space' }));

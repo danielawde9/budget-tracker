@@ -54,6 +54,9 @@ export function WalletsPage({ gateway, categoriesGateway, spaceId, locale = 'en'
   const journalCategoryError = walletState.categoryError
     ? localizeCategoryError(walletState.categoryError, locale)
     : null;
+  const historyPaginationCategoryError = walletState.historyPaginationError?.categoryError
+    ? localizeCategoryError(walletState.historyPaginationError.categoryError, locale)
+    : null;
   const [dialog, setDialog] = useState<OpenDialog>(null);
   const activeCategories = [...categoryState.incomeCategories, ...categoryState.expenseCategories];
 
@@ -84,7 +87,8 @@ export function WalletsPage({ gateway, categoriesGateway, spaceId, locale = 'en'
             <footer>{canCorrect && <button type="button" className="text-button" onClick={() => setDialog({ correction: event })}>{t(locale, `Correct ${label.toLowerCase()}`, `تصحيح ${label}`)}</button>}{event.loanLinked && <button type="button" className="text-button" onClick={onOpenLoans}>{t(locale, 'Manage in Loans', 'الإدارة في القروض')}</button>}</footer>
           </li>;
         })}</ol>}
-        {walletState.nextCursor && <button type="button" className="button-secondary load-more" disabled={walletState.loadingMore} onClick={() => void walletState.loadMore()}>{walletState.loadingMore ? t(locale, 'Loading…', 'جارٍ التحميل…') : t(locale, 'Load older entries', 'تحميل قيود أقدم')}</button>}
+        {walletState.nextCursor && !walletState.historyPaginationError && <button type="button" className="button-secondary load-more" disabled={walletState.loadingMore} onClick={() => void walletState.loadMore()}>{walletState.loadingMore ? t(locale, 'Loading…', 'جارٍ التحميل…') : t(locale, 'Load older entries', 'تحميل قيود أقدم')}</button>}
+        {walletState.historyPaginationError && <div className="state-panel error-notice" role="alert"><strong>{t(locale, 'Older entries could not be loaded', 'تعذّر تحميل القيود الأقدم')}</strong><p>{historyPaginationCategoryError?.message ?? walletState.historyPaginationError.error}</p>{historyPaginationCategoryError && <p>{historyPaginationCategoryError.recovery}</p>}<button type="button" disabled={walletState.loadingMore} onClick={() => void walletState.loadMore()}>{walletState.loadingMore ? t(locale, 'Loading…', 'جارٍ التحميل…') : t(locale, 'Retry loading older entries', 'إعادة تحميل القيود الأقدم')}</button></div>}
       </section>
     </>}
 

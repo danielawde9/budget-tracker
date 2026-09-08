@@ -31,6 +31,11 @@ interface WalletsView {
   categoryError: CategoryErrorView | null;
 }
 
+interface HistoryPaginationError {
+  error: string;
+  categoryError: CategoryErrorView | null;
+}
+
 const emptyView = (spaceId: string): WalletsView => ({
   loadedSpaceId: spaceId,
   status: 'loading',
@@ -103,6 +108,7 @@ export function useWallets(
   const [view, setView] = useState<WalletsView>(() => emptyView(spaceId));
   const [pending, setPending] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [historyPaginationError, setHistoryPaginationError] = useState<HistoryPaginationError | null>(null);
   const [retry, setRetry] = useState<RetryCommand | null>(null);
   const requestSequence = useRef(0);
   const commandPending = useRef(false);
@@ -128,6 +134,7 @@ export function useWallets(
   }, [categoriesGateway]);
 
   const applySnapshot = useCallback((targetSpaceId: string, snapshot: WalletsSnapshot) => {
+    setHistoryPaginationError(null);
     setView({
       loadedSpaceId: targetSpaceId,
       status: 'ready',
@@ -142,6 +149,7 @@ export function useWallets(
   const load = useCallback(async (preserveCurrent = false, surfaceFailure = true): Promise<boolean> => {
     const targetSpaceId = spaceId;
     const requestId = ++requestSequence.current;
+    setHistoryPaginationError(null);
     if (!preserveCurrent) setView(emptyView(targetSpaceId));
     try {
       const snapshot = await gateway.loadSnapshot(targetSpaceId);
@@ -301,6 +309,7 @@ export function useWallets(
     const targetSpaceId = spaceId;
     const requestId = requestSequence.current;
     setLoadingMore(true);
+    setHistoryPaginationError(null);
     try {
       const page = await gateway.loadHistoryPage(targetSpaceId, cursor);
       const events = await enrichEvents(targetSpaceId, page.events);
@@ -311,10 +320,18 @@ export function useWallets(
         for (const event of events) byId.set(event.id, event);
         return { ...current, events: [...byId.values()], nextCursor: page.nextCursor };
       });
+    } catch (cause) {
+      if (requestSequence.current !== requestId || currentSpace.current !== targetSpaceId) return;
+      const categoryError = cause instanceof CategoryProjectionFailure ? cause.categoryError : null;
+      setHistoryPaginationError({
+        error: categoryError?.message ?? errorMessage(cause),
+        categoryError,
+      });
+      if (categoryError?.code === 'missing_membership' || isSpaceUnavailable(cause)) onSpaceUnavailable?.();
     } finally {
       if (currentSpace.current === targetSpaceId) setLoadingMore(false);
     }
-  }, [enrichEvents, gateway, loadingMore, spaceId, view.loadedSpaceId, view.nextCursor]);
+  }, [enrichEvents, gateway, loadingMore, onSpaceUnavailable, spaceId, view.loadedSpaceId, view.nextCursor]);
 
   const visible = view.loadedSpaceId === spaceId;
   return {
@@ -324,6 +341,7 @@ export function useWallets(
     nextCursor: visible ? view.nextCursor : null,
     error: visible ? view.error : null,
     categoryError: visible ? view.categoryError : null,
+    historyPaginationError: visible ? historyPaginationError : null,
     pending,
     loadingMore,
     ambiguous: retry ? { kind: retry.kind, requestId: retry.requestId } : null,
