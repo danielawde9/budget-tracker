@@ -405,3 +405,41 @@ authorization helper and new owner/member rejection coverage. A shared naming
 namespace removes kind from the active unique indexes and changes conflict
 behavior. Starter categories require a separate idempotent onboarding design
 with explicit locale and archival rules.
+
+## 2026-09-08 — Categories use a separate command-only application gateway
+
+**Decision:** Category management and categorized posting use a dedicated typed
+Categories gateway. Active category reads use `(created_at, id)` keyset order
+with a default page of 50 and hard maximum of 100. Browser lifecycle mutations
+call only `public.create_category` and `public.archive_category`; categorized
+income and expense call only `public.record_categorized_financial_event`.
+Uncategorized events keep the existing Wallets command path unchanged.
+
+**Why:** Keeping the adapter separate preserves the reviewed Wallets and Loans
+mutation surfaces while making the new database capabilities explicit and
+auditable. Keyset pagination and hard limits keep space-scoped reads bounded,
+and an explicit uncategorized path avoids inventing classification.
+
+**If changed:** A shared gateway or another category mutation requires updated
+command allowlists, direct-write ratchets, bounded-read tests, and a reviewed
+database capability before the browser may expose it. A different page contract
+requires compatible cursor validation and stale-space coverage.
+
+## 2026-09-08 — Category history is immutable and posting recovery is request-stable
+
+**Decision:** Category selection is available only for new income and expense
+events. Each categorized submission receives one browser-generated request UUID
+and reconciles an ambiguous response through bounded event and association
+reads; absence exposes only an explicit identical retry. Journal pages resolve
+at most 20 associations and retain archived category names read-only. Events
+without an association remain visibly uncategorized.
+
+**Why:** Openings, transfers, loan events, and reversals have no reviewed
+category contract. Matching both the request ID and category association avoids
+accepting the wrong recovered event, while historical labels must survive later
+archival without rewriting the immutable journal.
+
+**If changed:** Categorizing another event kind requires a reviewed database
+contract and corresponding rejection/reconstruction proof. Editable or renamed
+historical labels require an explicit audit policy; automatic retry requires
+proof that the identical request ID and payload are retained end to end.
