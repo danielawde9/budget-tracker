@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useId, useState, type FormEvent } from 'react';
 
 import type { Locale } from '../loans/types.js';
 import { DialogShell } from '../wallets/dialog-shell.js';
@@ -26,6 +26,7 @@ function errorCopy(locale: Locale, cause: unknown): string {
 }
 
 export function CategoryDialog(props: CategoryDialogProps) {
+  const descriptionId = useId();
   const [kind, setKind] = useState<CategoryKind>(props.initialKind);
   const [nameEn, setNameEn] = useState('');
   const [nameAr, setNameAr] = useState('');
@@ -98,9 +99,9 @@ export function CategoryDialog(props: CategoryDialogProps) {
     <div className="dialog-result" role="status"><strong>{t(props.locale, 'Category created', 'تم إنشاء الفئة')}</strong><p>{t(props.locale, 'The active register was refreshed from the server.', 'تم تحديث سجل الفئات الفعالة من الخادم.')}</p><button type="button" data-autofocus onClick={props.onClose}>{t(props.locale, 'Done', 'تم')}</button></div>
   </DialogShell>;
 
-  return <DialogShell title={t(props.locale, 'Create a category', 'إنشاء فئة')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} pending={props.pending || refreshing}>
+  return <DialogShell title={t(props.locale, 'Create a category', 'إنشاء فئة')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} pending={props.pending || refreshing} descriptionId={descriptionId}>
     <form onSubmit={submit}>
-      <p className="dialog-intro">{t(props.locale, 'Add an income or expense label. Enter either language or both; missing names are never invented.', 'أضف تسمية للدخل أو المصروف. أدخل لغة واحدة أو كلتيهما؛ لا يتم اختلاق الاسم المفقود.')}</p>
+      <p id={descriptionId} className="dialog-intro">{t(props.locale, 'Add an income or expense label. Enter either language or both; missing names are never invented.', 'أضف تسمية للدخل أو المصروف. أدخل لغة واحدة أو كلتيهما؛ لا يتم اختلاق الاسم المفقود.')}</p>
       {error && <div className="error-notice" role="alert">{error}{refreshRequired ? <div><button type="button" className="button-secondary retry-command" disabled={refreshing} onClick={() => void refreshAcceptedCommand()}>{refreshing ? t(props.locale, 'Refreshing…', 'جارٍ التحديث…') : t(props.locale, 'Refresh categories', 'تحديث الفئات')}</button></div> : props.ambiguous && <div><button type="button" className="button-secondary retry-command" disabled={props.pending} onClick={() => void run(props.onRetry)}>{t(props.locale, 'Retry unchanged category', 'إعادة الفئة دون تغيير')}</button></div>}</div>}
       <div className="form-grid category-form-grid">
         <label>{t(props.locale, 'Type', 'النوع')}<select value={kind} disabled={refreshRequired} onChange={(event) => edit(() => setKind(event.target.value as CategoryKind))}><option value="income">{t(props.locale, 'Income', 'دخل')}</option><option value="expense">{t(props.locale, 'Expense', 'مصروف')}</option></select></label>

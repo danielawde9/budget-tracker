@@ -7,9 +7,10 @@ interface DialogShellProps {
   children: ReactNode;
   pending?: boolean;
   wide?: boolean;
+  descriptionId?: string;
 }
 
-export function DialogShell({ title, closeLabel, onClose, children, pending = false, wide = false }: DialogShellProps) {
+export function DialogShell({ title, closeLabel, onClose, children, pending = false, wide = false, descriptionId }: DialogShellProps) {
   const panel = useRef<HTMLDivElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
   const close = useRef(onClose);
@@ -52,7 +53,7 @@ export function DialogShell({ title, closeLabel, onClose, children, pending = fa
   return <div className="overlay" role="presentation" onMouseDown={(event) => {
     if (event.target === event.currentTarget && !pending) onClose();
   }}>
-    <div className={`dialog wallet-dialog ${wide ? 'dialog-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={panel}>
+    <div className={`dialog wallet-dialog ${wide ? 'dialog-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} aria-describedby={descriptionId} tabIndex={-1} ref={panel}>
       <header className="dialog-header">
         <h2>{title}</h2>
         <button type="button" className="icon-button" aria-label={closeLabel} disabled={pending} onClick={onClose}>×</button>

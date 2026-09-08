@@ -16,6 +16,9 @@ describe('ArchiveCategoryDialog', () => {
     const save = vi.fn(async () => ({ status: 'success' as const, reconciled: false }));
     render(<ArchiveCategoryDialog locale="en" category={category} pending={false} ambiguous={false} onClose={vi.fn()} onRetry={vi.fn()} onRefresh={vi.fn()} onSubmit={save} />);
     const dialog = screen.getByRole('dialog', { name: 'Archive category' });
+    const description = within(dialog).getByText(/It disappears from new entries/);
+    expect(description.id).not.toBe('');
+    expect(dialog).toHaveAttribute('aria-describedby', description.id);
     expect(within(dialog).getByText('Groceries').closest('bdi')).not.toBeNull();
     expect(within(dialog).queryByRole('button', { name: /delete|unarchive/i })).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Archive category' }));

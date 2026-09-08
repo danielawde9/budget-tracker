@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useId, useState, type FormEvent } from 'react';
 
 import type { Locale } from '../loans/types.js';
 import { DialogShell } from '../wallets/dialog-shell.js';
@@ -24,6 +24,7 @@ function displayName(category: Category, locale: Locale): string {
 }
 
 export function ArchiveCategoryDialog(props: ArchiveCategoryDialogProps) {
+  const descriptionId = useId();
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -71,9 +72,9 @@ export function ArchiveCategoryDialog(props: ArchiveCategoryDialogProps) {
     <div className="dialog-result" role="status"><strong>{t(props.locale, 'Category archived', 'تمت أرشفة الفئة')}</strong><p>{t(props.locale, 'Historical entries keep their original category label.', 'تحتفظ القيود التاريخية بتسمية الفئة الأصلية.')}</p><button type="button" data-autofocus onClick={props.onClose}>{t(props.locale, 'Done', 'تم')}</button></div>
   </DialogShell>;
 
-  return <DialogShell title={t(props.locale, 'Archive category', 'أرشفة الفئة')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} pending={props.pending || refreshing}>
+  return <DialogShell title={t(props.locale, 'Archive category', 'أرشفة الفئة')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} pending={props.pending || refreshing} descriptionId={descriptionId}>
     <form onSubmit={submit}>
-      <p className="dialog-intro">{t(props.locale, 'Archive', 'أرشفة')} <strong><bdi>{displayName(props.category, props.locale)}</bdi></strong>? {t(props.locale, 'It disappears from new entries but remains attached to history.', 'ستختفي من القيود الجديدة وتبقى مرتبطة بالسجل.')}</p>
+      <p id={descriptionId} className="dialog-intro">{t(props.locale, 'Archive', 'أرشفة')} <strong><bdi>{displayName(props.category, props.locale)}</bdi></strong>? {t(props.locale, 'It disappears from new entries but remains attached to history.', 'ستختفي من القيود الجديدة وتبقى مرتبطة بالسجل.')}</p>
       {error && <div className="error-notice" role="alert">{error}{refreshRequired ? <div><button type="button" className="button-secondary retry-command" disabled={refreshing} onClick={() => void refreshAcceptedCommand()}>{refreshing ? t(props.locale, 'Refreshing…', 'جارٍ التحديث…') : t(props.locale, 'Refresh categories', 'تحديث الفئات')}</button></div> : props.ambiguous && <div><button type="button" className="button-secondary retry-command" disabled={props.pending} onClick={() => void run(props.onRetry)}>{t(props.locale, 'Retry unchanged archive', 'إعادة الأرشفة دون تغيير')}</button></div>}</div>}
       <label className="confirm"><input data-autofocus type="checkbox" checked={confirmed} disabled={refreshRequired} onChange={(event) => { setConfirmed(event.target.checked); setError(null); }} />{t(props.locale, 'I understand this category will not be available for new transactions.', 'أفهم أن هذه الفئة لن تكون متاحة للمعاملات الجديدة.')}</label>
       <div className="dialog-actions"><button type="button" className="button-secondary" disabled={props.pending || refreshing} onClick={props.onClose}>{t(props.locale, refreshRequired ? 'Close' : 'Cancel', refreshRequired ? 'إغلاق' : 'إلغاء')}</button><button type="submit" disabled={props.pending || refreshRequired}>{props.pending ? t(props.locale, 'Archiving…', 'جارٍ الأرشفة…') : t(props.locale, 'Archive category', 'أرشفة الفئة')}</button></div>

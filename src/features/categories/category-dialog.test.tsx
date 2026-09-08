@@ -11,6 +11,9 @@ describe('CategoryDialog', () => {
     render(<CategoryDialog locale="en" initialKind="expense" pending={false} ambiguous={false} onClose={vi.fn()} onClearAmbiguous={vi.fn()} onRetry={vi.fn()} onRefresh={vi.fn()} onSubmit={onSubmit} />);
     const dialog = screen.getByRole('dialog', { name: 'Create a category' });
     expect(within(dialog).getByLabelText('English name')).toHaveFocus();
+    const description = within(dialog).getByText(/Add an income or expense label/);
+    expect(description.id).not.toBe('');
+    expect(dialog).toHaveAttribute('aria-describedby', description.id);
 
     await user.click(within(dialog).getByRole('button', { name: 'Create category' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('at least one category name');
