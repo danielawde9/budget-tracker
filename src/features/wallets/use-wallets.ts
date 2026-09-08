@@ -217,9 +217,15 @@ export function useWallets(
       return { status: 'success', reconciled: false };
     } catch (cause) {
       if (!isAmbiguousTransportFailure(cause)) throw cause;
-      const event = command.kind === 'record' && command.categoryId && categoriesGateway
-        ? await categoriesGateway.findCategorizedEventByRequestId(command.input.spaceId, command.requestId)
-        : await gateway.findEventByRequestId(command.input.spaceId, command.requestId);
+      let event;
+      try {
+        event = command.kind === 'record' && command.categoryId && categoriesGateway
+          ? await categoriesGateway.findCategorizedEventByRequestId(command.input.spaceId, command.requestId)
+          : await gateway.findEventByRequestId(command.input.spaceId, command.requestId);
+      } catch (reconciliationCause) {
+        if (currentSpace.current === command.input.spaceId) setRetry(command);
+        throw reconciliationCause;
+      }
       if (event) {
         if (command.kind === 'record' && command.categoryId && 'categoryId' in event && event.categoryId !== command.categoryId) {
           throw new Error('The request ID resolved to an event with a different category. Refresh before trying again.');

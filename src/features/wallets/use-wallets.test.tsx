@@ -173,6 +173,33 @@ describe('useWallets', () => {
     expect(result.current.ambiguous).toBeNull();
   });
 
+  it('retains the identical categorized command when its reconciliation read fails', async () => {
+    const record = vi.fn()
+      .mockRejectedValueOnce(new Error('Connection timeout'))
+      .mockResolvedValueOnce({ eventId: 'event-1' });
+    const categories = categoriesGateway({
+      recordCategorizedEvent: record,
+      findCategorizedEventByRequestId: vi.fn(async () => { throw new Error('Reconciliation read failed'); }),
+    });
+    const wallets = gateway();
+    const { result } = renderHook(() => useWallets(wallets, 'space-1', undefined, () => 'request-fixed', categories));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await expect(result.current.recordEvent({
+        kind: 'income',
+        effectiveDate: '2026-09-08',
+        movements: [{ walletId: 'wallet-1', amountMinor: '500' }],
+        categoryId: 'category-salary',
+      })).rejects.toThrow('Reconciliation read failed');
+    });
+    expect(result.current.ambiguous).toEqual({ kind: 'record', requestId: 'request-fixed' });
+
+    await act(async () => { await result.current.retryAmbiguous(); });
+    expect(record).toHaveBeenCalledTimes(2);
+    expect(record.mock.calls[0]?.[0]).toEqual(record.mock.calls[1]?.[0]);
+  });
+
   it('fails loudly when categorized reconciliation finds a different category', async () => {
     const categories = categoriesGateway({
       recordCategorizedEvent: vi.fn(async () => { throw new Error('Connection timeout'); }),

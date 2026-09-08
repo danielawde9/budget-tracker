@@ -134,7 +134,13 @@ export function useCategories(
       else await gateway.archiveCategory(command.input);
     } catch (cause) {
       if (!isAmbiguousTransportFailure(cause)) throw cause;
-      const result = await gateway.getCommandResult(command.input.spaceId, command.requestId);
+      let result;
+      try {
+        result = await gateway.getCommandResult(command.input.spaceId, command.requestId);
+      } catch (reconciliationCause) {
+        if (currentSpace.current === command.input.spaceId) setRetry(command);
+        throw reconciliationCause;
+      }
       const expectedKind = command.kind === 'create' ? 'create_category' : 'archive_category';
       const matchingCategory = command.kind === 'create' || result?.categoryId === command.input.categoryId;
       if (!result) {

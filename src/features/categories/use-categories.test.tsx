@@ -212,6 +212,47 @@ describe('useCategories', () => {
     expect(gateway.createCategory).toHaveBeenCalledWith(expect.objectContaining({ requestId: 'request-after-edit', nameEn: 'Edited bonus' }));
   });
 
+  it('retains the identical create command when its reconciliation read fails', async () => {
+    const gateway = new FakeCategoriesGateway();
+    const create = vi.fn()
+      .mockRejectedValueOnce(new Error('Connection timeout'))
+      .mockResolvedValueOnce({ id: 'created-category' });
+    gateway.createCategory = create;
+    gateway.getCommandResult = vi.fn(async () => { throw new Error('Reconciliation read failed'); });
+    const { result } = renderHook(() => useCategories(gateway, 'space-1', undefined, () => 'request-fixed'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await expect(result.current.createCategory({ kind: 'income', nameEn: 'Bonus', nameAr: null }))
+        .rejects.toThrow('Reconciliation read failed');
+    });
+    expect(result.current.ambiguous).toEqual({ kind: 'create', requestId: 'request-fixed' });
+
+    await act(async () => { await result.current.retryAmbiguous(); });
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(create.mock.calls[0]?.[0]).toEqual(create.mock.calls[1]?.[0]);
+  });
+
+  it('retains the identical archive command when its reconciliation read fails', async () => {
+    const gateway = new FakeCategoriesGateway();
+    const archive = vi.fn()
+      .mockRejectedValueOnce(new Error('Connection timeout'))
+      .mockResolvedValueOnce({ id: groceries.id });
+    gateway.archiveCategory = archive;
+    gateway.getCommandResult = vi.fn(async () => { throw new Error('Reconciliation read failed'); });
+    const { result } = renderHook(() => useCategories(gateway, 'space-1', undefined, () => 'archive-fixed'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await expect(result.current.archiveCategory(groceries.id)).rejects.toThrow('Reconciliation read failed');
+    });
+    expect(result.current.ambiguous).toEqual({ kind: 'archive', requestId: 'archive-fixed' });
+
+    await act(async () => { await result.current.retryAmbiguous(); });
+    expect(archive).toHaveBeenCalledTimes(2);
+    expect(archive.mock.calls[0]?.[0]).toEqual(archive.mock.calls[1]?.[0]);
+  });
+
   it('archives with matching reconciliation and retains no optimistic removal', async () => {
     const gateway = new FakeCategoriesGateway();
     gateway.archiveCategory = vi.fn(async () => { throw new Error('Network unavailable'); });
