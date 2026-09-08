@@ -311,6 +311,31 @@ describe('household membership schema boundary', () => {
     ).rejects.toMatchObject({ message: 'household invitations require a household space' });
   });
 
+  it('rejects converting a household with an invitation into a personal space', async () => {
+    const household = await asUser(ownerId).createSpace(
+      `Kind transition ${randomUUID()}`,
+      'household',
+    );
+    await createInvitation(
+      ownerId,
+      household.id,
+      randomUUID(),
+      `kind-transition-${randomUUID()}@budget.invalid`,
+    );
+
+    try {
+      await expect(
+        withAdminTransaction((client) =>
+          client.query("update public.spaces set kind = 'personal' where id = $1", [household.id]),
+        ),
+      ).rejects.toMatchObject({ message: 'household invitations require a household space' });
+    } finally {
+      await databaseQuery("update public.spaces set kind = 'household' where id = $1", [
+        household.id,
+      ]);
+    }
+  });
+
   it('uses a dedicated non-login owner, forced RLS, and no client or background writes', async () => {
     const roleRows = await databaseQuery<{
       rolcanlogin: boolean;
