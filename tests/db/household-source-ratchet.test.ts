@@ -7,6 +7,10 @@ describe('household browser source ratchet', () => {
     `await client.from('space_memberships').update({ role: 'owner' })`,
     `const tableName = 'space_memberships';
      await client.from(tableName).update({ role: 'owner' });`,
+    `let tableName = 'space_memberships';
+     await client.from(tableName).update({ role: 'owner' });`,
+    `const tableName = 'household_invitations'
+     await client.from(tableName).delete().eq('id', invitationId)`,
     `const invitations = client
        .from('household_invitations');
      await invitations.delete().eq('id', invitationId);`,
@@ -28,6 +32,12 @@ describe('household browser source ratchet', () => {
      warn({ invitation_token });`,
     `const { error } = console;
      error({ invitation_token });`,
+    `const payload = { invitation_token };
+     logger.warn(payload);`,
+    `analytics.identify(userId, { access_token });`,
+    `const { refresh_token: secret } = session;
+     const payload = { secret };
+     telemetry.capture(payload);`,
   ])('detects sensitive data passed to console, logger, analytics, and aliased sinks', (source) => {
     expect(findSensitiveLogging(source)).toHaveLength(1);
   });
@@ -40,6 +50,8 @@ describe('household browser source ratchet', () => {
       return digest(invitation_token);
       console.error('invitation unavailable');
       console.error('invitation_token missing');
+      logger.warn({ status: 'invitation_token missing' });
+      analytics.identify(userId, { status: 'access_token unavailable' });
     `;
     expect(findHouseholdDirectWrites(source)).toEqual([]);
     expect(findSensitiveLogging(source)).toEqual([]);
