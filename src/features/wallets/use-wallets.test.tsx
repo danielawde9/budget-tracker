@@ -87,6 +87,24 @@ describe('useWallets', () => {
     expect(result.current.ambiguous).toBeNull();
   });
 
+  it('reuses the identical request and payload for an explicit ambiguous reversal retry', async () => {
+    const reverseEvent = vi.fn()
+      .mockRejectedValueOnce(new Error('Connection timeout'))
+      .mockResolvedValueOnce({ eventId: 'reversal-1' });
+    const service = gateway({ reverseEvent });
+    const { result } = renderHook(() => useWallets(service, 'space-1', undefined, () => 'reverse-request'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await expect(result.current.reverseEvent({ eventId: 'event-1', effectiveDate: '2026-09-08' }))
+        .resolves.toEqual({ status: 'ambiguous', reconciled: false });
+    });
+    expect(result.current.ambiguous).toEqual({ kind: 'reverse', requestId: 'reverse-request' });
+    await act(async () => { await result.current.retryAmbiguous(); });
+    expect(reverseEvent).toHaveBeenCalledTimes(2);
+    expect(reverseEvent.mock.calls[0]?.[0]).toEqual(reverseEvent.mock.calls[1]?.[0]);
+  });
+
   it('appends a bounded history page once and advances its cursor', async () => {
     const event = { id: 'event-2', requestId: 'request-2' } as JournalEvent;
     const service = gateway({

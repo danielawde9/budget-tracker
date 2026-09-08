@@ -331,3 +331,42 @@ financial visual language without a generic grid of application cards.
 selected space and locale, label unfinished features honestly, use sourced-name
 isolation, and mount the same command-backed Loans workspace without duplicating
 its mutation logic.
+
+## 2026-09-08 — Wallets is a projection-first journal workspace
+
+**Decision:** Wallets is an active application destination with its own typed
+gateway. It reads active wallets and balances from RLS-protected relations,
+derives displayed balances only from `public.wallet_balances`, and loads journal
+history in bounded 20-event pages. Its only mutation commands are
+`public.create_wallet`, `public.record_financial_event`, and
+`public.reverse_financial_event`; loan-linked events remain read-only in this
+workspace and direct the manager to Loans.
+
+**Why:** A separate projection-first boundary keeps the verified Loans command
+allowlist unchanged, prevents client-side balance prediction, and makes the
+absence of protected archive, category, invitation, and cross-currency commands
+visible instead of encouraging direct table writes.
+
+**If changed:** Any additional Wallets mutation requires a reviewed protected
+command, an inventory entry, real-Postgres rejection coverage, a browser-write
+ratchet update, and reconciliation behavior before a UI control may expose it.
+Changing page size or projection sources requires fresh bounded-read and stale
+space-isolation proof.
+
+## 2026-09-08 — Journal retries are explicit and request-stable
+
+**Decision:** Every general posting or reversal receives one browser-generated
+request UUID. An ambiguous transport result triggers a bounded RLS read by both
+space and request ID. A visible matching event completes the workflow; otherwise
+the UI offers only an explicit retry with the identical request ID and payload.
+Wallet creation, which has no idempotency key, reconciles by selected space,
+trimmed name, and currency and never retries automatically.
+
+**Why:** A lost response must not create duplicate money events or wallets.
+Database idempotency can protect request-bearing journal commands only when the
+client reuses the same request, while wallet creation needs safe visible-state
+reconciliation before another deliberate submission.
+
+**If changed:** Automatic journal retry requires proof that every participating
+client preserves the same request and payload. Automatic wallet retry remains
+disallowed until its protected command accepts and verifies an idempotency key.

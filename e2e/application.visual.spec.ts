@@ -34,6 +34,7 @@ test('sign-in failure preserves email and a later retry opens Loans', async ({ p
   await page.screenshot({ path: screenshotPath(testInfo, 'sign-in-error-desktop.png'), fullPage: true });
   await page.getByLabel('Password').fill('correct-password');
   await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByRole('heading', { name: 'Loans' })).toBeVisible();
   await expect(page.getByText('Maya')).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'sign-in-recovery-desktop.png'), fullPage: true });
 });
@@ -49,7 +50,8 @@ test('first-time onboarding creates a personal space and first wallet', async ({
   await expect(page.getByRole('heading', { name: 'Add your first wallet' })).toBeVisible();
   await page.getByLabel('Wallet name').fill('Daily USD');
   await page.getByRole('button', { name: 'Create USD wallet' }).click();
-  await expect(page.getByText('Maya')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Loans' })).toBeVisible();
+  await expect(page.getByText('Maya')).toHaveCount(0);
   await page.screenshot({ path: screenshotPath(testInfo, 'onboarding-complete-desktop.png'), fullPage: true });
 });
 

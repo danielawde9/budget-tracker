@@ -1,11 +1,12 @@
 # Budget tracker
 
 The current application milestone provides a bilingual authenticated shell
-around the verified Loans workspace. It supports Supabase email/password
-sessions, safe first-space and first-wallet onboarding, and switching between
-the spaces visible through RLS. The Loans workspace still sends every financial
-change through the protected PostgreSQL commands documented in
-`docs/financial-command-inventory.md`.
+with verified Loans and Wallets workspaces. It supports Supabase email/password
+sessions, safe first-space and first-wallet onboarding, switching between the
+spaces visible through RLS, derived wallet balances, immutable paginated journal
+history, the four approved general transaction shapes, and linked corrections.
+Every financial change still goes through the protected PostgreSQL commands
+documented in `docs/financial-command-inventory.md`.
 
 ## Run the application
 
@@ -24,8 +25,8 @@ with `public.create_space`, then its first USD or LBP wallet with
 `public.create_wallet`. Household invitations and member management are not
 available because no approved protected command exists for them yet.
 
-Only Loans is active in the application navigation. Wallet and report labels
-are non-interactive previews of later milestones.
+Loans and Wallets are active in the application navigation. Reports remains a
+non-interactive preview of a later milestone.
 
 ## Verification
 
@@ -51,11 +52,15 @@ in `docs/operations/ubuntu-development-stack.md`.
 
 - Loan openings, lending, borrowing, repayments, targets, and corrections use
   only the approved protected commands.
+- Wallet creation, general postings, and eligible general corrections use only
+  `public.create_wallet`, `public.record_financial_event`, and
+  `public.reverse_financial_event`.
 - Browser reads remain subject to Supabase authentication and RLS.
 - Space and wallet onboarding use only their protected creation commands and
   reconcile visible records after ambiguous transport failures before another
   submission is offered.
 - Wallet and loan balances are derived ledger values and are never editable.
-- Household invitations, general wallet/transaction screens, budgeting,
-  reporting, interest, fees, reminders, installments, forgiveness, imports,
-  sync, and cross-currency settlement are not part of this milestone.
+- Household invitations/member management, categories, budgeting, reporting,
+  recurring transactions, interest, fees, reminders, installments, forgiveness,
+  imports/offline sync, cross-currency settlement, live UAT, deployment, and
+  launch are not part of this milestone.
