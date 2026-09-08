@@ -282,9 +282,13 @@ export async function runConcurrentUserActions<T>(
       clients.map(async (client, index) => {
         const participant = actions[index];
         if (!participant) throw new Error('missing concurrency participant');
-        await ensureAuthUser(
-          participant.userId,
-          `concurrent-${participant.userId}@budget.invalid`,
+        await pool.query(
+          `insert into auth.users (
+             id, aud, role, email, email_confirmed_at,
+             raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+           ) values ($1, 'authenticated', 'authenticated', $2, now(), '{}', '{}', now(), now())
+           on conflict (id) do nothing`,
+          [participant.userId, `concurrent-${participant.userId}@budget.invalid`],
         );
         await client.query('begin');
         await client.query("select set_config('request.jwt.claim.sub', $1, true)", [
