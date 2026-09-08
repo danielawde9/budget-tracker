@@ -1,13 +1,15 @@
 import type { ReactNode } from 'react';
 import type { Locale, Space } from '../loans/types.js';
 
+export type ApplicationDestination = 'loans' | 'wallets' | 'categories';
+
 interface ApplicationShellProps {
   locale: Locale;
   userEmail: string | null;
   spaces: readonly Space[];
   selectedSpace: Space;
-  activeDestination?: 'loans' | 'wallets';
-  onDestinationChange?(destination: 'loans' | 'wallets'): void;
+  activeDestination?: ApplicationDestination;
+  onDestinationChange?(destination: ApplicationDestination): void;
   onSpaceChange(spaceId: string): void;
   onLocaleChange(): void;
   onSignOut(): void;
@@ -17,12 +19,12 @@ interface ApplicationShellProps {
 const copy = {
   en: {
     product: 'Budget ledger', currentSpace: 'Current space', personal: 'Personal space', household: 'Household space',
-    loans: 'Loans', wallets: 'Wallets', reports: 'Reports — coming later', language: 'العربية',
+    loans: 'Loans', wallets: 'Wallets', categories: 'Categories', reports: 'Reports — coming later', language: 'العربية',
     account: 'Account', signOut: 'Sign out', navigation: 'Primary navigation', workspace: 'Workspace',
   },
   ar: {
     product: 'دفتر الميزانية', currentSpace: 'المساحة الحالية', personal: 'مساحة شخصية', household: 'مساحة منزلية',
-    loans: 'القروض', wallets: 'المحافظ', reports: 'التقارير — قريبًا', language: 'English',
+    loans: 'القروض', wallets: 'المحافظ', categories: 'الفئات', reports: 'التقارير — قريبًا', language: 'English',
     account: 'الحساب', signOut: 'تسجيل الخروج', navigation: 'التنقل الرئيسي', workspace: 'مساحة العمل',
   },
 } as const;
@@ -40,6 +42,7 @@ export function ApplicationShell(props: ApplicationShellProps) {
       <nav className="primary-nav" aria-label={text.navigation}>
         <button type="button" className={activeDestination === 'loans' ? 'nav-active' : ''} aria-current={activeDestination === 'loans' ? 'page' : undefined} onClick={() => props.onDestinationChange?.('loans')}><span aria-hidden="true">◒</span>{text.loans}</button>
         <button type="button" className={activeDestination === 'wallets' ? 'nav-active' : ''} aria-current={activeDestination === 'wallets' ? 'page' : undefined} onClick={() => props.onDestinationChange?.('wallets')}><span aria-hidden="true">□</span>{text.wallets}</button>
+        <button type="button" className={activeDestination === 'categories' ? 'nav-active' : ''} aria-current={activeDestination === 'categories' ? 'page' : undefined} onClick={() => props.onDestinationChange?.('categories')}><span aria-hidden="true">≡</span>{text.categories}</button>
         <button type="button" disabled aria-label={text.reports}><span aria-hidden="true">⌁</span>{text.reports}</button>
       </nav>
       <div className="rail-footer">

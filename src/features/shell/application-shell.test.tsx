@@ -19,11 +19,15 @@ describe('ApplicationShell', () => {
     expect(screen.getByText('Household space')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Loans' })).toHaveAttribute('aria-current', 'page');
     const wallets = screen.getByRole('button', { name: 'Wallets' });
+    const categories = screen.getByRole('button', { name: 'Categories' });
     expect(wallets).not.toBeDisabled();
+    expect(categories).not.toBeDisabled();
     expect(screen.getByRole('button', { name: 'Reports — coming later' })).toBeDisabled();
 
     await user.click(wallets);
     expect(changeDestination).toHaveBeenCalledWith('wallets');
+    await user.click(categories);
+    expect(changeDestination).toHaveBeenCalledWith('categories');
 
     await user.selectOptions(space, personalSpace.id);
     expect(changeSpace).toHaveBeenCalledWith(personalSpace.id);
@@ -39,6 +43,7 @@ describe('ApplicationShell', () => {
     expect(screen.getByText('مساحة منزلية')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'المحافظ' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('button', { name: 'القروض' })).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('button', { name: 'الفئات' })).not.toHaveAttribute('aria-current');
     expect(screen.getByRole('button', { name: 'English' })).toBeInTheDocument();
   });
 });

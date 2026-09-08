@@ -3,10 +3,12 @@ import { AuthScreen } from './features/auth/auth-screen.js';
 import { createSupabaseAuthGateway } from './features/auth/supabase-auth-gateway.js';
 import type { AuthGateway } from './features/auth/types.js';
 import { useAuthSession } from './features/auth/use-auth-session.js';
+import { createSupabaseCategoriesGateway } from './features/categories/supabase-categories-gateway.js';
+import type { CategoriesGateway } from './features/categories/types.js';
 import { LoansPage } from './features/loans/loans-page.js';
 import { createSupabaseLoansGateway } from './features/loans/supabase-loans-gateway.js';
 import type { LoansGateway, Locale } from './features/loans/types.js';
-import { ApplicationShell } from './features/shell/application-shell.js';
+import { ApplicationShell, type ApplicationDestination } from './features/shell/application-shell.js';
 import { OnboardingDialog } from './features/workspace/onboarding-dialog.js';
 import { createSupabaseWorkspaceGateway } from './features/workspace/supabase-workspace-gateway.js';
 import type { WorkspaceGateway } from './features/workspace/types.js';
@@ -20,8 +22,14 @@ const WalletsPage = lazy(async () => {
   return { default: module.WalletsPage };
 });
 
+const CategoriesPage = lazy(async () => {
+  const module = await import('./features/categories/categories-page.js');
+  return { default: module.CategoriesPage };
+});
+
 interface AppProps {
   authGateway?: AuthGateway;
+  categoriesGateway?: CategoriesGateway;
   loansGateway?: LoansGateway;
   walletsGateway?: WalletsGateway;
   workspaceGateway?: WorkspaceGateway;
@@ -32,6 +40,7 @@ interface AuthenticatedWorkspaceProps {
   userEmail: string | null;
   locale: Locale;
   workspaceGateway: WorkspaceGateway;
+  categoriesGateway: CategoriesGateway;
   loansGateway: LoansGateway;
   walletsGateway: WalletsGateway;
   onLocaleChange(): void;
@@ -40,7 +49,7 @@ interface AuthenticatedWorkspaceProps {
 
 function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
   const workspace = useWorkspace(props.workspaceGateway, props.userId);
-  const [activeDestination, setActiveDestination] = useState<'loans' | 'wallets'>('loans');
+  const [activeDestination, setActiveDestination] = useState<ApplicationDestination>('loans');
 
   if (workspace.status === 'loading') {
     return <main className="workspace-state-page"><div role="status">Loading your spaces…</div></main>;
@@ -72,17 +81,22 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
       spaceId={workspace.selectedSpaceId}
       onSpaceChange={workspace.selectSpace}
       onSpaceUnavailable={() => void workspace.refresh()}
-    /> : <Suspense fallback={<div className="state-panel" role="status">{props.locale === 'ar' ? 'جارٍ تحميل المحافظ…' : 'Loading Wallets…'}</div>}><WalletsPage
+    /> : activeDestination === 'wallets' ? <Suspense fallback={<div className="state-panel" role="status">{props.locale === 'ar' ? 'جارٍ تحميل المحافظ…' : 'Loading Wallets…'}</div>}><WalletsPage
       gateway={props.walletsGateway}
       locale={props.locale}
       spaceId={workspace.selectedSpaceId}
       onSpaceUnavailable={() => void workspace.refresh()}
       onOpenLoans={() => setActiveDestination('loans')}
+    /></Suspense> : <Suspense fallback={<div className="state-panel" role="status">{props.locale === 'ar' ? 'جارٍ تحميل الفئات…' : 'Loading Categories…'}</div>}><CategoriesPage
+      gateway={props.categoriesGateway}
+      locale={props.locale}
+      spaceId={workspace.selectedSpaceId}
+      onSpaceUnavailable={() => void workspace.refresh()}
     /></Suspense>}
   </ApplicationShell>;
 }
 
-function ConfiguredApp({ authGateway, loansGateway, walletsGateway, workspaceGateway }: Required<AppProps>) {
+function ConfiguredApp({ authGateway, categoriesGateway, loansGateway, walletsGateway, workspaceGateway }: Required<AppProps>) {
   const auth = useAuthSession(authGateway);
   const [locale, setLocale] = useState<Locale>('en');
 
@@ -114,6 +128,7 @@ function ConfiguredApp({ authGateway, loansGateway, walletsGateway, workspaceGat
     userEmail={auth.user.email}
     locale={locale}
     workspaceGateway={workspaceGateway}
+    categoriesGateway={categoriesGateway}
     loansGateway={loansGateway}
     walletsGateway={walletsGateway}
     onLocaleChange={() => setLocale((current) => current === 'en' ? 'ar' : 'en')}
@@ -121,16 +136,17 @@ function ConfiguredApp({ authGateway, loansGateway, walletsGateway, workspaceGat
   />;
 }
 
-export function App({ authGateway, loansGateway, walletsGateway, workspaceGateway }: AppProps = {}) {
+export function App({ authGateway, categoriesGateway, loansGateway, walletsGateway, workspaceGateway }: AppProps = {}) {
   const client = useMemo(() => createBrowserDataClient(), []);
   const activeAuthGateway = useMemo(() => authGateway ?? (client ? createSupabaseAuthGateway(client) : null), [authGateway, client]);
+  const activeCategoriesGateway = useMemo(() => categoriesGateway ?? (client ? createSupabaseCategoriesGateway(client) : null), [categoriesGateway, client]);
   const activeLoansGateway = useMemo(() => loansGateway ?? (client ? createSupabaseLoansGateway(client) : null), [loansGateway, client]);
   const activeWalletsGateway = useMemo(() => walletsGateway ?? (client ? createSupabaseWalletsGateway(client) : null), [walletsGateway, client]);
   const activeWorkspaceGateway = useMemo(() => workspaceGateway ?? (client ? createSupabaseWorkspaceGateway(client) : null), [workspaceGateway, client]);
 
-  if (!activeAuthGateway || !activeLoansGateway || !activeWalletsGateway || !activeWorkspaceGateway) {
+  if (!activeAuthGateway || !activeCategoriesGateway || !activeLoansGateway || !activeWalletsGateway || !activeWorkspaceGateway) {
     return <main className="configuration-page"><section><span className="brand">Budget ledger</span><h1>Configuration needed</h1><p>Connect this browser to the dedicated Budget development stack before continuing.</p></section></main>;
   }
 
-  return <ConfiguredApp authGateway={activeAuthGateway} loansGateway={activeLoansGateway} walletsGateway={activeWalletsGateway} workspaceGateway={activeWorkspaceGateway} />;
+  return <ConfiguredApp authGateway={activeAuthGateway} categoriesGateway={activeCategoriesGateway} loansGateway={activeLoansGateway} walletsGateway={activeWalletsGateway} workspaceGateway={activeWorkspaceGateway} />;
 }
