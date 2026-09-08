@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import type { PoolClient } from 'pg';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import {
@@ -7,10 +8,34 @@ import {
   closeDatabase,
   databaseQuery,
   ensureAuthUser,
+  runConcurrentUserActions,
   withAdminTransaction,
   withAnonymousSession,
   withUserSession,
 } from './test-database.js';
+
+interface CreatedInvitation {
+  invitation_id: string;
+  invitation_token: string;
+  expires_at: Date;
+}
+
+async function createInvitation(
+  userId: string,
+  spaceId: string,
+  requestId: string,
+  email: string,
+): Promise<CreatedInvitation> {
+  return withUserSession(userId, async (client) => {
+    const result = await client.query<CreatedInvitation>(
+      'select * from public.create_household_invitation($1, $2, $3)',
+      [spaceId, requestId, email],
+    );
+    const invitation = result.rows[0];
+    if (!invitation) throw new Error('create_household_invitation returned no row');
+    return invitation;
+  });
+}
 
 const ownerId = '00000000-0000-4000-9000-000000000001';
 const memberId = '00000000-0000-4000-9000-000000000002';
@@ -20,8 +45,13 @@ afterAll(async () => {
   await closeDatabase();
 });
 
-async function addActiveMember(spaceId: string, userId: string, role: 'owner' | 'member') {
-  await ensureAuthUser(userId, `${userId}@budget.invalid`);
+async function addActiveMember(
+  spaceId: string,
+  userId: string,
+  role: 'owner' | 'member',
+  email = `${userId}@budget.invalid`,
+) {
+  await ensureAuthUser(userId, email);
   await databaseQuery(
     `insert into public.space_memberships (space_id, user_id, role)
      values ($1, $2, $3::public.member_role)`,
@@ -327,5 +357,236 @@ describe('household membership schema boundary', () => {
         'revoke select, update, delete, truncate on public.household_membership_events from authenticated',
       );
     }
+  });
+});
+
+describe('household invitation creation', () => {
+  it('allows only active household owners and rejects personal spaces without an event', async () => {
+    await ensureAuthUser(ownerId, 'owner-create@budget.invalid');
+    const owner = asUser(ownerId);
+    const household = await owner.createSpace(`Invite ${randomUUID()}`, 'household');
+    const personal = await owner.createSpace(`No invite ${randomUUID()}`, 'personal');
+    await addActiveMember(household.id, memberId, 'member');
+
+    await expect(
+      createInvitation(memberId, household.id, randomUUID(), 'new-member@budget.invalid'),
+    ).rejects.toMatchObject({ message: 'not_authorized' });
+    await expect(
+      createInvitation(unrelatedId, household.id, randomUUID(), 'new-member@budget.invalid'),
+    ).rejects.toMatchObject({ message: 'not_authorized' });
+    await expect(
+      createInvitation(ownerId, personal.id, randomUUID(), 'new-member@budget.invalid'),
+    ).rejects.toMatchObject({ message: 'personal_space_prohibited' });
+
+    const events = await databaseQuery<{ count: string }>(
+      `select count(*)::text as count
+       from public.household_membership_events
+       where space_id = $1`,
+      [personal.id],
+    );
+    expect(events).toEqual([{ count: '0' }]);
+  });
+
+  it.each([
+    '',
+    '   ',
+    'missing-at.example',
+    'two@@example.test',
+    'white space@example.test',
+    `x@${'a'.repeat(253)}`,
+  ])('rejects invalid transient email input without persisting it: %j', async (email) => {
+    await ensureAuthUser(ownerId, 'owner-email-check@budget.invalid');
+    const household = await asUser(ownerId).createSpace(`Email ${randomUUID()}`, 'household');
+    await expect(
+      createInvitation(ownerId, household.id, randomUUID(), email),
+    ).rejects.toMatchObject({ message: 'invalid_input' });
+  });
+
+  it('normalizes recipient identity, stores no plaintext/token, and fixes expiry at seven days', async () => {
+    await ensureAuthUser(ownerId, 'owner-privacy@budget.invalid');
+    const household = await asUser(ownerId).createSpace(`Privacy ${randomUUID()}`, 'household');
+    const requestId = randomUUID();
+    const email = '  Invitee.Case@Example.Test  ';
+    const created = await createInvitation(ownerId, household.id, requestId, email);
+
+    expect(created.invitation_token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    const stored = await databaseQuery<Record<string, unknown>>(
+      `select invitation.*,
+              invitation.expires_at = invitation.created_at + interval '7 days' as exact_expiry,
+              encode(invitation.token_digest, 'hex') as token_digest_hex
+       from public.household_invitations as invitation
+       where invitation.id = $1`,
+      [created.invitation_id],
+    );
+    expect(stored).toHaveLength(1);
+    expect(stored[0]?.exact_expiry).toBe(true);
+    expect(JSON.stringify(stored).toLowerCase()).not.toContain('invitee.case@example.test');
+    expect(JSON.stringify(stored)).not.toContain(created.invitation_token);
+
+    const events = await databaseQuery<Record<string, unknown>>(
+      `select * from public.household_membership_events
+       where actor_user_id = $1 and request_id = $2`,
+      [ownerId, requestId],
+    );
+    expect(events).toHaveLength(1);
+    expect(JSON.stringify(events).toLowerCase()).not.toContain('invitee.case@example.test');
+    expect(JSON.stringify(events)).not.toContain(created.invitation_token);
+  });
+
+  it('rejects an active recipient and one unexpired pending invitation for normalized identity', async () => {
+    await ensureAuthUser(ownerId, 'owner-duplicate@budget.invalid');
+    await ensureAuthUser(memberId, 'active-member@budget.invalid');
+    const household = await asUser(ownerId).createSpace(`Duplicate ${randomUUID()}`, 'household');
+    await addActiveMember(household.id, memberId, 'member', 'active-member@budget.invalid');
+
+    await expect(
+      createInvitation(ownerId, household.id, randomUUID(), 'ACTIVE-MEMBER@budget.invalid'),
+    ).rejects.toMatchObject({ message: 'membership_already_active' });
+
+    await createInvitation(ownerId, household.id, randomUUID(), 'pending@budget.invalid');
+    await expect(
+      createInvitation(ownerId, household.id, randomUUID(), ' Pending@Budget.Invalid '),
+    ).rejects.toMatchObject({ message: 'invitation_already_pending' });
+  });
+
+  it('allows a replacement after fixed expiry and leaves the expired row unchanged', async () => {
+    await ensureAuthUser(ownerId, 'owner-expiry@budget.invalid');
+    const household = await asUser(ownerId).createSpace(`Expired ${randomUUID()}`, 'household');
+    const first = await createInvitation(
+      ownerId,
+      household.id,
+      randomUUID(),
+      'expired@budget.invalid',
+    );
+    await databaseQuery(
+      `update public.household_invitations
+       set created_at = created_at - interval '8 days',
+           expires_at = expires_at - interval '8 days'
+       where id = $1`,
+      [first.invitation_id],
+    );
+
+    await expect(
+      createInvitation(ownerId, household.id, randomUUID(), 'expired@budget.invalid'),
+    ).resolves.toMatchObject({ invitation_id: expect.any(String) });
+    const firstState = await databaseQuery<{ status: string }>(
+      'select status::text from public.household_invitations where id = $1',
+      [first.invitation_id],
+    );
+    expect(firstState).toEqual([{ status: 'pending' }]);
+  });
+
+  it('returns one deterministic result for exact replay and rejects changed input globally per actor', async () => {
+    await ensureAuthUser(ownerId, 'owner-replay@budget.invalid');
+    const household = await asUser(ownerId).createSpace(`Replay ${randomUUID()}`, 'household');
+    const otherHousehold = await asUser(ownerId).createSpace(
+      `Replay other ${randomUUID()}`,
+      'household',
+    );
+    const requestId = randomUUID();
+    const input = [ownerId, household.id, requestId, 'replay@budget.invalid'] as const;
+    const first = await createInvitation(...input);
+    const replay = await createInvitation(...input);
+    expect(replay).toEqual(first);
+
+    await expect(
+      createInvitation(ownerId, household.id, requestId, 'changed@budget.invalid'),
+    ).rejects.toMatchObject({ message: 'idempotency_conflict' });
+    await expect(
+      createInvitation(ownerId, otherHousehold.id, requestId, 'replay@budget.invalid'),
+    ).rejects.toMatchObject({ message: 'idempotency_conflict' });
+
+    const counts = await databaseQuery<{ invitations: string; events: string }>(
+      `select
+         (select count(*)::text from public.household_invitations where id = $1) as invitations,
+         (select count(*)::text from public.household_membership_events
+          where actor_user_id = $2 and request_id = $3) as events`,
+      [first.invitation_id, ownerId, requestId],
+    );
+    expect(counts).toEqual([{ invitations: '1', events: '1' }]);
+  });
+
+  it('serializes identical concurrent creation at the actor/request barrier', async () => {
+    await ensureAuthUser(ownerId, 'owner-concurrent-create@budget.invalid');
+    const household = await asUser(ownerId).createSpace(`Concurrent ${randomUUID()}`, 'household');
+    const requestId = randomUUID();
+    const call = (client: PoolClient) =>
+      client.query<CreatedInvitation>(
+        'select * from public.create_household_invitation($1, $2, $3)',
+        [household.id, requestId, 'race-same@budget.invalid'],
+      ).then((result) => result.rows[0]!);
+    const results = await runConcurrentUserActions([
+      { userId: ownerId, action: call },
+      { userId: ownerId, action: call },
+    ]);
+
+    expect(results.every((result) => result.status === 'fulfilled')).toBe(true);
+    if (results[0]?.status !== 'fulfilled' || results[1]?.status !== 'fulfilled') return;
+    expect(results[0].value).toEqual(results[1].value);
+    const counts = await databaseQuery<{ invitations: string; events: string }>(
+      `select
+         (select count(*)::text from public.household_invitations where id = $1) as invitations,
+         (select count(*)::text from public.household_membership_events
+          where actor_user_id = $2 and request_id = $3) as events`,
+      [results[0].value.invitation_id, ownerId, requestId],
+    );
+    expect(counts).toEqual([{ invitations: '1', events: '1' }]);
+  });
+
+  it('serializes conflicting request reuse and duplicate-identity creation races', async () => {
+    await ensureAuthUser(ownerId, 'owner-concurrent-conflict@budget.invalid');
+    const household = await asUser(ownerId).createSpace(`Conflict ${randomUUID()}`, 'household');
+    const requestId = randomUUID();
+    const requestRace = await runConcurrentUserActions([
+      {
+        userId: ownerId,
+        action: async (client) =>
+          client.query('select * from public.create_household_invitation($1, $2, $3)', [
+            household.id,
+            requestId,
+            'race-a@budget.invalid',
+          ]),
+      },
+      {
+        userId: ownerId,
+        action: async (client) =>
+          client.query('select * from public.create_household_invitation($1, $2, $3)', [
+            household.id,
+            requestId,
+            'race-b@budget.invalid',
+          ]),
+      },
+    ]);
+    expect(requestRace.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(requestRace.filter((result) => result.status === 'rejected')).toHaveLength(1);
+    expect(
+      (requestRace.find((result) => result.status === 'rejected') as PromiseRejectedResult).reason,
+    ).toMatchObject({ message: 'idempotency_conflict' });
+
+    const identityRace = await runConcurrentUserActions([
+      {
+        userId: ownerId,
+        action: async (client) =>
+          client.query('select * from public.create_household_invitation($1, $2, $3)', [
+            household.id,
+            randomUUID(),
+            'race-identity@budget.invalid',
+          ]),
+      },
+      {
+        userId: ownerId,
+        action: async (client) =>
+          client.query('select * from public.create_household_invitation($1, $2, $3)', [
+            household.id,
+            randomUUID(),
+            'RACE-IDENTITY@budget.invalid',
+          ]),
+      },
+    ]);
+    expect(identityRace.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(identityRace.filter((result) => result.status === 'rejected')).toHaveLength(1);
+    expect(
+      (identityRace.find((result) => result.status === 'rejected') as PromiseRejectedResult).reason,
+    ).toMatchObject({ message: 'invitation_already_pending' });
   });
 });

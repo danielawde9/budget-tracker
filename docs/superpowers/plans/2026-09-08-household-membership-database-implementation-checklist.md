@@ -16,6 +16,7 @@
 | --- | --- |
 | `supabase/migrations/20260908170000_household_membership_schema.sql` | Membership lifecycle columns, invitation/event types and tables, keyring, indexes, dedicated owner, RLS, active-member/owner helpers, deferred invariants, immutable-event guards, and least-privilege grants. |
 | `supabase/migrations/20260908171000_household_invitation_creation.sql` | Versioned identity/token helpers plus protected creation with receipts, deterministic replay, stable failures, and canonical locking. |
+| `supabase/migrations/20260908171100_household_invitation_auth_boundary.sql` | Forward-only correction that keeps the dedicated owner out of `auth` while routing actor and active-recipient checks through private definers. |
 | `supabase/migrations/20260908172000_household_invitation_consumption.sql` | Protected invitation acceptance/cancellation, one-time consumption, reactivation, and terminal-state races. |
 | `supabase/migrations/20260908173000_household_member_commands.sql` | Promote/demote, remove, leave, bounded owner reads, and final exact function/table ACL ratchets. |
 | `tests/db/household-membership.integration.test.ts` | Full capability, lifecycle, token/privacy, idempotency, concurrency, atomicity, bounded-read, index, invariant, immutability, owner, and catalog proof. |
@@ -101,7 +102,7 @@
 - [ ] Source the approved `.env.test` and run fresh: `pnpm test:db`.
 - [ ] Run fresh regressions: `pnpm test:ui`, `pnpm build`, and `pnpm test:e2e`.
 - [ ] Run `git diff --check`, direct-write/token/email scans, catalog/grant queries, constraint/index inventory queries, and migration empty/seeded proof.
-- [ ] Compare every pre-existing migration and every existing financial command body/ACL against `14bbf7c`; only the four new forward migrations may differ under `supabase/migrations/`.
+- [ ] Compare every pre-existing migration and every existing financial command body/ACL against `14bbf7c`; only the five planned Household migrations plus any evidence-driven forward correction may differ under `supabase/migrations/`.
 - [ ] Inspect staged scope before each commit and final `git status --short`; preserve `.swarm/` and any unrelated user files.
 - [ ] Report exact database/UI/E2E counts, catalog/grant evidence, migration proof, commits, diff/status, blockers, and explicitly state that gateway/application behavior, email provider/DNS/templates/sending, and UI remain unimplemented.
 - [ ] Do not push, deploy, merge, provision, reset any non-Budget service, or send an external message.
