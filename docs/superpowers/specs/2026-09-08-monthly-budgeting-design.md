@@ -74,37 +74,33 @@ authoritative balance change.
 
 ## Required Categories contract
 
-Monthly Budgeting depends on a Categories database milestone that does not yet
-exist. The Budgeting implementation must not invent browser-only category IDs or
-ship category targets before this contract exists.
+Monthly Budgeting depends on the authoritative Categories v1 design at commit
+`37716f9`. That design, not this document, owns category lifecycle and journal
+categorization. Its contract is:
 
-That prerequisite must provide:
+- `public.categories` owns stable, space-scoped identities of kind `income` or
+  `expense`, independent English and Arabic names, one-way archive metadata,
+  RLS, and no physical deletion;
+- `public.financial_event_categories` holds at most one immutable category
+  association per eligible financial event and contains no allocation amount;
+- `public.record_categorized_financial_event` posts a new categorized `income`
+  or `expense` event and its association atomically;
+- the unchanged `public.record_financial_event` continues to post uncategorized
+  events;
+- `public.reverse_financial_event` copies the original event's category
+  association to its reversal, even when the category is archived; and
+- openings, transfers, loans, and caller-categorized reversals are ineligible.
 
-- a stable, space-owned expense-category identity, proposed as
-  `public.expense_categories`, with `(id, space_id)` uniqueness, a bounded name,
-  `created_at`, optional `archived_at`, RLS, and no physical deletion;
-- protected category creation and archival commands; the Budgeting gateway does
-  not write the category table directly;
-- immutable category attribution for actual expense events, including the
-  currency and minor-unit amount attributed to each category;
-- an explicit uncategorized remainder when an expense is not fully attributed;
-- linked inverse attribution when a categorized expense is reversed; and
-- indexes supporting space, category, event, currency, and effective-month
-  lookups.
+Existing events receive no backfill. An eligible event is therefore wholly
+assigned to its one category or wholly uncategorized. Category splits,
+per-movement categories, allocation amounts, partial attribution, relabeling,
+and post-hoc categorization are explicitly deferred by Categories v1 and must
+not be introduced by Monthly Budgeting.
 
-The proposed journal-side relation is `public.expense_category_postings`. It is
-owned by the Categories/journal milestone, not by a planning command. Each row
-links an immutable financial event to a category, currency, and signed
-`amount_minor`. Original expense classifications are positive; a reversal adds
-equal negative postings for the original categories. Per event and currency,
-positive category postings may not exceed the magnitude of that event's expense
-wallet movements. Any difference is uncategorized. UPDATE, DELETE, and TRUNCATE
-are rejected.
-
-Whether the first Categories UI supports one category or bounded splits is a
-Categories decision. Monthly Budgeting consumes the normalized postings and is
-correct in either case. No category design may edit the financial event or its
-wallet movements to change classification.
+Budget implementation remains blocked until the Categories v1 database contract
+is implemented and verified. It may reference `public.categories` and
+`public.financial_event_categories`, but it must not duplicate their tables,
+commands, request ledger, RLS, normalization, or archive rules.
 
 ## Proposed planning table
 
@@ -119,7 +115,8 @@ Add one budget-owned table, `public.monthly_budget_plan_revisions`:
 | `plan_kind` | enum or checked text: `income` or `expense_category`. |
 | `month_start` | `date not null`; constrained to the first day of its month. |
 | `currency` | existing `public.currency_code not null`. |
-| `category_id` | nullable UUID with a composite FK `(category_id, space_id)` to the Categories contract. |
+| `category_id` | nullable UUID; category targets composite-reference the authoritative category in the same space and kind. |
+| `category_kind` | nullable `public.category_kind`; category targets store `expense` and income-plan rows store null. |
 | `amount_minor` | `bigint not null check (amount_minor between 0 and 999999999999999)`. |
 | `expected_revision_id` | nullable bigint recording the optimistic-concurrency precondition supplied by the caller. |
 | `actor_id` | authenticated user UUID, server-derived, FK to `auth.users`. |
@@ -127,8 +124,12 @@ Add one budget-owned table, `public.monthly_budget_plan_revisions`:
 
 The row-shape constraint is exact:
 
-- `income` requires `category_id is null`;
-- `expense_category` requires `category_id is not null`.
+- `income` requires both `category_id is null` and `category_kind is null`;
+- `expense_category` requires `category_id is not null` and
+  `category_kind = 'expense'`; and
+- `(category_id, space_id, category_kind)` has a composite foreign key to the
+  Categories v1 unique key, so an income category cannot receive an expense
+  target even through a privileged writer.
 
 The logical current-value keys are:
 
@@ -145,8 +146,8 @@ Required indexes are:
 - `(space_id, month_start, currency, plan_kind, category_id, id desc)` for latest
   values and monthly summaries;
 - `(space_id, id desc)` for keyset history; and
-- an index beginning with `category_id` if the chosen composite index does not
-  support the category FK/archive lookup measured by the final query plans.
+- `(category_id, space_id, category_kind)` where `category_id is not null` for
+  the composite category foreign key and archived-category target lookups.
 
 RLS is enabled and filters through the existing indexed active-membership
 lookup. `anon`, `authenticated`, and `service_role` receive no INSERT, UPDATE,
@@ -204,9 +205,10 @@ Each command:
    match it; null means the caller observed no current revision. A stale
    precondition rejects rather than silently overwriting another household
    member's edit.
-7. For a category target, verifies that the category belongs to the requested
-   space. A positive target is rejected for an archived category; zero remains
-   allowed so an existing current or future target can be explicitly cleared.
+7. For a category target, verifies that `public.categories` contains an expense
+   category in the requested space. A positive target is rejected for an
+   archived category; zero remains allowed so an existing current or future
+   target can be explicitly cleared.
 8. Appends exactly one revision and returns its ID and normalized month.
 
 A different request that submits the same value still appends a revision. This
@@ -237,9 +239,10 @@ must be proved incapable of writing journal or loan-principal tables.
   archived row stays visible whenever it has a nonzero target or actual. New
   positive revisions for it are rejected. Reversals may continue to create
   inverse actual attribution for it.
-- Category names are sourced through the stable category ID. Renaming behavior,
-  if later supported, must preserve an attributable category-name history or a
-  documented “current label on old facts” rule before it is implemented.
+- Category names use the authoritative independent `name_en` and `name_ar`
+  fields through the stable category ID. Categories v1 has no rename or
+  unarchive operation. When only one language exists, the later UI uses that
+  stored value as its `<bdi>`-isolated fallback and never transliterates it.
 
 ## Month and clock semantics
 
@@ -283,16 +286,24 @@ For each space, selected month, and currency:
   a separate product decision says otherwise. Posted principal received remains
   labeled loan repayment, not income.
 
-The category actual projection uses the immutable category postings. Reversing a
-categorized expense must create equal inverse postings for the original
-categories in the reversal transaction. It must not merely hide the original
-row or subtract every event that has ever been reversed, because that would
-rewrite a closed month's history and mishandle cross-month corrections.
+The category actual projection left-joins each eligible expense event to the
+one-to-one `public.financial_event_categories` association. It derives the
+event's amount per currency by summing that event's immutable wallet movements;
+the association itself has no amount. The one-to-one key prevents a category
+join from multiplying an event's money.
 
-An expense with no category posting contributes to `uncategorized_spent_minor`.
-If category postings cover only part of a bounded split, only the remainder is
-uncategorized. The projection fails loudly if postings exceed the event's
-currency-specific expense magnitude.
+A categorized expense contributes its entire currency-specific expense amount
+once to its one expense category. An eligible expense with no association
+contributes its entire amount once to `uncategorized_spent_minor`. There is no
+partial remainder and no split across categories.
+
+A categorized reversal already carries the same association copied by
+`public.reverse_financial_event`, so its inverse wallet movements contribute a
+negative actual to that category in the reversal's effective month. Reversing
+an uncategorized expense remains wholly uncategorized. The projection must not
+hide the original row or subtract every event that has ever been reversed,
+because that would rewrite a closed month's history and mishandle cross-month
+corrections.
 
 ## Budget arithmetic
 
@@ -379,13 +390,16 @@ Takes `p_space_id`, `p_month`, a keyset cursor, and `p_limit`. The hard maximum 
 `(category.created_at, category.id, currency)` so pagination is deterministic.
 OFFSET is not used.
 
-It cross-joins every active category with the two supported currencies so a
-zero-value row is available as the starting point for either target. Archived
-categories return only currency rows that have a nonzero target or actual in the
-selected month. Each category/currency row includes sourced name, archive state,
-target, net actual, remaining, overspent, and current target revision ID. The
-uncategorized amount is a separate summary row, not a fake category ID and not
-targetable.
+It filters `public.categories` to kind `expense` and cross-joins every active
+expense category with the two supported currencies so a zero-value row is
+available as the starting point for either target. Archived expense categories
+return only currency rows that have a nonzero target or actual in the selected
+month. Each category/currency row includes sourced `name_en`/`name_ar`, archive
+state, target, net actual, remaining, overspent, and current target revision ID.
+The uncategorized amount is a separate summary row, not a synthetic category ID
+and not targetable. Income categories do not receive monthly targets in this
+milestone; actual income remains a per-currency summary, while any future
+category-level income analysis belongs to the deferred Reports design.
 
 ### `public.monthly_budget_revision_history`
 
@@ -403,12 +417,14 @@ and `VACUUM ANALYZE` before treating `EXPLAIN` as evidence.
 
 The implementation must preserve these invariants at the database boundary:
 
-1. A revision, category, actual classification, event, movement, loan, and loan
-   target all belong to the same space when joined.
+1. A revision, category association, event, movement, loan, and loan target all
+   belong to the same space when joined.
 2. The only source of actual money is immutable financial events and wallet
    movements. Planning functions have no insert path to those relations.
-3. Category actuals reconcile to expense movements per event and currency and
-   never classify openings, transfers, income, or loan principal as expense.
+3. Each eligible expense event contributes exactly once under its single
+   expense-category association or exactly once to the uncategorized bucket,
+   grouped by wallet currency. Openings, transfers, income, and loan principal
+   never enter expense actuals.
 4. USD and LBP stay separate in storage, calculations, API rows, and UI.
 5. A zero plan value is a current clear revision, not absence of history.
 6. Latest-value selection is deterministic by identity revision ID.
@@ -430,7 +446,8 @@ Database commands return stable, user-safe classifications for:
 - stale `expected_revision_id` after a concurrent household edit;
 - missing, cross-space, or archived category;
 - invalid read limit/cursor;
-- category attribution that does not reconcile to an expense event; and
+- an ineligible or wrong-kind category association encountered while deriving
+  expense actuals; and
 - unexpected database failure.
 
 The later UI must preserve safe entered values after a deterministic rejection.
@@ -487,9 +504,11 @@ corresponding migration or command is written. They must prove:
 13. Planned income minus category targets minus loan commitment yields separate
     unallocated or overallocated values; actual overspending yields category
     overspent without mutating another target.
-14. Uncategorized and partially categorized expense amounts reconcile exactly
-    per event/currency. Over-attribution fails loudly. A categorized reversal
-    creates matching inverse category postings atomically.
+14. Each eligible expense event is counted exactly once per currency under its
+    one expense category or the uncategorized bucket. Multi-wallet events are
+    summed before the one association is applied, so joins cannot duplicate
+    money. A categorized reversal carries the same association and contributes
+    its inverse amount; an uncategorized reversal remains uncategorized.
 15. USD and LBP return separate rows under mixed-currency plans, actuals,
     reversals, and loans; no aggregate cross-currency total exists.
 16. History and category reads enforce hard limits, stable keyset cursors, no
@@ -506,8 +525,9 @@ this work.
 
 ## Delivery sequence and explicit deferrals
 
-1. Design and implement the Categories contract, protected category lifecycle,
-   immutable actual attribution, reversals, and rejection tests.
+1. Land and implement the authoritative Categories v1 contract from `37716f9`,
+   including its protected lifecycle, one-to-one immutable event association,
+   categorized posting command, reversal inheritance, and rejection tests.
 2. Add the monthly plan revision table, guards, indexes, and protected setters.
 3. Add bounded monthly summary/category/history projections and real-Postgres
    arithmetic, RLS, concurrency, reversal, and query-plan tests.
