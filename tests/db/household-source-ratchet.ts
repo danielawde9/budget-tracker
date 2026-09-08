@@ -128,37 +128,39 @@ export function findHouseholdDirectWrites(source: string): SourceViolation[] {
 function collectSinkAliases(source: string): { functions: Set<string>; objects: Set<string> } {
   const objects = new Set<string>(['console']);
   const functions = new Set<string>();
+  const declarations = collectLocalDeclarations(source);
+  const code = maskNonCodeText(source);
   for (let pass = 0; pass < aliasPassLimit; pass += 1) {
     let changed = false;
-    const objectAlias = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*)\s*;/g;
-    for (const match of source.matchAll(objectAlias)) {
-      const alias = match[1];
-      const target = match[2];
-      if (alias && target && !objects.has(alias)
-        && (objects.has(target) || sinkNamePattern.test(target))) {
-        objects.add(alias);
+    for (const declaration of declarations) {
+      const initializer = maskNonCodeText(declaration.initializer).trim();
+      const objectAlias = initializer.match(/^([A-Za-z_$][\w$]*)$/);
+      const objectTarget = objectAlias?.[1];
+      if (objectTarget && !objects.has(declaration.name)
+        && (objects.has(objectTarget) || sinkNamePattern.test(objectTarget))) {
+        objects.add(declaration.name);
         changed = true;
       }
-      if (alias && target && functions.has(target) && !functions.has(alias)) {
-        functions.add(alias);
+      if (objectTarget && functions.has(objectTarget) && !functions.has(declaration.name)) {
+        functions.add(declaration.name);
+        changed = true;
+      }
+
+      const functionAlias = initializer.match(
+        new RegExp(
+          String.raw`^([A-Za-z_$][\w$]*)\s*\.\s*${sinkMethodPattern}$`,
+        ),
+      );
+      const functionTarget = functionAlias?.[1];
+      if (functionTarget && !functions.has(declaration.name)
+        && (objects.has(functionTarget) || sinkNamePattern.test(functionTarget))) {
+        functions.add(declaration.name);
         changed = true;
       }
     }
-    const functionAlias = new RegExp(
-      String.raw`\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*)\s*\.\s*${sinkMethodPattern}\s*;`,
-      'g',
-    );
-    for (const match of source.matchAll(functionAlias)) {
-      const alias = match[1];
-      const target = match[2];
-      if (alias && target && !functions.has(alias)
-        && (objects.has(target) || sinkNamePattern.test(target))) {
-        functions.add(alias);
-        changed = true;
-      }
-    }
-    const destructuredAlias = /\b(?:const|let|var)\s*\{([^}]{1,500})\}\s*=\s*([A-Za-z_$][\w$]*)\s*;/g;
-    for (const match of source.matchAll(destructuredAlias)) {
+    const destructuredAlias =
+      /\b(?:const|let|var)\s*\{([^}]{1,500})\}\s*=\s*([A-Za-z_$][\w$]*)[ \t]*(?:;|(?=\r?\n|$))/g;
+    for (const match of code.matchAll(destructuredAlias)) {
       const target = match[2];
       if (!target || (!objects.has(target) && !sinkNamePattern.test(target))) continue;
       for (const binding of (match[1] ?? '').split(',').slice(0, 20)) {

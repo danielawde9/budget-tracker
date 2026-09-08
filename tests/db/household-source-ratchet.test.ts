@@ -32,6 +32,14 @@ describe('household browser source ratchet', () => {
      warn({ invitation_token });`,
     `const { error } = console;
      error({ invitation_token });`,
+    `const { error: report } = console
+     report({ invitation_token })`,
+    `const report = console.warn
+     report({ invitation_token })`,
+    `const metrics = analytics
+     metrics.identify(userId, { access_token })`,
+    `const identify = analytics.identify
+     identify(userId, { access_token })`,
     `const payload = { invitation_token };
      logger.warn(payload);`,
     `analytics.identify(userId, { access_token });`,
@@ -52,6 +60,8 @@ describe('household browser source ratchet', () => {
       console.error('invitation_token missing');
       logger.warn({ status: 'invitation_token missing' });
       analytics.identify(userId, { status: 'access_token unavailable' });
+      const report = console.warn
+      report('invitation_token missing')
     `;
     expect(findHouseholdDirectWrites(source)).toEqual([]);
     expect(findSensitiveLogging(source)).toEqual([]);
