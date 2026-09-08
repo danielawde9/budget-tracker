@@ -4,6 +4,22 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { InMemoryCategoriesGateway } from '../../test/in-memory-categories-gateway.js';
 import { CategoriesPage } from './categories-page.js';
+import type { CategoryKind } from './types.js';
+
+class PagedCategoriesGateway extends InMemoryCategoriesGateway {
+  failNextPage = true;
+
+  override async listCategories(spaceId: string, kind: CategoryKind, cursor?: string) {
+    this.calls.push({ name: 'listCategories', input: { spaceId, kind, cursor } });
+    if (kind === 'expense') return { categories: this.categories.filter((category) => category.kind === kind), nextCursor: null };
+    if (!cursor) return { categories: this.categories.filter((category) => category.kind === kind), nextCursor: 'income-next' };
+    if (this.failNextPage) throw new Error('Network unavailable');
+    return {
+      categories: [{ ...this.categories[0]!, id: 'category-bonus', nameEn: 'Bonus' }],
+      nextCursor: null,
+    };
+  }
+}
 
 async function renderPage(gateway = new InMemoryCategoriesGateway(), locale: 'en' | 'ar' = 'en') {
   const user = userEvent.setup();
@@ -62,6 +78,20 @@ describe('CategoriesPage', () => {
     gateway.error = null;
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByText('Salary')).toBeInTheDocument();
+  });
+
+  it('keeps loaded rows and offers a kind-specific retry after a later page fails', async () => {
+    const gateway = new PagedCategoriesGateway();
+    const { user } = await renderPage(gateway);
+
+    await user.click(screen.getByRole('button', { name: 'Load more' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('category request was not accepted');
+    expect(screen.getByText('Salary')).toBeInTheDocument();
+
+    gateway.failNextPage = false;
+    await user.click(screen.getByRole('button', { name: 'Retry loading income categories' }));
+    expect(await screen.findByText('Bonus')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('renders equivalent Arabic management and restores opener focus after Escape', async () => {

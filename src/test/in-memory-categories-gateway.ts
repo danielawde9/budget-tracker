@@ -4,6 +4,7 @@ import type {
   Category,
   CategoryCommandResult,
   CategoryKind,
+  CategoryPage,
   CategorizedEventInput,
   CreateCategoryInput,
   EventCategory,
@@ -25,7 +26,7 @@ export class InMemoryCategoriesGateway implements CategoriesGateway {
     if (this.error) throw this.error;
   }
 
-  async listCategories(spaceId: string, kind: CategoryKind) {
+  async listCategories(spaceId: string, kind: CategoryKind, _cursor?: string): Promise<CategoryPage> {
     this.calls.push({ name: 'listCategories', input: { spaceId, kind } });
     this.failIfNeeded();
     return { categories: this.categories.filter((category) => category.spaceId === spaceId && category.kind === kind && category.archivedAt === null), nextCursor: null };

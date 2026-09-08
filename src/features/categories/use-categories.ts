@@ -32,6 +32,7 @@ interface CategoriesView {
   incomeNextCursor: string | null;
   expenseNextCursor: string | null;
   error: CategoryErrorView | null;
+  paginationError: { kind: CategoryKind; error: CategoryErrorView } | null;
 }
 
 function emptyView(spaceId: string): CategoriesView {
@@ -43,6 +44,7 @@ function emptyView(spaceId: string): CategoriesView {
     incomeNextCursor: null,
     expenseNextCursor: null,
     error: null,
+    paginationError: null,
   };
 }
 
@@ -93,6 +95,7 @@ export function useCategories(
         incomeNextCursor: income.nextCursor,
         expenseNextCursor: expense.nextCursor,
         error: null,
+        paginationError: null,
       });
     } catch (cause) {
       if (sequence !== requestSequence.current || currentSpace.current !== targetSpaceId) return;
@@ -188,6 +191,10 @@ export function useCategories(
     if (!cursor || loadingMore || view.loadedSpaceId !== targetSpaceId) return;
     const sequence = requestSequence.current;
     setLoadingMore(kind);
+    setView((current) => ({
+      ...current,
+      paginationError: current.paginationError?.kind === kind ? null : current.paginationError,
+    }));
     try {
       const page = await gateway.listCategories(targetSpaceId, kind, cursor);
       if (sequence !== requestSequence.current || currentSpace.current !== targetSpaceId) return;
@@ -202,7 +209,7 @@ export function useCategories(
       });
     } catch (cause) {
       if (sequence === requestSequence.current && currentSpace.current === targetSpaceId) {
-        setView((current) => ({ ...current, error: classifyCategoryError(cause) }));
+        setView((current) => ({ ...current, paginationError: { kind, error: classifyCategoryError(cause) } }));
       }
     } finally {
       if (currentSpace.current === targetSpaceId) setLoadingMore(null);
@@ -217,6 +224,7 @@ export function useCategories(
     incomeNextCursor: visible ? view.incomeNextCursor : null,
     expenseNextCursor: visible ? view.expenseNextCursor : null,
     error: visible ? view.error : null,
+    paginationError: visible ? view.paginationError : null,
     pending,
     loadingMore,
     ambiguous: retry ? { kind: retry.kind, requestId: retry.requestId } : null,
