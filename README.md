@@ -22,8 +22,10 @@ pnpm dev
 The application starts with a sign-in/sign-up screen. An authenticated user
 with no visible space is guided through creating a personal or household space
 with `public.create_space`, then its first USD or LBP wallet with
-`public.create_wallet`. Household invitations and member management are not
-available because no approved protected command exists for them yet.
+`public.create_wallet`. The database now provides six protected Household
+mutations and two bounded owner reads for invitation and membership
+administration. No Household browser gateway, UI, or email delivery exists yet,
+so invitations and member management remain unavailable in the application.
 
 Loans and Wallets are active in the application navigation. Reports remains a
 non-interactive preview of a later milestone.
@@ -60,7 +62,9 @@ in `docs/operations/ubuntu-development-stack.md`.
   reconcile visible records after ambiguous transport failures before another
   submission is offered.
 - Wallet and loan balances are derived ledger values and are never editable.
-- Household invitations/member management, categories, budgeting, reporting,
-  recurring transactions, interest, fees, reminders, installments, forgiveness,
-  imports/offline sync, cross-currency settlement, live UAT, deployment, and
-  launch are not part of this milestone.
+- Household database administration is limited to its six protected mutations
+  and two bounded owner reads; its browser gateway, UI, and email delivery are
+  not implemented.
+- Categories, budgeting, reporting, recurring transactions, interest, fees,
+  reminders, installments, forgiveness, imports/offline sync, cross-currency
+  settlement, live UAT, deployment, and launch are not part of this milestone.
