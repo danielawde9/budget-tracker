@@ -7,6 +7,10 @@ export interface ApplicationFixtureOptions {
   ambiguousSpaceOnce?: boolean;
   emptyWallets?: boolean;
   ambiguousEventOnce?: boolean;
+  failCategoriesOnce?: boolean;
+  ambiguousCategoryOnce?: boolean;
+  ambiguousCategorizedEventOnce?: boolean;
+  rejectCategoryCreateOnce?: boolean;
 }
 
 interface VisualEvent {
@@ -17,6 +21,16 @@ interface VisualEvent {
   effective_date: string;
   created_at: string;
   reversal_of: string | null;
+}
+
+interface VisualCategory {
+  id: string;
+  space_id: string;
+  kind: 'income' | 'expense';
+  name_en: string | null;
+  name_ar: string | null;
+  created_at: string;
+  archived_at: string | null;
 }
 
 const spaces = [
@@ -36,6 +50,16 @@ const walletBalances = [
   { wallet_id: 'reserve-usd-wallet', space_id: 'personal-space', currency: 'USD', amount_minor: '50000' },
   { wallet_id: 'lbp-wallet', space_id: 'personal-space', currency: 'LBP', amount_minor: '2500000' },
   { wallet_id: 'household-usd-wallet', space_id: 'household-space', currency: 'USD', amount_minor: '30000' },
+];
+
+const categoryRows: VisualCategory[] = [
+  { id: 'category-salary', space_id: 'personal-space', kind: 'income', name_en: 'Salary', name_ar: 'راتب', created_at: '2026-01-01T08:00:00Z', archived_at: null },
+  { id: 'category-groceries', space_id: 'personal-space', kind: 'expense', name_en: 'Groceries', name_ar: 'بقالة', created_at: '2026-01-02T08:00:00Z', archived_at: null },
+  { id: 'category-archived-travel', space_id: 'personal-space', kind: 'income', name_en: 'Archived travel', name_ar: 'سفر مؤرشف', created_at: '2026-01-03T08:00:00Z', archived_at: '2026-08-01T00:00:00Z' },
+];
+
+const eventCategoryRows = [
+  { event_id: 'general-income', space_id: 'personal-space', category_id: 'category-archived-travel', category_kind: 'income', created_at: '2026-09-07T14:00:00Z' },
 ];
 
 const loans = [
@@ -115,9 +139,18 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
   const visibleEvents = options.emptyWallets ? [] : [...events];
   const visibleMovements = options.emptyWallets ? [] : [...movements];
   const visiblePostings = options.emptyWallets ? [] : [...postings];
+  const visibleCategories = options.emptySpaces ? [] : [...categoryRows];
+  const visibleEventCategories = options.emptyWallets ? [] : [...eventCategoryRows];
+  const categoryCommandResults = new Map<string, { command_kind: 'create_category' | 'archive_category'; category_id: string; created_at: string }>();
   let signInAttempts = 0;
   let ambiguousSpaceRemaining = options.ambiguousSpaceOnce ? 1 : 0;
   let ambiguousEventRemaining = options.ambiguousEventOnce ? 1 : 0;
+  let ambiguousCategoryRemaining = options.ambiguousCategoryOnce ? 1 : 0;
+  let ambiguousCategorizedEventRemaining = options.ambiguousCategorizedEventOnce ? 1 : 0;
+  let categoryCreateRejectionsRemaining = options.rejectCategoryCreateOnce ? 1 : 0;
+  // StrictMode doubles the initial two-kind read and Supabase retries each 503
+  // three times; exhaust all sixteen requests before the manager-triggered retry.
+  let categoryFailuresRemaining = options.failCategoriesOnce ? 16 : 0;
   let eventSequence = 0;
 
   if (authenticated) {
@@ -176,6 +209,51 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       visibleWalletBalances.push({ wallet_id: created.id, space_id: body.p_space_id, currency: body.p_currency, amount_minor: '0' });
       return json(route, [{ id: created.id }]);
     }
+    if (path.endsWith('/rpc/create_category')) {
+      const body = request.postDataJSON() as { p_space_id: string; p_request_id: string; p_kind: 'income' | 'expense'; p_name_en: string | null; p_name_ar: string | null };
+      if (categoryCreateRejectionsRemaining > 0) {
+        categoryCreateRejectionsRemaining -= 1;
+        return json(route, { message: 'an active category already uses one of these names' }, 400);
+      }
+      const id = `created-category-${visibleCategories.length + 1}`;
+      visibleCategories.push({ id, space_id: body.p_space_id, kind: body.p_kind, name_en: body.p_name_en, name_ar: body.p_name_ar, created_at: '2026-09-08T10:00:00Z', archived_at: null });
+      categoryCommandResults.set(body.p_request_id, { command_kind: 'create_category', category_id: id, created_at: '2026-09-08T10:00:00Z' });
+      if (ambiguousCategoryRemaining > 0) {
+        ambiguousCategoryRemaining -= 1;
+        return json(route, { message: 'upstream timeout' }, 504);
+      }
+      return json(route, [{ id }]);
+    }
+    if (path.endsWith('/rpc/archive_category')) {
+      const body = request.postDataJSON() as { p_request_id: string; p_category_id: string };
+      const category = visibleCategories.find((item) => item.id === body.p_category_id);
+      if (!category) return json(route, { message: 'the selected category is invalid or unavailable' }, 400);
+      category.archived_at = '2026-09-08T11:00:00Z';
+      categoryCommandResults.set(body.p_request_id, { command_kind: 'archive_category', category_id: category.id, created_at: '2026-09-08T11:00:00Z' });
+      return json(route, [{ id: category.id }]);
+    }
+    if (path.endsWith('/rpc/get_category_command_result')) {
+      const body = request.postDataJSON() as { p_request_id: string };
+      const result = categoryCommandResults.get(body.p_request_id);
+      return json(route, result ? [result] : []);
+    }
+    if (path.endsWith('/rpc/record_categorized_financial_event')) {
+      const body = request.postDataJSON() as { p_space_id: string; p_request_id: string; p_kind: 'income' | 'expense'; p_effective_date: string; p_movements: Array<{ walletId: string; amountMinor: string }>; p_category_id: string };
+      eventSequence += 1;
+      const id = `categorized-event-${eventSequence}`;
+      visibleEvents.unshift({ id, space_id: body.p_space_id, request_id: body.p_request_id, kind: body.p_kind, effective_date: body.p_effective_date, created_at: `2026-09-08T11:${String(eventSequence).padStart(2, '0')}:00Z`, reversal_of: null });
+      visibleEventCategories.push({ event_id: id, space_id: body.p_space_id, category_id: body.p_category_id, category_kind: body.p_kind, created_at: `2026-09-08T11:${String(eventSequence).padStart(2, '0')}:00Z` });
+      for (const movement of body.p_movements) {
+        visibleMovements.push({ event_id: id, space_id: body.p_space_id, wallet_id: movement.walletId, amount_minor: movement.amountMinor });
+        const balance = visibleWalletBalances.find((item) => item.wallet_id === movement.walletId && item.space_id === body.p_space_id);
+        if (balance) balance.amount_minor = (BigInt(balance.amount_minor) + BigInt(movement.amountMinor)).toString();
+      }
+      if (ambiguousCategorizedEventRemaining > 0) {
+        ambiguousCategorizedEventRemaining -= 1;
+        return json(route, { message: 'upstream timeout' }, 504);
+      }
+      return json(route, [{ id }]);
+    }
     if (path.endsWith('/rpc/record_financial_event')) {
       const body = request.postDataJSON() as { p_space_id: string; p_request_id: string; p_kind: string; p_effective_date: string; p_movements: Array<{ walletId: string; amountMinor: string }> };
       eventSequence += 1;
@@ -216,6 +294,22 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
     if (path.endsWith('/rpc/loan_monthly_currency_summary')) return json(route, summary);
     if (path.includes('/rpc/')) return json(route, [{ id: 'result-id', loan_id: 'new-loan', event_id: 'new-event' }]);
     if (path.endsWith('/spaces')) return json(route, visibleSpaces);
+    if (path.endsWith('/categories')) {
+      if (categoryFailuresRemaining > 0) {
+        categoryFailuresRemaining -= 1;
+        return json(route, { message: 'category register temporarily unavailable' }, 503);
+      }
+      const spaceId = equalValue('space_id');
+      const kind = equalValue('kind');
+      const activeOnly = url.searchParams.get('archived_at') === 'is.null';
+      const ids = includedValues('id');
+      return json(route, visibleCategories.filter((category) =>
+        (!spaceId || category.space_id === spaceId)
+        && (!kind || category.kind === kind)
+        && (!activeOnly || category.archived_at === null)
+        && (!ids || ids.has(category.id)),
+      ));
+    }
     if (path.endsWith('/wallets')) {
       const spaceId = equalValue('space_id');
       return json(route, visibleWallets.filter((wallet) => !spaceId || wallet.space_id === spaceId));
@@ -246,6 +340,16 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       const spaceId = equalValue('space_id');
       const eventIds = includedValues('event_id');
       return json(route, visiblePostings.filter((posting) => (!spaceId || posting.space_id === spaceId) && (!eventIds || eventIds.has(posting.event_id))));
+    }
+    if (path.endsWith('/financial_event_categories')) {
+      const spaceId = equalValue('space_id');
+      const eventId = equalValue('event_id');
+      const eventIds = includedValues('event_id');
+      return json(route, visibleEventCategories.filter((association) =>
+        (!spaceId || association.space_id === spaceId)
+        && (!eventId || association.event_id === eventId)
+        && (!eventIds || eventIds.has(association.event_id)),
+      ));
     }
     if (path.endsWith('/wallet_movements')) {
       const spaceId = equalValue('space_id');
