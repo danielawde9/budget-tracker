@@ -151,11 +151,15 @@ Do not edit applied migration `20260908100000`. Add nonempty generated-key const
 
 - [x] **Step 3: Reprove clean and seeded migration paths**
 
-Apply all 16 migrations from empty in one disposable Budget database. In another, seed the 14-migration schema, snapshot every pre-existing table/view and existing grant, apply both Categories migrations, and require identical pre-existing state plus zero category rows.
+Apply all Categories migrations from empty in one disposable Budget database. In another, seed the 14-migration schema, snapshot every pre-existing table/view and existing grant, apply the Categories migrations, and require identical pre-existing state plus zero category rows.
 
-- [ ] **Step 4: Apply only the hardening migration to Budget development**
+- [x] **Step 4: Apply only the hardening migration to Budget development**
 
 Repeat the Budget identity preflight, remove only the exact failed-test category fixture if required for constraint validation, synchronize `supabase/`, and advance the migration journal once to `20260908101000`.
+
+- [ ] **Step 5: Close the reviewed internal-whitespace normalization gap**
+
+Add a red collision pair with a whitespace-separated Arabic diacritic. In forward migration `20260908102000`, re-collapse whitespace after Arabic mark removal, recompute only stale stored Arabic keys in bounded batches, and prove a 16-to-17 migration converts the stale key and restores uniqueness before applying it to Budget development.
 
 ### Task 7: Final verification and handoff
 

@@ -115,6 +115,7 @@ describe('categories foundation', () => {
       ['هدى', 'هدي'],
       ['مدرسة', 'مدرسه'],
       ['إيجــارٌ', 'ايجار'],
+      ['دخل ٌ إضافي', 'دخل إضافي'],
     ] as const;
 
     for (const [first, duplicate] of collisionPairs) {
