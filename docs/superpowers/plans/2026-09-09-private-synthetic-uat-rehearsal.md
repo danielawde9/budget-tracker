@@ -38,4 +38,3 @@ between simulated browser integration and live authenticated UAT.
 5. Commit non-sensitive evidence and reproduction instructions, request an
    independent review, address all critical/important findings, and rerun the
    complete matrix.
-

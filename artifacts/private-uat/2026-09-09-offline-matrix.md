@@ -24,7 +24,35 @@ receipt.
 | Private artifact/device | Desktop + mobile / EN/AR | Exact build over private HTTPS; tailnet loss/recovery | **Blocked** | No deployment or remote host contact authorized |
 | Backup/restore | Private UAT | Encrypted off-site point, scratch restore, RPO/RTO | **Blocked** | Repository fixtures only |
 
-Final verification counts and the exact tested head are appended after the final
-green run in the same branch.
+## Verification receipt
+
+Code/docs candidate: `0ebe5cf` (the following evidence update changes only this
+matrix and removes one extra blank line from the plan).
+
+| Check | Result |
+| --- | --- |
+| `pnpm install --offline --frozen-lockfile` | Pass; already current, no network download |
+| `pnpm check:ops` | Pass; 7 files, 152 tests; secret scan passed for 150 tracked files |
+| Shell static analysis | Blocked; `shellcheck` is not installed; Bash syntax checks passed |
+| `pnpm typecheck` | Pass |
+| `pnpm test:ui` | Pass; 23 files, 271 tests |
+| Focused browser gateway ratchets | Pass; 5 files, 51 tests |
+| `pnpm build` | Pass; 104 modules transformed |
+| `pnpm test:uat:offline` | Pass; 4 tests, 2 intentional project skips |
+| `pnpm test:e2e` | Pass; 36 tests, 34 intentional cross-device skips |
+| Protected DB/migration/gateway diff from release start | Pass; empty |
+| `git diff --check` | Pass after removing the plan's extra EOF blank line |
+| `test:db` | Blocked by scope; no local test URL exists and remote database contact was forbidden |
+
+Production build SHA-256 values:
+
+```text
+fa3adde2796a1daff18303d6b7045751059cfa2f653929e5438a6da4a0676866  dist/index.html
+3f71fb129f00d0e45520f2b90521ad7556fd2aef44b222f368770e65830c39b3  dist/assets/categories-page-CHY-qjZG.js
+15ae1a7701ecc3b1d9de979d9f1ed2fa1b4e7e8e4b5443dfbf95f00e91dfb07b  dist/assets/dialog-shell-iz08xc-Y.js
+fbef30ebd24f756d9061002d8f32063b053b34e4ad54246ae79a586dfef75a92  dist/assets/index-CdWfb-fA.js
+29d981a12eac7b6b60b25f35466efaf217dd0a020ed1c953c8e5e046f9402813  dist/assets/index-CgBOJgQr.css
+4fdccebb12e7fbe838180662f22e6598efadaddc75c77eb9be32b0bdf83f96f4  dist/assets/wallets-page-DfMxYUvu.js
+```
 
 Ready for private live authenticated UAT: **No**.
