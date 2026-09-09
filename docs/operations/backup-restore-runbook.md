@@ -118,7 +118,10 @@ backup manifest and validated as recovery provenance.
 - `BUDGET_OFFSITE_BIN verify LOCAL DESTINATION KEY` compares remote size and
   SHA-256 with the local file and fails on any mismatch.
 - `BUDGET_OFFSITE_BIN get DESTINATION KEY LOCAL` fetches one named file; it must
-  reject prefixes, wildcards, and implicit newest selection.
+  reject prefixes, wildcards, and implicit newest selection. Every `verify` or
+  `get` must emit one bounded receipt containing the exact configured provider,
+  object key, nonempty object version, remote size/SHA-256, `immutable=1`, and
+  `monitoring=1`; a successful exit without that receipt fails closed.
 - `BUDGET_CATALOG_BIN --database=NAME --max-row-summaries=100` emits bounded row
   summaries/catalog hashes without rows, emails, tokens, or secrets.
 - `BUDGET_ROLE_FILTER_BIN INPUT OUTPUT ALLOWLIST` emits only reviewed roles and
@@ -132,7 +135,9 @@ backup manifest and validated as recovery provenance.
 - `BUDGET_COMPARE_BIN ... --max-row-summaries=100 --max-content-hashes=100`
   compares migrations, schema/object and bounded row/content hashes, Auth count,
   RLS/policies, ACLs, owners/function bodies, triggers, constraints, indexes,
-  and protected financial-command inventory.
+  and protected financial-command inventory. It must return the exact scratch
+  target plus the independently measured manifest and plaintext catalog hashes;
+  exit status alone is not recovery evidence.
 - `BUDGET_DB_VERIFY_BIN` must be the tracked `verify-budget-db.sh` executable.
   It invokes the configured absolute `BUDGET_VERIFY_PSQL_BIN` with a five-second
   connection and statement bound, read-only transaction/session settings, no
@@ -164,8 +169,9 @@ receipt remain **BLOCKED**.
 7. The safe manifest records source system ID, versions, release, migration
    manifest hash, and ciphertext hashes; it contains no row or secret value.
 8. Each ciphertext and manifest is uploaded and verified. Local `SUCCESS` is
-   created only afterward, but is not proof of provider durability; retain the
-   provider's redacted immutable receipt.
+   created only afterward and records the four validated provider receipts.
+   Those fixture-validated receipt contracts are not real provider durability
+   proof; retain the provider's independent redacted immutable receipt.
 
 ### Retention
 
@@ -203,13 +209,17 @@ repository intentionally includes no deletion command.
    ciphertext hashes are verified before age or PostgreSQL runs. The same
    immutable scratch endpoint must produce the same empty receipt again before
    `psql` or `pg_restore`.
-6. Decryption stays in private scratch temp. The archive is listed; roles are
-   filtered. `psql` uses `ON_ERROR_STOP`; `pg_restore` uses one job and
+6. Decryption stays in private scratch temp. Each decrypted/listed/filtered
+   artifact must be nonempty, operator-owned, and inaccessible to group/other.
+   The archive TOC owners and filtered role grantees are validated independently
+   against the private target-role manifest. `psql` uses `ON_ERROR_STOP`;
+   `pg_restore` uses one job and
    `--exit-on-error` within one monotonic 60-minute whole-operation deadline.
    Every fetch, hash, decrypt, list, filter, database, and comparison adapter
    receives only the remaining time.
-7. The bounded comparison adapter must pass. Process exit without catalog/data
-   comparison is not a verified restore.
+7. The bounded comparison adapter must emit the exact structured receipt for
+   the independently hashed manifest and plaintext catalog. Process exit without
+   that catalog/data comparison receipt is not a verified restore.
 8. The trap removes exact temp files. Export redacted timings/comparison, then
    use a separately approved cleanup that revalidates markers and identities.
    This repository deletes no database, volume, service, or directory.

@@ -40,12 +40,17 @@ backup_validate_configuration() {
 
   backup_validate_scalar "${BUDGET_AGE_RECIPIENT}" 'encryption recipient'
   backup_validate_scalar "${BUDGET_OFFSITE_DESTINATION}" 'off-site destination'
+  backup_validate_scalar "${BUDGET_OFFSITE_PROVIDER_ID:-}" 'off-site provider identity'
   if [[ "${BUDGET_AGE_RECIPIENT}" != age1* ]]; then
     budget_error 'backup target configuration is outside the exact allowlist' 70
     return
   fi
   budget_validate_offsite_destination "${BUDGET_OFFSITE_DESTINATION}" \
     "${BUDGET_OFFSITE_ALLOWED_PREFIX:-}" 70
+  if [[ ! "${BUDGET_OFFSITE_PROVIDER_ID}" =~ ^[a-z0-9][a-z0-9._-]{0,63}$ ]]; then
+    budget_error 'off-site provider identity is invalid' 70
+    return
+  fi
 
   local required_value
   for required_value in BUDGET_RUN_ID BUDGET_PGPASS_FILE BUDGET_DATABASE_HOST \
@@ -290,16 +295,28 @@ backup_execute() {
     printf '%s  %s\n' "${catalog_hash}" 'catalog.txt.age'
   } > "${backup_manifest}"
 
-  local payload
+  local payload object_key expected_size expected_hash offsite_receipt
+  local -a offsite_receipts=()
   for payload in "${backup_archive_cipher}" "${backup_roles_cipher}" \
     "${backup_catalog_cipher}" "${backup_manifest}"; do
+    object_key="${BACKUP_RUN_ID}/${payload##*/}"
     backup_run "${BUDGET_OFFSITE_BIN}" put "${payload}" \
-      "${BUDGET_OFFSITE_DESTINATION}" "${BACKUP_RUN_ID}/${payload##*/}"
-    backup_run "${BUDGET_OFFSITE_BIN}" verify "${payload}" \
-      "${BUDGET_OFFSITE_DESTINATION}" "${BACKUP_RUN_ID}/${payload##*/}"
+      "${BUDGET_OFFSITE_DESTINATION}" "${object_key}"
+    expected_size="$(backup_size "${payload}")"
+    expected_hash="$(backup_hash "${payload}")"
+    offsite_receipt="$(backup_run "${BUDGET_OFFSITE_BIN}" verify "${payload}" \
+      "${BUDGET_OFFSITE_DESTINATION}" "${object_key}")"
+    offsite_receipts+=("$(budget_assert_offsite_receipt "${offsite_receipt}" \
+      "${BUDGET_OFFSITE_PROVIDER_ID}" "${object_key}" "${expected_size}" \
+      "${expected_hash}" 70)")
   done
 
-  : > "${backup_success}"
+  {
+    printf '%s\n' 'recovery_evidence_version=1'
+    for offsite_receipt in "${offsite_receipts[@]}"; do
+      printf '%s\n' "${offsite_receipt}"
+    done
+  } > "${backup_success}"
   backup_published=1
   printf '%s\n' "verified encrypted recovery point ${BACKUP_RUN_ID}"
 }

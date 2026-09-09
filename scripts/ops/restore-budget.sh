@@ -51,6 +51,10 @@ restore_validate_configuration() {
   fi
   budget_validate_offsite_destination "${BUDGET_OFFSITE_DESTINATION}" \
     "${BUDGET_OFFSITE_ALLOWED_PREFIX:-}" 75
+  if [[ ! "${BUDGET_OFFSITE_PROVIDER_ID:-}" =~ ^[a-z0-9][a-z0-9._-]{0,63}$ ]]; then
+    budget_error 'off-site provider identity is invalid' 75
+    return
+  fi
   if [[ -z "${BUDGET_EXPECTED_MANIFEST_SHA256:-}" ]]; then
     budget_error 'trusted manifest hash is not configured' 75
     return
@@ -210,6 +214,15 @@ restore_hash() {
   printf '%s\n' "${output%% *}"
 }
 
+restore_size() {
+  local candidate="${1:?size candidate is required}"
+  local output
+  output="$(restore_run /usr/bin/wc -c < "${candidate}")"
+  output="${output//[[:space:]]/}"
+  [[ "${output}" =~ ^[0-9]{1,20}$ ]] || return 1
+  printf '%s\n' "${output}"
+}
+
 restore_cleanup() {
   local status=$?
   trap - EXIT INT TERM HUP
@@ -297,11 +310,17 @@ restore_execute() {
   fi
   restore_temp_created=1
 
-  local filename local_path
+  local filename local_path object_key local_size local_hash offsite_receipt
   for filename in manifest.txt archive.dump.age roles.sql.age catalog.txt.age; do
     local_path="${restore_temp_dir}/${filename}"
-    restore_run "${BUDGET_OFFSITE_BIN}" get "${BUDGET_OFFSITE_DESTINATION}" \
-      "${RESTORE_POINT}/${filename}" "${local_path}"
+    object_key="${RESTORE_POINT}/${filename}"
+    offsite_receipt="$(restore_run "${BUDGET_OFFSITE_BIN}" get \
+      "${BUDGET_OFFSITE_DESTINATION}" "${object_key}" "${local_path}")"
+    local_size="$(restore_size "${local_path}")"
+    local_hash="$(restore_hash "${local_path}")"
+    budget_assert_offsite_receipt "${offsite_receipt}" \
+      "${BUDGET_OFFSITE_PROVIDER_ID}" "${object_key}" "${local_size}" \
+      "${local_hash}" 78 >/dev/null
   done
 
   local trusted_manifest_hash
@@ -353,9 +372,14 @@ restore_execute() {
     -o "${restore_roles_plain}" "${restore_roles_cipher}"
   restore_run "${BUDGET_AGE_BIN}" -d -i "${BUDGET_AGE_IDENTITY_FILE}" \
     -o "${restore_catalog_plain}" "${restore_catalog_cipher}"
+  budget_require_private_artifact "${restore_archive_plain}" 78
+  budget_require_private_artifact "${restore_roles_plain}" 78
+  budget_require_private_artifact "${restore_catalog_plain}" 78
   restore_run "${BUDGET_PG_RESTORE_BIN}" --list "${restore_archive_plain}" > "${restore_archive_list}"
+  budget_require_private_artifact "${restore_archive_list}" 78
   restore_run "${BUDGET_ROLE_FILTER_BIN}" "${restore_roles_plain}" \
     "${restore_roles_filtered}" "${BUDGET_ROLE_ALLOWLIST}"
+  budget_require_private_artifact "${restore_roles_filtered}" 78
   restore_run "${BUDGET_ROLE_VALIDATOR_BIN}" "${restore_archive_list}" \
     "${restore_roles_filtered}" "${BUDGET_TARGET_ROLE_MANIFEST}" >/dev/null
 
@@ -379,9 +403,18 @@ restore_execute() {
     --host="${RESTORE_DB_HOST}" --port="${RESTORE_DB_PORT}" \
     --username="${RESTORE_DB_USER}" --dbname="${RESTORE_DB_NAME}" \
     "${restore_archive_plain}"
-  restore_run "${BUDGET_COMPARE_BIN}" --source-manifest="${restore_manifest}" \
+  local catalog_plain_hash comparison_receipt
+  catalog_plain_hash="$(restore_hash "${restore_catalog_plain}")"
+  if [[ "$(restore_manifest_value catalog_metadata_sha256 "${restore_manifest}")" != \
+    "${catalog_plain_hash}" ]]; then
+    budget_error 'decrypted catalog metadata hash mismatch' 78
+    return
+  fi
+  comparison_receipt="$(restore_run "${BUDGET_COMPARE_BIN}" --source-manifest="${restore_manifest}" \
     --source-catalog="${restore_catalog_plain}" --target=scratch \
-    --max-row-summaries=100 --max-content-hashes=100
+    --max-row-summaries=100 --max-content-hashes=100)"
+  budget_assert_comparison_receipt "${comparison_receipt}" \
+    "${trusted_manifest_hash}" "${catalog_plain_hash}" 78 >/dev/null
 
   printf '%s\n' "scratch restore comparison verified for ${RESTORE_POINT}"
 }

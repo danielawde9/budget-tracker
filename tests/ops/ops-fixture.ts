@@ -83,7 +83,15 @@ export function makeBackupFixture() {
   );
   makeExecutable(
     offsite,
-    'printf "offsite:%s\\n" "$1" >> "$BUDGET_FAKE_LOG"; exit 0',
+    [
+      'printf "offsite:%s\\n" "$1" >> "$BUDGET_FAKE_LOG"',
+      '[[ "$1" == "put" ]] && exit 0',
+      '[[ "$1" == "verify" ]] || exit 64',
+      '[[ "${BUDGET_FAKE_OFFSITE_RECEIPT_INVALID:-0}" == "1" ]] && { printf "verified\\n"; exit 0; }',
+      'size="$(/usr/bin/wc -c < "$2")"; size="${size//[[:space:]]/}"',
+      'hash="$(/usr/bin/shasum -a 256 "$2")"; hash="${hash%% *}"',
+      'printf "receipt_version=1|provider=%s|object_key=%s|object_version=fixture-v1|remote_size=%s|remote_sha256=%s|immutable=1|monitoring=1\\n" "$BUDGET_OFFSITE_PROVIDER_ID" "$4" "$size" "$hash"',
+    ].join('\n'),
   );
   makeExecutable(clock, 'printf "2026-09-09T02:15:00Z\\n"');
   makeExecutable(
@@ -134,6 +142,7 @@ export function makeBackupFixture() {
     BUDGET_AGE_RECIPIENT: 'age1fixturepublicrecipient000000000000000000000000000000',
     BUDGET_OFFSITE_DESTINATION: 'configured-budget-live-offsite',
     BUDGET_OFFSITE_ALLOWED_PREFIX: 'configured-budget-live-offsite',
+    BUDGET_OFFSITE_PROVIDER_ID: 'fixture-provider',
     BUDGET_RUN_ID: '2026-09-09T021500Z-fixture',
     BUDGET_PGPASS_FILE: passfile,
     BUDGET_DATABASE_HOST: 'fixture-budget-db.internal',
@@ -211,13 +220,14 @@ export function makeRestoreFixture() {
   );
 
   const hashes: string[] = [];
+  const catalogContents = 'catalog_hash=fixture-catalog-hash\n';
   const restorePayloads: ReadonlyArray<readonly [string, string]> = [
     ['archive.dump.age', 'fixture custom archive\n'],
     [
       'roles.sql.age',
       'CREATE ROLE budget_authenticated;\nGRANT budget_authenticated TO authenticated;\nGRANT budget_authenticated TO service_role;\n',
     ],
-    ['catalog.txt.age', 'catalog_hash=fixture-catalog-hash\n'],
+    ['catalog.txt.age', catalogContents],
   ];
   for (const [filename, contents] of restorePayloads) {
     writeFileSync(join(remotePoint, filename), contents, { mode: 0o600 });
@@ -235,6 +245,7 @@ export function makeRestoreFixture() {
       `source_commit=${backup.env.BUDGET_SOURCE_COMMIT}`,
       'release_id=release-fixture',
       'migration_manifest_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      `catalog_metadata_sha256=${createHash('sha256').update(catalogContents).digest('hex')}`,
       ...hashes,
       '',
     ].join('\n');
@@ -259,11 +270,25 @@ export function makeRestoreFixture() {
   );
   makeExecutable(
     compare,
-    'printf "comparison=verified\\n"; printf "compare\\n" >> "$BUDGET_FAKE_LOG"',
+    [
+      'printf "compare\\n" >> "$BUDGET_FAKE_LOG"',
+      'manifest=""; catalog=""',
+      'for argument in "$@"; do case "$argument" in --source-manifest=*) manifest="${argument#--source-manifest=}" ;; --source-catalog=*) catalog="${argument#--source-catalog=}" ;; esac; done',
+      'manifest_hash="$(/usr/bin/shasum -a 256 "$manifest")"; manifest_hash="${manifest_hash%% *}"',
+      'catalog_hash="$(/usr/bin/shasum -a 256 "$catalog")"; catalog_hash="${catalog_hash%% *}"',
+      'printf "comparison_version=1|status=verified|target=scratch|manifest_sha256=%s|catalog_sha256=%s\\n" "$manifest_hash" "$catalog_hash"',
+    ].join('\n'),
   );
   makeExecutable(
     backup.env.BUDGET_OFFSITE_BIN as string,
-    'printf "offsite:%s\\n" "$1" >> "$BUDGET_FAKE_LOG"; case "$1" in get) cp "$BUDGET_OFFSITE_FIXTURE_ROOT/$3" "$4" ;; *) exit 64 ;; esac',
+    [
+      'printf "offsite:%s\\n" "$1" >> "$BUDGET_FAKE_LOG"',
+      '[[ "$1" == "get" ]] || exit 64',
+      'cp "$BUDGET_OFFSITE_FIXTURE_ROOT/$3" "$4"',
+      'size="$(/usr/bin/wc -c < "$4")"; size="${size//[[:space:]]/}"',
+      'hash="$(/usr/bin/shasum -a 256 "$4")"; hash="${hash%% *}"',
+      'printf "receipt_version=1|provider=%s|object_key=%s|object_version=fixture-v1|remote_size=%s|remote_sha256=%s|immutable=1|monitoring=1\\n" "$BUDGET_OFFSITE_PROVIDER_ID" "$3" "$size" "$hash"',
+    ].join('\n'),
   );
 
   const env: NodeJS.ProcessEnv = {

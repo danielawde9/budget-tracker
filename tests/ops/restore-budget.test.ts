@@ -271,6 +271,18 @@ describe('scratch-only Budget restore boundary', () => {
     expect(commands).not.toContain('psql');
   });
 
+  it('does not accept /usr/bin/true as restore comparison evidence', () => {
+    const { env } = makeRestoreFixture();
+    const result = run('restore', {
+      ...env,
+      BUDGET_COMPARE_BIN: '/usr/bin/true',
+    });
+
+    expect(result.status).toBe(78);
+    expect(result.stderr).toContain('comparison receipt is invalid');
+    expect(result.stdout).not.toContain('scratch restore comparison verified');
+  });
+
   it('rejects a scratch marker swapped after validation before restore effects', () => {
     const { env, log, scratchMarker } = makeRestoreFixture();
     const result = run('restore', {

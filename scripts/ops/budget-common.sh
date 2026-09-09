@@ -131,6 +131,54 @@ budget_validate_offsite_destination() {
   fi
 }
 
+budget_assert_offsite_receipt() {
+  local receipt="${1:-}"
+  local expected_provider="${2:-}"
+  local expected_key="${3:-}"
+  local expected_size="${4:-}"
+  local expected_hash="${5:-}"
+  local status="${6:-70}"
+  local version provider object_key object_version remote_size remote_hash immutable monitoring extra
+
+  IFS='|' read -r version provider object_key object_version remote_size remote_hash \
+    immutable monitoring extra <<< "${receipt}"
+  if [[ ${#receipt} -gt 1024 || "${version}" != 'receipt_version=1' || \
+    "${provider}" != "provider=${expected_provider}" || \
+    "${object_key}" != "object_key=${expected_key}" || \
+    ! "${object_version}" =~ ^object_version=[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$ || \
+    "${remote_size}" != "remote_size=${expected_size}" || \
+    "${remote_hash}" != "remote_sha256=${expected_hash}" || \
+    "${immutable}" != 'immutable=1' || "${monitoring}" != 'monitoring=1' || \
+    -n "${extra}" || ! "${expected_provider}" =~ ^[a-z0-9][a-z0-9._-]{0,63}$ || \
+    ! "${expected_key}" =~ ^[A-Za-z0-9TZ:._-]{1,128}/[A-Za-z0-9._-]{1,64}$ || \
+    ! "${expected_size}" =~ ^[0-9]{1,20}$ || \
+    ! "${expected_hash}" =~ ^[a-f0-9]{64}$ ]]; then
+    budget_error 'off-site receipt is invalid' "${status}"
+    return
+  fi
+  printf '%s\n' "${receipt}"
+}
+
+budget_assert_comparison_receipt() {
+  local receipt="${1:-}"
+  local expected_manifest_hash="${2:-}"
+  local expected_catalog_hash="${3:-}"
+  local status="${4:-78}"
+  local version comparison_status target manifest_hash catalog_hash extra
+
+  IFS='|' read -r version comparison_status target manifest_hash catalog_hash extra <<< "${receipt}"
+  if [[ ${#receipt} -gt 512 || "${version}" != 'comparison_version=1' || \
+    "${comparison_status}" != 'status=verified' || "${target}" != 'target=scratch' || \
+    "${manifest_hash}" != "manifest_sha256=${expected_manifest_hash}" || \
+    "${catalog_hash}" != "catalog_sha256=${expected_catalog_hash}" || \
+    -n "${extra}" || ! "${expected_manifest_hash}" =~ ^[a-f0-9]{64}$ || \
+    ! "${expected_catalog_hash}" =~ ^[a-f0-9]{64}$ ]]; then
+    budget_error 'comparison receipt is invalid' "${status}"
+    return
+  fi
+  printf '%s\n' "${receipt}"
+}
+
 budget_validate_safe_path() {
   local path="${1:-}"
   local expected_basename="${2:-}"
@@ -229,6 +277,23 @@ budget_require_private_file() {
     exit((($details[2] & 0777) == 0600 && $details[4] == $<) ? 0 : 1);
   ' "${path}"; then
     budget_error 'secret file must be mode 0600 and operator-owned' "${status}"
+  fi
+}
+
+budget_require_private_artifact() {
+  local path="${1:-}"
+  local status="${2:-1}"
+  if [[ -z "${path}" ]] || ! /usr/bin/perl -MFcntl=:DEFAULT,O_NOFOLLOW,:mode -e '
+    alarm 5;
+    my @before = lstat($ARGV[0]);
+    exit 1 unless @before && S_ISREG($before[2]);
+    exit 1 unless $before[4] == $< && (($before[2] & 0077) == 0) && $before[7] > 0;
+    sysopen(my $handle, $ARGV[0], O_RDONLY | O_NOFOLLOW) or exit 1;
+    my @opened = stat($handle);
+    exit 1 unless @opened && S_ISREG($opened[2]);
+    exit 1 unless $opened[0] == $before[0] && $opened[1] == $before[1];
+  ' "${path}"; then
+    budget_error 'generated recovery artifact is unsafe or empty' "${status}"
   fi
 }
 

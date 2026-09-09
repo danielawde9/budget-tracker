@@ -144,6 +144,9 @@ describe('encrypted Budget backup boundary', () => {
       'manifest.txt',
       'roles.sql.age',
     ]);
+    expect(readFileSync(join(recoveryPoint, 'SUCCESS'), 'utf8')).toContain(
+      'provider=fixture-provider',
+    );
     for (const filename of [
       'archive.dump.age',
       'catalog.txt.age',
@@ -204,6 +207,38 @@ describe('encrypted Budget backup boundary', () => {
     expect(result.status).toBe(70);
     expect(result.stderr).toContain('measured PostgreSQL version mismatch');
     expect(existsSync(log)).toBe(false);
+  });
+
+  it('does not accept /usr/bin/true as off-site recovery evidence', () => {
+    const { env, root } = makeBackupFixture();
+    const result = run('backup', {
+      ...env,
+      BUDGET_OFFSITE_BIN: '/usr/bin/true',
+    });
+    const success = join(
+      root,
+      'backups/live/2026-09-09T021500Z-fixture/SUCCESS',
+    );
+
+    expect(result.status).toBe(70);
+    expect(result.stderr).toContain('off-site receipt is invalid');
+    expect(existsSync(success)).toBe(false);
+  });
+
+  it('rejects an unstructured off-site verification receipt', () => {
+    const { env, root } = makeBackupFixture();
+    const result = run('backup', {
+      ...env,
+      BUDGET_FAKE_OFFSITE_RECEIPT_INVALID: '1',
+    });
+    const success = join(
+      root,
+      'backups/live/2026-09-09T021500Z-fixture/SUCCESS',
+    );
+
+    expect(result.status).toBe(70);
+    expect(result.stderr).toContain('off-site receipt is invalid');
+    expect(existsSync(success)).toBe(false);
   });
 
   it('trusts the measured database identity instead of a caller declaration', () => {
