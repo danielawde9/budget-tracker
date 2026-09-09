@@ -123,6 +123,12 @@ backup manifest and validated as recovery provenance.
   summaries/catalog hashes without rows, emails, tokens, or secrets.
 - `BUDGET_ROLE_FILTER_BIN INPUT OUTPUT ALLOWLIST` emits only reviewed roles and
   rejects role passwords or a role outside the allowlist.
+- `scripts/ops/validate-restore-roles.sh ARCHIVE_LIST FILTERED_ROLES TARGET_ROLES`
+  parses every archive TOC owner and filtered-SQL grantee against an exact,
+  operator-owned target-role manifest that must include `authenticated` and
+  `service_role`; validation completes before `psql`. This is deterministic
+  fixture evidence only; proof against a real PostgreSQL 17 archive remains
+  **BLOCKED** until an approved database-contact session.
 - `BUDGET_COMPARE_BIN ... --max-row-summaries=100 --max-content-hashes=100`
   compares migrations, schema/object and bounded row/content hashes, Auth count,
   RLS/policies, ACLs, owners/function bodies, triggers, constraints, indexes,

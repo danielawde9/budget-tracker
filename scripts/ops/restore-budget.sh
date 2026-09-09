@@ -68,7 +68,9 @@ restore_validate_configuration() {
     BUDGET_SCRATCH_DATABASE_NAME BUDGET_SCRATCH_POSTGRES_MAJOR \
     BUDGET_SCRATCH_REQUIRED_BYTES BUDGET_SCRATCH_AVAILABLE_BYTES \
     BUDGET_PGPASS_FILE BUDGET_DATABASE_HOST BUDGET_DATABASE_USER \
-    BUDGET_ROLE_ALLOWLIST BUDGET_TIMEOUT_BIN BUDGET_AGE_BIN \
+    BUDGET_ROLE_ALLOWLIST BUDGET_TARGET_ROLE_MANIFEST \
+    BUDGET_ROLE_VALIDATOR_BIN BUDGET_ROLE_VALIDATOR_SHA256 \
+    BUDGET_TIMEOUT_BIN BUDGET_AGE_BIN \
     BUDGET_DB_VERIFY_BIN BUDGET_VERIFY_PSQL_BIN BUDGET_DB_VERIFY_SHA256 \
     BUDGET_VERIFY_PSQL_SHA256 BUDGET_PG_RESTORE_SHA256 BUDGET_PSQL_SHA256 \
     BUDGET_PG_DUMP_VERSION BUDGET_SOURCE_COMMIT \
@@ -98,7 +100,7 @@ restore_validate_configuration() {
     "${BUDGET_SCRATCH_POSTGRES_MAJOR}" != '17' || \
     ! "${BUDGET_SCRATCH_REQUIRED_BYTES}" =~ ^[0-9]{1,20}$ || \
     ! "${BUDGET_SCRATCH_AVAILABLE_BYTES}" =~ ^[0-9]{1,20}$ || \
-    ! "${BUDGET_ROLE_ALLOWLIST}" =~ ^budget_[a-z_]+(,budget_[a-z_]+){0,15}$ ]]; then
+    ! "${BUDGET_ROLE_ALLOWLIST}" =~ ^(postgres|authenticated|service_role|budget_[a-z_]+)(,(postgres|authenticated|service_role|budget_[a-z_]+)){0,15}$ ]]; then
     budget_error 'scratch restore configuration is outside the exact allowlist' 76
     return
   fi
@@ -123,12 +125,14 @@ restore_validate_configuration() {
   fi
   budget_require_private_file "${BUDGET_AGE_IDENTITY_FILE}" 75
   budget_require_private_file "${BUDGET_PGPASS_FILE}" 75
+  budget_require_private_file "${BUDGET_TARGET_ROLE_MANIFEST}" 75
 
   local executable
   for executable in "${BUDGET_TIMEOUT_BIN}" "${BUDGET_AGE_BIN}" \
     "${BUDGET_OFFSITE_BIN}" "${BUDGET_PG_RESTORE_BIN}" \
     "${BUDGET_PSQL_BIN}" "${BUDGET_ROLE_FILTER_BIN}" "${BUDGET_COMPARE_BIN}" \
-    "${BUDGET_DB_VERIFY_BIN}" "${BUDGET_VERIFY_PSQL_BIN}"; do
+    "${BUDGET_DB_VERIFY_BIN}" "${BUDGET_VERIFY_PSQL_BIN}" \
+    "${BUDGET_ROLE_VALIDATOR_BIN}"; do
     if [[ "${executable}" != /* || ! -x "${executable}" ]]; then
       budget_error 'restore executable boundary is not an absolute executable' 75
       return
@@ -138,8 +142,15 @@ restore_validate_configuration() {
     budget_error 'database verifier must be the tracked pinned verifier' 75
     return
   fi
+  if [[ "${BUDGET_ROLE_VALIDATOR_BIN}" != \
+    "${RESTORE_SCRIPT_DIR}/validate-restore-roles.sh" ]]; then
+    budget_error 'role validator must be the tracked pinned validator' 75
+    return
+  fi
   budget_validate_executable_hash "${BUDGET_DB_VERIFY_BIN}" \
     "${BUDGET_DB_VERIFY_SHA256}" 75
+  budget_validate_executable_hash "${BUDGET_ROLE_VALIDATOR_BIN}" \
+    "${BUDGET_ROLE_VALIDATOR_SHA256}" 75
   budget_validate_postgres_binary "${BUDGET_VERIFY_PSQL_BIN}" \
     "${BUDGET_VERIFY_PSQL_SHA256}" psql "${BUDGET_PG_DUMP_VERSION}" 75
   budget_validate_postgres_binary "${BUDGET_PG_RESTORE_BIN}" \
@@ -345,6 +356,8 @@ restore_execute() {
   restore_run "${BUDGET_PG_RESTORE_BIN}" --list "${restore_archive_plain}" > "${restore_archive_list}"
   restore_run "${BUDGET_ROLE_FILTER_BIN}" "${restore_roles_plain}" \
     "${restore_roles_filtered}" "${BUDGET_ROLE_ALLOWLIST}"
+  restore_run "${BUDGET_ROLE_VALIDATOR_BIN}" "${restore_archive_list}" \
+    "${restore_roles_filtered}" "${BUDGET_TARGET_ROLE_MANIFEST}" >/dev/null
 
   export PGCONNECT_TIMEOUT=5
   export PGOPTIONS='-c lock_timeout=30s -c statement_timeout=59min'

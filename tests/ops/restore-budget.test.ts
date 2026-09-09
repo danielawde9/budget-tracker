@@ -258,6 +258,19 @@ describe('scratch-only Budget restore boundary', () => {
     expect(commands).not.toContain('pg_restore');
   });
 
+  it('rejects an archive owner outside the target-role manifest before psql', () => {
+    const { env, log } = makeRestoreFixture();
+    const result = run('restore', {
+      ...env,
+      BUDGET_FAKE_TOC_OWNER: 'unapproved_owner',
+    });
+
+    expect(result.status).toBe(79);
+    expect(result.stderr).toContain('archive owner or SQL grantee is not allowlisted');
+    const commands = readFileSync(log, 'utf8').trimEnd().split('\n');
+    expect(commands).not.toContain('psql');
+  });
+
   it('rejects a scratch marker swapped after validation before restore effects', () => {
     const { env, log, scratchMarker } = makeRestoreFixture();
     const result = run('restore', {

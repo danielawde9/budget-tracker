@@ -178,6 +178,7 @@ export function makeRestoreFixture() {
   const scratchRoot = join(backup.base, 'budget-restore-scratch');
   const scratchMarker = join(scratchRoot, '.budget-ops-marker');
   const identity = join(backup.base, 'age-identity');
+  const targetRoleManifest = join(backup.base, 'target-roles.txt');
   const offsiteRoot = join(backup.base, 'offsite');
   const recoveryPoint = '2026-09-09T021500Z-fixture';
   const remotePoint = join(offsiteRoot, recoveryPoint);
@@ -195,11 +196,27 @@ export function makeRestoreFixture() {
     { mode: 0o600 },
   );
   writeFileSync(identity, 'AGE-SECRET-KEY-fixture-only\n', { mode: 0o600 });
+  writeFileSync(
+    targetRoleManifest,
+    [
+      'postgres',
+      'budget_authenticated',
+      'budget_anon',
+      'budget_service',
+      'authenticated',
+      'service_role',
+      '',
+    ].join('\n'),
+    { mode: 0o600 },
+  );
 
   const hashes: string[] = [];
   const restorePayloads: ReadonlyArray<readonly [string, string]> = [
     ['archive.dump.age', 'fixture custom archive\n'],
-    ['roles.sql.age', 'CREATE ROLE budget_authenticated;\n'],
+    [
+      'roles.sql.age',
+      'CREATE ROLE budget_authenticated;\nGRANT budget_authenticated TO authenticated;\nGRANT budget_authenticated TO service_role;\n',
+    ],
     ['catalog.txt.age', 'catalog_hash=fixture-catalog-hash\n'],
   ];
   for (const [filename, contents] of restorePayloads) {
@@ -230,7 +247,7 @@ export function makeRestoreFixture() {
   const compare = join(backup.base, 'bin', 'compare');
   makeExecutable(
     pgRestore,
-    'if [[ "${1:-}" == "--version" ]]; then printf "pg_restore (PostgreSQL) %s\\n" "${BUDGET_FAKE_PG_VERSION:-17.6}"; exit 0; fi; if [[ "$*" == *"--list"* ]]; then printf "fixture archive list\\n"; exit 0; fi; printf "pg_restore\\n" >> "$BUDGET_FAKE_LOG"; if [[ "${BUDGET_FAKE_RESTORE_FAIL:-0}" == "1" ]]; then exit 19; fi',
+    'if [[ "${1:-}" == "--version" ]]; then printf "pg_restore (PostgreSQL) %s\\n" "${BUDGET_FAKE_PG_VERSION:-17.6}"; exit 0; fi; if [[ "$*" == *"--list"* ]]; then printf "215; 1259 16384 TABLE public wallets %s\\n" "${BUDGET_FAKE_TOC_OWNER:-budget_service}"; exit 0; fi; printf "pg_restore\\n" >> "$BUDGET_FAKE_LOG"; if [[ "${BUDGET_FAKE_RESTORE_FAIL:-0}" == "1" ]]; then exit 19; fi',
   );
   makeExecutable(
     psql,
@@ -272,7 +289,15 @@ export function makeRestoreFixture() {
     BUDGET_PSQL_SHA256: fileSha256(psql),
     BUDGET_ROLE_FILTER_BIN: roleFilter,
     BUDGET_COMPARE_BIN: compare,
-    BUDGET_ROLE_ALLOWLIST: 'budget_authenticated,budget_anon,budget_service',
+    BUDGET_ROLE_ALLOWLIST: 'postgres,budget_authenticated,budget_anon,budget_service,authenticated,service_role',
+    BUDGET_TARGET_ROLE_MANIFEST: targetRoleManifest,
+    BUDGET_ROLE_VALIDATOR_BIN: join(
+      process.cwd(),
+      'scripts/ops/validate-restore-roles.sh',
+    ),
+    BUDGET_ROLE_VALIDATOR_SHA256: fileSha256(
+      join(process.cwd(), 'scripts/ops/validate-restore-roles.sh'),
+    ),
     BUDGET_EXPECTED_MANIFEST_SHA256: manifestHash,
   };
 
@@ -284,5 +309,6 @@ export function makeRestoreFixture() {
     recoveryPoint,
     scratchMarker,
     scratchRoot,
+    targetRoleManifest,
   };
 }
