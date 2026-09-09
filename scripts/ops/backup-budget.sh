@@ -305,6 +305,28 @@ backup_dry_run() {
   printf '%s\n' 'external recovery evidence remains BLOCKED until configured off-site proof and scratch restore'
 }
 
+backup_retention_epoch() {
+  local timestamp="${1:-}"
+  local tier="${2:-}"
+  /usr/bin/perl -MTime::Local=timegm -e '
+    alarm 5;
+    my ($timestamp, $tier) = @ARGV;
+    exit 1 unless $timestamp =~ /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})Z$/;
+    my ($year, $month, $day, $hour, $minute, $second) = ($1, $2, $3, $4, $5, $6);
+    my $epoch = eval { timegm($second, $minute, $hour, $day, $month - 1, $year) };
+    exit 1 if $@;
+    my @utc = gmtime($epoch);
+    my $round_trip = sprintf(
+      "%04d-%02d-%02dT%02d:%02d:%02dZ",
+      $utc[5] + 1900, $utc[4] + 1, $utc[3], $utc[2], $utc[1], $utc[0]
+    );
+    exit 1 unless $round_trip eq $timestamp;
+    exit 1 if $tier eq "weekly" && $utc[6] != 0;
+    exit 1 if $tier eq "monthly" && $utc[3] != 1;
+    print "$epoch\n";
+  ' "${timestamp}" "${tier}"
+}
+
 backup_retention_plan() {
   local index="${1:-}"
   if [[ -z "${index}" || ! -f "${index}" ]]; then
@@ -312,9 +334,9 @@ backup_retention_plan() {
     return
   fi
 
-  local -a ids=() timestamps=() tiers=() pins=() verifications=()
-  local id timestamp tier pin verification extra count=0 newest_timestamp=''
-  local last_daily='' last_weekly='' last_monthly=''
+  local -a ids=() timestamps=() epochs=() tiers=() pins=() verifications=()
+  local id timestamp tier pin verification extra count=0 newest_epoch=''
+  local last_daily='' last_weekly='' last_monthly='' epoch seen_id
   while IFS='|' read -r id timestamp tier pin verification extra; do
     [[ -z "${id}${timestamp}${tier}${pin}${verification}${extra}" ]] && continue
     count=$((count + 1))
@@ -330,6 +352,14 @@ backup_retention_plan() {
       budget_error 'retention index contains a protected identifier' 73
       return
     fi
+    if (( count > 1 )); then
+      for seen_id in "${ids[@]}"; do
+        if [[ "${seen_id}" == "${id}" ]]; then
+          budget_error 'retention index contains a duplicate recovery ID' 73
+          return
+        fi
+      done
+    fi
     if [[ ! "${timestamp}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ || \
       ! "${tier}" =~ ^(daily|weekly|monthly)$ || \
       ! "${pin}" =~ ^(normal|pinned)$ || \
@@ -337,26 +367,31 @@ backup_retention_plan() {
       budget_error 'retention index contains an invalid bounded row' 73
       return
     fi
+    epoch="$(backup_retention_epoch "${timestamp}" "${tier}")" || {
+      budget_error 'UTC retention date or tier eligibility is invalid' 73
+      return
+    }
     case "${tier}" in
       daily)
-        [[ -n "${last_daily}" && "${timestamp}" > "${last_daily}" ]] && {
+        [[ -n "${last_daily}" && "${epoch}" -gt "${last_daily}" ]] && {
           budget_error 'daily retention rows are not newest-first' 73; return; }
-        last_daily="${timestamp}"
+        last_daily="${epoch}"
         ;;
       weekly)
-        [[ -n "${last_weekly}" && "${timestamp}" > "${last_weekly}" ]] && {
+        [[ -n "${last_weekly}" && "${epoch}" -gt "${last_weekly}" ]] && {
           budget_error 'weekly retention rows are not newest-first' 73; return; }
-        last_weekly="${timestamp}"
+        last_weekly="${epoch}"
         ;;
       monthly)
-        [[ -n "${last_monthly}" && "${timestamp}" > "${last_monthly}" ]] && {
+        [[ -n "${last_monthly}" && "${epoch}" -gt "${last_monthly}" ]] && {
           budget_error 'monthly retention rows are not newest-first' 73; return; }
-        last_monthly="${timestamp}"
+        last_monthly="${epoch}"
         ;;
     esac
-    [[ -z "${newest_timestamp}" || "${timestamp}" > "${newest_timestamp}" ]] && newest_timestamp="${timestamp}"
+    [[ -z "${newest_epoch}" || "${epoch}" -gt "${newest_epoch}" ]] && newest_epoch="${epoch}"
     ids+=("${id}")
     timestamps+=("${timestamp}")
+    epochs+=("${epoch}")
     tiers+=("${tier}")
     pins+=("${pin}")
     verifications+=("${verification}")
@@ -368,7 +403,7 @@ backup_retention_plan() {
 
   local daily_count=0 weekly_count=0 monthly_count=0 position reason limit tier_count
   for ((position = 0; position < count; position += 1)); do
-    if [[ "${timestamps[position]}" == "${newest_timestamp}" ]]; then
+    if [[ "${epochs[position]}" == "${newest_epoch}" ]]; then
       reason='newest'
     elif [[ "${pins[position]}" == 'pinned' ]]; then
       reason='incident-pinned'

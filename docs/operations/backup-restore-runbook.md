@@ -159,7 +159,11 @@ budget-live-ID|2026-09-01T02:15:00Z|monthly|normal|verified
 
 Rows in each tier are newest-first. The plan keeps 14 daily, eight weekly, and
 12 monthly recovery points, plus the globally newest, incident-pinned, and
-unverified points. It proposes deletion only for exact `budget-live-` IDs.
+unverified points. Weekly eligibility is derived from a valid UTC Sunday and
+monthly eligibility from the first UTC calendar day; comparisons use parsed UTC
+instants rather than caller-supplied lexical ordering. Duplicate or conflicting
+recovery IDs fail before any plan is emitted. It proposes deletion only for
+exact `budget-live-` IDs.
 Review the plan before a separately approved adapter deletes anything; this
 repository intentionally includes no deletion command.
 

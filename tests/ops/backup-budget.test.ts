@@ -229,10 +229,12 @@ describe('encrypted Budget backup boundary', () => {
       );
     }
     for (let position = 0; position < 10; position += 1) {
-      const month = String(7 - Math.floor(position / 4)).padStart(2, '0');
-      const day = String(28 - (position % 4) * 7).padStart(2, '0');
+      const date = new Date(Date.UTC(2026, 7, 23 - position * 7));
+      const year = date.getUTCFullYear();
+      const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(date.getUTCDate()).padStart(2, '0');
       lines.push(
-        `budget-live-w${position}|2026-${month}-${day}T02:15:00Z|weekly|normal|verified`,
+        `budget-live-w${position}|${year}-${month}-${day}T02:15:00Z|weekly|normal|verified`,
       );
     }
     for (let position = 0; position < 14; position += 1) {
@@ -276,5 +278,53 @@ describe('encrypted Budget backup boundary', () => {
     expect(result.status).toBe(73);
     expect(result.stderr).toContain('retention index contains an unsafe prefix');
     expect(result.stdout).not.toContain('delete|');
+  });
+
+  it.each([
+    [
+      'duplicate',
+      [
+        'budget-live-same|2026-09-06T02:15:00Z|weekly|normal|verified',
+        'budget-live-same|2026-09-06T02:15:00Z|weekly|normal|verified',
+      ],
+    ],
+    [
+      'conflicting duplicate',
+      [
+        'budget-live-same|2026-09-06T02:15:00Z|weekly|normal|verified',
+        'budget-live-same|2026-09-01T02:15:00Z|monthly|pinned|unverified',
+      ],
+    ],
+  ])('rejects %s recovery IDs before emitting a plan', (_label, rows) => {
+    const { base, env } = makeBackupFixture();
+    const index = join(base, 'duplicate-retention.index');
+    writeFileSync(index, `${rows.join('\n')}\n`);
+
+    const result = run('retention-plan', env, [index]);
+
+    expect(result.status).toBe(73);
+    expect(result.stderr).toContain('duplicate recovery ID');
+    expect(result.stdout).toBe('');
+  });
+
+  it.each([
+    ['2026-02-30T02:15:00Z', 'daily'],
+    ['2026-09-07T02:15:00Z', 'weekly'],
+    ['2026-09-02T02:15:00Z', 'monthly'],
+  ])('rejects invalid UTC/tier eligibility %s %s', (timestamp, tier) => {
+    const { base, env } = makeBackupFixture();
+    const index = join(base, 'invalid-date-retention.index');
+    writeFileSync(
+      index,
+      `budget-live-invalid|${timestamp}|${tier}|normal|verified\n`,
+    );
+
+    const result = run('retention-plan', env, [index]);
+
+    expect(result.status).toBe(73);
+    expect(result.stderr).toContain(
+      'UTC retention date or tier eligibility is invalid',
+    );
+    expect(result.stdout).toBe('');
   });
 });
