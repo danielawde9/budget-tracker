@@ -41,6 +41,23 @@ budget_validate_safe_path() {
   fi
 }
 
+budget_require_private_file() {
+  local path="${1:-}"
+  local status="${2:-1}"
+  if [[ -z "${path}" || ! -f "${path}" ]]; then
+    budget_error 'secret file reference is missing' "${status}"
+    return
+  fi
+  if ! /usr/bin/perl -e '
+    alarm 5;
+    my @details = stat($ARGV[0]);
+    exit 1 unless @details;
+    exit((($details[2] & 0777) == 0600 && $details[4] == $<) ? 0 : 1);
+  ' "${path}"; then
+    budget_error 'secret file must be mode 0600 and operator-owned' "${status}"
+  fi
+}
+
 budget_expected_project() {
   case "${1:-}" in
     development) printf '%s\n' 'budget-supabase' ;;
@@ -90,8 +107,16 @@ budget_validate_environment() {
 
   expected_project="$(budget_expected_project "${environment}")"
   expected_port="$(budget_expected_port_range "${environment}")"
+  local identity_stem
+  case "${environment}" in
+    development) identity_stem='budget-supabase' ;;
+    uat) identity_stem='budget-uat' ;;
+    live) identity_stem='budget-live' ;;
+  esac
   if [[ "${project}" != "${expected_project}" || "${port_range}" != "${expected_port}" || \
-    "${hostname}" != budget-* || "${volume}" != budget-* || "${network}" != budget-* ]]; then
+    ( "${hostname}" != "${identity_stem}."* && "${hostname}" != "${identity_stem}-"* ) || \
+    "${volume}" != "${identity_stem}-"* || \
+    "${network}" != "${identity_stem}-"* ]]; then
     budget_error 'target is outside the exact Budget allowlist' 65
     return
   fi
@@ -158,10 +183,15 @@ budget_scan_secrets() {
       fi
     done <<< "${BUDGET_DISCOVERED_SECRETS:-}"
 
+    local assigned_value
     while IFS= read -r line; do
-      if [[ "${line}" =~ (SERVICE_ROLE|JWT_SECRET|DB_PASSWORD|SMTP_(PASSWORD|TOKEN)|AGE_IDENTITY|ADMIN_TOKEN)[[:space:]]*= ]]; then
-        budget_error "secret material detected in ${display_name}" 69
-        return
+      if [[ "${line}" =~ ^[[:space:]]*(export[[:space:]]+)?(SUPABASE_SERVICE_ROLE_KEY|JWT_SECRET|DB_PASSWORD|SMTP_(PASSWORD|TOKEN)|AGE_IDENTITY|ADMIN_TOKEN)[[:space:]]*= ]]; then
+        assigned_value="${line#*=}"
+        if [[ ! "${assigned_value}" =~ ^[[:space:]]*$ && \
+          "${assigned_value}" != *'${'* && "${assigned_value}" != *'<'* ]]; then
+          budget_error "secret material detected in ${display_name}" 69
+          return
+        fi
       fi
     done < "${candidate}"
   done

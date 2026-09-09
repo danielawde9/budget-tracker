@@ -92,11 +92,22 @@ describe('Budget operations environment contract', () => {
     const { env } = fixture();
     const result = run('validate-environment', {
       ...env,
-      BUDGET_HOSTNAME: 'budget-deposit.tailnet.example',
-      BUDGET_VOLUME: 'budget-composition-db',
+      BUDGET_HOSTNAME: 'budget-live-deposit.tailnet.example',
+      BUDGET_VOLUME: 'budget-live-composition-db',
     });
 
     expect(result.status).toBe(0);
+  });
+
+  it('rejects a cross-environment identifier outside the exact live allowlist', () => {
+    const { env } = fixture();
+    const result = run('validate-environment', {
+      ...env,
+      BUDGET_NETWORK: 'budget-uat-net',
+    });
+
+    expect(result.status).toBe(65);
+    expect(result.stderr).toContain('outside the exact Budget allowlist');
   });
 
   it.each([
@@ -168,5 +179,26 @@ describe('Budget operations environment contract', () => {
       'secret material detected in candidate.log',
     );
     expect(`${result.stdout}${result.stderr}`).not.toContain(secret);
+  });
+
+  it('allows secret references and empty placeholders without treating them as values', () => {
+    const { base } = fixture();
+    const candidate = join(base, 'configuration.example');
+    writeFileSync(
+      candidate,
+      [
+        'SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:?required}',
+        'DB_PASSWORD=',
+        'AGE_IDENTITY=<external-secret-reference>',
+        '',
+      ].join('\n'),
+    );
+    const result = spawnSync(
+      'bash',
+      [script, 'scan-secrets', candidate],
+      { cwd: process.cwd(), encoding: 'utf8', env: { ...process.env } },
+    );
+
+    expect(result.status).toBe(0);
   });
 });

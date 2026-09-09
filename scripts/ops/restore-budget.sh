@@ -51,6 +51,14 @@ restore_validate_configuration() {
     budget_error 'off-site destination is not configured' 75
     return
   fi
+  if [[ -z "${BUDGET_EXPECTED_MANIFEST_SHA256:-}" ]]; then
+    budget_error 'trusted manifest hash is not configured' 75
+    return
+  fi
+  if [[ ! "${BUDGET_EXPECTED_MANIFEST_SHA256}" =~ ^[a-f0-9]{64}$ ]]; then
+    budget_error 'trusted manifest hash is invalid' 75
+    return
+  fi
 
   local required_value
   for required_value in BUDGET_RECOVERY_POINT BUDGET_SCRATCH_ROOT \
@@ -120,10 +128,8 @@ system_id=${BUDGET_SCRATCH_EXPECTED_SYSTEM_ID}" ]]; then
     budget_error 'insufficient scratch restore space' 76
     return
   fi
-  if [[ ! -f "${BUDGET_AGE_IDENTITY_FILE}" || ! -f "${BUDGET_PGPASS_FILE}" ]]; then
-    budget_error 'restore secret file reference is missing' 75
-    return
-  fi
+  budget_require_private_file "${BUDGET_AGE_IDENTITY_FILE}" 75
+  budget_require_private_file "${BUDGET_PGPASS_FILE}" 75
 
   local executable
   for executable in "${BUDGET_TIMEOUT_BIN}" "${BUDGET_AGE_BIN}" \
@@ -232,6 +238,13 @@ restore_execute() {
       "${BUDGET_OFFSITE_BIN}" get "${BUDGET_OFFSITE_DESTINATION}" \
       "${RESTORE_POINT}/${filename}" "${local_path}"
   done
+
+  local trusted_manifest_hash
+  trusted_manifest_hash="$(restore_hash "${restore_manifest}")"
+  if [[ "${trusted_manifest_hash}" != "${BUDGET_EXPECTED_MANIFEST_SHA256}" ]]; then
+    budget_error 'trusted manifest hash mismatch' 78
+    return
+  fi
 
   budget_scan_secrets "${restore_manifest}" >/dev/null
   local manifest_run_id manifest_environment manifest_project manifest_system_id manifest_major

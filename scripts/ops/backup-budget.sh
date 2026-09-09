@@ -42,7 +42,12 @@ backup_validate_configuration() {
   backup_validate_scalar "${BUDGET_AGE_RECIPIENT}" 'encryption recipient'
   backup_validate_scalar "${BUDGET_OFFSITE_DESTINATION}" 'off-site destination'
   if [[ "${BUDGET_AGE_RECIPIENT}" != age1* || \
-    ! "${BUDGET_OFFSITE_DESTINATION}" =~ ^[A-Za-z0-9._/-]+$ ]] || \
+    ! "${BUDGET_OFFSITE_DESTINATION}" =~ ^[A-Za-z0-9._/-]+$ || \
+    "${BUDGET_OFFSITE_DESTINATION}" == /* || \
+    "${BUDGET_OFFSITE_DESTINATION}" == '..' || \
+    "${BUDGET_OFFSITE_DESTINATION}" == ../* || \
+    "${BUDGET_OFFSITE_DESTINATION}" == */../* || \
+    "${BUDGET_OFFSITE_DESTINATION}" == */.. ]] || \
     budget_is_protected_identifier "${BUDGET_OFFSITE_DESTINATION}"; then
     budget_error 'backup target configuration is outside the exact allowlist' 70
     return
@@ -51,10 +56,10 @@ backup_validate_configuration() {
   local required_value
   for required_value in BUDGET_RUN_ID BUDGET_PGPASS_FILE BUDGET_DATABASE_HOST \
     BUDGET_DATABASE_PORT BUDGET_DATABASE_NAME BUDGET_DATABASE_USER \
-    BUDGET_POSTGRES_MAJOR BUDGET_PG_DUMP_MAJOR BUDGET_RELEASE_ID \
+    BUDGET_POSTGRES_MAJOR BUDGET_PG_DUMP_MAJOR BUDGET_PG_DUMP_VERSION BUDGET_RELEASE_ID \
     BUDGET_MIGRATION_MANIFEST BUDGET_REQUIRED_BYTES BUDGET_AVAILABLE_BYTES \
     BUDGET_TIMEOUT_BIN BUDGET_PG_DUMP_BIN BUDGET_PG_DUMPALL_BIN \
-    BUDGET_AGE_BIN BUDGET_CATALOG_BIN BUDGET_OFFSITE_BIN; do
+    BUDGET_AGE_BIN BUDGET_CATALOG_BIN BUDGET_OFFSITE_BIN BUDGET_CLOCK_BIN; do
     if [[ -z "${!required_value:-}" ]]; then
       budget_error "required backup setting is missing: ${required_value}" 70
       return
@@ -65,7 +70,8 @@ backup_validate_configuration() {
     ! "${BUDGET_DATABASE_PORT}" =~ ^[0-9]{1,5}$ || \
     ! "${BUDGET_REQUIRED_BYTES}" =~ ^[0-9]{1,20}$ || \
     ! "${BUDGET_AVAILABLE_BYTES}" =~ ^[0-9]{1,20}$ || \
-    ! "${BUDGET_RELEASE_ID}" =~ ^[A-Za-z0-9._-]{1,128}$ ]]; then
+    ! "${BUDGET_RELEASE_ID}" =~ ^[A-Za-z0-9._-]{1,128}$ || \
+    ! "${BUDGET_PG_DUMP_VERSION}" =~ ^17\.[0-9]{1,3}$ ]]; then
     budget_error 'backup configuration contains an invalid bounded value' 70
     return
   fi
@@ -78,15 +84,16 @@ backup_validate_configuration() {
     budget_error 'insufficient backup space' 71
     return
   fi
-  if [[ ! -f "${BUDGET_PGPASS_FILE}" || ! -f "${BUDGET_MIGRATION_MANIFEST}" ]]; then
-    budget_error 'backup credential reference or migration manifest is missing' 70
+  budget_require_private_file "${BUDGET_PGPASS_FILE}" 70
+  if [[ ! -f "${BUDGET_MIGRATION_MANIFEST}" ]]; then
+    budget_error 'backup migration manifest is missing' 70
     return
   fi
 
   local executable
   for executable in "${BUDGET_TIMEOUT_BIN}" "${BUDGET_PG_DUMP_BIN}" \
     "${BUDGET_PG_DUMPALL_BIN}" "${BUDGET_AGE_BIN}" \
-    "${BUDGET_CATALOG_BIN}" "${BUDGET_OFFSITE_BIN}"; do
+    "${BUDGET_CATALOG_BIN}" "${BUDGET_OFFSITE_BIN}" "${BUDGET_CLOCK_BIN}"; do
     if [[ "${executable}" != /* || ! -x "${executable}" ]]; then
       budget_error 'backup executable boundary is not an absolute executable' 70
       return
@@ -103,6 +110,15 @@ backup_hash() {
   local output
   output="$("${BACKUP_TIMEOUT_BIN}" "${BACKUP_HASH_TIMEOUT_SECONDS}" shasum -a 256 "${candidate}")"
   printf '%s\n' "${output%% *}"
+}
+
+backup_size() {
+  local candidate="${1:?size candidate is required}"
+  local output
+  output="$("${BACKUP_TIMEOUT_BIN}" "${BACKUP_HASH_TIMEOUT_SECONDS}" wc -c < "${candidate}")"
+  output="${output//[[:space:]]/}"
+  [[ "${output}" =~ ^[0-9]{1,20}$ ]] || return 1
+  printf '%s\n' "${output}"
 }
 
 backup_cleanup() {
@@ -140,6 +156,7 @@ backup_execute() {
   local backup_catalog_cipher="${backup_recovery_dir}/catalog.txt.age"
   local backup_manifest="${backup_recovery_dir}/manifest.txt"
   local backup_success="${backup_recovery_dir}/SUCCESS"
+  local backup_started_at backup_finished_at backup_started_seconds="${SECONDS}"
   trap backup_cleanup EXIT INT TERM HUP
 
   mkdir -p -- "${BACKUP_ROOT}/locks"
@@ -148,6 +165,8 @@ backup_execute() {
     return
   fi
   backup_lock_acquired=1
+  backup_started_at="$("${BACKUP_TIMEOUT_BIN}" "${BACKUP_HASH_TIMEOUT_SECONDS}" \
+    "${BUDGET_CLOCK_BIN}")"
 
   mkdir -p -- "${BACKUP_ROOT}/tmp" "${BACKUP_ROOT}/backups/live"
   if ! mkdir -- "${backup_plain_dir}"; then
@@ -188,11 +207,19 @@ backup_execute() {
     "${BUDGET_AGE_BIN}" -r "${BUDGET_AGE_RECIPIENT}" \
     -o "${backup_catalog_cipher}" "${backup_catalog_plain}"
 
-  local migration_hash archive_hash roles_hash catalog_hash
+  local migration_hash archive_hash roles_hash catalog_hash catalog_metadata_hash
+  local archive_size roles_size catalog_size duration_seconds
   migration_hash="$(backup_hash "${BUDGET_MIGRATION_MANIFEST}")"
   archive_hash="$(backup_hash "${backup_archive_cipher}")"
   roles_hash="$(backup_hash "${backup_roles_cipher}")"
   catalog_hash="$(backup_hash "${backup_catalog_cipher}")"
+  catalog_metadata_hash="$(backup_hash "${backup_catalog_plain}")"
+  archive_size="$(backup_size "${backup_archive_cipher}")"
+  roles_size="$(backup_size "${backup_roles_cipher}")"
+  catalog_size="$(backup_size "${backup_catalog_cipher}")"
+  backup_finished_at="$("${BACKUP_TIMEOUT_BIN}" "${BACKUP_HASH_TIMEOUT_SECONDS}" \
+    "${BUDGET_CLOCK_BIN}")"
+  duration_seconds=$((SECONDS - backup_started_seconds))
   {
     printf '%s\n' 'backup_manifest_version=1'
     printf 'run_id=%s\n' "${BACKUP_RUN_ID}"
@@ -201,8 +228,17 @@ backup_execute() {
     printf 'system_id=%s\n' "${BUDGET_VALIDATED_SYSTEM_ID}"
     printf 'postgres_major=%s\n' "${BUDGET_POSTGRES_MAJOR}"
     printf 'pg_dump_major=%s\n' "${BUDGET_PG_DUMP_MAJOR}"
+    printf 'pg_dump_version=%s\n' "${BUDGET_PG_DUMP_VERSION}"
+    printf '%s\n' 'backup_tool_version=budget-backup-v1'
+    printf 'started_at_utc=%s\n' "${backup_started_at}"
+    printf 'finished_at_utc=%s\n' "${backup_finished_at}"
+    printf 'duration_seconds=%s\n' "${duration_seconds}"
     printf 'release_id=%s\n' "${BUDGET_RELEASE_ID}"
     printf 'migration_manifest_sha256=%s\n' "${migration_hash}"
+    printf 'catalog_metadata_sha256=%s\n' "${catalog_metadata_hash}"
+    printf 'archive.dump.age_size=%s\n' "${archive_size}"
+    printf 'roles.sql.age_size=%s\n' "${roles_size}"
+    printf 'catalog.txt.age_size=%s\n' "${catalog_size}"
     printf '%s  %s\n' "${archive_hash}" 'archive.dump.age'
     printf '%s  %s\n' "${roles_hash}" 'roles.sql.age'
     printf '%s  %s\n' "${catalog_hash}" 'catalog.txt.age'

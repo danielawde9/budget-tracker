@@ -51,6 +51,7 @@ export function makeBackupFixture() {
   const age = join(bin, 'age');
   const catalog = join(bin, 'catalog');
   const offsite = join(bin, 'offsite');
+  const clock = join(bin, 'clock');
 
   makeExecutable(
     timeout,
@@ -76,6 +77,7 @@ export function makeBackupFixture() {
     offsite,
     'printf "offsite:%s\\n" "$1" >> "$BUDGET_FAKE_LOG"; exit 0',
   );
+  makeExecutable(clock, 'printf "2026-09-09T02:15:00Z\\n"');
 
   const env: NodeJS.ProcessEnv = {
     ...process.env,
@@ -99,6 +101,7 @@ export function makeBackupFixture() {
     BUDGET_DATABASE_USER: 'budget_backup',
     BUDGET_POSTGRES_MAJOR: '17',
     BUDGET_PG_DUMP_MAJOR: '17',
+    BUDGET_PG_DUMP_VERSION: '17.6',
     BUDGET_RELEASE_ID: 'release-fixture',
     BUDGET_MIGRATION_MANIFEST: migrationManifest,
     BUDGET_REQUIRED_BYTES: '1024',
@@ -109,10 +112,11 @@ export function makeBackupFixture() {
     BUDGET_AGE_BIN: age,
     BUDGET_CATALOG_BIN: catalog,
     BUDGET_OFFSITE_BIN: offsite,
+    BUDGET_CLOCK_BIN: clock,
     BUDGET_FAKE_LOG: log,
   };
 
-  return { base, env, log, marker, root };
+  return { base, env, log, marker, passfile, root };
 }
 
 export function makeRestoreFixture() {
@@ -139,18 +143,17 @@ export function makeRestoreFixture() {
   writeFileSync(identity, 'AGE-SECRET-KEY-fixture-only\n', { mode: 0o600 });
 
   const hashes: string[] = [];
-  for (const [filename, contents] of [
+  const restorePayloads: ReadonlyArray<readonly [string, string]> = [
     ['archive.dump.age', 'fixture custom archive\n'],
     ['roles.sql.age', 'CREATE ROLE budget_authenticated;\n'],
     ['catalog.txt.age', 'catalog_hash=fixture-catalog-hash\n'],
-  ]) {
+  ];
+  for (const [filename, contents] of restorePayloads) {
     writeFileSync(join(remotePoint, filename), contents, { mode: 0o600 });
     const hash = createHash('sha256').update(contents).digest('hex');
     hashes.push(`${hash}  ${filename}`);
   }
-  writeFileSync(
-    join(remotePoint, 'manifest.txt'),
-    [
+  const manifest = [
       'backup_manifest_version=1',
       `run_id=${recoveryPoint}`,
       'environment=live',
@@ -162,9 +165,9 @@ export function makeRestoreFixture() {
       'migration_manifest_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
       ...hashes,
       '',
-    ].join('\n'),
-    { mode: 0o600 },
-  );
+    ].join('\n');
+  writeFileSync(join(remotePoint, 'manifest.txt'), manifest, { mode: 0o600 });
+  const manifestHash = createHash('sha256').update(manifest).digest('hex');
 
   const pgRestore = join(backup.base, 'bin', 'pg_restore');
   const psql = join(backup.base, 'bin', 'psql');
@@ -209,6 +212,7 @@ export function makeRestoreFixture() {
     BUDGET_ROLE_FILTER_BIN: roleFilter,
     BUDGET_COMPARE_BIN: compare,
     BUDGET_ROLE_ALLOWLIST: 'budget_authenticated,budget_anon,budget_service',
+    BUDGET_EXPECTED_MANIFEST_SHA256: manifestHash,
   };
 
   return {

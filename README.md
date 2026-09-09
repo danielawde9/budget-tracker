@@ -48,6 +48,11 @@ database. Database tests require the ignored `BUDGET_TEST_DATABASE_URL` from
 `.env.test` and target only the dedicated Budget development database described
 in `docs/operations/ubuntu-development-stack.md`.
 
+Backup and recovery tooling is documented in the
+[encrypted backup and scratch-restore runbook](docs/operations/backup-restore-runbook.md).
+Repository tests and dry-runs are not live backup, restore, deployment, or
+real-data-entry evidence.
+
 ## Current boundaries
 
 - Loan openings, lending, borrowing, repayments, targets, and corrections use

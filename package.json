@@ -13,6 +13,7 @@
     "test:ui:watch": "vitest --config vitest.ui.config.ts",
     "test:e2e": "env -u NO_COLOR playwright test",
     "typecheck": "tsc --noEmit",
+    "check:ops": "bash scripts/ops/check-budget.sh",
     "check:ui": "pnpm typecheck && pnpm test:ui && pnpm build",
     "check": "pnpm typecheck && pnpm test:db && pnpm test:ui && pnpm build"
   },

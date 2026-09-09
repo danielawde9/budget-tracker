@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -47,6 +48,31 @@ describe('encrypted Budget backup boundary', () => {
     expect(result.stderr).toContain('insufficient backup space');
     expect(existsSync(log)).toBe(false);
   });
+
+  it('refuses a database secret file that is not mode 0600', () => {
+    const { env, log, passfile } = makeBackupFixture();
+    chmodSync(passfile, 0o644);
+    const result = run('backup', env);
+
+    expect(result.status).toBe(70);
+    expect(result.stderr).toContain('secret file must be mode 0600');
+    expect(existsSync(log)).toBe(false);
+  });
+
+  it.each(['/', '../budget-live', 'bucket/*']) (
+    'refuses unsafe off-site destination %s',
+    (destination) => {
+      const { env, log } = makeBackupFixture();
+      const result = run('backup', {
+        ...env,
+        BUDGET_OFFSITE_DESTINATION: destination,
+      });
+
+      expect(result.status).toBe(70);
+      expect(result.stderr).toContain('backup target configuration is outside');
+      expect(existsSync(log)).toBe(false);
+    },
+  );
 
   it('uses a nonblocking single-run lock', () => {
     const { env, root, log } = makeBackupFixture();
@@ -103,8 +129,17 @@ describe('encrypted Budget backup boundary', () => {
     }
     expect(manifest).toContain('system_id=7000000000000000001');
     expect(manifest).toContain('postgres_major=17');
+    expect(manifest).toContain('pg_dump_version=17.6');
+    expect(manifest).toContain('backup_tool_version=budget-backup-v1');
+    expect(manifest).toContain('started_at_utc=2026-09-09T02:15:00Z');
+    expect(manifest).toContain('finished_at_utc=2026-09-09T02:15:00Z');
+    expect(manifest).toMatch(/duration_seconds=[0-9]+/);
     expect(manifest).toContain('release_id=release-fixture');
     expect(manifest).toContain('migration_manifest_sha256=');
+    expect(manifest).toMatch(/catalog_metadata_sha256=[a-f0-9]{64}/);
+    expect(manifest).toMatch(/archive\.dump\.age_size=[1-9][0-9]*/);
+    expect(manifest).toMatch(/roles\.sql\.age_size=[1-9][0-9]*/);
+    expect(manifest).toMatch(/catalog\.txt\.age_size=[1-9][0-9]*/);
     expect(manifest).not.toContain('fixture-only');
   });
 

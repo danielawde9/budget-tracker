@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -58,12 +59,23 @@ describe('scratch-only Budget restore boundary', () => {
   it.each([
     ['BUDGET_AGE_IDENTITY_FILE', 'restore age identity is not configured'],
     ['BUDGET_OFFSITE_DESTINATION', 'off-site destination is not configured'],
+    ['BUDGET_EXPECTED_MANIFEST_SHA256', 'trusted manifest hash is not configured'],
   ])('refuses missing %s before fetching', (key, message) => {
     const { env, log } = makeRestoreFixture();
     const result = run('restore', { ...env, [key]: '' });
 
     expect(result.status).toBe(75);
     expect(result.stderr).toContain(message);
+    expect(existsSync(log)).toBe(false);
+  });
+
+  it('refuses an age identity file that is not mode 0600', () => {
+    const { env, identity, log } = makeRestoreFixture();
+    chmodSync(identity, 0o644);
+    const result = run('restore', env);
+
+    expect(result.status).toBe(75);
+    expect(result.stderr).toContain('secret file must be mode 0600');
     expect(existsSync(log)).toBe(false);
   });
 
@@ -143,6 +155,19 @@ describe('scratch-only Budget restore boundary', () => {
     expect(result.status).toBe(78);
     expect(result.stderr).toContain('ciphertext hash mismatch');
     expect(commands).toContain('offsite:get');
+    expect(commands).not.toContain('age');
+    expect(commands).not.toContain('pg_restore');
+  });
+
+  it('rejects a manifest that differs from the trusted receipt before decrypt or restore', () => {
+    const { env, log, offsiteRoot, recoveryPoint } = makeRestoreFixture();
+    const manifestPath = join(offsiteRoot, recoveryPoint, 'manifest.txt');
+    writeFileSync(manifestPath, `${readFileSync(manifestPath, 'utf8')}tampered=yes\n`);
+    const result = run('restore', env);
+    const commands = readFileSync(log, 'utf8');
+
+    expect(result.status).toBe(78);
+    expect(result.stderr).toContain('trusted manifest hash mismatch');
     expect(commands).not.toContain('age');
     expect(commands).not.toContain('pg_restore');
   });
