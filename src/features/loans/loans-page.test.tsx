@@ -1,8 +1,10 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { LoanDetailDialog } from './loan-dialogs.js';
 import { LoansPage } from './loans-page.js';
-import { InMemoryLoansGateway } from '../../test/in-memory-loans-gateway.js';
+import { InMemoryLoansGateway, loansFixture } from '../../test/in-memory-loans-gateway.js';
+import type { LoanHistoryItem, Locale } from './types.js';
 
 async function renderPage(gateway = new InMemoryLoansGateway()) {
   const user = userEvent.setup();
@@ -12,6 +14,65 @@ async function renderPage(gateway = new InMemoryLoansGateway()) {
 }
 
 describe('LoansPage', () => {
+  it.each([
+    ['en', [
+      'Correct opening entry from Sep 3, 2026',
+      'Correct lending entry from Sep 3, 2026',
+      'Correct borrowing entry from Sep 3, 2026',
+      'Correct received repayment from Sep 3, 2026',
+      'Correct borrowing repayment from Sep 3, 2026',
+    ], 'Reversed'],
+    ['ar', [
+      'تصحيح رصيد افتتاحي بتاريخ ٣ أيلول ٢٠٢٦',
+      'تصحيح قرض إقراض بتاريخ ٣ أيلول ٢٠٢٦',
+      'تصحيح قرض اقتراض بتاريخ ٣ أيلول ٢٠٢٦',
+      'تصحيح دفعة مستلمة بتاريخ ٣ أيلول ٢٠٢٦',
+      'تصحيح دفعة سداد قرض بتاريخ ٣ أيلول ٢٠٢٦',
+    ], 'معكوس'],
+  ] as const)('gives each reversible event kind a unique localized correction name in %s', (locale, expectedNames, unavailableText) => {
+    const loan = loansFixture().loans[0];
+    if (!loan) throw new Error('The Loans test fixture must include a loan.');
+    const reversibleKinds: LoanHistoryItem['kind'][] = [
+      'loan_opening',
+      'loan_lend',
+      'loan_borrow',
+      'loan_receive_repayment',
+      'loan_repay_borrowing',
+    ];
+    const history = reversibleKinds.map((kind, index): LoanHistoryItem => ({
+      eventId: `reversible-${index}`,
+      kind,
+      effectiveDate: '2026-09-03',
+      createdAt: `2026-09-03T12:0${index}:00Z`,
+      principalDeltaMinor: index < 3 ? '10000' : '-1000',
+      repaymentEffectMinor: index < 3 ? '0' : '1000',
+      walletName: null,
+      walletAmountMinor: null,
+      reversalOf: null,
+      reversedBy: null,
+    }));
+    history.push(
+      { ...history[0]!, eventId: 'already-reversed', reversedBy: 'linked-reversal' },
+      { ...history[0]!, eventId: 'linked-reversal', kind: 'reversal', reversalOf: 'already-reversed' },
+    );
+
+    render(
+      <LoanDetailDialog
+        loan={{ ...loan, history }}
+        locale={locale as Locale}
+        onClose={vi.fn()}
+        onRepay={vi.fn()}
+        onTarget={vi.fn()}
+        onCorrect={vi.fn()}
+      />,
+    );
+
+    const correctionButtons = screen.getAllByRole('button', { name: /^(Correct|تصحيح) / });
+    expect(correctionButtons.map((button) => button.getAttribute('aria-label'))).toEqual(expectedNames);
+    expect(new Set(expectedNames).size).toBe(expectedNames.length);
+    expect(screen.getAllByText(unavailableText)).toHaveLength(2);
+  });
+
   it('shows per-currency totals and both loan directions without combining currencies', async () => {
     await renderPage();
 

@@ -25,6 +25,22 @@ test('desktop English overview and immutable detail', async ({ page }, testInfo)
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-en-detail.png'), fullPage: true });
 });
 
+test('loan history correction actions name borrowing repayments in English and Arabic', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop');
+  await page.getByRole('button', { name: 'Open Karim loan' }).click();
+  let detail = page.getByRole('dialog', { name: 'Karim loan details' });
+  await expect(detail.getByRole('button', { name: 'Correct borrowing entry from Jun 1, 2026' })).toBeVisible();
+  await expect(detail.getByRole('button', { name: 'Correct borrowing repayment from Sep 3, 2026' })).toBeVisible();
+  await detail.getByRole('button', { name: 'Close' }).click();
+
+  await page.getByRole('button', { name: 'العربية' }).click();
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await page.getByRole('button', { name: 'فتح قرض Karim' }).click();
+  detail = page.getByRole('dialog', { name: 'تفاصيل قرض Karim' });
+  await expect(detail.getByRole('button', { name: 'تصحيح قرض اقتراض بتاريخ ١ حزيران ٢٠٢٦' })).toBeVisible();
+  await expect(detail.getByRole('button', { name: 'تصحيح دفعة سداد قرض بتاريخ ٣ أيلول ٢٠٢٦' })).toBeVisible();
+});
+
 test('mobile English creation and repayment overlays', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile');
   await page.getByRole('button', { name: 'Add loan' }).click();
