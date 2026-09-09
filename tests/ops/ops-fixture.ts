@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import {
   chmodSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   realpathSync,
   writeFileSync,
 } from 'node:fs';
@@ -14,6 +16,10 @@ export function makeExecutable(path: string, body: string) {
     mode: 0o700,
   });
   chmodSync(path, 0o700);
+}
+
+function fileSha256(path: string) {
+  return createHash('sha256').update(readFileSync(path)).digest('hex');
 }
 
 export function makeBackupFixture() {
@@ -61,11 +67,11 @@ export function makeBackupFixture() {
   );
   makeExecutable(
     pgDump,
-    'output=""; for argument in "$@"; do case "$argument" in --file=*) output="${argument#--file=}" ;; esac; done; test -n "$output"; printf "fixture custom archive\\n" > "$output"; printf "pg_dump\\n" >> "$BUDGET_FAKE_LOG"',
+    'if [[ "${1:-}" == "--version" ]]; then printf "pg_dump (PostgreSQL) %s\\n" "${BUDGET_FAKE_PG_VERSION:-17.6}"; exit 0; fi; output=""; for argument in "$@"; do case "$argument" in --file=*) output="${argument#--file=}" ;; esac; done; test -n "$output"; printf "fixture custom archive\\n" > "$output"; printf "pg_dump\\n" >> "$BUDGET_FAKE_LOG"',
   );
   makeExecutable(
     pgDumpall,
-    'printf "CREATE ROLE budget_authenticated;\\n"; printf "pg_dumpall\\n" >> "$BUDGET_FAKE_LOG"',
+    'if [[ "${1:-}" == "--version" ]]; then printf "pg_dumpall (PostgreSQL) %s\\n" "${BUDGET_FAKE_PG_VERSION:-17.6}"; exit 0; fi; printf "CREATE ROLE budget_authenticated;\\n"; printf "pg_dumpall\\n" >> "$BUDGET_FAKE_LOG"',
   );
   makeExecutable(
     age,
@@ -84,6 +90,7 @@ export function makeBackupFixture() {
     verifyPsql,
     [
       'counter_file="$BUDGET_FAKE_VERIFY_COUNTER"',
+      'if [[ "${1:-}" == "--version" ]]; then printf "psql (PostgreSQL) %s\\n" "${BUDGET_FAKE_PG_VERSION:-17.6}"; exit 0; fi',
       'counter=0',
       '[[ -f "$counter_file" ]] && counter="$(<"$counter_file")"',
       'counter=$((counter + 1))',
@@ -136,6 +143,16 @@ export function makeBackupFixture() {
     BUDGET_POSTGRES_MAJOR: '17',
     BUDGET_PG_DUMP_MAJOR: '17',
     BUDGET_PG_DUMP_VERSION: '17.6',
+    BUDGET_PG_DUMP_SHA256: fileSha256(pgDump),
+    BUDGET_PG_DUMPALL_SHA256: fileSha256(pgDumpall),
+    BUDGET_VERIFY_PSQL_SHA256: fileSha256(verifyPsql),
+    BUDGET_DB_VERIFY_SHA256: fileSha256(
+      join(process.cwd(), 'scripts/ops/verify-budget-db.sh'),
+    ),
+    BUDGET_SOURCE_COMMIT: execFileSync('/usr/bin/git', ['rev-parse', 'HEAD'], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+    }).trim(),
     BUDGET_RELEASE_ID: 'release-fixture',
     BUDGET_MIGRATION_MANIFEST: migrationManifest,
     BUDGET_REQUIRED_BYTES: '1024',
@@ -153,7 +170,7 @@ export function makeBackupFixture() {
     BUDGET_FAKE_LOG: log,
   };
 
-  return { base, env, log, marker, passfile, root };
+  return { base, env, log, marker, passfile, pgDump, root };
 }
 
 export function makeRestoreFixture() {
@@ -198,6 +215,7 @@ export function makeRestoreFixture() {
       'system_id=7000000000000000001',
       'postgres_major=17',
       'pg_dump_major=17',
+      `source_commit=${backup.env.BUDGET_SOURCE_COMMIT}`,
       'release_id=release-fixture',
       'migration_manifest_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
       ...hashes,
@@ -212,9 +230,12 @@ export function makeRestoreFixture() {
   const compare = join(backup.base, 'bin', 'compare');
   makeExecutable(
     pgRestore,
-    'if [[ "$*" == *"--list"* ]]; then printf "fixture archive list\\n"; exit 0; fi; printf "pg_restore\\n" >> "$BUDGET_FAKE_LOG"; if [[ "${BUDGET_FAKE_RESTORE_FAIL:-0}" == "1" ]]; then exit 19; fi',
+    'if [[ "${1:-}" == "--version" ]]; then printf "pg_restore (PostgreSQL) %s\\n" "${BUDGET_FAKE_PG_VERSION:-17.6}"; exit 0; fi; if [[ "$*" == *"--list"* ]]; then printf "fixture archive list\\n"; exit 0; fi; printf "pg_restore\\n" >> "$BUDGET_FAKE_LOG"; if [[ "${BUDGET_FAKE_RESTORE_FAIL:-0}" == "1" ]]; then exit 19; fi',
   );
-  makeExecutable(psql, 'printf "psql\\n" >> "$BUDGET_FAKE_LOG"');
+  makeExecutable(
+    psql,
+    'if [[ "${1:-}" == "--version" ]]; then printf "psql (PostgreSQL) %s\\n" "${BUDGET_FAKE_PG_VERSION:-17.6}"; exit 0; fi; printf "psql\\n" >> "$BUDGET_FAKE_LOG"',
+  );
   makeExecutable(
     roleFilter,
     'cp "$1" "$2"; printf "role-filter\\n" >> "$BUDGET_FAKE_LOG"',
@@ -247,6 +268,8 @@ export function makeRestoreFixture() {
     BUDGET_SCRATCH_AVAILABLE_BYTES: '10485760',
     BUDGET_PG_RESTORE_BIN: pgRestore,
     BUDGET_PSQL_BIN: psql,
+    BUDGET_PG_RESTORE_SHA256: fileSha256(pgRestore),
+    BUDGET_PSQL_SHA256: fileSha256(psql),
     BUDGET_ROLE_FILTER_BIN: roleFilter,
     BUDGET_COMPARE_BIN: compare,
     BUDGET_ROLE_ALLOWLIST: 'budget_authenticated,budget_anon,budget_service',

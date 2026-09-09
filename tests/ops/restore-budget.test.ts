@@ -123,6 +123,18 @@ describe('scratch-only Budget restore boundary', () => {
     expect(existsSync(log)).toBe(false);
   });
 
+  it('rejects /usr/bin/true as restore PostgreSQL tooling', () => {
+    const { env, log } = makeRestoreFixture();
+    const result = run('restore', {
+      ...env,
+      BUDGET_PSQL_BIN: '/usr/bin/true',
+    });
+
+    expect(result.status).toBe(75);
+    expect(result.stderr).toContain('placeholder PostgreSQL executable refused');
+    expect(existsSync(log)).toBe(false);
+  });
+
   it('rejects missing/wrong scratch markers and a reused live system identifier', () => {
     const first = makeRestoreFixture();
     unlinkSync(first.scratchMarker);

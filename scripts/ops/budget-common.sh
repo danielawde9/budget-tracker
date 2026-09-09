@@ -45,6 +45,70 @@ budget_run_before_deadline() {
   "${timeout_bin}" "${remaining}" "$@"
 }
 
+budget_file_sha256() {
+  local candidate="${1:-}"
+  local output
+  output="$(/usr/bin/shasum -a 256 "${candidate}")" || return
+  printf '%s\n' "${output%% *}"
+}
+
+budget_validate_executable_hash() {
+  local candidate="${1:-}"
+  local expected_hash="${2:-}"
+  local status="${3:-70}"
+  local resolved actual_hash
+
+  if [[ "${candidate}" != /* || ! -x "${candidate}" || \
+    ! "${expected_hash}" =~ ^[a-f0-9]{64}$ ]]; then
+    budget_error 'PostgreSQL executable contract is invalid' "${status}"
+    return
+  fi
+  resolved="$(/usr/bin/perl -MCwd=abs_path -e 'alarm 5; print abs_path($ARGV[0]) // ""' \
+    "${candidate}")"
+  if [[ "${resolved}" != "${candidate}" || "${resolved}" == '/usr/bin/true' || \
+    "${resolved}" == '/bin/true' || "${resolved}" == '/usr/bin/false' || \
+    "${resolved}" == '/bin/false' ]]; then
+    budget_error 'placeholder PostgreSQL executable refused' "${status}"
+    return
+  fi
+  actual_hash="$(budget_file_sha256 "${candidate}")"
+  if [[ "${actual_hash}" != "${expected_hash}" ]]; then
+    budget_error 'PostgreSQL executable hash mismatch' "${status}"
+    return
+  fi
+}
+
+budget_validate_postgres_binary() {
+  local candidate="${1:-}"
+  local expected_hash="${2:-}"
+  local product="${3:-}"
+  local expected_version="${4:-}"
+  local status="${5:-70}"
+  local version_output
+
+  budget_validate_executable_hash "${candidate}" "${expected_hash}" "${status}"
+  version_output="$(/usr/bin/perl -e 'alarm 5; exec @ARGV or die "exec failed\n"' \
+    "${candidate}" --version)"
+  if [[ "${version_output}" != "${product} (PostgreSQL) ${expected_version}" && \
+    "${version_output}" != "${product} (PostgreSQL) ${expected_version} "* ]]; then
+    budget_error 'measured PostgreSQL version mismatch' "${status}"
+  fi
+}
+
+budget_validate_source_commit() {
+  local expected="${1:-}"
+  local status="${2:-70}"
+  local actual
+  if [[ ! "${expected}" =~ ^[a-f0-9]{40}$ ]]; then
+    budget_error 'source commit provenance is invalid' "${status}"
+    return
+  fi
+  actual="$(/usr/bin/git -C "${BUDGET_OPS_REPO_ROOT}" rev-parse HEAD)"
+  if [[ "${actual}" != "${expected}" ]]; then
+    budget_error 'source commit provenance mismatch' "${status}"
+  fi
+}
+
 budget_is_protected_identifier() {
   local value="${1:-}"
   local lowered

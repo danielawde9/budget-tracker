@@ -51,7 +51,9 @@ backup_validate_configuration() {
   for required_value in BUDGET_RUN_ID BUDGET_PGPASS_FILE BUDGET_DATABASE_HOST \
     BUDGET_DATABASE_PORT BUDGET_DATABASE_NAME BUDGET_DATABASE_USER \
     BUDGET_EXPECTED_DATABASE_OID BUDGET_DB_VERIFY_BIN BUDGET_VERIFY_PSQL_BIN \
+    BUDGET_DB_VERIFY_SHA256 BUDGET_VERIFY_PSQL_SHA256 \
     BUDGET_POSTGRES_MAJOR BUDGET_PG_DUMP_MAJOR BUDGET_PG_DUMP_VERSION BUDGET_RELEASE_ID \
+    BUDGET_PG_DUMP_SHA256 BUDGET_PG_DUMPALL_SHA256 BUDGET_SOURCE_COMMIT \
     BUDGET_MIGRATION_MANIFEST BUDGET_REQUIRED_BYTES BUDGET_AVAILABLE_BYTES \
     BUDGET_TIMEOUT_BIN BUDGET_PG_DUMP_BIN BUDGET_PG_DUMPALL_BIN \
     BUDGET_AGE_BIN BUDGET_CATALOG_BIN BUDGET_OFFSITE_BIN BUDGET_CLOCK_BIN; do
@@ -109,6 +111,15 @@ backup_validate_configuration() {
     budget_error 'database verifier must be the tracked pinned verifier' 70
     return
   fi
+  budget_validate_executable_hash "${BUDGET_DB_VERIFY_BIN}" \
+    "${BUDGET_DB_VERIFY_SHA256}" 70
+  budget_validate_postgres_binary "${BUDGET_VERIFY_PSQL_BIN}" \
+    "${BUDGET_VERIFY_PSQL_SHA256}" psql "${BUDGET_PG_DUMP_VERSION}" 70
+  budget_validate_postgres_binary "${BUDGET_PG_DUMP_BIN}" \
+    "${BUDGET_PG_DUMP_SHA256}" pg_dump "${BUDGET_PG_DUMP_VERSION}" 70
+  budget_validate_postgres_binary "${BUDGET_PG_DUMPALL_BIN}" \
+    "${BUDGET_PG_DUMPALL_SHA256}" pg_dumpall "${BUDGET_PG_DUMP_VERSION}" 70
+  budget_validate_source_commit "${BUDGET_SOURCE_COMMIT}" 70
 
   readonly BACKUP_RUN_ID="${BUDGET_RUN_ID}"
   readonly BACKUP_TIMEOUT_BIN="${BUDGET_TIMEOUT_BIN}"
@@ -268,6 +279,7 @@ backup_execute() {
     printf 'finished_at_utc=%s\n' "${backup_finished_at}"
     printf 'duration_seconds=%s\n' "${duration_seconds}"
     printf 'release_id=%s\n' "${BUDGET_RELEASE_ID}"
+    printf 'source_commit=%s\n' "${BUDGET_SOURCE_COMMIT}"
     printf 'migration_manifest_sha256=%s\n' "${migration_hash}"
     printf 'catalog_metadata_sha256=%s\n' "${catalog_metadata_hash}"
     printf 'archive.dump.age_size=%s\n' "${archive_size}"

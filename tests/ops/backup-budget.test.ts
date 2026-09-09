@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import {
+  appendFileSync,
   chmodSync,
   existsSync,
   mkdirSync,
@@ -160,6 +161,7 @@ describe('encrypted Budget backup boundary', () => {
     expect(manifest).toContain('finished_at_utc=2026-09-09T02:15:00Z');
     expect(manifest).toMatch(/duration_seconds=[0-9]+/);
     expect(manifest).toContain('release_id=release-fixture');
+    expect(manifest).toMatch(/source_commit=[a-f0-9]{40}/);
     expect(manifest).toContain('migration_manifest_sha256=');
     expect(manifest).toMatch(/catalog_metadata_sha256=[a-f0-9]{64}/);
     expect(manifest).toMatch(/archive\.dump\.age_size=[1-9][0-9]*/);
@@ -167,6 +169,41 @@ describe('encrypted Budget backup boundary', () => {
     expect(manifest).toMatch(/catalog\.txt\.age_size=[1-9][0-9]*/);
     expect(manifest).not.toContain('fixture-only');
     expectShrinkingDeadline(commandLog, 1800);
+  });
+
+  it('rejects /usr/bin/true as PostgreSQL tooling', () => {
+    const { env, log } = makeBackupFixture();
+    const result = run('backup', {
+      ...env,
+      BUDGET_PG_DUMP_BIN: '/usr/bin/true',
+    });
+
+    expect(result.status).toBe(70);
+    expect(result.stderr).toContain('placeholder PostgreSQL executable refused');
+    expect(existsSync(log)).toBe(false);
+  });
+
+  it('rejects a PostgreSQL binary changed after its hash was pinned', () => {
+    const { env, log, pgDump } = makeBackupFixture();
+    appendFileSync(pgDump, '\n# changed after approval\n');
+
+    const result = run('backup', env);
+
+    expect(result.status).toBe(70);
+    expect(result.stderr).toContain('PostgreSQL executable hash mismatch');
+    expect(existsSync(log)).toBe(false);
+  });
+
+  it('rejects a caller version that differs from the measured binary version', () => {
+    const { env, log } = makeBackupFixture();
+    const result = run('backup', {
+      ...env,
+      BUDGET_FAKE_PG_VERSION: '16.9',
+    });
+
+    expect(result.status).toBe(70);
+    expect(result.stderr).toContain('measured PostgreSQL version mismatch');
+    expect(existsSync(log)).toBe(false);
   });
 
   it('trusts the measured database identity instead of a caller declaration', () => {

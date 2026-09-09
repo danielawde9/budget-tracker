@@ -69,7 +69,9 @@ restore_validate_configuration() {
     BUDGET_SCRATCH_REQUIRED_BYTES BUDGET_SCRATCH_AVAILABLE_BYTES \
     BUDGET_PGPASS_FILE BUDGET_DATABASE_HOST BUDGET_DATABASE_USER \
     BUDGET_ROLE_ALLOWLIST BUDGET_TIMEOUT_BIN BUDGET_AGE_BIN \
-    BUDGET_DB_VERIFY_BIN BUDGET_VERIFY_PSQL_BIN \
+    BUDGET_DB_VERIFY_BIN BUDGET_VERIFY_PSQL_BIN BUDGET_DB_VERIFY_SHA256 \
+    BUDGET_VERIFY_PSQL_SHA256 BUDGET_PG_RESTORE_SHA256 BUDGET_PSQL_SHA256 \
+    BUDGET_PG_DUMP_VERSION BUDGET_SOURCE_COMMIT \
     BUDGET_OFFSITE_BIN BUDGET_PG_RESTORE_BIN BUDGET_PSQL_BIN \
     BUDGET_ROLE_FILTER_BIN BUDGET_COMPARE_BIN; do
     if [[ -z "${!required_value:-}" ]]; then
@@ -136,6 +138,15 @@ restore_validate_configuration() {
     budget_error 'database verifier must be the tracked pinned verifier' 75
     return
   fi
+  budget_validate_executable_hash "${BUDGET_DB_VERIFY_BIN}" \
+    "${BUDGET_DB_VERIFY_SHA256}" 75
+  budget_validate_postgres_binary "${BUDGET_VERIFY_PSQL_BIN}" \
+    "${BUDGET_VERIFY_PSQL_SHA256}" psql "${BUDGET_PG_DUMP_VERSION}" 75
+  budget_validate_postgres_binary "${BUDGET_PG_RESTORE_BIN}" \
+    "${BUDGET_PG_RESTORE_SHA256}" pg_restore "${BUDGET_PG_DUMP_VERSION}" 75
+  budget_validate_postgres_binary "${BUDGET_PSQL_BIN}" \
+    "${BUDGET_PSQL_SHA256}" psql "${BUDGET_PG_DUMP_VERSION}" 75
+  budget_validate_source_commit "${BUDGET_SOURCE_COMMIT}" 75
 
   readonly RESTORE_TARGET="scratch"
   readonly RESTORE_POINT="${BUDGET_RECOVERY_POINT}"
@@ -291,6 +302,7 @@ restore_execute() {
 
   budget_scan_secrets "${restore_manifest}" >/dev/null
   local manifest_run_id manifest_environment manifest_project manifest_system_id manifest_major
+  local manifest_source_commit
   manifest_run_id="$(restore_manifest_value run_id "${restore_manifest}")" || {
     budget_error 'restore manifest is invalid' 78; return; }
   manifest_environment="$(restore_manifest_value environment "${restore_manifest}")" || {
@@ -301,11 +313,14 @@ restore_execute() {
     budget_error 'restore manifest is invalid' 78; return; }
   manifest_major="$(restore_manifest_value postgres_major "${restore_manifest}")" || {
     budget_error 'restore manifest is invalid' 78; return; }
+  manifest_source_commit="$(restore_manifest_value source_commit "${restore_manifest}")" || {
+    budget_error 'restore manifest is invalid' 78; return; }
   if [[ "${manifest_run_id}" != "${RESTORE_POINT}" || \
     "${manifest_environment}" != 'live' || \
     "${manifest_project}" != "${BUDGET_VALIDATED_PROJECT}" || \
     "${manifest_system_id}" != "${BUDGET_VALIDATED_SYSTEM_ID}" || \
-    "${manifest_major}" != "${BUDGET_SCRATCH_POSTGRES_MAJOR}" ]]; then
+    "${manifest_major}" != "${BUDGET_SCRATCH_POSTGRES_MAJOR}" || \
+    ! "${manifest_source_commit}" =~ ^[a-f0-9]{40}$ ]]; then
     budget_error 'restore manifest identity mismatch' 78
     return
   fi
