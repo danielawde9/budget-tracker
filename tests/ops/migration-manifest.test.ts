@@ -38,6 +38,19 @@ function writeExpected(path: string) {
   );
 }
 
+function writeReversedExpected(path: string) {
+  writeFileSync(
+    path,
+    [
+      'budget_migration_manifest_version=1',
+      `source_sha=${sourceSha}`,
+      `20260902000000|20260902000000_second.sql|${hash('select 2;\n')}`,
+      `20260901000000|20260901000000_first.sql|${hash('select 1;\n')}`,
+      '',
+    ].join('\n'),
+  );
+}
+
 function addThirdMigration(migrations: string, expected: string) {
   writeFileSync(join(migrations, '20260903000000_third.sql'), 'select 3;\n');
   writeFileSync(
@@ -133,6 +146,38 @@ describe('forward-only migration manifest gate', () => {
 
     expect(result.status).toBe(79);
     expect(result.stderr).toContain('unmanifested migration file');
+  });
+
+  it('rejects a reversed manifest with matching reversed applied history', () => {
+    const { applied, expected, migrations } = fixture();
+    writeReversedExpected(expected);
+    writeFileSync(applied, '20260902000000\n20260901000000\n');
+    const result = run([
+      'verify-manifest',
+      migrations,
+      expected,
+      applied,
+      sourceSha,
+    ]);
+
+    expect(result.status).toBe(79);
+    expect(result.stderr).toContain('manifest versions are not strictly increasing');
+  });
+
+  it('rejects a reversed manifest with empty applied history', () => {
+    const { applied, expected, migrations } = fixture();
+    writeReversedExpected(expected);
+    writeFileSync(applied, '');
+    const result = run([
+      'verify-manifest',
+      migrations,
+      expected,
+      applied,
+      sourceSha,
+    ]);
+
+    expect(result.status).toBe(79);
+    expect(result.stderr).toContain('manifest versions are not strictly increasing');
   });
 
   it('rejects a gap in applied migration history', () => {

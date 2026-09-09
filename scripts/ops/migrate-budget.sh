@@ -89,20 +89,6 @@ migration_find_version() {
   return 1
 }
 
-migration_find_filename() {
-  local needle="${1:?migration filename is required}"
-  shift
-  local candidate position=0
-  for candidate in "$@"; do
-    if [[ "${candidate}" == "${needle}" ]]; then
-      printf '%s\n' "${position}"
-      return 0
-    fi
-    position=$((position + 1))
-  done
-  return 1
-}
-
 migration_collect_files() {
   local directory="${1:?migration directory is required}"
   migration_validate_input_path "${directory}"
@@ -160,7 +146,7 @@ migration_read_expected() {
   EXPECTED_FILENAMES=()
   EXPECTED_HASHES=()
   EXPECTED_SOURCE_SHA=''
-  local line line_number=0 version filename hash extra existing count=0
+  local line line_number=0 version previous_version='' filename hash extra existing count=0
   while IFS= read -r line || [[ -n "${line}" ]]; do
     line_number=$((line_number + 1))
     if (( line_number > MIGRATION_MAX_MANIFEST_LINES )); then
@@ -199,7 +185,12 @@ migration_read_expected() {
           return
         fi
       done
+      if [[ "${version}" < "${previous_version}" ]]; then
+        budget_error 'migration manifest versions are not strictly increasing' 79
+        return
+      fi
     fi
+    previous_version="${version}"
     EXPECTED_VERSIONS+=("${version}")
     EXPECTED_FILENAMES+=("${filename}")
     EXPECTED_HASHES+=("${hash}")
@@ -302,20 +293,24 @@ migration_verify_manifest() {
   fi
 
   migration_collect_files "${directory}"
-  local position expected_position
+  if (( ${#EXPECTED_FILENAMES[@]} > ${#MIGRATION_FILENAMES[@]} )); then
+    budget_error 'missing migration file' 79
+    return
+  fi
+  if (( ${#MIGRATION_FILENAMES[@]} > ${#EXPECTED_FILENAMES[@]} )); then
+    budget_error 'unmanifested migration file' 79
+    return
+  fi
+
+  local position
   for ((position = 0; position < ${#EXPECTED_FILENAMES[@]}; position += 1)); do
-    expected_position="$(migration_find_filename "${EXPECTED_FILENAMES[position]}" \
-      "${MIGRATION_FILENAMES[@]}")" || {
-        budget_error 'missing migration file' 79; return; }
-    if [[ "${MIGRATION_HASHES[expected_position]}" != "${EXPECTED_HASHES[position]}" ]]; then
-      budget_error 'changed migration file' 79
+    if [[ "${EXPECTED_VERSIONS[position]}" != "${MIGRATION_VERSIONS[position]}" || \
+      "${EXPECTED_FILENAMES[position]}" != "${MIGRATION_FILENAMES[position]}" ]]; then
+      budget_error 'migration manifest does not match canonical journal order' 79
       return
     fi
-  done
-  for ((position = 0; position < ${#MIGRATION_FILENAMES[@]}; position += 1)); do
-    if ! migration_find_filename "${MIGRATION_FILENAMES[position]}" \
-      "${EXPECTED_FILENAMES[@]}" >/dev/null; then
-      budget_error 'unmanifested migration file' 79
+    if [[ "${EXPECTED_HASHES[position]}" != "${MIGRATION_HASHES[position]}" ]]; then
+      budget_error 'changed migration file' 79
       return
     fi
   done
