@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit",
     "check:ops": "bash scripts/ops/check-budget.sh",
     "check:ui": "pnpm typecheck && pnpm test:ui && pnpm build",
-    "check": "pnpm typecheck && pnpm test:db && pnpm test:ui && pnpm build"
+    "check": "pnpm check:ops && pnpm typecheck && pnpm test:db && pnpm test:ui && pnpm build"
   },
   "devDependencies": {
     "@playwright/test": "1.55.1",

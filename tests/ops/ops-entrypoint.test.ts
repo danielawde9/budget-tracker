@@ -20,7 +20,7 @@ describe('operations verification entrypoint', () => {
       'bash scripts/ops/check-budget.sh',
     );
     expect(packageJson.scripts.check).toBe(
-      'pnpm typecheck && pnpm test:db && pnpm test:ui && pnpm build',
+      'pnpm check:ops && pnpm typecheck && pnpm test:db && pnpm test:ui && pnpm build',
     );
   });
 
