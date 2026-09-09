@@ -119,6 +119,7 @@ describe('encrypted Budget backup boundary', () => {
     const commandLog = readFileSync(log, 'utf8');
     const manifest = readFileSync(join(recoveryPoint, 'manifest.txt'), 'utf8');
     expect(commandLog).toContain('timeout:1800:pg_dump');
+    expect(commandLog.match(/db-verify:/g)).toHaveLength(2);
     expect(commandLog).toContain('timeout:1800:pg_dumpall');
     expect(commandLog).toContain('timeout:300:catalog');
     expect(commandLog.match(/timeout:300:age/g)).toHaveLength(3);
@@ -154,6 +155,31 @@ describe('encrypted Budget backup boundary', () => {
     expect(manifest).toMatch(/roles\.sql\.age_size=[1-9][0-9]*/);
     expect(manifest).toMatch(/catalog\.txt\.age_size=[1-9][0-9]*/);
     expect(manifest).not.toContain('fixture-only');
+  });
+
+  it('trusts the measured database identity instead of a caller declaration', () => {
+    const { env, log } = makeBackupFixture();
+    const result = run('backup', {
+      ...env,
+      BUDGET_ACTUAL_SYSTEM_ID: '7000000000000000001',
+      BUDGET_FAKE_VERIFY_SYSTEM_ID: '7000000000000000999',
+    });
+
+    expect(result.status).toBe(68);
+    expect(result.stderr).toContain('measured database identity mismatch');
+    expect(readFileSync(log, 'utf8')).not.toContain('pg_dump');
+  });
+
+  it('rechecks the same immutable endpoint immediately before pg_dump', () => {
+    const { env, log } = makeBackupFixture();
+    const result = run('backup', {
+      ...env,
+      BUDGET_FAKE_VERIFY_SECOND_SYSTEM_ID: '7000000000000000999',
+    });
+
+    expect(result.status).toBe(68);
+    expect(result.stderr).toContain('database identity changed before backup');
+    expect(readFileSync(log, 'utf8')).not.toContain('pg_dump');
   });
 
   it('removes every plaintext payload when encryption fails', () => {

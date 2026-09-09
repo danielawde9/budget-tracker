@@ -9,6 +9,7 @@ source "${BACKUP_SCRIPT_DIR}/budget-common.sh"
 readonly BACKUP_TIMEOUT_SECONDS=1800
 readonly BACKUP_HELPER_TIMEOUT_SECONDS=300
 readonly BACKUP_HASH_TIMEOUT_SECONDS=60
+readonly BACKUP_VERIFY_TIMEOUT_SECONDS=15
 readonly MAX_RETENTION_ROWS=1000
 readonly KEEP_DAILY=14
 readonly KEEP_WEEKLY=8
@@ -56,6 +57,7 @@ backup_validate_configuration() {
   local required_value
   for required_value in BUDGET_RUN_ID BUDGET_PGPASS_FILE BUDGET_DATABASE_HOST \
     BUDGET_DATABASE_PORT BUDGET_DATABASE_NAME BUDGET_DATABASE_USER \
+    BUDGET_EXPECTED_DATABASE_OID BUDGET_DB_VERIFY_BIN BUDGET_VERIFY_PSQL_BIN \
     BUDGET_POSTGRES_MAJOR BUDGET_PG_DUMP_MAJOR BUDGET_PG_DUMP_VERSION BUDGET_RELEASE_ID \
     BUDGET_MIGRATION_MANIFEST BUDGET_REQUIRED_BYTES BUDGET_AVAILABLE_BYTES \
     BUDGET_TIMEOUT_BIN BUDGET_PG_DUMP_BIN BUDGET_PG_DUMPALL_BIN \
@@ -79,6 +81,7 @@ backup_validate_configuration() {
     ! "${BUDGET_DATABASE_PORT}" =~ ^[0-9]{1,5}$ || \
     ! "${BUDGET_REQUIRED_BYTES}" =~ ^[0-9]{1,20}$ || \
     ! "${BUDGET_AVAILABLE_BYTES}" =~ ^[0-9]{1,20}$ || \
+    ! "${BUDGET_EXPECTED_DATABASE_OID}" =~ ^[0-9]{1,20}$ || \
     ! "${BUDGET_RELEASE_ID}" =~ ^[A-Za-z0-9._-]{1,128}$ || \
     ! "${BUDGET_PG_DUMP_VERSION}" =~ ^17\.[0-9]{1,3}$ ]]; then
     budget_error 'backup configuration contains an invalid bounded value' 70
@@ -102,16 +105,33 @@ backup_validate_configuration() {
   local executable
   for executable in "${BUDGET_TIMEOUT_BIN}" "${BUDGET_PG_DUMP_BIN}" \
     "${BUDGET_PG_DUMPALL_BIN}" "${BUDGET_AGE_BIN}" \
-    "${BUDGET_CATALOG_BIN}" "${BUDGET_OFFSITE_BIN}" "${BUDGET_CLOCK_BIN}"; do
+    "${BUDGET_CATALOG_BIN}" "${BUDGET_OFFSITE_BIN}" "${BUDGET_CLOCK_BIN}" \
+    "${BUDGET_DB_VERIFY_BIN}" "${BUDGET_VERIFY_PSQL_BIN}"; do
     if [[ "${executable}" != /* || ! -x "${executable}" ]]; then
       budget_error 'backup executable boundary is not an absolute executable' 70
       return
     fi
   done
+  if [[ "${BUDGET_DB_VERIFY_BIN}" != "${BACKUP_SCRIPT_DIR}/verify-budget-db.sh" ]]; then
+    budget_error 'database verifier must be the tracked pinned verifier' 70
+    return
+  fi
 
   readonly BACKUP_RUN_ID="${BUDGET_RUN_ID}"
   readonly BACKUP_TIMEOUT_BIN="${BUDGET_TIMEOUT_BIN}"
   readonly BACKUP_ROOT="${BUDGET_VALIDATED_ROOT}"
+  readonly BACKUP_DB_HOST="${BUDGET_DATABASE_HOST}"
+  readonly BACKUP_DB_PORT="${BUDGET_DATABASE_PORT}"
+  readonly BACKUP_DB_NAME="${BUDGET_DATABASE_NAME}"
+  readonly BACKUP_DB_USER="${BUDGET_DATABASE_USER}"
+  readonly BACKUP_DB_OID="${BUDGET_EXPECTED_DATABASE_OID}"
+}
+
+backup_measure_database() {
+  BUDGET_VERIFY_PSQL_BIN="${BUDGET_VERIFY_PSQL_BIN}" \
+    "${BACKUP_TIMEOUT_BIN}" "${BACKUP_VERIFY_TIMEOUT_SECONDS}" \
+    "${BUDGET_DB_VERIFY_BIN}" "${BACKUP_DB_HOST}" "${BACKUP_DB_PORT}" \
+    "${BACKUP_DB_NAME}" "${BACKUP_DB_USER}"
 }
 
 backup_hash() {
@@ -166,6 +186,7 @@ backup_execute() {
   local backup_manifest="${backup_recovery_dir}/manifest.txt"
   local backup_success="${backup_recovery_dir}/SUCCESS"
   local backup_started_at backup_finished_at backup_started_seconds="${SECONDS}"
+  local initial_database_receipt current_database_receipt
   trap backup_cleanup EXIT INT TERM HUP
 
   mkdir -p -- "${BACKUP_ROOT}/locks"
@@ -174,6 +195,11 @@ backup_execute() {
     return
   fi
   backup_lock_acquired=1
+  export PGPASSFILE="${BUDGET_PGPASS_FILE}"
+  initial_database_receipt="$(backup_measure_database)"
+  budget_assert_database_receipt "${initial_database_receipt}" \
+    "${BUDGET_VALIDATED_SYSTEM_ID}" "${BUDGET_POSTGRES_MAJOR}" \
+    "${BACKUP_DB_NAME}" "${BACKUP_DB_OID}" 0 68 >/dev/null
   backup_started_at="$("${BACKUP_TIMEOUT_BIN}" "${BACKUP_HASH_TIMEOUT_SECONDS}" \
     "${BUDGET_CLOCK_BIN}")"
 
@@ -189,21 +215,28 @@ backup_execute() {
   fi
   backup_recovery_created=1
 
-  export PGPASSFILE="${BUDGET_PGPASS_FILE}"
   export PGCONNECT_TIMEOUT=5
   export PGOPTIONS='-c lock_timeout=30s -c statement_timeout=29min'
+  current_database_receipt="$(backup_measure_database)"
+  if [[ "${current_database_receipt}" != "${initial_database_receipt}" ]]; then
+    budget_error 'database identity changed before backup' 68
+    return
+  fi
+  budget_assert_database_receipt "${current_database_receipt}" \
+    "${BUDGET_VALIDATED_SYSTEM_ID}" "${BUDGET_POSTGRES_MAJOR}" \
+    "${BACKUP_DB_NAME}" "${BACKUP_DB_OID}" 0 68 >/dev/null
 
   "${BACKUP_TIMEOUT_BIN}" "${BACKUP_TIMEOUT_SECONDS}" \
     "${BUDGET_PG_DUMP_BIN}" --format=custom --compress=9 \
-    --file="${backup_archive_plain}" --host="${BUDGET_DATABASE_HOST}" \
-    --port="${BUDGET_DATABASE_PORT}" --username="${BUDGET_DATABASE_USER}" \
-    --dbname="${BUDGET_DATABASE_NAME}"
+    --file="${backup_archive_plain}" --host="${BACKUP_DB_HOST}" \
+    --port="${BACKUP_DB_PORT}" --username="${BACKUP_DB_USER}" \
+    --dbname="${BACKUP_DB_NAME}"
   "${BACKUP_TIMEOUT_BIN}" "${BACKUP_TIMEOUT_SECONDS}" \
     "${BUDGET_PG_DUMPALL_BIN}" --roles-only --no-role-passwords \
-    --host="${BUDGET_DATABASE_HOST}" --port="${BUDGET_DATABASE_PORT}" \
-    --username="${BUDGET_DATABASE_USER}" > "${backup_roles_plain}"
+    --host="${BACKUP_DB_HOST}" --port="${BACKUP_DB_PORT}" \
+    --username="${BACKUP_DB_USER}" > "${backup_roles_plain}"
   "${BACKUP_TIMEOUT_BIN}" "${BACKUP_HELPER_TIMEOUT_SECONDS}" \
-    "${BUDGET_CATALOG_BIN}" --database="${BUDGET_DATABASE_NAME}" \
+    "${BUDGET_CATALOG_BIN}" --database="${BACKUP_DB_NAME}" \
     --max-row-summaries=100 > "${backup_catalog_plain}"
 
   "${BACKUP_TIMEOUT_BIN}" "${BACKUP_HELPER_TIMEOUT_SECONDS}" \

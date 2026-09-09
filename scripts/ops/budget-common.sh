@@ -86,7 +86,6 @@ budget_validate_environment() {
   local network="${BUDGET_NETWORK:-}"
   local port_range="${BUDGET_PORT_RANGE:-}"
   local expected_system_id="${BUDGET_EXPECTED_SYSTEM_ID:-}"
-  local actual_system_id="${BUDGET_ACTUAL_SYSTEM_ID:-}"
   local expected_project expected_port marker_contents
 
   case "${environment}" in
@@ -98,7 +97,7 @@ budget_validate_environment() {
   esac
 
   for value in "${root}" "${marker}" "${project}" "${hostname}" "${volume}" \
-    "${network}" "${port_range}" "${expected_system_id}" "${actual_system_id}"; do
+    "${network}" "${port_range}" "${expected_system_id}"; do
     if budget_is_protected_identifier "${value}"; then
       budget_error 'protected Sandooq/POS identifier refused' 65
       return
@@ -126,8 +125,7 @@ budget_validate_environment() {
     budget_error 'unsafe Budget root' 66
     return
   fi
-  if [[ ! "${expected_system_id}" =~ ^[0-9]{10,22}$ || \
-    ! "${actual_system_id}" =~ ^[0-9]{10,22}$ ]]; then
+  if [[ ! "${expected_system_id}" =~ ^[0-9]{10,22}$ ]]; then
     budget_error 'database system identifier must be an exact numeric value' 68
     return
   fi
@@ -144,16 +142,44 @@ system_id=${expected_system_id}" ]]; then
     budget_error 'environment marker identity mismatch' 67
     return
   fi
-  if [[ "${actual_system_id}" != "${expected_system_id}" ]]; then
-    budget_error 'database system identifier mismatch' 68
-    return
-  fi
-
   readonly BUDGET_VALIDATED_ENV="${environment}"
   readonly BUDGET_VALIDATED_ROOT="${root}"
   readonly BUDGET_VALIDATED_PROJECT="${project}"
   readonly BUDGET_VALIDATED_SYSTEM_ID="${expected_system_id}"
   printf '%s\n' "validated Budget ${environment} target"
+}
+
+budget_assert_database_receipt() {
+  local receipt="${1:-}"
+  local expected_system_id="${2:-}"
+  local expected_major="${3:-}"
+  local expected_database="${4:-}"
+  local expected_oid="${5:-}"
+  local require_empty="${6:-0}"
+  local status="${7:-68}"
+  local mismatch_message="${8:-measured database identity mismatch}"
+  local system_id major database oid relation_count extra
+
+  IFS='|' read -r system_id major database oid relation_count extra <<< "${receipt}"
+  if [[ ! "${system_id}" =~ ^[0-9]{10,22}$ || \
+    ! "${major}" =~ ^[0-9]{1,3}$ || \
+    ! "${database}" =~ ^[a-z][a-z0-9_]{0,62}$ || \
+    ! "${oid}" =~ ^[0-9]{1,20}$ || \
+    ! "${relation_count}" =~ ^[0-9]{1,20}$ || -n "${extra}" ]]; then
+    budget_error 'database verifier returned an invalid bounded receipt' "${status}"
+    return
+  fi
+  if [[ "${system_id}" != "${expected_system_id}" || \
+    "${major}" != "${expected_major}" || \
+    "${database}" != "${expected_database}" || "${oid}" != "${expected_oid}" ]]; then
+    budget_error "${mismatch_message}" "${status}"
+    return
+  fi
+  if [[ "${require_empty}" == '1' && "${relation_count}" != '0' ]]; then
+    budget_error 'measured scratch database is not empty' "${status}"
+    return
+  fi
+  printf '%s\n' "${receipt}"
 }
 
 budget_scan_secrets() {

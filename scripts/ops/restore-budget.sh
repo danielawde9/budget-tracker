@@ -10,6 +10,7 @@ readonly RESTORE_TIMEOUT_SECONDS=3600
 readonly RESTORE_VERIFY_TIMEOUT_SECONDS=600
 readonly RESTORE_HELPER_TIMEOUT_SECONDS=300
 readonly RESTORE_HASH_TIMEOUT_SECONDS=60
+readonly RESTORE_DB_VERIFY_TIMEOUT_SECONDS=15
 
 restore_validate_live_gate() {
   local expected_confirmation="live:${BUDGET_PROJECT_ID:-}:${BUDGET_EXPECTED_SYSTEM_ID:-}"
@@ -63,11 +64,12 @@ restore_validate_configuration() {
   local required_value
   for required_value in BUDGET_RECOVERY_POINT BUDGET_SCRATCH_ROOT \
     BUDGET_SCRATCH_MARKER_PATH BUDGET_SCRATCH_PROJECT_ID BUDGET_SCRATCH_PORT \
-    BUDGET_SCRATCH_EXPECTED_SYSTEM_ID BUDGET_SCRATCH_ACTUAL_SYSTEM_ID \
-    BUDGET_SCRATCH_EMPTY BUDGET_SCRATCH_POSTGRES_MAJOR \
+    BUDGET_SCRATCH_EXPECTED_SYSTEM_ID BUDGET_SCRATCH_EXPECTED_DATABASE_OID \
+    BUDGET_SCRATCH_DATABASE_NAME BUDGET_SCRATCH_POSTGRES_MAJOR \
     BUDGET_SCRATCH_REQUIRED_BYTES BUDGET_SCRATCH_AVAILABLE_BYTES \
     BUDGET_PGPASS_FILE BUDGET_DATABASE_HOST BUDGET_DATABASE_USER \
     BUDGET_ROLE_ALLOWLIST BUDGET_TIMEOUT_BIN BUDGET_AGE_BIN \
+    BUDGET_DB_VERIFY_BIN BUDGET_VERIFY_PSQL_BIN \
     BUDGET_OFFSITE_BIN BUDGET_PG_RESTORE_BIN BUDGET_PSQL_BIN \
     BUDGET_ROLE_FILTER_BIN BUDGET_COMPARE_BIN; do
     if [[ -z "${!required_value:-}" ]]; then
@@ -89,6 +91,8 @@ restore_validate_configuration() {
   if [[ ! "${BUDGET_RECOVERY_POINT}" =~ ^[0-9TZ:-]{16,32}-[A-Za-z0-9._-]{1,64}$ || \
     "${BUDGET_SCRATCH_PROJECT_ID}" != 'budget-restore-scratch' || \
     "${BUDGET_SCRATCH_PORT}" != '54722' || \
+    "${BUDGET_SCRATCH_DATABASE_NAME}" != 'budget_restore_scratch' || \
+    ! "${BUDGET_SCRATCH_EXPECTED_DATABASE_OID}" =~ ^[0-9]{1,20}$ || \
     "${BUDGET_SCRATCH_POSTGRES_MAJOR}" != '17' || \
     ! "${BUDGET_SCRATCH_REQUIRED_BYTES}" =~ ^[0-9]{1,20}$ || \
     ! "${BUDGET_SCRATCH_AVAILABLE_BYTES}" =~ ^[0-9]{1,20}$ || \
@@ -121,17 +125,12 @@ system_id=${BUDGET_SCRATCH_EXPECTED_SYSTEM_ID}" ]]; then
     budget_error 'scratch marker identity mismatch' 76
     return
   fi
-  if [[ ! "${BUDGET_SCRATCH_EXPECTED_SYSTEM_ID}" =~ ^[0-9]{10,22}$ || \
-    "${BUDGET_SCRATCH_ACTUAL_SYSTEM_ID}" != "${BUDGET_SCRATCH_EXPECTED_SYSTEM_ID}" ]]; then
-    budget_error 'scratch system identifier mismatch' 76
+  if [[ ! "${BUDGET_SCRATCH_EXPECTED_SYSTEM_ID}" =~ ^[0-9]{10,22}$ ]]; then
+    budget_error 'scratch system identifier is invalid' 76
     return
   fi
   if [[ "${BUDGET_SCRATCH_EXPECTED_SYSTEM_ID}" == "${BUDGET_VALIDATED_SYSTEM_ID}" ]]; then
     budget_error 'scratch system identifier must differ from live' 76
-    return
-  fi
-  if [[ "${BUDGET_SCRATCH_EMPTY}" != '1' ]]; then
-    budget_error 'scratch database is not empty' 76
     return
   fi
   if (( BUDGET_SCRATCH_AVAILABLE_BYTES < BUDGET_SCRATCH_REQUIRED_BYTES )); then
@@ -144,17 +143,34 @@ system_id=${BUDGET_SCRATCH_EXPECTED_SYSTEM_ID}" ]]; then
   local executable
   for executable in "${BUDGET_TIMEOUT_BIN}" "${BUDGET_AGE_BIN}" \
     "${BUDGET_OFFSITE_BIN}" "${BUDGET_PG_RESTORE_BIN}" \
-    "${BUDGET_PSQL_BIN}" "${BUDGET_ROLE_FILTER_BIN}" "${BUDGET_COMPARE_BIN}"; do
+    "${BUDGET_PSQL_BIN}" "${BUDGET_ROLE_FILTER_BIN}" "${BUDGET_COMPARE_BIN}" \
+    "${BUDGET_DB_VERIFY_BIN}" "${BUDGET_VERIFY_PSQL_BIN}"; do
     if [[ "${executable}" != /* || ! -x "${executable}" ]]; then
       budget_error 'restore executable boundary is not an absolute executable' 75
       return
     fi
   done
+  if [[ "${BUDGET_DB_VERIFY_BIN}" != "${RESTORE_SCRIPT_DIR}/verify-budget-db.sh" ]]; then
+    budget_error 'database verifier must be the tracked pinned verifier' 75
+    return
+  fi
 
   readonly RESTORE_TARGET="scratch"
   readonly RESTORE_POINT="${BUDGET_RECOVERY_POINT}"
   readonly RESTORE_ROOT="${BUDGET_SCRATCH_ROOT}"
   readonly RESTORE_TIMEOUT_BIN="${BUDGET_TIMEOUT_BIN}"
+  readonly RESTORE_DB_HOST="${BUDGET_DATABASE_HOST}"
+  readonly RESTORE_DB_PORT="${BUDGET_SCRATCH_PORT}"
+  readonly RESTORE_DB_NAME="${BUDGET_SCRATCH_DATABASE_NAME}"
+  readonly RESTORE_DB_USER="${BUDGET_DATABASE_USER}"
+  readonly RESTORE_DB_OID="${BUDGET_SCRATCH_EXPECTED_DATABASE_OID}"
+}
+
+restore_measure_database() {
+  BUDGET_VERIFY_PSQL_BIN="${BUDGET_VERIFY_PSQL_BIN}" \
+    "${RESTORE_TIMEOUT_BIN}" "${RESTORE_DB_VERIFY_TIMEOUT_SECONDS}" \
+    "${BUDGET_DB_VERIFY_BIN}" "${RESTORE_DB_HOST}" "${RESTORE_DB_PORT}" \
+    "${RESTORE_DB_NAME}" "${RESTORE_DB_USER}"
 }
 
 restore_hash() {
@@ -226,6 +242,7 @@ restore_execute() {
   local restore_catalog_plain="${restore_temp_dir}/catalog.txt"
   local restore_roles_filtered="${restore_temp_dir}/roles.allowlisted.sql"
   local restore_archive_list="${restore_temp_dir}/archive.list"
+  local initial_database_receipt current_database_receipt
   trap restore_cleanup EXIT INT TERM HUP
 
   mkdir -p -- "${RESTORE_ROOT}/locks"
@@ -234,6 +251,11 @@ restore_execute() {
     return
   fi
   restore_lock_acquired=1
+  export PGPASSFILE="${BUDGET_PGPASS_FILE}"
+  initial_database_receipt="$(restore_measure_database)"
+  budget_assert_database_receipt "${initial_database_receipt}" \
+    "${BUDGET_SCRATCH_EXPECTED_SYSTEM_ID}" "${BUDGET_SCRATCH_POSTGRES_MAJOR}" \
+    "${RESTORE_DB_NAME}" "${RESTORE_DB_OID}" 1 76 >/dev/null
   mkdir -p -- "${RESTORE_ROOT}/tmp"
   if ! mkdir -- "${restore_temp_dir}"; then
     budget_error 'restore temporary directory already exists' 77
@@ -303,18 +325,25 @@ restore_execute() {
     "${BUDGET_ROLE_FILTER_BIN}" "${restore_roles_plain}" \
     "${restore_roles_filtered}" "${BUDGET_ROLE_ALLOWLIST}"
 
-  export PGPASSFILE="${BUDGET_PGPASS_FILE}"
   export PGCONNECT_TIMEOUT=5
   export PGOPTIONS='-c lock_timeout=30s -c statement_timeout=59min'
+  current_database_receipt="$(restore_measure_database)"
+  if [[ "${current_database_receipt}" != "${initial_database_receipt}" ]]; then
+    budget_error 'scratch identity changed before restore' 76
+    return
+  fi
+  budget_assert_database_receipt "${current_database_receipt}" \
+    "${BUDGET_SCRATCH_EXPECTED_SYSTEM_ID}" "${BUDGET_SCRATCH_POSTGRES_MAJOR}" \
+    "${RESTORE_DB_NAME}" "${RESTORE_DB_OID}" 1 76 >/dev/null
   "${RESTORE_TIMEOUT_BIN}" "${RESTORE_VERIFY_TIMEOUT_SECONDS}" \
     "${BUDGET_PSQL_BIN}" --set=ON_ERROR_STOP=on \
-    --host="${BUDGET_DATABASE_HOST}" --port="${BUDGET_SCRATCH_PORT}" \
-    --username="${BUDGET_DATABASE_USER}" --dbname=budget_restore_scratch \
+    --host="${RESTORE_DB_HOST}" --port="${RESTORE_DB_PORT}" \
+    --username="${RESTORE_DB_USER}" --dbname="${RESTORE_DB_NAME}" \
     --file="${restore_roles_filtered}"
   "${RESTORE_TIMEOUT_BIN}" "${RESTORE_TIMEOUT_SECONDS}" \
     "${BUDGET_PG_RESTORE_BIN}" --exit-on-error --jobs=1 \
-    --host="${BUDGET_DATABASE_HOST}" --port="${BUDGET_SCRATCH_PORT}" \
-    --username="${BUDGET_DATABASE_USER}" --dbname=budget_restore_scratch \
+    --host="${RESTORE_DB_HOST}" --port="${RESTORE_DB_PORT}" \
+    --username="${RESTORE_DB_USER}" --dbname="${RESTORE_DB_NAME}" \
     "${restore_archive_plain}"
   "${RESTORE_TIMEOUT_BIN}" "${RESTORE_VERIFY_TIMEOUT_SECONDS}" \
     "${BUDGET_COMPARE_BIN}" --source-manifest="${restore_manifest}" \

@@ -52,6 +52,7 @@ export function makeBackupFixture() {
   const catalog = join(bin, 'catalog');
   const offsite = join(bin, 'offsite');
   const clock = join(bin, 'clock');
+  const verifyPsql = join(bin, 'verify-psql');
 
   makeExecutable(
     timeout,
@@ -78,11 +79,34 @@ export function makeBackupFixture() {
     'printf "offsite:%s\\n" "$1" >> "$BUDGET_FAKE_LOG"; exit 0',
   );
   makeExecutable(clock, 'printf "2026-09-09T02:15:00Z\\n"');
+  makeExecutable(
+    verifyPsql,
+    [
+      'counter_file="$BUDGET_FAKE_VERIFY_COUNTER"',
+      'counter=0',
+      '[[ -f "$counter_file" ]] && counter="$(<"$counter_file")"',
+      'counter=$((counter + 1))',
+      'printf "%s\\n" "$counter" > "$counter_file"',
+      'printf "db-verify:%s\\n" "$counter" >> "$BUDGET_FAKE_LOG"',
+      'system_id="${BUDGET_FAKE_VERIFY_SYSTEM_ID:-7000000000000000001}"',
+      'database_name="${BUDGET_VERIFY_DATABASE_NAME:?}"',
+      'database_oid="${BUDGET_FAKE_VERIFY_DATABASE_OID:-17001}"',
+      'relation_count="${BUDGET_FAKE_VERIFY_RELATION_COUNT:-7}"',
+      'if [[ "$database_name" == "budget_restore_scratch" ]]; then',
+      '  system_id="${BUDGET_FAKE_VERIFY_SYSTEM_ID:-8000000000000000001}"',
+      '  database_oid="${BUDGET_FAKE_VERIFY_DATABASE_OID:-18001}"',
+      '  relation_count="${BUDGET_FAKE_VERIFY_RELATION_COUNT:-0}"',
+      'fi',
+      '[[ "$counter" == "2" && -n "${BUDGET_FAKE_VERIFY_SECOND_SYSTEM_ID:-}" ]] && system_id="$BUDGET_FAKE_VERIFY_SECOND_SYSTEM_ID"',
+      'printf "%s|17|%s|%s|%s\\n" "$system_id" "$database_name" "$database_oid" "$relation_count"',
+    ].join('\n'),
+  );
 
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     BUDGET_ENV: 'live',
     BUDGET_ROOT: root,
+    BUDGET_TRUSTED_PARENT: base,
     BUDGET_MARKER_PATH: marker,
     BUDGET_PROJECT_ID: 'budget-live',
     BUDGET_HOSTNAME: 'budget-live.tailnet.example',
@@ -90,7 +114,7 @@ export function makeBackupFixture() {
     BUDGET_NETWORK: 'budget-live-net',
     BUDGET_PORT_RANGE: '54620-54629',
     BUDGET_EXPECTED_SYSTEM_ID: '7000000000000000001',
-    BUDGET_ACTUAL_SYSTEM_ID: '7000000000000000001',
+    BUDGET_EXPECTED_DATABASE_OID: '17001',
     BUDGET_AGE_RECIPIENT: 'age1fixturepublicrecipient000000000000000000000000000000',
     BUDGET_OFFSITE_DESTINATION: 'configured-budget-live-offsite',
     BUDGET_RUN_ID: '2026-09-09T021500Z-fixture',
@@ -113,6 +137,9 @@ export function makeBackupFixture() {
     BUDGET_CATALOG_BIN: catalog,
     BUDGET_OFFSITE_BIN: offsite,
     BUDGET_CLOCK_BIN: clock,
+    BUDGET_DB_VERIFY_BIN: join(process.cwd(), 'scripts/ops/verify-budget-db.sh'),
+    BUDGET_VERIFY_PSQL_BIN: verifyPsql,
+    BUDGET_FAKE_VERIFY_COUNTER: join(base, 'verify-counter'),
     BUDGET_FAKE_LOG: log,
   };
 
@@ -198,12 +225,13 @@ export function makeRestoreFixture() {
     BUDGET_AGE_IDENTITY_FILE: identity,
     BUDGET_OFFSITE_FIXTURE_ROOT: offsiteRoot,
     BUDGET_SCRATCH_ROOT: scratchRoot,
+    BUDGET_SCRATCH_TRUSTED_PARENT: backup.base,
     BUDGET_SCRATCH_MARKER_PATH: scratchMarker,
     BUDGET_SCRATCH_PROJECT_ID: 'budget-restore-scratch',
     BUDGET_SCRATCH_PORT: '54722',
     BUDGET_SCRATCH_EXPECTED_SYSTEM_ID: '8000000000000000001',
-    BUDGET_SCRATCH_ACTUAL_SYSTEM_ID: '8000000000000000001',
-    BUDGET_SCRATCH_EMPTY: '1',
+    BUDGET_SCRATCH_EXPECTED_DATABASE_OID: '18001',
+    BUDGET_SCRATCH_DATABASE_NAME: 'budget_restore_scratch',
     BUDGET_SCRATCH_POSTGRES_MAJOR: '17',
     BUDGET_SCRATCH_REQUIRED_BYTES: '1024',
     BUDGET_SCRATCH_AVAILABLE_BYTES: '10485760',

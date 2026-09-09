@@ -60,8 +60,13 @@ project=<exact project>
 system_id=<exact PostgreSQL system identifier>
 ```
 
-The operator independently measures the actual system identifier and supplies
-both expected and actual values. A mismatch fails before a backup tool runs.
+The operator configures the expected system identifier and database OID. The
+tracked read-only verifier measures the system identifier, PostgreSQL server
+major, database name/OID, and relation count from the exact host, port,
+database, and user used by the operation. The scripts compare that bounded
+receipt with the expected identity after taking the operation lock and again
+immediately before database effects. Caller-supplied declarations of the
+actual identity or scratch emptiness are not accepted as evidence.
 Any tokenized Sandooq/POS identifier in a root, marker, project, hostname,
 volume, network, off-site destination, or retention prefix is refused.
 
@@ -76,7 +81,8 @@ system_id=<scratch PostgreSQL system identifier>
 
 Scratch uses port `54722`, PostgreSQL major 17, an empty database, and a system
 identifier different from live. These are validation inputs, not authorization
-to create the scratch service.
+to create the scratch service. Emptiness is measured by the verifier as zero
+non-system relations at both checks.
 
 ## Provider-neutral adapters
 
@@ -97,6 +103,10 @@ bounded and must emit safe metadata only.
   compares migrations, schema/object and bounded row/content hashes, Auth count,
   RLS/policies, ACLs, owners/function bodies, triggers, constraints, indexes,
   and protected financial-command inventory.
+- `BUDGET_DB_VERIFY_BIN` must be the tracked `verify-budget-db.sh` executable.
+  It invokes the configured absolute `BUDGET_VERIFY_PSQL_BIN` with a five-second
+  connection and statement bound, read-only transaction/session settings, no
+  password prompt, and the immutable operation endpoint.
 
 Until Daniel selects the off-site provider, location, immutability/versioning,
 cost ceiling, and key custodian, adapter configuration and every external
@@ -105,13 +115,16 @@ receipt remain **BLOCKED**.
 ## Backup procedure
 
 1. Record the approved release ID, current migration manifest, PostgreSQL 17
-   client major, exact marker/system ID, and declared free-space evidence.
+   client major, exact marker/system ID/database OID, and declared free-space
+   evidence.
 2. Supply a mode-`0600` pgpass file by reference. Its value is never printed or
    passed on the command line.
 3. Run `dry-run`; it validates configuration but takes no lock, creates no file,
    and invokes no database, encryption, or network binary.
-4. In an approved window, run `backup`. It takes a nonblocking live lock, uses a
-   five-second connection timeout, 30-second lock wait, and 30-minute wall bound.
+4. In an approved window, run `backup`. It takes a nonblocking live lock,
+   measures and pins the database receipt, uses a five-second connection
+   timeout, 30-second lock wait, and 30-minute wall bound, then measures the
+   same immutable endpoint again immediately before `pg_dump`.
 5. It creates a full custom-format dump, a roles-only/no-role-passwords dump,
    and bounded catalog metadata.
 6. The three plaintexts live under one mode-`0700` directory and are age
@@ -149,9 +162,12 @@ repository intentionally includes no deletion command.
    allowlist, and absolute adapters.
 4. Run `dry-run`. The default is `scratch`; it creates nothing and invokes no
    adapter.
-5. Run `restore`. It locks scratch and fetches only the named manifest and three
-   ciphertexts. The trusted manifest receipt, source identity, system ID, major
-   version, and all ciphertext hashes are verified before age or PostgreSQL runs.
+5. Run `restore`. It locks scratch, measures the scratch database identity and
+   emptiness, and fetches only the named manifest and three ciphertexts. The
+   trusted manifest receipt, source identity, system ID, major version, and all
+   ciphertext hashes are verified before age or PostgreSQL runs. The same
+   immutable scratch endpoint must produce the same empty receipt again before
+   `psql` or `pg_restore`.
 6. Decryption stays in private scratch temp. The archive is listed; roles are
    filtered. `psql` uses `ON_ERROR_STOP`; `pg_restore` uses one job and
    `--exit-on-error` within 60 minutes.

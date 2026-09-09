@@ -29,7 +29,7 @@ function fixture() {
     BUDGET_NETWORK: 'budget-live-net',
     BUDGET_PORT_RANGE: '54620-54629',
     BUDGET_EXPECTED_SYSTEM_ID: '7000000000000000001',
-    BUDGET_ACTUAL_SYSTEM_ID: '7000000000000000001',
+    BUDGET_TRUSTED_PARENT: base,
     BUDGET_OPERATION_LOG: operationLog,
   };
 
@@ -139,15 +139,15 @@ describe('Budget operations environment contract', () => {
     expect(wrong.stderr).toContain('marker identity mismatch');
   });
 
-  it('rejects the wrong database system identifier', () => {
+  it('rejects a malformed expected database system identifier', () => {
     const { env } = fixture();
     const result = run('validate-environment', {
       ...env,
-      BUDGET_ACTUAL_SYSTEM_ID: '7000000000000000999',
+      BUDGET_EXPECTED_SYSTEM_ID: 'not-a-system-id',
     });
 
     expect(result.status).toBe(68);
-    expect(result.stderr).toContain('database system identifier mismatch');
+    expect(result.stderr).toContain('database system identifier must be an exact numeric value');
   });
 
   it('accepts an exact, marked, isolated Budget target without executing an operation', () => {

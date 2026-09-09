@@ -114,7 +114,6 @@ describe('scratch-only Budget restore boundary', () => {
     const reused = run('restore', {
       ...third.env,
       BUDGET_SCRATCH_EXPECTED_SYSTEM_ID: '7000000000000000001',
-      BUDGET_SCRATCH_ACTUAL_SYSTEM_ID: '7000000000000000001',
     });
 
     expect(missing.status).toBe(76);
@@ -129,7 +128,7 @@ describe('scratch-only Budget restore boundary', () => {
     const first = makeRestoreFixture();
     const nonempty = run('restore', {
       ...first.env,
-      BUDGET_SCRATCH_EMPTY: '0',
+      BUDGET_FAKE_VERIFY_RELATION_COUNT: '1',
     });
     const second = makeRestoreFixture();
     const lowSpace = run('restore', {
@@ -138,7 +137,7 @@ describe('scratch-only Budget restore boundary', () => {
     });
 
     expect(nonempty.status).toBe(76);
-    expect(nonempty.stderr).toContain('scratch database is not empty');
+    expect(nonempty.stderr).toContain('measured scratch database is not empty');
     expect(lowSpace.status).toBe(76);
     expect(lowSpace.stderr).toContain('insufficient scratch restore space');
   });
@@ -191,12 +190,27 @@ describe('scratch-only Budget restore boundary', () => {
 
     expect(result.status).toBe(0);
     expect(commands.match(/offsite:get/g)).toHaveLength(4);
+    expect(commands.match(/db-verify:/g)).toHaveLength(2);
     expect(commands.match(/timeout:300:age/g)).toHaveLength(3);
     expect(commands).toContain('timeout:3600:pg_restore');
     expect(commands).toContain('timeout:600:psql');
     expect(commands).toContain('role-filter');
     expect(commands).toContain('timeout:600:compare');
     expect(result.stdout).toContain('scratch restore comparison verified');
+  });
+
+  it('rechecks scratch identity and emptiness immediately before database effects', () => {
+    const { env, log } = makeRestoreFixture();
+    const result = run('restore', {
+      ...env,
+      BUDGET_FAKE_VERIFY_SECOND_SYSTEM_ID: '8000000000000000999',
+    });
+
+    expect(result.status).toBe(76);
+    expect(result.stderr).toContain('scratch identity changed before restore');
+    const commands = readFileSync(log, 'utf8').trimEnd().split('\n');
+    expect(commands).not.toContain('psql');
+    expect(commands).not.toContain('pg_restore');
   });
 
   it('removes decrypted plaintext after a restore failure', () => {
