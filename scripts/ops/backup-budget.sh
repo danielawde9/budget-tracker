@@ -1,0 +1,335 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+readonly BACKUP_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# shellcheck source=./budget-common.sh
+source "${BACKUP_SCRIPT_DIR}/budget-common.sh"
+
+readonly BACKUP_TIMEOUT_SECONDS=1800
+readonly BACKUP_HELPER_TIMEOUT_SECONDS=300
+readonly BACKUP_HASH_TIMEOUT_SECONDS=60
+readonly MAX_RETENTION_ROWS=1000
+readonly KEEP_DAILY=14
+readonly KEEP_WEEKLY=8
+readonly KEEP_MONTHLY=12
+
+backup_validate_scalar() {
+  local value="${1:-}"
+  local label="${2:?label is required}"
+  if [[ -z "${value}" || ${#value} -gt 256 || "${value}" == *$'\n'* || \
+    "${value}" == *$'\r'* ]]; then
+    budget_error "invalid ${label}" 70
+  fi
+}
+
+backup_validate_configuration() {
+  budget_validate_environment >/dev/null
+  if [[ "${BUDGET_VALIDATED_ENV}" != 'live' ]]; then
+    budget_error 'encrypted release backups require the exact live target' 70
+    return
+  fi
+
+  if [[ -z "${BUDGET_AGE_RECIPIENT:-}" ]]; then
+    budget_error 'encryption recipient is not configured' 70
+    return
+  fi
+  if [[ -z "${BUDGET_OFFSITE_DESTINATION:-}" ]]; then
+    budget_error 'off-site destination is not configured' 70
+    return
+  fi
+
+  backup_validate_scalar "${BUDGET_AGE_RECIPIENT}" 'encryption recipient'
+  backup_validate_scalar "${BUDGET_OFFSITE_DESTINATION}" 'off-site destination'
+  if [[ "${BUDGET_AGE_RECIPIENT}" != age1* || \
+    ! "${BUDGET_OFFSITE_DESTINATION}" =~ ^[A-Za-z0-9._/-]+$ ]] || \
+    budget_is_protected_identifier "${BUDGET_OFFSITE_DESTINATION}"; then
+    budget_error 'backup target configuration is outside the exact allowlist' 70
+    return
+  fi
+
+  local required_value
+  for required_value in BUDGET_RUN_ID BUDGET_PGPASS_FILE BUDGET_DATABASE_HOST \
+    BUDGET_DATABASE_PORT BUDGET_DATABASE_NAME BUDGET_DATABASE_USER \
+    BUDGET_POSTGRES_MAJOR BUDGET_PG_DUMP_MAJOR BUDGET_RELEASE_ID \
+    BUDGET_MIGRATION_MANIFEST BUDGET_REQUIRED_BYTES BUDGET_AVAILABLE_BYTES \
+    BUDGET_TIMEOUT_BIN BUDGET_PG_DUMP_BIN BUDGET_PG_DUMPALL_BIN \
+    BUDGET_AGE_BIN BUDGET_CATALOG_BIN BUDGET_OFFSITE_BIN; do
+    if [[ -z "${!required_value:-}" ]]; then
+      budget_error "required backup setting is missing: ${required_value}" 70
+      return
+    fi
+  done
+
+  if [[ ! "${BUDGET_RUN_ID}" =~ ^[0-9TZ:-]{16,32}-[A-Za-z0-9._-]{1,64}$ || \
+    ! "${BUDGET_DATABASE_PORT}" =~ ^[0-9]{1,5}$ || \
+    ! "${BUDGET_REQUIRED_BYTES}" =~ ^[0-9]{1,20}$ || \
+    ! "${BUDGET_AVAILABLE_BYTES}" =~ ^[0-9]{1,20}$ || \
+    ! "${BUDGET_RELEASE_ID}" =~ ^[A-Za-z0-9._-]{1,128}$ ]]; then
+    budget_error 'backup configuration contains an invalid bounded value' 70
+    return
+  fi
+  if [[ "${BUDGET_POSTGRES_MAJOR}" != '17' || \
+    "${BUDGET_PG_DUMP_MAJOR}" != "${BUDGET_POSTGRES_MAJOR}" ]]; then
+    budget_error 'PostgreSQL client major must exactly match approved major 17' 70
+    return
+  fi
+  if (( BUDGET_AVAILABLE_BYTES < BUDGET_REQUIRED_BYTES )); then
+    budget_error 'insufficient backup space' 71
+    return
+  fi
+  if [[ ! -f "${BUDGET_PGPASS_FILE}" || ! -f "${BUDGET_MIGRATION_MANIFEST}" ]]; then
+    budget_error 'backup credential reference or migration manifest is missing' 70
+    return
+  fi
+
+  local executable
+  for executable in "${BUDGET_TIMEOUT_BIN}" "${BUDGET_PG_DUMP_BIN}" \
+    "${BUDGET_PG_DUMPALL_BIN}" "${BUDGET_AGE_BIN}" \
+    "${BUDGET_CATALOG_BIN}" "${BUDGET_OFFSITE_BIN}"; do
+    if [[ "${executable}" != /* || ! -x "${executable}" ]]; then
+      budget_error 'backup executable boundary is not an absolute executable' 70
+      return
+    fi
+  done
+
+  readonly BACKUP_RUN_ID="${BUDGET_RUN_ID}"
+  readonly BACKUP_TIMEOUT_BIN="${BUDGET_TIMEOUT_BIN}"
+  readonly BACKUP_ROOT="${BUDGET_VALIDATED_ROOT}"
+}
+
+backup_hash() {
+  local candidate="${1:?hash candidate is required}"
+  local output
+  output="$("${BACKUP_TIMEOUT_BIN}" "${BACKUP_HASH_TIMEOUT_SECONDS}" shasum -a 256 "${candidate}")"
+  printf '%s\n' "${output%% *}"
+}
+
+backup_cleanup() {
+  local status=$?
+  trap - EXIT INT TERM HUP
+
+  if [[ "${backup_temp_created:-0}" == '1' ]]; then
+    rm -f -- "${backup_archive_plain}" "${backup_roles_plain}" "${backup_catalog_plain}"
+    rmdir -- "${backup_plain_dir}" 2>/dev/null || true
+  fi
+  if [[ "${backup_published:-0}" != '1' && "${backup_recovery_created:-0}" == '1' ]]; then
+    rm -f -- "${backup_archive_cipher}" "${backup_roles_cipher}" \
+      "${backup_catalog_cipher}" "${backup_manifest}" "${backup_success}"
+    rmdir -- "${backup_recovery_dir}" 2>/dev/null || true
+  fi
+  if [[ "${backup_lock_acquired:-0}" == '1' ]]; then
+    rmdir -- "${backup_lock_dir}" 2>/dev/null || true
+  fi
+  exit "${status}"
+}
+
+backup_execute() {
+  backup_validate_configuration
+
+  local backup_lock_acquired=0 backup_temp_created=0 backup_recovery_created=0
+  local backup_published=0
+  local backup_lock_dir="${BACKUP_ROOT}/locks/backup-live.lock"
+  local backup_plain_dir="${BACKUP_ROOT}/tmp/${BACKUP_RUN_ID}.plaintext"
+  local backup_recovery_dir="${BACKUP_ROOT}/backups/live/${BACKUP_RUN_ID}"
+  local backup_archive_plain="${backup_plain_dir}/archive.dump"
+  local backup_roles_plain="${backup_plain_dir}/roles.sql"
+  local backup_catalog_plain="${backup_plain_dir}/catalog.txt"
+  local backup_archive_cipher="${backup_recovery_dir}/archive.dump.age"
+  local backup_roles_cipher="${backup_recovery_dir}/roles.sql.age"
+  local backup_catalog_cipher="${backup_recovery_dir}/catalog.txt.age"
+  local backup_manifest="${backup_recovery_dir}/manifest.txt"
+  local backup_success="${backup_recovery_dir}/SUCCESS"
+  trap backup_cleanup EXIT INT TERM HUP
+
+  mkdir -p -- "${BACKUP_ROOT}/locks"
+  if ! mkdir -- "${backup_lock_dir}" 2>/dev/null; then
+    budget_error 'backup is already running' 72
+    return
+  fi
+  backup_lock_acquired=1
+
+  mkdir -p -- "${BACKUP_ROOT}/tmp" "${BACKUP_ROOT}/backups/live"
+  if ! mkdir -- "${backup_plain_dir}"; then
+    budget_error 'backup plaintext directory already exists' 72
+    return
+  fi
+  backup_temp_created=1
+  if ! mkdir -- "${backup_recovery_dir}"; then
+    budget_error 'backup recovery point already exists' 72
+    return
+  fi
+  backup_recovery_created=1
+
+  export PGPASSFILE="${BUDGET_PGPASS_FILE}"
+  export PGCONNECT_TIMEOUT=5
+  export PGOPTIONS='-c lock_timeout=30s -c statement_timeout=29min'
+
+  "${BACKUP_TIMEOUT_BIN}" "${BACKUP_TIMEOUT_SECONDS}" \
+    "${BUDGET_PG_DUMP_BIN}" --format=custom --compress=9 \
+    --file="${backup_archive_plain}" --host="${BUDGET_DATABASE_HOST}" \
+    --port="${BUDGET_DATABASE_PORT}" --username="${BUDGET_DATABASE_USER}" \
+    --dbname="${BUDGET_DATABASE_NAME}"
+  "${BACKUP_TIMEOUT_BIN}" "${BACKUP_TIMEOUT_SECONDS}" \
+    "${BUDGET_PG_DUMPALL_BIN}" --roles-only --no-role-passwords \
+    --host="${BUDGET_DATABASE_HOST}" --port="${BUDGET_DATABASE_PORT}" \
+    --username="${BUDGET_DATABASE_USER}" > "${backup_roles_plain}"
+  "${BACKUP_TIMEOUT_BIN}" "${BACKUP_HELPER_TIMEOUT_SECONDS}" \
+    "${BUDGET_CATALOG_BIN}" --database="${BUDGET_DATABASE_NAME}" \
+    --max-row-summaries=100 > "${backup_catalog_plain}"
+
+  "${BACKUP_TIMEOUT_BIN}" "${BACKUP_HELPER_TIMEOUT_SECONDS}" \
+    "${BUDGET_AGE_BIN}" -r "${BUDGET_AGE_RECIPIENT}" \
+    -o "${backup_archive_cipher}" "${backup_archive_plain}"
+  "${BACKUP_TIMEOUT_BIN}" "${BACKUP_HELPER_TIMEOUT_SECONDS}" \
+    "${BUDGET_AGE_BIN}" -r "${BUDGET_AGE_RECIPIENT}" \
+    -o "${backup_roles_cipher}" "${backup_roles_plain}"
+  "${BACKUP_TIMEOUT_BIN}" "${BACKUP_HELPER_TIMEOUT_SECONDS}" \
+    "${BUDGET_AGE_BIN}" -r "${BUDGET_AGE_RECIPIENT}" \
+    -o "${backup_catalog_cipher}" "${backup_catalog_plain}"
+
+  local migration_hash archive_hash roles_hash catalog_hash
+  migration_hash="$(backup_hash "${BUDGET_MIGRATION_MANIFEST}")"
+  archive_hash="$(backup_hash "${backup_archive_cipher}")"
+  roles_hash="$(backup_hash "${backup_roles_cipher}")"
+  catalog_hash="$(backup_hash "${backup_catalog_cipher}")"
+  {
+    printf '%s\n' 'backup_manifest_version=1'
+    printf 'run_id=%s\n' "${BACKUP_RUN_ID}"
+    printf 'environment=%s\n' "${BUDGET_VALIDATED_ENV}"
+    printf 'project=%s\n' "${BUDGET_VALIDATED_PROJECT}"
+    printf 'system_id=%s\n' "${BUDGET_VALIDATED_SYSTEM_ID}"
+    printf 'postgres_major=%s\n' "${BUDGET_POSTGRES_MAJOR}"
+    printf 'pg_dump_major=%s\n' "${BUDGET_PG_DUMP_MAJOR}"
+    printf 'release_id=%s\n' "${BUDGET_RELEASE_ID}"
+    printf 'migration_manifest_sha256=%s\n' "${migration_hash}"
+    printf '%s  %s\n' "${archive_hash}" 'archive.dump.age'
+    printf '%s  %s\n' "${roles_hash}" 'roles.sql.age'
+    printf '%s  %s\n' "${catalog_hash}" 'catalog.txt.age'
+  } > "${backup_manifest}"
+
+  local payload
+  for payload in "${backup_archive_cipher}" "${backup_roles_cipher}" \
+    "${backup_catalog_cipher}" "${backup_manifest}"; do
+    "${BACKUP_TIMEOUT_BIN}" "${BACKUP_HELPER_TIMEOUT_SECONDS}" \
+      "${BUDGET_OFFSITE_BIN}" put "${payload}" \
+      "${BUDGET_OFFSITE_DESTINATION}" "${BACKUP_RUN_ID}/${payload##*/}"
+    "${BACKUP_TIMEOUT_BIN}" "${BACKUP_HELPER_TIMEOUT_SECONDS}" \
+      "${BUDGET_OFFSITE_BIN}" verify "${payload}" \
+      "${BUDGET_OFFSITE_DESTINATION}" "${BACKUP_RUN_ID}/${payload##*/}"
+  done
+
+  : > "${backup_success}"
+  backup_published=1
+  printf '%s\n' "verified encrypted recovery point ${BACKUP_RUN_ID}"
+}
+
+backup_dry_run() {
+  backup_validate_configuration
+  printf '%s\n' 'DRY RUN ONLY: no lock, dump, encryption, upload, cleanup, or database/network command executed'
+  printf '%s\n' 'external recovery evidence remains BLOCKED until configured off-site proof and scratch restore'
+}
+
+backup_retention_plan() {
+  local index="${1:-}"
+  if [[ -z "${index}" || ! -f "${index}" ]]; then
+    budget_error 'retention index is required' 73
+    return
+  fi
+
+  local -a ids=() timestamps=() tiers=() pins=() verifications=()
+  local id timestamp tier pin verification extra count=0 newest_timestamp=''
+  local last_daily='' last_weekly='' last_monthly=''
+  while IFS='|' read -r id timestamp tier pin verification extra; do
+    [[ -z "${id}${timestamp}${tier}${pin}${verification}${extra}" ]] && continue
+    count=$((count + 1))
+    if (( count > MAX_RETENTION_ROWS )); then
+      budget_error 'retention index exceeds 1000 rows' 73
+      return
+    fi
+    if [[ ! "${id}" =~ ^budget-live-[A-Za-z0-9._-]+$ ]]; then
+      budget_error 'retention index contains an unsafe prefix' 73
+      return
+    fi
+    if budget_is_protected_identifier "${id}"; then
+      budget_error 'retention index contains a protected identifier' 73
+      return
+    fi
+    if [[ ! "${timestamp}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ || \
+      ! "${tier}" =~ ^(daily|weekly|monthly)$ || \
+      ! "${pin}" =~ ^(normal|pinned)$ || \
+      ! "${verification}" =~ ^(verified|unverified)$ || -n "${extra}" ]]; then
+      budget_error 'retention index contains an invalid bounded row' 73
+      return
+    fi
+    case "${tier}" in
+      daily)
+        [[ -n "${last_daily}" && "${timestamp}" > "${last_daily}" ]] && {
+          budget_error 'daily retention rows are not newest-first' 73; return; }
+        last_daily="${timestamp}"
+        ;;
+      weekly)
+        [[ -n "${last_weekly}" && "${timestamp}" > "${last_weekly}" ]] && {
+          budget_error 'weekly retention rows are not newest-first' 73; return; }
+        last_weekly="${timestamp}"
+        ;;
+      monthly)
+        [[ -n "${last_monthly}" && "${timestamp}" > "${last_monthly}" ]] && {
+          budget_error 'monthly retention rows are not newest-first' 73; return; }
+        last_monthly="${timestamp}"
+        ;;
+    esac
+    [[ -z "${newest_timestamp}" || "${timestamp}" > "${newest_timestamp}" ]] && newest_timestamp="${timestamp}"
+    ids+=("${id}")
+    timestamps+=("${timestamp}")
+    tiers+=("${tier}")
+    pins+=("${pin}")
+    verifications+=("${verification}")
+  done < "${index}"
+  if (( count == 0 )); then
+    budget_error 'retention index is empty' 73
+    return
+  fi
+
+  local daily_count=0 weekly_count=0 monthly_count=0 position reason limit tier_count
+  for ((position = 0; position < count; position += 1)); do
+    if [[ "${timestamps[position]}" == "${newest_timestamp}" ]]; then
+      reason='newest'
+    elif [[ "${pins[position]}" == 'pinned' ]]; then
+      reason='incident-pinned'
+    elif [[ "${verifications[position]}" != 'verified' ]]; then
+      reason='unverified'
+    else
+      case "${tiers[position]}" in
+        daily) tier_count="${daily_count}"; limit="${KEEP_DAILY}" ;;
+        weekly) tier_count="${weekly_count}"; limit="${KEEP_WEEKLY}" ;;
+        monthly) tier_count="${monthly_count}"; limit="${KEEP_MONTHLY}" ;;
+      esac
+      if (( tier_count < limit )); then
+        reason="${tiers[position]}-retained"
+      else
+        reason="${tiers[position]}-expired"
+      fi
+    fi
+
+    if [[ "${pins[position]}" != 'pinned' && "${verifications[position]}" == 'verified' ]]; then
+      case "${tiers[position]}" in
+        daily) daily_count=$((daily_count + 1)) ;;
+        weekly) weekly_count=$((weekly_count + 1)) ;;
+        monthly) monthly_count=$((monthly_count + 1)) ;;
+      esac
+    fi
+    if [[ "${reason}" == *-expired ]]; then
+      printf 'delete|%s|%s\n' "${ids[position]}" "${reason}"
+    else
+      printf 'keep|%s|%s\n' "${ids[position]}" "${reason}"
+    fi
+  done
+}
+
+case "${1:-}" in
+  backup) backup_execute ;;
+  dry-run) backup_dry_run ;;
+  retention-plan) backup_retention_plan "${2:-}" ;;
+  *) budget_error 'usage: backup-budget.sh {backup|dry-run|retention-plan INDEX}' 64 ;;
+esac
