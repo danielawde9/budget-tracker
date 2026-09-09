@@ -129,7 +129,10 @@ backup manifest and validated as recovery provenance.
 - `scripts/ops/validate-restore-roles.sh ARCHIVE_LIST FILTERED_ROLES TARGET_ROLES`
   parses every archive TOC owner and filtered-SQL grantee against an exact,
   operator-owned target-role manifest that must include `authenticated` and
-  `service_role`; validation completes before `psql`. This is deterministic
+  `service_role`. Filtered SQL is a bounded canonical subset (`CREATE ROLE` and
+  role-membership `GRANT`/`REVOKE` only); comments, quoted values/identifiers,
+  dollar quoting, unknown statements, and unallowlisted roles fail closed.
+  Validation completes before `psql`. This is deterministic
   fixture evidence only; proof against a real PostgreSQL 17 archive remains
   **BLOCKED** until an approved database-contact session.
 - `BUDGET_COMPARE_BIN ... --max-row-summaries=100 --max-content-hashes=100`

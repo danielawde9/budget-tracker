@@ -65,22 +65,43 @@ fi
   local $/;
   my $sql = <$sql_handle>;
   $sql = "" unless defined $sql;
-  if ($sql =~ /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/ || $sql =~ /"/) {
+  if ($sql =~ /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/ ||
+      $sql =~ m{/\*|\*/|--} || $sql =~ /["\x27\$\\]/) {
     print STDERR "budget ops: filtered role SQL is invalid\n";
     exit 79;
   }
-  while ($sql =~ /\b(?:CREATE\s+ROLE|OWNER\s+TO)\s+([a-z_][a-z0-9_]{0,62})/ig) {
-    unless ($allowed{$1}) {
-      print STDERR "budget ops: archive owner or SQL grantee is not allowlisted\n";
+  my $trimmed = $sql;
+  $trimmed =~ s/\s+$//;
+  unless ($trimmed =~ /;$/) {
+    print STDERR "budget ops: filtered role SQL is invalid\n";
+    exit 79;
+  }
+  my @statements = split /;/, $trimmed, -1;
+  pop @statements;
+  if (!@statements || @statements > 256) {
+    print STDERR "budget ops: filtered role SQL is invalid\n";
+    exit 79;
+  }
+  my $identifier = qr/[a-z_][a-z0-9_]{0,62}/;
+  my $role_list = qr/$identifier(?:\s*,\s*$identifier)*/;
+  for my $statement (@statements) {
+    $statement =~ s/^\s+|\s+$//g;
+    $statement =~ s/\s+/ /g;
+    my @roles;
+    if ($statement =~ /^CREATE ROLE ($identifier)$/i) {
+      @roles = ($1);
+    } elsif ($statement =~ /^GRANT ($role_list) TO ($role_list)(?: WITH ADMIN OPTION)?(?: GRANTED BY ($identifier))?$/i) {
+      @roles = (split(/\s*,\s*/, $1), split(/\s*,\s*/, $2));
+      push @roles, $3 if defined $3;
+    } elsif ($statement =~ /^REVOKE (?:ADMIN OPTION FOR )?($role_list) FROM ($role_list)(?: GRANTED BY ($identifier))?(?: CASCADE| RESTRICT)?$/i) {
+      @roles = (split(/\s*,\s*/, $1), split(/\s*,\s*/, $2));
+      push @roles, $3 if defined $3;
+    } else {
+      print STDERR "budget ops: filtered role SQL is invalid\n";
       exit 79;
     }
-  }
-  while ($sql =~ /\b(?:GRANT|REVOKE)\b[^;]*?\b(?:TO|FROM)\s+([^;]+);/igs) {
-    my $targets = $1;
-    $targets =~ s/\s+WITH\s+GRANT\s+OPTION\s*$//i;
-    for my $target (split /\s*,\s*/, $targets) {
-      $target =~ s/^\s+|\s+$//g;
-      unless ($target =~ /^[a-z_][a-z0-9_]{0,62}$/ && $allowed{$target}) {
+    for my $role (@roles) {
+      unless ($role =~ /^$identifier$/ && $allowed{$role}) {
         print STDERR "budget ops: archive owner or SQL grantee is not allowlisted\n";
         exit 79;
       }

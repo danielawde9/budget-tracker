@@ -76,6 +76,35 @@ describe('restore role boundary validator', () => {
     );
   });
 
+  it.each([
+    'GRANT budget_service /* ; */ TO unapproved_grantee;\n',
+    'GRANT budget_service -- ; hidden terminator\n TO unapproved_grantee;\n',
+    'GRANT budget_service TO "unapproved_grantee";\n',
+    "GRANT budget_service TO authenticated; SELECT 'TO unapproved_grantee';\n",
+    'DO $$ BEGIN GRANT budget_service TO unapproved_grantee; END $$;\n',
+    'GRANT budget_service TO authenticated; GRANT budget_service TO unapproved_grantee;\n',
+  ])('rejects adversarial or unsupported SQL: %s', (sql) => {
+    const { manifest, roles, toc } = fixture();
+    writeFileSync(roles, sql);
+    const result = run(toc, roles, manifest);
+
+    expect(result.status).toBe(79);
+    expect(result.stderr).toMatch(
+      /filtered role SQL is invalid|archive owner or SQL grantee is not allowlisted/,
+    );
+  });
+
+  it('accepts an allowlisted multiline membership grant', () => {
+    const { manifest, roles, toc } = fixture();
+    writeFileSync(
+      roles,
+      'CREATE ROLE budget_authenticated;\nGRANT budget_authenticated\n  TO authenticated, service_role;\n',
+    );
+    const result = run(toc, roles, manifest);
+
+    expect(result.status).toBe(0);
+  });
+
   it('requires authenticated and service_role target roles', () => {
     const { manifest, roles, toc } = fixture();
     writeFileSync(manifest, 'postgres\nbudget_service\nauthenticated\n');
