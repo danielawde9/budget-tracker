@@ -15,6 +15,8 @@
     "test:uat:offline": "env -u NO_COLOR playwright test e2e/private-uat.spec.ts",
     "typecheck": "tsc --noEmit",
     "check:ops": "bash scripts/ops/check-budget.sh",
+    "check:cloudflare-env": "node scripts/cloudflare/check-build-environment.mjs",
+    "build:cloudflare": "pnpm check:cloudflare-env && pnpm build",
     "check:ui": "pnpm typecheck && pnpm test:ui && pnpm build",
     "check:uat:scope": "bash scripts/check-private-uat-scope.sh",
     "check:uat:offline": "pnpm check:uat:scope && pnpm check:ops && pnpm typecheck && pnpm test:ui && pnpm build && pnpm test:e2e",
