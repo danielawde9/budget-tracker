@@ -17,6 +17,8 @@
     "check:ops": "bash scripts/ops/check-budget.sh",
     "check:cloudflare-env": "node scripts/cloudflare/check-build-environment.mjs",
     "build:cloudflare": "pnpm check:cloudflare-env && pnpm build",
+    "deploy:cloudflare:dry-run": "pnpm exec wrangler deploy --dry-run",
+    "deploy:cloudflare": "pnpm exec wrangler deploy",
     "check:ui": "pnpm typecheck && pnpm test:ui && pnpm build",
     "check:uat:scope": "bash scripts/check-private-uat-scope.sh",
     "check:uat:offline": "pnpm check:uat:scope && pnpm check:ops && pnpm typecheck && pnpm test:ui && pnpm build && pnpm test:e2e",
@@ -36,7 +38,8 @@
     "pg": "8.23.0",
     "typescript": "7.0.2",
     "vite": "7.1.7",
-    "vitest": "5.0.0"
+    "vitest": "5.0.0",
+    "wrangler": "4.130.0"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.116.0",
