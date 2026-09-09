@@ -41,6 +41,8 @@ backup_snapshot_executables() {
     "${BUDGET_DB_VERIFY_SHA256}" "${backup_exec_dir}/exec-07-verify-budget-db.sh" "${backup_deadline}" 70)"
   BUDGET_VERIFY_PSQL_BIN="$(budget_snapshot_executable "${BUDGET_VERIFY_PSQL_BIN}" \
     "${BUDGET_VERIFY_PSQL_SHA256}" "${backup_exec_dir}/exec-08-verify-psql" "${backup_deadline}" 70)"
+  BUDGET_PGPASS_FILE="$(budget_snapshot_private_file "${BUDGET_PGPASS_FILE}" \
+    "${backup_exec_dir}/exec-09-pgpass" 65536 "${backup_deadline}" 70)"
   budget_seal_executable_snapshot_dir "${backup_exec_dir}" 70
 }
 
@@ -120,7 +122,6 @@ backup_validate_configuration() {
     budget_error 'insufficient backup space' 71
     return
   fi
-  budget_require_private_file "${BUDGET_PGPASS_FILE}" 70
   if [[ ! -f "${BUDGET_MIGRATION_MANIFEST}" ]]; then
     budget_error 'backup migration manifest is missing' 70
     return
@@ -196,28 +197,41 @@ backup_size() {
 backup_cleanup() {
   local status=$?
   local cleanup_deadline=''
+  local cleanup_failed=0
   trap - EXIT INT TERM HUP
 
   if ! cleanup_deadline="$(budget_start_cleanup_deadline 66)"; then
     cleanup_deadline=''
+    cleanup_failed=1
   fi
 
   if [[ -n "${cleanup_deadline}" && "${backup_temp_created:-0}" == '1' ]]; then
-    budget_remove_private_descendant "${BACKUP_ROOT}" "${backup_plain_relative}" \
-      "${cleanup_deadline}" 66 || true
+    if ! budget_remove_private_descendant "${BACKUP_ROOT}" "${backup_plain_relative}" \
+      "${cleanup_deadline}" 66; then
+      cleanup_failed=1
+    fi
   fi
   if [[ -n "${cleanup_deadline}" && "${backup_published:-0}" != '1' && \
     "${backup_recovery_created:-0}" == '1' ]]; then
-    budget_remove_private_descendant "${BACKUP_ROOT}" "${backup_recovery_relative}" \
-      "${cleanup_deadline}" 66 || true
+    if ! budget_remove_private_descendant "${BACKUP_ROOT}" "${backup_recovery_relative}" \
+      "${cleanup_deadline}" 66; then
+      cleanup_failed=1
+    fi
   fi
   if [[ -n "${cleanup_deadline}" && "${backup_lock_acquired:-0}" == '1' ]]; then
-    budget_remove_private_descendant "${BACKUP_ROOT}" "${backup_lock_relative}" \
-      "${cleanup_deadline}" 66 || true
+    if ! budget_remove_private_descendant "${BACKUP_ROOT}" "${backup_lock_relative}" \
+      "${cleanup_deadline}" 66; then
+      cleanup_failed=1
+    fi
   fi
   if [[ -n "${cleanup_deadline}" ]]; then
-    budget_cleanup_executable_snapshot_dir "${backup_exec_dir:-}" \
-      "${cleanup_deadline}" 66 || true
+    if ! budget_cleanup_executable_snapshot_dir "${backup_exec_dir:-}" \
+      "${cleanup_deadline}" 66; then
+      cleanup_failed=1
+    fi
+  fi
+  if [[ "${status}" -eq 0 && "${cleanup_failed}" -ne 0 ]]; then
+    status=66
   fi
   exit "${status}"
 }
@@ -387,6 +401,7 @@ backup_execute() {
   } > "${backup_success}"
   backup_published=1
   printf '%s\n' "verified encrypted recovery point ${BACKUP_RUN_ID}"
+  backup_cleanup
 }
 
 backup_dry_run() {

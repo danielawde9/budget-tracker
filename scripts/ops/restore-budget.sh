@@ -30,6 +30,13 @@ restore_snapshot_executables() {
     "${BUDGET_VERIFY_PSQL_SHA256}" "${restore_exec_dir}/exec-08-verify-psql" "${restore_deadline}" 75)"
   BUDGET_ROLE_VALIDATOR_BIN="$(budget_snapshot_executable "${BUDGET_ROLE_VALIDATOR_BIN}" \
     "${BUDGET_ROLE_VALIDATOR_SHA256}" "${restore_exec_dir}/exec-09-role-validator" "${restore_deadline}" 75)"
+  BUDGET_PGPASS_FILE="$(budget_snapshot_private_file "${BUDGET_PGPASS_FILE}" \
+    "${restore_exec_dir}/exec-10-pgpass" 65536 "${restore_deadline}" 75)"
+  BUDGET_AGE_IDENTITY_FILE="$(budget_snapshot_private_file "${BUDGET_AGE_IDENTITY_FILE}" \
+    "${restore_exec_dir}/exec-11-age-identity" 1048576 "${restore_deadline}" 75)"
+  BUDGET_TARGET_ROLE_MANIFEST="$(budget_snapshot_private_file \
+    "${BUDGET_TARGET_ROLE_MANIFEST}" "${restore_exec_dir}/exec-12-role-manifest" \
+    4096 "${restore_deadline}" 75)"
   budget_seal_executable_snapshot_dir "${restore_exec_dir}" 75
 }
 
@@ -153,10 +160,6 @@ restore_validate_configuration() {
     budget_error 'insufficient scratch restore space' 76
     return
   fi
-  budget_require_private_file "${BUDGET_AGE_IDENTITY_FILE}" 75
-  budget_require_private_file "${BUDGET_PGPASS_FILE}" 75
-  budget_require_private_file "${BUDGET_TARGET_ROLE_MANIFEST}" 75
-
   local executable
   for executable in "${BUDGET_TIMEOUT_BIN}" "${BUDGET_AGE_BIN}" \
     "${BUDGET_OFFSITE_BIN}" "${BUDGET_PG_RESTORE_BIN}" \
@@ -259,21 +262,32 @@ restore_size() {
 restore_cleanup() {
   local status=$?
   local cleanup_deadline=''
+  local cleanup_failed=0
   trap - EXIT INT TERM HUP
   if ! cleanup_deadline="$(budget_start_cleanup_deadline 76)"; then
     cleanup_deadline=''
+    cleanup_failed=1
   fi
   if [[ -n "${cleanup_deadline}" && "${restore_temp_created:-0}" == '1' ]]; then
-    budget_remove_private_descendant "${RESTORE_ROOT}" "${restore_temp_relative}" \
-      "${cleanup_deadline}" 76 || true
+    if ! budget_remove_private_descendant "${RESTORE_ROOT}" "${restore_temp_relative}" \
+      "${cleanup_deadline}" 76; then
+      cleanup_failed=1
+    fi
   fi
   if [[ -n "${cleanup_deadline}" && "${restore_lock_acquired:-0}" == '1' ]]; then
-    budget_remove_private_descendant "${RESTORE_ROOT}" "${restore_lock_relative}" \
-      "${cleanup_deadline}" 76 || true
+    if ! budget_remove_private_descendant "${RESTORE_ROOT}" "${restore_lock_relative}" \
+      "${cleanup_deadline}" 76; then
+      cleanup_failed=1
+    fi
   fi
   if [[ -n "${cleanup_deadline}" ]]; then
-    budget_cleanup_executable_snapshot_dir "${restore_exec_dir:-}" \
-      "${cleanup_deadline}" 76 || true
+    if ! budget_cleanup_executable_snapshot_dir "${restore_exec_dir:-}" \
+      "${cleanup_deadline}" 76; then
+      cleanup_failed=1
+    fi
+  fi
+  if [[ "${status}" -eq 0 && "${cleanup_failed}" -ne 0 ]]; then
+    status=76
   fi
   exit "${status}"
 }
@@ -451,7 +465,8 @@ restore_execute() {
   restore_revalidate_scratch
   budget_validate_private_descendant "${RESTORE_ROOT}" "${restore_temp_relative}" \
     "${restore_deadline}" 76 >/dev/null
-  restore_run "${BUDGET_PSQL_BIN}" --set=ON_ERROR_STOP=on \
+  restore_run "${BUDGET_PSQL_BIN}" --no-psqlrc --no-password \
+    --set=ON_ERROR_STOP=on \
     --host="${RESTORE_DB_HOST}" --port="${RESTORE_DB_PORT}" \
     --username="${RESTORE_DB_USER}" --dbname="${RESTORE_DB_NAME}" \
     --file="${restore_roles_filtered}"
@@ -473,6 +488,7 @@ restore_execute() {
     "${trusted_manifest_hash}" "${catalog_plain_hash}" 78 >/dev/null
 
   printf '%s\n' "scratch restore comparison verified for ${RESTORE_POINT}"
+  restore_cleanup
 }
 
 restore_dry_run() {

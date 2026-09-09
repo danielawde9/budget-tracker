@@ -45,6 +45,12 @@ material. Ops entrypoints replace ambient `PATH` before their first utility
 lookup with the fixed system/toolchain allowlist documented in source; adapters
 still require reviewed absolute executable paths.
 
+Backup and restore dry-runs create only ephemeral, operator-private validation
+snapshots under the system temporary directory. Those snapshots pin the reviewed
+executables and private inputs while configuration and version checks run, are
+removed before the dry-run exits, and are never written beneath the operation
+root. A dry-run still performs no database, encryption, or network operation.
+
 ## Exact target and marker contract
 
 `BUDGET_ENV` accepts only `development`, `uat`, or `live`; backup requires
@@ -181,8 +187,9 @@ receipt remain **BLOCKED**.
    evidence.
 2. Supply a mode-`0600` pgpass file by reference. Its value is never printed or
    passed on the command line.
-3. Run `dry-run`; it validates configuration but takes no lock, creates no file,
-   and invokes no database, encryption, or network binary.
+3. Run `dry-run`; it validates configuration but takes no operation lock and
+   creates only the ephemeral validation snapshots described above. It invokes
+   no database, encryption, or network operation.
 4. In an approved window, run `backup`. It takes a nonblocking live lock,
    starts one 30-minute deadline from a monotonic clock, and measures and pins
    the database receipt. Every adapter receives only the remaining operation
@@ -230,8 +237,9 @@ repository intentionally includes no deletion command.
 3. Supply the off-site destination, mode-`0600` age identity and pgpass paths,
    trusted manifest SHA-256 from the independent backup receipt, reviewed role
    allowlist, and absolute adapters.
-4. Run `dry-run`. The default is `scratch`; it creates nothing and invokes no
-   adapter.
+4. Run `dry-run`. The default is `scratch`; it creates only the ephemeral
+   validation snapshots described above and invokes no database, encryption, or
+   network operation.
 5. Run `restore`. It locks scratch, measures the scratch database identity and
    emptiness, and fetches only the named manifest and three ciphertexts. The
    trusted manifest receipt, source identity, system ID, major version, and all

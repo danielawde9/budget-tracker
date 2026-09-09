@@ -460,6 +460,7 @@ second archive. A separate refresh-required state makes that boundary explicit.
 same request ID and payload remain idempotent. Allowing a dialog to report success
 without a fresh projection requires a separate product definition of accepted
 versus visibly complete work.
+
 ## 2026-09-08 — Private launch defaults are tailnet-only and environment-isolated
 
 **Decision:** The implementation-planning default is a private personal

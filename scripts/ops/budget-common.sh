@@ -559,21 +559,61 @@ budget_read_private_marker() {
   fi
 }
 
-budget_require_private_file() {
-  local path="${1:-}"
-  local status="${2:-1}"
-  if [[ -z "${path}" || ! -f "${path}" ]]; then
-    budget_error 'secret file reference is missing' "${status}"
+budget_snapshot_private_file() {
+  local source="${1:-}"
+  local destination="${2:-}"
+  local max_bytes="${3:-}"
+  local deadline="${4:?deadline is required}"
+  local status="${5:-1}"
+  local remaining
+  if [[ "${source}" != /* || "${destination}" != /* || \
+    ! "${max_bytes}" =~ ^[1-9][0-9]{0,7}$ || "${max_bytes}" -gt 10485760 ]]; then
+    budget_error 'private input snapshot contract is invalid' "${status}"
     return
   fi
-  if ! /usr/bin/perl -e '
-    alarm 5;
-    my @details = stat($ARGV[0]);
-    exit 1 unless @details;
-    exit((($details[2] & 0777) == 0600 && $details[4] == $<) ? 0 : 1);
-  ' "${path}"; then
-    budget_error 'secret file must be mode 0600 and operator-owned' "${status}"
+  if ! remaining="$(budget_remaining_seconds "${deadline}")"; then
+    budget_error 'whole-operation deadline exceeded' "${status}"
+    return
   fi
+  if ! /usr/bin/perl -MFcntl=:DEFAULT,O_NOFOLLOW,:mode -e '
+    use strict;
+    use warnings;
+    my ($seconds, $source, $destination, $max_bytes) = @ARGV;
+    alarm $seconds;
+    my @before = lstat($source);
+    die "source\n" unless @before && S_ISREG($before[2]);
+    die "owner\n" unless $before[4] == $< && (($before[2] & 0777) == 0600);
+    die "size\n" unless $before[7] > 0 && $before[7] <= $max_bytes;
+    sysopen(my $input, $source, O_RDONLY | O_NOFOLLOW) or die "open source\n";
+    my @opened = stat($input);
+    die "swap\n" unless @opened && S_ISREG($opened[2]);
+    die "swap\n" unless $opened[0] == $before[0] && $opened[1] == $before[1];
+    die "swap\n" unless $opened[4] == $< && (($opened[2] & 0777) == 0600);
+    die "swap\n" unless $opened[7] > 0 && $opened[7] <= $max_bytes;
+    sysopen(my $output, $destination, O_WRONLY | O_CREAT | O_EXCL, 0400)
+      or die "open destination\n";
+    my $total = 0;
+    my $buffer;
+    while (1) {
+      my $count = sysread($input, $buffer, 65_536);
+      die "read\n" unless defined $count;
+      last if $count == 0;
+      $total += $count;
+      die "size\n" if $total > $max_bytes;
+      my $offset = 0;
+      while ($offset < $count) {
+        my $written = syswrite($output, $buffer, $count - $offset, $offset);
+        die "write\n" unless defined $written && $written > 0;
+        $offset += $written;
+      }
+    }
+    die "size\n" unless $total == $before[7];
+    close $output or die "close\n";
+  ' "${remaining}" "${source}" "${destination}" "${max_bytes}" 2>/dev/null; then
+    budget_error 'private input snapshot validation failed' "${status}"
+    return
+  fi
+  printf '%s\n' "${destination}"
 }
 
 budget_require_private_artifact() {

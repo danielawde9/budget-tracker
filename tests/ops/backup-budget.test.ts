@@ -8,6 +8,7 @@ import {
   readFileSync,
   readdirSync,
   symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
@@ -87,7 +88,21 @@ describe('encrypted Budget backup boundary', () => {
     const result = run('backup', env);
 
     expect(result.status).toBe(70);
-    expect(result.stderr).toContain('secret file must be mode 0600');
+    expect(result.stderr).toContain('private input snapshot validation failed');
+    expect(existsSync(log)).toBe(false);
+  });
+
+  it('rejects a pgpass symlink before any database or backup effect', () => {
+    const { base, env, log, passfile } = makeBackupFixture();
+    const target = join(base, 'pgpass-target');
+    writeFileSync(target, readFileSync(passfile), { mode: 0o600 });
+    unlinkSync(passfile);
+    symlinkSync(target, passfile);
+
+    const result = run('backup', env);
+
+    expect(result.status).toBe(70);
+    expect(result.stderr).toContain('private input snapshot validation failed');
     expect(existsSync(log)).toBe(false);
   });
 
@@ -331,6 +346,18 @@ describe('encrypted Budget backup boundary', () => {
     expect(commands).not.toContain('swapped-pg-dump');
   });
 
+  it('uses the immutable pgpass snapshot after the source path is swapped', () => {
+    const { env, log, passfile } = makeBackupFixture();
+    const result = run('backup', {
+      ...env,
+      BUDGET_FAKE_SWAP_PRIVATE_PATH: passfile,
+      BUDGET_FAKE_SWAP_PRIVATE_CONTENT: 'malicious:5432:*:*:replacement-only\n',
+    });
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(readFileSync(log, 'utf8')).toContain('pg_dump');
+  });
+
   it('rejects a marker swapped after validation before backup effects', () => {
     const { env, log, marker } = makeBackupFixture();
     const result = run('backup', {
@@ -400,6 +427,29 @@ describe('encrypted Budget backup boundary', () => {
     expect(existsSync(join(tempRoot, '2026-09-09T021500Z-fixture.plaintext'))).toBe(
       false,
     );
+  });
+
+  it('promotes cleanup failure after an otherwise successful backup', () => {
+    const { env } = makeBackupFixture();
+    const result = run('backup', {
+      ...env,
+      BUDGET_FAKE_FORCE_CLEANUP_FAILURE: '1',
+    });
+
+    expect(result.status, `${result.stderr}\n${result.stdout}`).toBe(66);
+    expect(result.stderr).toContain('bounded private cleanup failed');
+  });
+
+  it('preserves the original backup failure when cleanup also fails', () => {
+    const { env } = makeBackupFixture();
+    const result = run('backup', {
+      ...env,
+      BUDGET_FAKE_AGE_FAIL: '1',
+      BUDGET_FAKE_FORCE_CLEANUP_FAILURE: '1',
+    });
+
+    expect(result.status).toBe(17);
+    expect(result.stderr).toContain('bounded private cleanup failed');
   });
 
   it('starts the deadline wrapper before opening a replaced payload for size', () => {

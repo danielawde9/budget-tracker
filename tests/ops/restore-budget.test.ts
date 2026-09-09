@@ -110,8 +110,27 @@ describe('scratch-only Budget restore boundary', () => {
     const result = run('restore', env);
 
     expect(result.status).toBe(75);
-    expect(result.stderr).toContain('secret file must be mode 0600');
+    expect(result.stderr).toContain('private input snapshot validation failed');
     expect(existsSync(log)).toBe(false);
+  });
+
+  it.each([
+    ['pgpass', 'BUDGET_PGPASS_FILE'],
+    ['age identity', 'BUDGET_AGE_IDENTITY_FILE'],
+    ['target-role manifest', 'BUDGET_TARGET_ROLE_MANIFEST'],
+  ])('rejects a %s symlink before any restore effect', (_label, key) => {
+    const fixture = makeRestoreFixture();
+    const source = fixture.env[key] as string;
+    const target = join(fixture.base, `${key.toLowerCase()}-target`);
+    writeFileSync(target, readFileSync(source), { mode: 0o600 });
+    unlinkSync(source);
+    symlinkSync(target, source);
+
+    const result = run('restore', fixture.env);
+
+    expect(result.status).toBe(75);
+    expect(result.stderr).toContain('private input snapshot validation failed');
+    expect(existsSync(fixture.log)).toBe(false);
   });
 
   it('refuses a protected database endpoint before fetching or restoring', () => {
@@ -254,7 +273,7 @@ describe('scratch-only Budget restore boundary', () => {
   });
 
   it('bounds fetch/decrypt/restore, filters roles, and requires the comparison hook', () => {
-    const { env, log } = makeRestoreFixture();
+    const { env, log, psqlArgsLog } = makeRestoreFixture();
     const result = run('restore', env);
     const commands = readFileSync(log, 'utf8');
 
@@ -266,8 +285,35 @@ describe('scratch-only Budget restore boundary', () => {
     expect(commands).toMatch(/timeout:[0-9]+:exec-04-psql\n/);
     expect(commands).toContain('role-filter');
     expect(commands).toMatch(/timeout:[0-9]+:exec-06-compare\n/);
+    expect(readFileSync(psqlArgsLog, 'utf8').trimEnd().split('\n')).toEqual([
+      '--no-psqlrc',
+      '--no-password',
+      '--set=ON_ERROR_STOP=on',
+      '--host=fixture-budget-db.internal',
+      '--port=54722',
+      '--username=budget_backup',
+      '--dbname=budget_restore_scratch',
+      expect.stringMatching(/^--file=\/.*\/roles\.allowlisted\.sql$/),
+    ]);
     expect(result.stdout).toContain('scratch restore comparison verified');
     expectShrinkingDeadline(commands, 3600);
+  });
+
+  it.each([
+    ['pgpass', 'BUDGET_PGPASS_FILE', 'malicious:5432:*:*:replacement-only\n'],
+    ['age identity', 'BUDGET_AGE_IDENTITY_FILE', 'AGE-SECRET-KEY-replacement-only\n'],
+    ['target-role manifest', 'BUDGET_TARGET_ROLE_MANIFEST', 'unapproved_role\n'],
+  ])('uses the immutable %s snapshot after the source path is swapped', (_label, key, replacement) => {
+    const fixture = makeRestoreFixture();
+    const source = fixture.env[key] as string;
+    const result = run('restore', {
+      ...fixture.env,
+      BUDGET_FAKE_SWAP_PRIVATE_PATH: source,
+      BUDGET_FAKE_SWAP_PRIVATE_CONTENT: replacement,
+    });
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(readFileSync(fixture.log, 'utf8')).toContain('pg_restore');
   });
 
   it('rechecks scratch identity and emptiness immediately before database effects', () => {
@@ -362,6 +408,29 @@ describe('scratch-only Budget restore boundary', () => {
     expect(
       existsSync(join(scratchRoot, 'tmp/2026-09-09T021500Z-fixture.restore')),
     ).toBe(false);
+  });
+
+  it('promotes cleanup failure after an otherwise successful restore', () => {
+    const { env } = makeRestoreFixture();
+    const result = run('restore', {
+      ...env,
+      BUDGET_FAKE_FORCE_CLEANUP_FAILURE: '1',
+    });
+
+    expect(result.status, `${result.stderr}\n${result.stdout}`).toBe(76);
+    expect(result.stderr).toContain('bounded private cleanup failed');
+  });
+
+  it('preserves the original restore failure when cleanup also fails', () => {
+    const { env } = makeRestoreFixture();
+    const result = run('restore', {
+      ...env,
+      BUDGET_FAKE_FORCE_CLEANUP_FAILURE: '1',
+      BUDGET_FAKE_RESTORE_FAIL: '1',
+    });
+
+    expect(result.status).toBe(19);
+    expect(result.stderr).toContain('bounded private cleanup failed');
   });
 
   it('starts the deadline wrapper before opening a replaced payload for size', () => {

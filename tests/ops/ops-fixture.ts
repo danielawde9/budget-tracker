@@ -27,6 +27,7 @@ export function makeBackupFixture() {
   const root = join(base, 'budget-live');
   const bin = join(base, 'bin');
   const log = join(base, 'commands.log');
+  const psqlArgsLog = join(base, 'psql-args.log');
   const marker = join(root, '.budget-ops-marker');
   const passfile = join(base, 'pgpass');
   const migrationManifest = join(base, 'migrations.sha256');
@@ -67,15 +68,23 @@ export function makeBackupFixture() {
   );
   makeExecutable(
     pgDump,
-    'if [[ "${1:-}" == "--version" ]]; then printf "pg_dump (PostgreSQL) %s\\n" "${BUDGET_FAKE_PG_VERSION:-17.6}"; exit 0; fi; output=""; for argument in "$@"; do case "$argument" in --file=*) output="${argument#--file=}" ;; esac; done; test -n "$output"; printf "fixture custom archive\\n" > "$output"; printf "pg_dump\\n" >> "$BUDGET_FAKE_LOG"',
+    'if [[ "${1:-}" == "--version" ]]; then printf "pg_dump (PostgreSQL) %s\\n" "${BUDGET_FAKE_PG_VERSION:-17.6}"; exit 0; fi; [[ "$(/usr/bin/shasum -a 256 "$PGPASSFILE")" == "$BUDGET_FAKE_PGPASS_SHA256  $PGPASSFILE" ]] || exit 92; output=""; for argument in "$@"; do case "$argument" in --file=*) output="${argument#--file=}" ;; esac; done; test -n "$output"; printf "fixture custom archive\\n" > "$output"; printf "pg_dump\\n" >> "$BUDGET_FAKE_LOG"',
   );
   makeExecutable(
     pgDumpall,
-    'if [[ "${1:-}" == "--version" ]]; then printf "pg_dumpall (PostgreSQL) %s\\n" "${BUDGET_FAKE_PG_VERSION:-17.6}"; exit 0; fi; printf "CREATE ROLE budget_authenticated;\\n"; printf "pg_dumpall\\n" >> "$BUDGET_FAKE_LOG"',
+    'if [[ "${1:-}" == "--version" ]]; then printf "pg_dumpall (PostgreSQL) %s\\n" "${BUDGET_FAKE_PG_VERSION:-17.6}"; exit 0; fi; [[ "$(/usr/bin/shasum -a 256 "$PGPASSFILE")" == "$BUDGET_FAKE_PGPASS_SHA256  $PGPASSFILE" ]] || exit 92; printf "CREATE ROLE budget_authenticated;\\n"; printf "pg_dumpall\\n" >> "$BUDGET_FAKE_LOG"',
   );
   makeExecutable(
     age,
-    'if [[ "${BUDGET_FAKE_AGE_FAIL:-0}" == "1" ]]; then exit 17; fi; output=""; input=""; while (($#)); do case "$1" in -o) output="$2"; shift 2 ;; -r) shift 2 ;; *) input="$1"; shift ;; esac; done; cp "$input" "$output"; printf "age\\n" >> "$BUDGET_FAKE_LOG"',
+    [
+      'output=""; input=""; identity=""',
+      'while (($#)); do case "$1" in -o) output="$2"; shift 2 ;; -r) shift 2 ;; -i) identity="$2"; shift 2 ;; -d) shift ;; *) input="$1"; shift ;; esac; done',
+      'if [[ -n "$identity" ]]; then [[ "$(/usr/bin/shasum -a 256 "$identity")" == "$BUDGET_FAKE_AGE_IDENTITY_SHA256  $identity" ]] || exit 92; fi',
+      'if [[ "${BUDGET_FAKE_FORCE_CLEANUP_FAILURE:-0}" == "1" ]]; then cleanup_dir="${input%/*}"; for index in {1..33}; do printf "fixture\\n" > "$cleanup_dir/cleanup-failure-$index"; done; fi',
+      'if [[ "${BUDGET_FAKE_AGE_FAIL:-0}" == "1" ]]; then exit 17; fi',
+      'cp "$input" "$output"',
+      'printf "age\\n" >> "$BUDGET_FAKE_LOG"',
+    ].join('\n'),
   );
   makeExecutable(
     catalog,
@@ -131,6 +140,12 @@ export function makeBackupFixture() {
       '  cp -- "$BUDGET_FAKE_SWAP_EXECUTABLE_REPLACEMENT" "$BUDGET_FAKE_SWAP_EXECUTABLE_PATH"',
       '  chmod 0700 "$BUDGET_FAKE_SWAP_EXECUTABLE_PATH"',
       'fi',
+      'if [[ "$counter" == "1" && -n "${BUDGET_FAKE_SWAP_PRIVATE_PATH:-}" ]]; then',
+      '  mv -- "$BUDGET_FAKE_SWAP_PRIVATE_PATH" "${BUDGET_FAKE_SWAP_PRIVATE_PATH}.validated"',
+      '  printf "%s" "$BUDGET_FAKE_SWAP_PRIVATE_CONTENT" > "$BUDGET_FAKE_SWAP_PRIVATE_PATH"',
+      '  chmod 0600 "$BUDGET_FAKE_SWAP_PRIVATE_PATH"',
+      'fi',
+      'if [[ -n "${PGPASSFILE:-}" ]]; then [[ "$(/usr/bin/shasum -a 256 "$PGPASSFILE")" == "$BUDGET_FAKE_PGPASS_SHA256  $PGPASSFILE" ]] || exit 92; fi',
       'system_id="${BUDGET_FAKE_VERIFY_SYSTEM_ID:-7000000000000000001}"',
       'database_name="${BUDGET_VERIFY_DATABASE_NAME:?}"',
       'database_oid="${BUDGET_FAKE_VERIFY_DATABASE_OID:-17001}"',
@@ -202,9 +217,10 @@ export function makeBackupFixture() {
     BUDGET_FAKE_VERIFY_COUNTER: join(base, 'verify-counter'),
     BUDGET_FAKE_FIFO_MARKER: join(base, 'fifo-swapped'),
     BUDGET_FAKE_LOG: log,
+    BUDGET_FAKE_PGPASS_SHA256: fileSha256(passfile),
   };
 
-  return { base, env, log, marker, passfile, pgDump, root };
+  return { base, env, log, marker, passfile, pgDump, psqlArgsLog, root };
 }
 
 export function makeRestoreFixture() {
@@ -287,7 +303,7 @@ export function makeRestoreFixture() {
   );
   makeExecutable(
     psql,
-    'if [[ "${1:-}" == "--version" ]]; then printf "psql (PostgreSQL) %s\\n" "${BUDGET_FAKE_PG_VERSION:-17.6}"; exit 0; fi; printf "psql\\n" >> "$BUDGET_FAKE_LOG"',
+    'if [[ "${1:-}" == "--version" ]]; then printf "psql (PostgreSQL) %s\\n" "${BUDGET_FAKE_PG_VERSION:-17.6}"; exit 0; fi; [[ "$(/usr/bin/shasum -a 256 "$PGPASSFILE")" == "$BUDGET_FAKE_PGPASS_SHA256  $PGPASSFILE" ]] || exit 92; printf "%s\\n" "$@" > "$BUDGET_FAKE_PSQL_ARGS_LOG"; printf "psql\\n" >> "$BUDGET_FAKE_LOG"',
   );
   makeExecutable(
     roleFilter,
@@ -362,6 +378,8 @@ export function makeRestoreFixture() {
       join(process.cwd(), 'scripts/ops/validate-restore-roles.sh'),
     ),
     BUDGET_EXPECTED_MANIFEST_SHA256: manifestHash,
+    BUDGET_FAKE_AGE_IDENTITY_SHA256: fileSha256(identity),
+    BUDGET_FAKE_PSQL_ARGS_LOG: backup.psqlArgsLog,
   };
 
   return {
@@ -373,5 +391,6 @@ export function makeRestoreFixture() {
     scratchMarker,
     scratchRoot,
     targetRoleManifest,
+    psqlArgsLog: backup.psqlArgsLog,
   };
 }
