@@ -53,6 +53,12 @@ describe('Cloudflare deployment contract', () => {
     expect(readme).toContain('pnpm build:cloudflare');
     expect(runbook).toContain('VITE_SUPABASE_URL');
     expect(runbook).toContain('VITE_SUPABASE_ANON_KEY');
+    expect(runbook).toMatch(
+      /For hosted release builds, set these names only through protected CI or\s+Cloudflare dashboard build settings\./,
+    );
+    expect(runbook).toMatch(
+      /Owner-authorized local fallback uses only\s+the ignored `\.env\.local` file\./,
+    );
     expect(runbook).toContain('pnpm deploy:cloudflare:dry-run');
     expect(runbook).toContain('```bash\npnpm deploy:cloudflare\n```');
     expect(runbook).toContain('The Cloudflare production branch is `main`.');

@@ -18,8 +18,11 @@ repository scripts and the pinned local tooling, never an ad-hoc global CLI.
 
 ## Build variables and local build
 
-Enter these two build variables only through protected CI or Cloudflare
-dashboard build settings:
+For hosted release builds, set these names only through protected CI or
+Cloudflare dashboard build settings. Owner-authorized local fallback uses only
+the ignored `.env.local` file. The local fallback is for running the local
+release command; it neither copies values to nor overrides hosted build
+settings.
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
