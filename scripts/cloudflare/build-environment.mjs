@@ -2,9 +2,13 @@ const PUBLISHABLE_KEY = /^sb_publishable_[A-Za-z0-9_-]{20,}$/;
 const ALLOWED_VITE_VARIABLES = new Set(['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY']);
 
 function required(environment, name) {
-  const value = environment[name]?.trim();
+  const rawValue = environment[name];
+  const value = rawValue?.trim();
   if (!value || /^replace-/i.test(value)) {
     throw new Error(`${name} is required for the Cloudflare production build`);
+  }
+  if (value !== rawValue) {
+    throw new Error(`${name} must not contain surrounding whitespace`);
   }
   return value;
 }

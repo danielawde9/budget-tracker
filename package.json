@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit",
     "check:ops": "bash scripts/ops/check-budget.sh",
     "check:cloudflare-env": "node scripts/cloudflare/check-build-environment.mjs",
-    "build:cloudflare": "pnpm check:cloudflare-env && pnpm build",
+    "build:cloudflare": "env -u DEBUG pnpm check:cloudflare-env && env -u DEBUG pnpm build",
     "deploy:cloudflare:dry-run": "pnpm exec wrangler deploy --dry-run",
     "deploy:cloudflare": "pnpm exec wrangler deploy",
     "check:ui": "pnpm typecheck && pnpm test:ui && pnpm build",

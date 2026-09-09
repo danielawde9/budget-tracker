@@ -11,6 +11,26 @@ const valid = {
   VITE_SUPABASE_URL: 'https://budget-project.supabase.co',
   VITE_SUPABASE_ANON_KEY: `sb_publishable_${'a'.repeat(32)}`,
 };
+const cliPath = join(process.cwd(), 'scripts/cloudflare/check-build-environment.mjs');
+
+function cleanSubprocessEnvironment(overrides: Record<string, string | undefined> = {}) {
+  return {
+    ...Object.fromEntries(
+      Object.entries(process.env).filter(
+        ([name]) => !name.startsWith('VITE_') && name !== 'DEBUG',
+      ),
+    ),
+    ...overrides,
+  };
+}
+
+function runCli(directory: string, environment: Record<string, string | undefined>) {
+  return spawnSync(process.execPath, [cliPath], {
+    cwd: directory,
+    encoding: 'utf8',
+    env: environment,
+  });
+}
 
 describe('Cloudflare build environment', () => {
   it.each([
@@ -20,6 +40,8 @@ describe('Cloudflare build environment', () => {
     [{ ...valid, VITE_SUPABASE_URL: 'http://budget-project.supabase.co' }, 'VITE_SUPABASE_URL'],
     [{ ...valid, VITE_SUPABASE_URL: 'replace-with-url' }, 'VITE_SUPABASE_URL'],
     [{ ...valid, VITE_SUPABASE_ANON_KEY: 'replace-with-key' }, 'VITE_SUPABASE_ANON_KEY'],
+    [{ ...valid, VITE_SUPABASE_URL: ` ${valid.VITE_SUPABASE_URL}` }, 'VITE_SUPABASE_URL'],
+    [{ ...valid, VITE_SUPABASE_ANON_KEY: `${valid.VITE_SUPABASE_ANON_KEY}\n` }, 'VITE_SUPABASE_ANON_KEY'],
   ])('rejects invalid input without returning values', (environment, expectedName) => {
     expect(() => validateCloudflareBuildEnvironment(environment)).toThrow(expectedName);
   });
@@ -33,23 +55,23 @@ describe('Cloudflare build environment', () => {
 
   it('does not print supplied values when the CLI rejects input', () => {
     const secretShapedValue = 'sb_publishable_DO_NOT_PRINT_THIS_VALUE_123456';
-    const result = spawnSync(
-      process.execPath,
-      [join(process.cwd(), 'scripts/cloudflare/check-build-environment.mjs')],
-      {
-        cwd: process.cwd(),
-        encoding: 'utf8',
-        env: {
-          ...process.env,
+    const directory = mkdtempSync(join(tmpdir(), 'cloudflare-build-environment-'));
+
+    try {
+      const result = runCli(
+        directory,
+        cleanSubprocessEnvironment({
           VITE_SUPABASE_URL: 'http://invalid.example',
           VITE_SUPABASE_ANON_KEY: secretShapedValue,
-        },
-      },
-    );
+        }),
+      );
 
-    expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain('VITE_SUPABASE_URL');
-    expect(`${result.stdout}${result.stderr}`).not.toContain(secretShapedValue);
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain('VITE_SUPABASE_URL');
+      expect(`${result.stdout}${result.stderr}`).not.toContain(secretShapedValue);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it.each([
@@ -59,33 +81,75 @@ describe('Cloudflare build environment', () => {
     ['VITE_SSH_PASSWORD', 'ssh-DO_NOT_PRINT_THIS_VALUE'],
   ])('rejects forbidden %s without returning or printing its value', (name, value) => {
     expect(() => validateCloudflareBuildEnvironment({ ...valid, [name]: value })).toThrow(name);
+    const directory = mkdtempSync(join(tmpdir(), 'cloudflare-build-environment-'));
 
-    const result = spawnSync(
-      process.execPath,
-      [join(process.cwd(), 'scripts/cloudflare/check-build-environment.mjs')],
-      {
-        cwd: process.cwd(),
-        encoding: 'utf8',
-        env: {
-          ...process.env,
+    try {
+      const result = runCli(
+        directory,
+        cleanSubprocessEnvironment({
           ...valid,
           [name]: value,
-        },
-      },
-    );
+        }),
+      );
 
-    expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain(name);
-    expect(`${result.stdout}${result.stderr}`).not.toContain(value);
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain(name);
+      expect(`${result.stdout}${result.stderr}`).not.toContain(value);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('does not leak rejected values when DEBUG enables Vite env logging', () => {
+    const secretShapedValue = 'debug-rejection-DO_NOT_PRINT_THIS_VALUE';
+    const directory = mkdtempSync(join(tmpdir(), 'cloudflare-build-environment-'));
+
+    try {
+      const result = runCli(
+        directory,
+        cleanSubprocessEnvironment({
+          DEBUG: 'vite:env',
+          ...valid,
+          VITE_SSH_PASSWORD: secretShapedValue,
+        }),
+      );
+
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain('VITE_SSH_PASSWORD');
+      expect(`${result.stdout}${result.stderr}`).not.toContain(secretShapedValue);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('does not leak accepted values when DEBUG enables Vite env logging', () => {
+    const markerUrl = 'https://debug-success-marker.supabase.co';
+    const directory = mkdtempSync(join(tmpdir(), 'cloudflare-build-environment-'));
+
+    try {
+      const result = runCli(
+        directory,
+        cleanSubprocessEnvironment({
+          DEBUG: 'vite:env',
+          VITE_SUPABASE_URL: markerUrl,
+          VITE_SUPABASE_ANON_KEY: valid.VITE_SUPABASE_ANON_KEY,
+        }),
+      );
+
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('Cloudflare public build-variable contract passed');
+      expect(`${result.stdout}${result.stderr}`).not.toContain(markerUrl);
+      expect(`${result.stdout}${result.stderr}`).not.toContain(valid.VITE_SUPABASE_ANON_KEY);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it('validates Vite production env files before the build', () => {
     const directory = mkdtempSync(join(tmpdir(), 'cloudflare-build-environment-'));
     const secretShapedValue = 'env-file-DO_NOT_PRINT_THIS_VALUE';
     const forbiddenVariableName = 'VITE_SSH_PASSWORD';
-    const environment = Object.fromEntries(
-      Object.entries(process.env).filter(([name]) => !name.startsWith('VITE_')),
-    );
+    const environment = cleanSubprocessEnvironment();
 
     try {
       writeFileSync(
@@ -100,7 +164,7 @@ describe('Cloudflare build environment', () => {
 
       const result = spawnSync(
         process.execPath,
-        [join(process.cwd(), 'scripts/cloudflare/check-build-environment.mjs')],
+        [cliPath],
         { cwd: directory, encoding: 'utf8', env: environment },
       );
 

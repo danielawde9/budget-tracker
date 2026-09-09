@@ -1,8 +1,8 @@
-import { loadEnv } from 'vite';
-
 import { validateCloudflareBuildEnvironment } from './build-environment.mjs';
 
 try {
+  delete process.env.DEBUG;
+  const { loadEnv } = await import('vite');
   validateCloudflareBuildEnvironment(loadEnv('production', process.cwd(), 'VITE_'));
   process.stdout.write('Cloudflare public build-variable contract passed\n');
 } catch (error) {
