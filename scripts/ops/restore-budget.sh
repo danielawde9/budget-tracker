@@ -1,0 +1,495 @@
+#!/bin/bash
+set -euo pipefail
+umask 077
+export PATH='/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin'
+
+readonly RESTORE_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# shellcheck source=./budget-common.sh
+source "${RESTORE_SCRIPT_DIR}/budget-common.sh"
+
+readonly RESTORE_OPERATION_TIMEOUT_SECONDS=3600
+
+restore_snapshot_executables() {
+  BUDGET_TIMEOUT_BIN="$(budget_snapshot_executable "${BUDGET_TIMEOUT_BIN}" \
+    "${BUDGET_TIMEOUT_SHA256}" "${restore_exec_dir}/exec-00-timeout" "${restore_deadline}" 75)"
+  BUDGET_AGE_BIN="$(budget_snapshot_executable "${BUDGET_AGE_BIN}" \
+    "${BUDGET_AGE_SHA256}" "${restore_exec_dir}/exec-01-age" "${restore_deadline}" 75)"
+  BUDGET_OFFSITE_BIN="$(budget_snapshot_executable "${BUDGET_OFFSITE_BIN}" \
+    "${BUDGET_OFFSITE_SHA256}" "${restore_exec_dir}/exec-02-offsite" "${restore_deadline}" 75)"
+  BUDGET_PG_RESTORE_BIN="$(budget_snapshot_executable "${BUDGET_PG_RESTORE_BIN}" \
+    "${BUDGET_PG_RESTORE_SHA256}" "${restore_exec_dir}/exec-03-pg_restore" "${restore_deadline}" 75)"
+  BUDGET_PSQL_BIN="$(budget_snapshot_executable "${BUDGET_PSQL_BIN}" \
+    "${BUDGET_PSQL_SHA256}" "${restore_exec_dir}/exec-04-psql" "${restore_deadline}" 75)"
+  BUDGET_ROLE_FILTER_BIN="$(budget_snapshot_executable "${BUDGET_ROLE_FILTER_BIN}" \
+    "${BUDGET_ROLE_FILTER_SHA256}" "${restore_exec_dir}/exec-05-role-filter" "${restore_deadline}" 75)"
+  BUDGET_COMPARE_BIN="$(budget_snapshot_executable "${BUDGET_COMPARE_BIN}" \
+    "${BUDGET_COMPARE_SHA256}" "${restore_exec_dir}/exec-06-compare" "${restore_deadline}" 75)"
+  BUDGET_DB_VERIFY_BIN="$(budget_snapshot_executable "${BUDGET_DB_VERIFY_BIN}" \
+    "${BUDGET_DB_VERIFY_SHA256}" "${restore_exec_dir}/exec-07-verify-budget-db.sh" "${restore_deadline}" 75)"
+  BUDGET_VERIFY_PSQL_BIN="$(budget_snapshot_executable "${BUDGET_VERIFY_PSQL_BIN}" \
+    "${BUDGET_VERIFY_PSQL_SHA256}" "${restore_exec_dir}/exec-08-verify-psql" "${restore_deadline}" 75)"
+  BUDGET_ROLE_VALIDATOR_BIN="$(budget_snapshot_executable "${BUDGET_ROLE_VALIDATOR_BIN}" \
+    "${BUDGET_ROLE_VALIDATOR_SHA256}" "${restore_exec_dir}/exec-09-role-validator" "${restore_deadline}" 75)"
+  budget_seal_executable_snapshot_dir "${restore_exec_dir}" 75
+}
+
+restore_validate_live_gate() {
+  local expected_confirmation="live:${BUDGET_PROJECT_ID:-}:${BUDGET_EXPECTED_SYSTEM_ID:-}"
+  if [[ ! "${BUDGET_INCIDENT_ID:-}" =~ ^INC-[A-Za-z0-9._-]{4,64}$ || \
+    "${BUDGET_LIVE_RESTORE_CONFIRM:-}" != "${expected_confirmation}" || \
+    "${BUDGET_LIVE_APP_STOPPED:-0}" != '1' || \
+    "${BUDGET_PRE_RESTORE_BACKUP_VERIFIED:-0}" != '1' || \
+    ! "${BUDGET_OWNER_APPROVAL_ID:-}" =~ ^approval-[A-Za-z0-9._-]{4,64}$ ]]; then
+    budget_error 'live restore safety prerequisites are incomplete' 74
+    return
+  fi
+  budget_error 'live restore remains owner-gated; this tool executes scratch only' 74
+}
+
+restore_validate_configuration() {
+  local restore_target="${BUDGET_RESTORE_TARGET:-scratch}"
+  case "${restore_target}" in
+    scratch) ;;
+    live)
+      restore_validate_live_gate
+      return
+      ;;
+    *)
+      budget_error 'restore target must be exactly scratch or owner-gated live' 74
+      return
+      ;;
+  esac
+
+  budget_validate_environment >/dev/null
+  if [[ "${BUDGET_VALIDATED_ENV}" != 'live' ]]; then
+    budget_error 'restore source must be the exact live Budget environment' 75
+    return
+  fi
+  if [[ -z "${BUDGET_AGE_IDENTITY_FILE:-}" ]]; then
+    budget_error 'restore age identity is not configured' 75
+    return
+  fi
+  if [[ -z "${BUDGET_OFFSITE_DESTINATION:-}" ]]; then
+    budget_error 'off-site destination is not configured' 75
+    return
+  fi
+  budget_validate_offsite_destination "${BUDGET_OFFSITE_DESTINATION}" \
+    "${BUDGET_OFFSITE_ALLOWED_PREFIX:-}" 75
+  if [[ ! "${BUDGET_OFFSITE_PROVIDER_ID:-}" =~ ^[a-z0-9][a-z0-9._-]{0,63}$ ]]; then
+    budget_error 'off-site provider identity is invalid' 75
+    return
+  fi
+  if [[ -z "${BUDGET_EXPECTED_MANIFEST_SHA256:-}" ]]; then
+    budget_error 'trusted manifest hash is not configured' 75
+    return
+  fi
+  if [[ ! "${BUDGET_EXPECTED_MANIFEST_SHA256}" =~ ^[a-f0-9]{64}$ ]]; then
+    budget_error 'trusted manifest hash is invalid' 75
+    return
+  fi
+
+  local required_value
+  for required_value in BUDGET_RECOVERY_POINT BUDGET_SCRATCH_ROOT \
+    BUDGET_SCRATCH_TRUSTED_PARENT BUDGET_SCRATCH_MARKER_PATH \
+    BUDGET_SCRATCH_PROJECT_ID BUDGET_SCRATCH_PORT \
+    BUDGET_SCRATCH_EXPECTED_SYSTEM_ID BUDGET_SCRATCH_EXPECTED_DATABASE_OID \
+    BUDGET_SCRATCH_DATABASE_NAME BUDGET_SCRATCH_POSTGRES_MAJOR \
+    BUDGET_SCRATCH_REQUIRED_BYTES BUDGET_SCRATCH_AVAILABLE_BYTES \
+    BUDGET_PGPASS_FILE BUDGET_DATABASE_HOST BUDGET_DATABASE_USER \
+    BUDGET_ROLE_ALLOWLIST BUDGET_TARGET_ROLE_MANIFEST \
+    BUDGET_ROLE_VALIDATOR_BIN BUDGET_ROLE_VALIDATOR_SHA256 \
+    BUDGET_TIMEOUT_BIN BUDGET_AGE_BIN \
+    BUDGET_DB_VERIFY_BIN BUDGET_VERIFY_PSQL_BIN BUDGET_DB_VERIFY_SHA256 \
+    BUDGET_VERIFY_PSQL_SHA256 BUDGET_PG_RESTORE_SHA256 BUDGET_PSQL_SHA256 \
+    BUDGET_PG_DUMP_VERSION BUDGET_SOURCE_COMMIT \
+    BUDGET_OFFSITE_BIN BUDGET_PG_RESTORE_BIN BUDGET_PSQL_BIN \
+    BUDGET_ROLE_FILTER_BIN BUDGET_COMPARE_BIN BUDGET_TIMEOUT_SHA256 \
+    BUDGET_AGE_SHA256 BUDGET_OFFSITE_SHA256 BUDGET_ROLE_FILTER_SHA256 \
+    BUDGET_COMPARE_SHA256; do
+    if [[ -z "${!required_value:-}" ]]; then
+      budget_error "required restore setting is missing: ${required_value}" 75
+      return
+    fi
+  done
+
+
+  local database_identifier
+  for database_identifier in "${BUDGET_DATABASE_HOST}" "${BUDGET_DATABASE_USER}" \
+    "${BUDGET_PGPASS_FILE}"; do
+    if budget_is_protected_identifier "${database_identifier}"; then
+      budget_error 'protected Sandooq/POS database identifier refused' 75
+      return
+    fi
+  done
+
+  if [[ ! "${BUDGET_RECOVERY_POINT}" =~ ^[0-9TZ:-]{16,32}-[A-Za-z0-9._-]{1,64}$ || \
+    "${BUDGET_SCRATCH_PROJECT_ID}" != 'budget-restore-scratch' || \
+    "${BUDGET_SCRATCH_PORT}" != '54722' || \
+    "${BUDGET_SCRATCH_DATABASE_NAME}" != 'budget_restore_scratch' || \
+    ! "${BUDGET_SCRATCH_EXPECTED_DATABASE_OID}" =~ ^[0-9]{1,20}$ || \
+    "${BUDGET_SCRATCH_POSTGRES_MAJOR}" != '17' || \
+    ! "${BUDGET_SCRATCH_REQUIRED_BYTES}" =~ ^[0-9]{1,20}$ || \
+    ! "${BUDGET_SCRATCH_AVAILABLE_BYTES}" =~ ^[0-9]{1,20}$ || \
+    ! "${BUDGET_ROLE_ALLOWLIST}" =~ ^(postgres|authenticated|service_role|budget_[a-z_]+)(,(postgres|authenticated|service_role|budget_[a-z_]+)){0,15}$ ]]; then
+    budget_error 'scratch restore configuration is outside the exact allowlist' 76
+    return
+  fi
+  if budget_is_protected_identifier "${BUDGET_SCRATCH_ROOT}" || \
+    budget_is_protected_identifier "${BUDGET_SCRATCH_PROJECT_ID}" || \
+    budget_is_protected_identifier "${BUDGET_OFFSITE_DESTINATION}"; then
+    budget_error 'scratch restore contains a protected Sandooq/POS identifier' 76
+    return
+  fi
+  restore_revalidate_scratch
+  if [[ ! "${BUDGET_SCRATCH_EXPECTED_SYSTEM_ID}" =~ ^[0-9]{10,22}$ ]]; then
+    budget_error 'scratch system identifier is invalid' 76
+    return
+  fi
+  if [[ "${BUDGET_SCRATCH_EXPECTED_SYSTEM_ID}" == "${BUDGET_VALIDATED_SYSTEM_ID}" ]]; then
+    budget_error 'scratch system identifier must differ from live' 76
+    return
+  fi
+  if (( BUDGET_SCRATCH_AVAILABLE_BYTES < BUDGET_SCRATCH_REQUIRED_BYTES )); then
+    budget_error 'insufficient scratch restore space' 76
+    return
+  fi
+  budget_require_private_file "${BUDGET_AGE_IDENTITY_FILE}" 75
+  budget_require_private_file "${BUDGET_PGPASS_FILE}" 75
+  budget_require_private_file "${BUDGET_TARGET_ROLE_MANIFEST}" 75
+
+  local executable
+  for executable in "${BUDGET_TIMEOUT_BIN}" "${BUDGET_AGE_BIN}" \
+    "${BUDGET_OFFSITE_BIN}" "${BUDGET_PG_RESTORE_BIN}" \
+    "${BUDGET_PSQL_BIN}" "${BUDGET_ROLE_FILTER_BIN}" "${BUDGET_COMPARE_BIN}" \
+    "${BUDGET_DB_VERIFY_BIN}" "${BUDGET_VERIFY_PSQL_BIN}" \
+    "${BUDGET_ROLE_VALIDATOR_BIN}"; do
+    if [[ "${executable}" != /* || ! -x "${executable}" ]]; then
+      budget_error 'restore executable boundary is not an absolute executable' 75
+      return
+    fi
+  done
+  if [[ "${BUDGET_DB_VERIFY_BIN}" != "${RESTORE_SCRIPT_DIR}/verify-budget-db.sh" ]]; then
+    budget_error 'database verifier must be the tracked pinned verifier' 75
+    return
+  fi
+  if [[ "${BUDGET_ROLE_VALIDATOR_BIN}" != \
+    "${RESTORE_SCRIPT_DIR}/validate-restore-roles.sh" ]]; then
+    budget_error 'role validator must be the tracked pinned validator' 75
+    return
+  fi
+  restore_snapshot_executables
+  budget_validate_executable_hash "${BUDGET_DB_VERIFY_BIN}" \
+    "${BUDGET_DB_VERIFY_SHA256}" 75 "${restore_deadline}"
+  budget_validate_executable_hash "${BUDGET_ROLE_VALIDATOR_BIN}" \
+    "${BUDGET_ROLE_VALIDATOR_SHA256}" 75 "${restore_deadline}"
+  budget_validate_postgres_binary "${BUDGET_VERIFY_PSQL_BIN}" \
+    "${BUDGET_VERIFY_PSQL_SHA256}" psql "${BUDGET_PG_DUMP_VERSION}" 75 \
+    "${restore_deadline}"
+  budget_validate_postgres_binary "${BUDGET_PG_RESTORE_BIN}" \
+    "${BUDGET_PG_RESTORE_SHA256}" pg_restore "${BUDGET_PG_DUMP_VERSION}" 75 \
+    "${restore_deadline}"
+  budget_validate_postgres_binary "${BUDGET_PSQL_BIN}" \
+    "${BUDGET_PSQL_SHA256}" psql "${BUDGET_PG_DUMP_VERSION}" 75 \
+    "${restore_deadline}"
+  budget_validate_source_commit "${BUDGET_SOURCE_COMMIT}" 75 "${restore_deadline}"
+
+  readonly RESTORE_TARGET="scratch"
+  readonly RESTORE_POINT="${BUDGET_RECOVERY_POINT}"
+  readonly RESTORE_ROOT="${BUDGET_SCRATCH_ROOT}"
+  readonly RESTORE_TRUSTED_PARENT="${BUDGET_SCRATCH_TRUSTED_PARENT}"
+  readonly RESTORE_TIMEOUT_BIN="${BUDGET_TIMEOUT_BIN}"
+  readonly RESTORE_DB_HOST="${BUDGET_DATABASE_HOST}"
+  readonly RESTORE_DB_PORT="${BUDGET_SCRATCH_PORT}"
+  readonly RESTORE_DB_NAME="${BUDGET_SCRATCH_DATABASE_NAME}"
+  readonly RESTORE_DB_USER="${BUDGET_DATABASE_USER}"
+  readonly RESTORE_DB_OID="${BUDGET_SCRATCH_EXPECTED_DATABASE_OID}"
+}
+
+restore_revalidate_scratch() {
+  local scratch_marker
+  budget_validate_safe_path "${BUDGET_SCRATCH_ROOT}" "${BUDGET_SCRATCH_PROJECT_ID}" \
+    "${BUDGET_SCRATCH_TRUSTED_PARENT}" >/dev/null
+  if [[ "${BUDGET_SCRATCH_MARKER_PATH}" != "${BUDGET_SCRATCH_ROOT}/.budget-ops-marker" ]]; then
+    budget_error 'scratch marker path is unsafe' 76
+    return
+  fi
+  if [[ ! -e "${BUDGET_SCRATCH_MARKER_PATH}" && ! -L "${BUDGET_SCRATCH_MARKER_PATH}" ]]; then
+    budget_error 'scratch marker is missing' 76
+    return
+  fi
+  scratch_marker="$(budget_read_private_marker "${BUDGET_SCRATCH_MARKER_PATH}" 76 \
+    'scratch marker is unsafe')"
+  if [[ "${scratch_marker}" != "budget-restore-marker-v1
+target=scratch
+project=${BUDGET_SCRATCH_PROJECT_ID}
+system_id=${BUDGET_SCRATCH_EXPECTED_SYSTEM_ID}" ]]; then
+    budget_error 'scratch marker identity mismatch' 76
+  fi
+}
+
+restore_measure_database() {
+  BUDGET_VERIFY_PSQL_BIN="${BUDGET_VERIFY_PSQL_BIN}" \
+    restore_run "${BUDGET_DB_VERIFY_BIN}" "${RESTORE_DB_HOST}" "${RESTORE_DB_PORT}" \
+    "${RESTORE_DB_NAME}" "${RESTORE_DB_USER}"
+}
+
+restore_run() {
+  budget_run_before_deadline "${restore_deadline}" 75 "${RESTORE_TIMEOUT_BIN}" "$@"
+}
+
+restore_hash() {
+  local candidate="${1:?hash candidate is required}"
+  local output
+  output="$(restore_run /usr/bin/shasum -a 256 "${candidate}")"
+  printf '%s\n' "${output%% *}"
+}
+
+restore_size() {
+  local candidate="${1:?size candidate is required}"
+  local output ignored
+  if ! output="$(restore_run /usr/bin/wc -c "${candidate}")"; then
+    budget_error 'bounded size measurement failed' 75
+    return
+  fi
+  read -r output ignored <<< "${output}"
+  [[ "${output}" =~ ^[0-9]{1,20}$ ]] || return 1
+  printf '%s\n' "${output}"
+}
+
+restore_cleanup() {
+  local status=$?
+  local cleanup_deadline=''
+  trap - EXIT INT TERM HUP
+  if ! cleanup_deadline="$(budget_start_cleanup_deadline 76)"; then
+    cleanup_deadline=''
+  fi
+  if [[ -n "${cleanup_deadline}" && "${restore_temp_created:-0}" == '1' ]]; then
+    budget_remove_private_descendant "${RESTORE_ROOT}" "${restore_temp_relative}" \
+      "${cleanup_deadline}" 76 || true
+  fi
+  if [[ -n "${cleanup_deadline}" && "${restore_lock_acquired:-0}" == '1' ]]; then
+    budget_remove_private_descendant "${RESTORE_ROOT}" "${restore_lock_relative}" \
+      "${cleanup_deadline}" 76 || true
+  fi
+  if [[ -n "${cleanup_deadline}" ]]; then
+    budget_cleanup_executable_snapshot_dir "${restore_exec_dir:-}" \
+      "${cleanup_deadline}" 76 || true
+  fi
+  exit "${status}"
+}
+
+restore_manifest_value() {
+  local key="${1:?manifest key is required}"
+  local manifest="${2:?manifest is required}"
+  local line found=''
+  while IFS= read -r line; do
+    if [[ "${line}" == "${key}="* ]]; then
+      [[ -n "${found}" ]] && return 1
+      found="${line#*=}"
+    fi
+  done < "${manifest}"
+  [[ -n "${found}" ]] || return 1
+  printf '%s\n' "${found}"
+}
+
+restore_expected_hash() {
+  local filename="${1:?ciphertext filename is required}"
+  local manifest="${2:?manifest is required}"
+  local line hash found=''
+  while IFS= read -r line; do
+    if [[ "${line}" == *"  ${filename}" ]]; then
+      [[ -n "${found}" ]] && return 1
+      hash="${line%% *}"
+      [[ "${hash}" =~ ^[a-f0-9]{64}$ ]] || return 1
+      found="${hash}"
+    fi
+  done < "${manifest}"
+  [[ -n "${found}" ]] || return 1
+  printf '%s\n' "${found}"
+}
+
+restore_execute() {
+  local restore_deadline
+  restore_deadline="$(budget_start_deadline "${RESTORE_OPERATION_TIMEOUT_SECONDS}")"
+  local restore_lock_acquired=0 restore_temp_created=0
+  local restore_exec_dir=''
+  trap restore_cleanup EXIT INT TERM HUP
+  restore_exec_dir="$(budget_create_executable_snapshot_dir "${restore_deadline}" 75)"
+  restore_validate_configuration
+
+  local restore_lock_dir="${RESTORE_ROOT}/locks/restore-scratch.lock"
+  local restore_lock_relative='locks/restore-scratch.lock'
+  local restore_temp_dir="${RESTORE_ROOT}/tmp/${RESTORE_POINT}.restore"
+  local restore_temp_relative="tmp/${RESTORE_POINT}.restore"
+  local restore_manifest="${restore_temp_dir}/manifest.txt"
+  local restore_archive_cipher="${restore_temp_dir}/archive.dump.age"
+  local restore_roles_cipher="${restore_temp_dir}/roles.sql.age"
+  local restore_catalog_cipher="${restore_temp_dir}/catalog.txt.age"
+  local restore_archive_plain="${restore_temp_dir}/archive.dump"
+  local restore_roles_plain="${restore_temp_dir}/roles.sql"
+  local restore_catalog_plain="${restore_temp_dir}/catalog.txt"
+  local restore_roles_filtered="${restore_temp_dir}/roles.allowlisted.sql"
+  local restore_archive_list="${restore_temp_dir}/archive.list"
+  local initial_database_receipt current_database_receipt
+  budget_ensure_private_descendant "${RESTORE_ROOT}" locks \
+    "${restore_deadline}" 76 >/dev/null
+  if ! mkdir -- "${restore_lock_dir}" 2>/dev/null; then
+    budget_error 'restore is already running' 77
+    return
+  fi
+  restore_lock_acquired=1
+  budget_validate_private_descendant "${RESTORE_ROOT}" "${restore_lock_relative}" \
+    "${restore_deadline}" 76 >/dev/null
+  export PGPASSFILE="${BUDGET_PGPASS_FILE}"
+  initial_database_receipt="$(restore_measure_database)"
+  budget_assert_database_receipt "${initial_database_receipt}" \
+    "${BUDGET_SCRATCH_EXPECTED_SYSTEM_ID}" "${BUDGET_SCRATCH_POSTGRES_MAJOR}" \
+    "${RESTORE_DB_NAME}" "${RESTORE_DB_OID}" 1 76 >/dev/null
+  budget_revalidate_environment
+  restore_revalidate_scratch
+  budget_ensure_private_descendant "${RESTORE_ROOT}" tmp \
+    "${restore_deadline}" 76 >/dev/null
+  if ! mkdir -- "${restore_temp_dir}"; then
+    budget_error 'restore temporary directory already exists' 77
+    return
+  fi
+  restore_temp_created=1
+  budget_validate_private_descendant "${RESTORE_ROOT}" "${restore_temp_relative}" \
+    "${restore_deadline}" 76 >/dev/null
+
+  local filename local_path object_key local_size local_hash offsite_receipt
+  for filename in manifest.txt archive.dump.age roles.sql.age catalog.txt.age; do
+    budget_validate_private_descendant "${RESTORE_ROOT}" "${restore_temp_relative}" \
+      "${restore_deadline}" 76 >/dev/null
+    local_path="${restore_temp_dir}/${filename}"
+    object_key="${RESTORE_POINT}/${filename}"
+    offsite_receipt="$(restore_run "${BUDGET_OFFSITE_BIN}" get \
+      "${BUDGET_OFFSITE_DESTINATION}" "${object_key}" "${local_path}")"
+    local_size="$(restore_size "${local_path}")"
+    local_hash="$(restore_hash "${local_path}")"
+    budget_assert_offsite_receipt "${offsite_receipt}" \
+      "${BUDGET_OFFSITE_PROVIDER_ID}" "${object_key}" "${local_size}" \
+      "${local_hash}" 78 >/dev/null
+  done
+
+  budget_validate_private_descendant "${RESTORE_ROOT}" "${restore_temp_relative}" \
+    "${restore_deadline}" 76 >/dev/null
+
+  local trusted_manifest_hash
+  trusted_manifest_hash="$(restore_hash "${restore_manifest}")"
+  if [[ "${trusted_manifest_hash}" != "${BUDGET_EXPECTED_MANIFEST_SHA256}" ]]; then
+    budget_error 'trusted manifest hash mismatch' 78
+    return
+  fi
+
+  budget_scan_secrets "${restore_manifest}" >/dev/null
+  local manifest_run_id manifest_environment manifest_project manifest_system_id manifest_major
+  local manifest_source_commit
+  manifest_run_id="$(restore_manifest_value run_id "${restore_manifest}")" || {
+    budget_error 'restore manifest is invalid' 78; return; }
+  manifest_environment="$(restore_manifest_value environment "${restore_manifest}")" || {
+    budget_error 'restore manifest is invalid' 78; return; }
+  manifest_project="$(restore_manifest_value project "${restore_manifest}")" || {
+    budget_error 'restore manifest is invalid' 78; return; }
+  manifest_system_id="$(restore_manifest_value system_id "${restore_manifest}")" || {
+    budget_error 'restore manifest is invalid' 78; return; }
+  manifest_major="$(restore_manifest_value postgres_major "${restore_manifest}")" || {
+    budget_error 'restore manifest is invalid' 78; return; }
+  manifest_source_commit="$(restore_manifest_value source_commit "${restore_manifest}")" || {
+    budget_error 'restore manifest is invalid' 78; return; }
+  if [[ "${manifest_run_id}" != "${RESTORE_POINT}" || \
+    "${manifest_environment}" != 'live' || \
+    "${manifest_project}" != "${BUDGET_VALIDATED_PROJECT}" || \
+    "${manifest_system_id}" != "${BUDGET_VALIDATED_SYSTEM_ID}" || \
+    "${manifest_major}" != "${BUDGET_SCRATCH_POSTGRES_MAJOR}" || \
+    "${manifest_source_commit}" != "${BUDGET_SOURCE_COMMIT}" ]]; then
+    budget_error 'restore manifest identity mismatch' 78
+    return
+  fi
+
+  local expected_hash actual_hash
+  for filename in archive.dump.age roles.sql.age catalog.txt.age; do
+    expected_hash="$(restore_expected_hash "${filename}" "${restore_manifest}")" || {
+      budget_error 'restore manifest ciphertext hash is missing' 78; return; }
+    actual_hash="$(restore_hash "${restore_temp_dir}/${filename}")"
+    if [[ "${actual_hash}" != "${expected_hash}" ]]; then
+      budget_error 'ciphertext hash mismatch' 78
+      return
+    fi
+  done
+
+  restore_run "${BUDGET_AGE_BIN}" -d -i "${BUDGET_AGE_IDENTITY_FILE}" \
+    -o "${restore_archive_plain}" "${restore_archive_cipher}"
+  restore_run "${BUDGET_AGE_BIN}" -d -i "${BUDGET_AGE_IDENTITY_FILE}" \
+    -o "${restore_roles_plain}" "${restore_roles_cipher}"
+  restore_run "${BUDGET_AGE_BIN}" -d -i "${BUDGET_AGE_IDENTITY_FILE}" \
+    -o "${restore_catalog_plain}" "${restore_catalog_cipher}"
+  budget_validate_private_descendant "${RESTORE_ROOT}" "${restore_temp_relative}" \
+    "${restore_deadline}" 76 >/dev/null
+  budget_require_private_artifact "${restore_archive_plain}" 78
+  budget_require_private_artifact "${restore_roles_plain}" 78
+  budget_require_private_artifact "${restore_catalog_plain}" 78
+  restore_run "${BUDGET_PG_RESTORE_BIN}" --list "${restore_archive_plain}" > "${restore_archive_list}"
+  budget_require_private_artifact "${restore_archive_list}" 78
+  restore_run "${BUDGET_ROLE_FILTER_BIN}" "${restore_roles_plain}" \
+    "${restore_roles_filtered}" "${BUDGET_ROLE_ALLOWLIST}"
+  budget_require_private_artifact "${restore_roles_filtered}" 78
+  restore_run "${BUDGET_ROLE_VALIDATOR_BIN}" "${restore_archive_list}" \
+    "${restore_roles_filtered}" "${BUDGET_TARGET_ROLE_MANIFEST}" >/dev/null
+
+  export PGCONNECT_TIMEOUT=5
+  export PGOPTIONS='-c lock_timeout=30s -c statement_timeout=59min'
+  current_database_receipt="$(restore_measure_database)"
+  if [[ "${current_database_receipt}" != "${initial_database_receipt}" ]]; then
+    budget_error 'scratch identity changed before restore' 76
+    return
+  fi
+  budget_assert_database_receipt "${current_database_receipt}" \
+    "${BUDGET_SCRATCH_EXPECTED_SYSTEM_ID}" "${BUDGET_SCRATCH_POSTGRES_MAJOR}" \
+    "${RESTORE_DB_NAME}" "${RESTORE_DB_OID}" 1 76 >/dev/null
+  budget_revalidate_environment
+  restore_revalidate_scratch
+  budget_validate_private_descendant "${RESTORE_ROOT}" "${restore_temp_relative}" \
+    "${restore_deadline}" 76 >/dev/null
+  restore_run "${BUDGET_PSQL_BIN}" --set=ON_ERROR_STOP=on \
+    --host="${RESTORE_DB_HOST}" --port="${RESTORE_DB_PORT}" \
+    --username="${RESTORE_DB_USER}" --dbname="${RESTORE_DB_NAME}" \
+    --file="${restore_roles_filtered}"
+  restore_run "${BUDGET_PG_RESTORE_BIN}" --exit-on-error --jobs=1 \
+    --host="${RESTORE_DB_HOST}" --port="${RESTORE_DB_PORT}" \
+    --username="${RESTORE_DB_USER}" --dbname="${RESTORE_DB_NAME}" \
+    "${restore_archive_plain}"
+  local catalog_plain_hash comparison_receipt
+  catalog_plain_hash="$(restore_hash "${restore_catalog_plain}")"
+  if [[ "$(restore_manifest_value catalog_metadata_sha256 "${restore_manifest}")" != \
+    "${catalog_plain_hash}" ]]; then
+    budget_error 'decrypted catalog metadata hash mismatch' 78
+    return
+  fi
+  comparison_receipt="$(restore_run "${BUDGET_COMPARE_BIN}" --source-manifest="${restore_manifest}" \
+    --source-catalog="${restore_catalog_plain}" --target=scratch \
+    --max-row-summaries=100 --max-content-hashes=100)"
+  budget_assert_comparison_receipt "${comparison_receipt}" \
+    "${trusted_manifest_hash}" "${catalog_plain_hash}" 78 >/dev/null
+
+  printf '%s\n' "scratch restore comparison verified for ${RESTORE_POINT}"
+}
+
+restore_dry_run() {
+  local restore_deadline restore_exec_dir=''
+  restore_deadline="$(budget_start_deadline "${RESTORE_OPERATION_TIMEOUT_SECONDS}")"
+  trap 'budget_cleanup_executable_snapshot_dir "${restore_exec_dir}"' EXIT INT TERM HUP
+  restore_exec_dir="$(budget_create_executable_snapshot_dir "${restore_deadline}" 75)"
+  restore_validate_configuration
+  printf '%s\n' "restore_target=${RESTORE_TARGET}"
+  printf '%s\n' 'DRY RUN ONLY: no lock, fetch, decrypt, role, restore, compare, cleanup, database, or network command executed'
+  printf '%s\n' 'real-data recovery evidence remains BLOCKED until measured scratch restore and operator approval'
+  budget_cleanup_executable_snapshot_dir "${restore_exec_dir}"
+  trap - EXIT INT TERM HUP
+}
+
+case "${1:-}" in
+  restore) restore_execute ;;
+  dry-run) restore_dry_run ;;
+  *) budget_error 'usage: restore-budget.sh {restore|dry-run}' 64 ;;
+esac

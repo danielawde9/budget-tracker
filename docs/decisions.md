@@ -460,3 +460,91 @@ second archive. A separate refresh-required state makes that boundary explicit.
 same request ID and payload remain idempotent. Allowing a dialog to report success
 without a fresh projection requires a separate product definition of accepted
 versus visibly complete work.
+## 2026-09-08 — Private launch defaults are tailnet-only and environment-isolated
+
+**Decision:** The implementation-planning default is a private personal
+deployment: source, release worktree, and Vite development stay on Daniel's Mac;
+only an immutable static release artifact may be copied to Le Labo Ubuntu.
+Development, UAT, and live use separate Supabase projects, directories, ports,
+credentials, volumes, Auth users, and backup prefixes. UAT is on-demand and
+synthetic; live is exposed only through Tailscale Serve HTTPS with Funnel and
+public/LAN ingress disabled. No provisioning or deployment is approved by this
+planning decision.
+
+**Why:** It preserves the proven Mac-authoritative workflow, gives approved
+devices private HTTPS access, and makes reuse of Sandooq/POS or resettable Budget
+development state a detectable error rather than an operator convention.
+
+**If changed:** Managed hosting, public browser access, Mac-only live service, or
+shared environments require a new cost, identity, data-location, ingress,
+availability, backup, and isolation review before any live resource is created.
+
+## 2026-09-08 — Live recovery defaults to a measured 24-hour RPO and four-hour RTO
+
+**Decision:** Before real financial data, live must have a verified encrypted
+backup at least daily, retain 14 daily, eight weekly, and 12 monthly recovery
+points, and hold at least one verified ciphertext copy off-site. A scratch
+restore from the off-site copy must prove the complete data/catalog/security
+boundary and finish within four hours. The default maximum accepted-data loss is
+24 hours. These are planning defaults until Daniel approves the recovery policy.
+
+**Why:** A dump that has never been decrypted and restored is not recovery
+evidence. Explicit objectives and retention bounds make backup health measurable
+while keeping a personal deployment operationally and financially proportionate.
+
+**If changed:** A tighter RPO requires rehearsed WAL archiving/PITR or a managed
+PITR service; different retention or RTO changes storage, alerting, drill,
+capacity, and provider-cost requirements before launch.
+
+## 2026-09-08 — Live authentication defaults to closed verified enrollment
+
+**Decision:** Live planning assumes approved accounts only, verified email,
+working password recovery, secure password changes, and public signup disabled
+after enrollment. External mail is transactional only and must use an approved
+provider/sending domain with SPF, DKIM, DMARC monitoring, bounded idempotent
+delivery, bilingual accessible templates, and redacted operational evidence.
+Mailpit remains development proof only. No provider, domain, DNS change, or email
+send is approved by this decision.
+
+**Why:** The current development Auth configuration permits signup without email
+confirmation and has no complete recovery flow. Real financial data should not
+depend on an unverified address, an unrecoverable account, or an unauthenticated
+sending domain.
+
+**If changed:** Open signup requires CAPTCHA, abuse/rate-limit monitoring,
+enumeration-safe recovery, lifecycle/deletion policy, and owner-approved support
+capacity. Omitting email recovery requires a separately designed and rehearsed
+account-recovery mechanism before real data.
+
+## 2026-09-09 — Failure cleanup has an independent five-second bound
+
+**Decision:** Backup and scratch-restore traps start one fresh five-second
+monotonic deadline for exact descendant validation and cleanup. They do not
+reuse the main operation deadline, which may already be expired when the trap
+runs. Payload-size and tracked-text reads open candidates only inside their
+bounded command or no-follow descriptor.
+
+**Why:** An expired operation must still remove exact plaintext, incomplete
+ciphertext, restore-temp, and lock artifacts without allowing cleanup to become
+unbounded or to follow a swapped path.
+
+**If changed:** A different cleanup budget needs measured slow-filesystem
+evidence and new timeout-path tests. Any broader cleanup target needs a separate
+review of path identity, ownership, permissions, and recoverability.
+
+## 2026-09-09 — Cleanup owns the bounded run directory, not a filename list
+
+**Decision:** Failure cleanup removes each exact run-scoped temp, incomplete
+recovery, lock, and executable-snapshot directory through one no-follow helper.
+The helper uses the trap's single deadline, descriptor-relative traversal and
+unlink/rmdir operations, a 32-entry flat-directory cap, and safe bounded names.
+Symlink entries are unlinked without touching their targets; nested directories
+fail closed.
+
+**Why:** An adapter can create or rename a flat sibling that a predetermined
+filename list does not know about. Ignoring a nonempty `rmdir` then leaves
+plaintext or recovery material while appearing to have attempted cleanup.
+
+**If changed:** Supporting nested directories or more than 32 entries requires
+a new bounded traversal design, adversarial symlink/swap tests, and an explicit
+review of which additional artifacts cleanup is authorized to remove.
