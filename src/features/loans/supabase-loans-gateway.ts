@@ -43,6 +43,14 @@ export interface LoansDataClient {
 }
 
 type Row = Record<string, unknown>;
+type MutationName =
+  | 'open_loan_outstanding'
+  | 'record_cash_loan'
+  | 'record_loan_repayment'
+  | 'set_loan_monthly_target'
+  | 'reverse_financial_event';
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function row(value: unknown): Row {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -63,6 +71,12 @@ function nullableText(value: Row, key: string): string | null {
   const result = value[key];
   if (result === null || result === undefined) return null;
   if (typeof result !== 'string') throw new Error(`The database row has invalid ${key}.`);
+  return result;
+}
+
+function uuidValue(value: Row, key: string): string {
+  const result = textValue(value, key);
+  if (!uuidPattern.test(result)) throw new Error(`The database row has invalid ${key}.`);
   return result;
 }
 
@@ -99,22 +113,22 @@ function planFrom(rowValue: Row | undefined): LoanPlan {
   };
 }
 
-function commandResult(data: unknown[] | null): CommandResult {
-  const result = data?.[0];
-  if (!result) return {};
-  const value = row(result);
-  return {
-    ...(typeof value['event_id'] === 'string' ? { eventId: value['event_id'] } : {}),
-    ...(typeof value['loan_id'] === 'string' ? { loanId: value['loan_id'] } : {}),
-    ...(typeof value['id'] === 'string' ? { id: value['id'] } : {}),
-  };
+function commandResult(data: unknown[] | null, name: MutationName): CommandResult {
+  if (data?.length !== 1) throw new Error('The loan command must return exactly one result.');
+  const value = row(data[0]);
+  if (name === 'open_loan_outstanding' || name === 'record_cash_loan') {
+    return { loanId: uuidValue(value, 'loan_id'), eventId: uuidValue(value, 'event_id') };
+  }
+  if (name === 'record_loan_repayment') return { eventId: uuidValue(value, 'event_id') };
+  if (name === 'set_loan_monthly_target') return { id: uuidValue(value, 'id') };
+  return { eventId: uuidValue(value, 'id') };
 }
 
 export function createSupabaseLoansGateway(client: LoansDataClient): LoansGateway {
-  async function runCommand(name: string, args: Record<string, unknown>): Promise<CommandResult> {
+  async function runCommand(name: MutationName, args: Record<string, unknown>): Promise<CommandResult> {
     const result = await client.rpc(name, args);
     if (result.error) throw result.error;
-    return commandResult(result.data);
+    return commandResult(result.data, name);
   }
 
   return {

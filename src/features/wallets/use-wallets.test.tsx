@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { CategoriesGateway } from '../categories/types.js';
+import { createSupabaseWalletsGateway } from './supabase-wallets-gateway.js';
 import type { JournalEvent, WalletsGateway, WalletsSnapshot } from './types.js';
 import { useWallets } from './use-wallets.js';
 
@@ -70,6 +71,33 @@ describe('useWallets', () => {
     });
     expect(createWallet).toHaveBeenCalledOnce();
     expect(result.current.wallets[0]?.name).toBe('Daily');
+  });
+
+  it.each([
+    ['null data', null, /exactly one result/],
+    ['zero rows', [], /exactly one result/],
+    ['multiple rows', [
+      { id: '11111111-1111-4111-8111-111111111111' },
+      { id: '22222222-2222-4222-8222-222222222222' },
+    ], /exactly one result/],
+    ['a null row', [null], /invalid row/],
+    ['a missing identifier', [{}], /missing id/],
+    ['a null identifier', [{ id: null }], /missing id/],
+    ['a malformed identifier', [{ id: 'wallet-new' }], /invalid id/],
+  ] as const)('does not refresh or report success when wallet creation returns %s', async (_label, response, message) => {
+    const adapter = createSupabaseWalletsGateway({
+      from() { throw new Error('Wallet query access is not used by this command test.'); },
+      async rpc() { return { data: response === null ? null : [...response], error: null }; },
+    });
+    const loadSnapshot = vi.fn(async () => emptySnapshot);
+    const service = gateway({ loadSnapshot, createWallet: adapter.createWallet });
+    const { result } = renderHook(() => useWallets(service, 'space-1'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await expect(result.current.createWallet({ name: 'Daily', currency: 'USD' })).rejects.toThrow(message);
+    });
+    expect(loadSnapshot).toHaveBeenCalledOnce();
   });
 
   it('enriches categorized history while reconciling an ambiguous wallet creation without replaying it', async () => {

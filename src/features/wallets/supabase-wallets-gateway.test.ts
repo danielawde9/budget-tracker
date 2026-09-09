@@ -12,6 +12,9 @@ import {
 type Result = { data: unknown[] | null; error: { message: string } | null };
 type Operation = { relation: string; name: string; args: readonly unknown[] };
 
+const walletCommandId = '11111111-1111-4111-8111-111111111111';
+const eventCommandId = '22222222-2222-4222-8222-222222222222';
+
 class RecordingBuilder implements WalletsQueryBuilder {
   constructor(
     private readonly relation: string,
@@ -33,7 +36,10 @@ class RecordingBuilder implements WalletsQueryBuilder {
   range(from: number, to: number) { this.record('range', from, to); return Promise.resolve(this.result); }
 }
 
-function clientWith(overrides: Partial<Record<string, unknown[]>> = {}) {
+function clientWith(
+  overrides: Partial<Record<string, unknown[]>> = {},
+  rpcOverrides: Partial<Record<string, readonly unknown[] | null>> = {},
+) {
   const operations: Operation[] = [];
   const rpcCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
   const values: Record<string, unknown[]> = {
@@ -50,7 +56,11 @@ function clientWith(overrides: Partial<Record<string, unknown[]>> = {}) {
     },
     async rpc(name, args) {
       rpcCalls.push({ name, args });
-      return { data: [{ id: name === 'create_wallet' ? 'wallet-new' : 'event-new' }], error: null };
+      if (Object.hasOwn(rpcOverrides, name)) {
+        const data = rpcOverrides[name];
+        return { data: data === null ? null : [...(data ?? [])], error: null };
+      }
+      return { data: [{ id: name === 'create_wallet' ? walletCommandId : eventCommandId }], error: null };
     },
   };
   return { client, operations, rpcCalls };
@@ -67,6 +77,18 @@ describe('Supabase Wallets gateway', () => {
     expect(operations).toContainEqual({ relation: 'wallets', name: 'eq', args: ['space_id', 'space-1'] });
     expect(operations).toContainEqual({ relation: 'financial_events', name: 'range', args: [0, 20] });
     expect(operations).toContainEqual({ relation: 'wallet_movements', name: 'in', args: ['event_id', ['event-1']] });
+  });
+
+  it.each([
+    ['an exact integer string', '9007199254740993', '9007199254740993'],
+    ['a safe integer number', 1250, '1250'],
+  ])('normalizes %s at the bigint projection boundary', async (_label, amountMinor, expected) => {
+    const { client } = clientWith({
+      wallet_balances: [{ wallet_id: 'wallet-1', space_id: 'space-1', currency: 'USD', amount_minor: amountMinor }],
+    });
+
+    await expect(createSupabaseWalletsGateway(client).loadSnapshot('space-1'))
+      .resolves.toMatchObject({ wallets: [{ balanceMinor: expected }] });
   });
 
   it('returns an opaque next cursor and marks loan-linked and reversed events', async () => {
@@ -104,6 +126,58 @@ describe('Supabase Wallets gateway', () => {
       { name: 'record_financial_event', args: { p_space_id: 'space-1', p_request_id: 'request-1', p_kind: 'transfer', p_effective_date: '2026-09-08', p_movements: [{ walletId: 'wallet-1', amountMinor: '-500' }, { walletId: 'wallet-2', amountMinor: '500' }] } },
       { name: 'reverse_financial_event', args: { p_space_id: 'space-1', p_request_id: 'request-2', p_event_id: 'event-1', p_effective_date: '2026-09-09' } },
     ]);
+  });
+
+  it('returns only each wallet command\'s required normalized UUID field', async () => {
+    const { client } = clientWith();
+    const gateway = createSupabaseWalletsGateway(client);
+
+    await expect(gateway.createWallet({ spaceId: 'space-1', name: 'Reserve', currency: 'USD' }))
+      .resolves.toEqual({ id: walletCommandId });
+    await expect(gateway.recordEvent({
+      spaceId: 'space-1', requestId: 'request-1', kind: 'income', effectiveDate: '2026-09-08',
+      movements: [{ walletId: 'wallet-1', amountMinor: '500' }],
+    })).resolves.toEqual({ eventId: eventCommandId });
+    await expect(gateway.reverseEvent({
+      spaceId: 'space-1', requestId: 'request-2', eventId: 'event-1', effectiveDate: '2026-09-09',
+    })).resolves.toEqual({ eventId: eventCommandId });
+  });
+
+  it.each([
+    ['null data', null, /exactly one result/],
+    ['zero rows', [], /exactly one result/],
+    ['multiple rows', [{ id: eventCommandId }, { id: eventCommandId }], /exactly one result/],
+    ['a null row', [null], /invalid row/],
+    ['a missing identifier', [{}], /missing id/],
+    ['a null identifier', [{ id: null }], /missing id/],
+    ['a malformed identifier', [{ id: 'event-new' }], /invalid id/],
+  ] as const)('rejects %s for every wallet command before success handling', async (_label, response, message) => {
+    const commands = [
+      {
+        rpc: 'create_wallet',
+        invoke: (gateway: ReturnType<typeof createSupabaseWalletsGateway>) => gateway.createWallet({
+          spaceId: 'space-1', name: 'Reserve', currency: 'USD',
+        }),
+      },
+      {
+        rpc: 'record_financial_event',
+        invoke: (gateway: ReturnType<typeof createSupabaseWalletsGateway>) => gateway.recordEvent({
+          spaceId: 'space-1', requestId: 'request-1', kind: 'income', effectiveDate: '2026-09-08',
+          movements: [{ walletId: 'wallet-1', amountMinor: '500' }],
+        }),
+      },
+      {
+        rpc: 'reverse_financial_event',
+        invoke: (gateway: ReturnType<typeof createSupabaseWalletsGateway>) => gateway.reverseEvent({
+          spaceId: 'space-1', requestId: 'request-2', eventId: 'event-1', effectiveDate: '2026-09-09',
+        }),
+      },
+    ] as const;
+
+    for (const command of commands) {
+      const { client } = clientWith({}, { [command.rpc]: response });
+      await expect(command.invoke(createSupabaseWalletsGateway(client))).rejects.toThrow(message);
+    }
   });
 
   it('reconciles an event using both space and request ID with a one-row bound', async () => {

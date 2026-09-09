@@ -42,8 +42,10 @@ export interface WalletsDataClient {
 }
 
 type Row = Record<string, unknown>;
+type MutationName = 'create_wallet' | 'record_financial_event' | 'reverse_financial_event';
 
 const currencies = new Set<Currency>(['USD', 'LBP']);
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const eventKinds = new Set<JournalEventKind>([
   'opening_balance',
   'income',
@@ -77,6 +79,12 @@ function nullableText(value: Row, key: string): string | null {
   return result;
 }
 
+function uuidValue(value: Row, key: string): string {
+  const result = textValue(value, key);
+  if (!uuidPattern.test(result)) throw new Error(`The database row has invalid ${key}.`);
+  return result;
+}
+
 function currencyValue(value: Row, key: string): Currency {
   const result = textValue(value, key) as Currency;
   if (!currencies.has(result)) throw new Error(`The database row has unsupported ${key}.`);
@@ -104,12 +112,10 @@ async function rows(resultPromise: Promise<DataResult>, label: string, maximum: 
   return values.map(asRow);
 }
 
-function commandResult(data: unknown[] | null): CommandResult {
-  const value = data?.[0];
-  if (!value) return {};
-  const result = asRow(value);
-  const id = typeof result['id'] === 'string' ? result['id'] : undefined;
-  return id ? { id, eventId: id } : {};
+function commandResult(data: unknown[] | null, name: MutationName): CommandResult {
+  if (data?.length !== 1) throw new Error('The wallet command must return exactly one result.');
+  const id = uuidValue(asRow(data[0]), 'id');
+  return name === 'create_wallet' ? { id } : { eventId: id };
 }
 
 function parseCursor(cursor: string): number {
@@ -120,10 +126,10 @@ function parseCursor(cursor: string): number {
 }
 
 export function createSupabaseWalletsGateway(client: WalletsDataClient): WalletsGateway {
-  async function runCommand(name: string, args: Record<string, unknown>): Promise<CommandResult> {
+  async function runCommand(name: MutationName, args: Record<string, unknown>): Promise<CommandResult> {
     const result = await client.rpc(name, args);
     if (result.error) throw result.error;
-    return commandResult(result.data);
+    return commandResult(result.data, name);
   }
 
   async function loadWalletRows(spaceId: string): Promise<Row[]> {
