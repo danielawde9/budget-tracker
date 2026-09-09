@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
@@ -223,6 +224,28 @@ describe('scratch-only Budget restore boundary', () => {
 
     expect(result.status).toBe(78);
     expect(result.stderr).toContain('trusted manifest hash mismatch');
+    expect(commands).not.toContain('age');
+    expect(commands).not.toContain('pg_restore');
+  });
+
+  it('rejects a trusted manifest from a different source commit before restore effects', () => {
+    const { env, log, offsiteRoot, recoveryPoint } = makeRestoreFixture();
+    const manifestPath = join(offsiteRoot, recoveryPoint, 'manifest.txt');
+    const manifest = readFileSync(manifestPath, 'utf8').replace(
+      /^source_commit=.*$/m,
+      `source_commit=${'0'.repeat(40)}`,
+    );
+    writeFileSync(manifestPath, manifest, { mode: 0o600 });
+    const result = run('restore', {
+      ...env,
+      BUDGET_EXPECTED_MANIFEST_SHA256: createHash('sha256')
+        .update(manifest)
+        .digest('hex'),
+    });
+    const commands = readFileSync(log, 'utf8');
+
+    expect(result.status).toBe(78);
+    expect(result.stderr).toContain('restore manifest identity mismatch');
     expect(commands).not.toContain('age');
     expect(commands).not.toContain('pg_restore');
   });

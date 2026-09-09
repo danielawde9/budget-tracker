@@ -114,7 +114,7 @@ before any adapter runs. All later execution uses those validated copies, so a
 source-path replacement cannot change operation content. PostgreSQL snapshots
 also run the exact expected `--version`. The current repository commit must
 match `BUDGET_SOURCE_COMMIT`, which is recorded in every backup manifest and
-validated as recovery provenance.
+must match exactly during restore before decryption or PostgreSQL execution.
 
 - `BUDGET_OFFSITE_BIN put LOCAL DESTINATION KEY` uploads one ciphertext or safe
   manifest.

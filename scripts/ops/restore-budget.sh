@@ -379,7 +379,7 @@ restore_execute() {
     "${manifest_project}" != "${BUDGET_VALIDATED_PROJECT}" || \
     "${manifest_system_id}" != "${BUDGET_VALIDATED_SYSTEM_ID}" || \
     "${manifest_major}" != "${BUDGET_SCRATCH_POSTGRES_MAJOR}" || \
-    ! "${manifest_source_commit}" =~ ^[a-f0-9]{40}$ ]]; then
+    "${manifest_source_commit}" != "${BUDGET_SOURCE_COMMIT}" ]]; then
     budget_error 'restore manifest identity mismatch' 78
     return
   fi
