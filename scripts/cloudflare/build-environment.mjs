@@ -1,4 +1,5 @@
 const PUBLISHABLE_KEY = /^sb_publishable_[A-Za-z0-9_-]{20,}$/;
+const ALLOWED_VITE_VARIABLES = new Set(['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY']);
 
 function required(environment, name) {
   const value = environment[name]?.trim();
@@ -9,9 +10,12 @@ function required(environment, name) {
 }
 
 export function validateCloudflareBuildEnvironment(environment) {
-  if ('VITE_SUPABASE_PUBLISHABLE_KEY' in environment && !environment.VITE_SUPABASE_ANON_KEY) {
-    required(environment, 'VITE_SUPABASE_ANON_KEY');
+  for (const name of Object.keys(environment)) {
+    if (name.startsWith('VITE_') && !ALLOWED_VITE_VARIABLES.has(name)) {
+      throw new Error(`${name} is not allowed in the Cloudflare production build`);
+    }
   }
+
   const supabaseUrl = required(environment, 'VITE_SUPABASE_URL');
   const anonKey = required(environment, 'VITE_SUPABASE_ANON_KEY');
 
