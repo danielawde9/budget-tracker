@@ -57,12 +57,21 @@ async function runAndTerminate(env: NodeJS.ProcessEnv) {
     },
   );
   const marker = env.BUDGET_FAKE_SIGNAL_MARKER as string;
-  for (let attempt = 0; attempt < 600 && !existsSync(marker); attempt += 1) {
+  let completed = false;
+  void completion.then(() => { completed = true; });
+  for (
+    let attempt = 0;
+    attempt < 1_000 && !completed && !existsSync(marker);
+    attempt += 1
+  ) {
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   if (!existsSync(marker)) {
-    child.kill('SIGKILL');
-    throw new Error('restore signal fixture did not reach pg_restore');
+    if (!completed) child.kill('SIGKILL');
+    const early = await completion;
+    throw new Error(
+      `restore signal fixture did not reach pg_restore: status=${early.status} signal=${early.signal}`,
+    );
   }
   child.kill('SIGTERM');
   return { ...(await completion), stderr, stdout };
