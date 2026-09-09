@@ -97,6 +97,7 @@ test('categorized and uncategorized income preserve exact history labels', async
   await page.getByRole('button', { name: 'Add transaction' }).click();
   let dialog = page.getByRole('dialog', { name: 'Add a transaction' });
   await dialog.getByRole('radio', { name: 'Salary' }).check();
+  await dialog.getByLabel('Effective date').fill('2026-09-08');
   await dialog.getByLabel('Amount').fill('45.25');
   await dialog.getByRole('button', { name: 'Review transaction' }).click();
   await expect(dialog.getByRole('region', { name: 'Wallet effect preview' })).toContainText('Category Salary');
