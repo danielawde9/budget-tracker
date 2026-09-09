@@ -52,6 +52,8 @@ restore_validate_configuration() {
     budget_error 'off-site destination is not configured' 75
     return
   fi
+  budget_validate_offsite_destination "${BUDGET_OFFSITE_DESTINATION}" \
+    "${BUDGET_OFFSITE_ALLOWED_PREFIX:-}" 75
   if [[ -z "${BUDGET_EXPECTED_MANIFEST_SHA256:-}" ]]; then
     budget_error 'trusted manifest hash is not configured' 75
     return

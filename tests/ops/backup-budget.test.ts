@@ -82,7 +82,7 @@ describe('encrypted Budget backup boundary', () => {
       });
 
       expect(result.status).toBe(70);
-      expect(result.stderr).toContain('backup target configuration is outside');
+      expect(result.stderr).toContain('off-site destination is outside the exact allowlist');
       expect(existsSync(log)).toBe(false);
     },
   );

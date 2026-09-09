@@ -42,17 +42,12 @@ backup_validate_configuration() {
 
   backup_validate_scalar "${BUDGET_AGE_RECIPIENT}" 'encryption recipient'
   backup_validate_scalar "${BUDGET_OFFSITE_DESTINATION}" 'off-site destination'
-  if [[ "${BUDGET_AGE_RECIPIENT}" != age1* || \
-    ! "${BUDGET_OFFSITE_DESTINATION}" =~ ^[A-Za-z0-9._/-]+$ || \
-    "${BUDGET_OFFSITE_DESTINATION}" == /* || \
-    "${BUDGET_OFFSITE_DESTINATION}" == '..' || \
-    "${BUDGET_OFFSITE_DESTINATION}" == ../* || \
-    "${BUDGET_OFFSITE_DESTINATION}" == */../* || \
-    "${BUDGET_OFFSITE_DESTINATION}" == */.. ]] || \
-    budget_is_protected_identifier "${BUDGET_OFFSITE_DESTINATION}"; then
+  if [[ "${BUDGET_AGE_RECIPIENT}" != age1* ]]; then
     budget_error 'backup target configuration is outside the exact allowlist' 70
     return
   fi
+  budget_validate_offsite_destination "${BUDGET_OFFSITE_DESTINATION}" \
+    "${BUDGET_OFFSITE_ALLOWED_PREFIX:-}" 70
 
   local required_value
   for required_value in BUDGET_RUN_ID BUDGET_PGPASS_FILE BUDGET_DATABASE_HOST \

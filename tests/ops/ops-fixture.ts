@@ -126,6 +126,7 @@ export function makeBackupFixture() {
     BUDGET_EXPECTED_DATABASE_OID: '17001',
     BUDGET_AGE_RECIPIENT: 'age1fixturepublicrecipient000000000000000000000000000000',
     BUDGET_OFFSITE_DESTINATION: 'configured-budget-live-offsite',
+    BUDGET_OFFSITE_ALLOWED_PREFIX: 'configured-budget-live-offsite',
     BUDGET_RUN_ID: '2026-09-09T021500Z-fixture',
     BUDGET_PGPASS_FILE: passfile,
     BUDGET_DATABASE_HOST: 'fixture-budget-db.internal',

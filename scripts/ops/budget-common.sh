@@ -21,6 +21,21 @@ budget_is_protected_identifier() {
   [[ "${lowered}" =~ (^|[^[:alnum:]])(sandooq|pos)([^[:alnum:]]|$) ]]
 }
 
+budget_validate_offsite_destination() {
+  local destination="${1:-}"
+  local allowed_prefix="${2:-}"
+  local status="${3:-70}"
+
+  if [[ -z "${destination}" || ${#destination} -gt 256 || \
+    -z "${allowed_prefix}" || ${#allowed_prefix} -gt 128 || \
+    "${destination}" != "${allowed_prefix}" || \
+    ! "${destination}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ || \
+    ! "${allowed_prefix}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] || \
+    budget_is_protected_identifier "${destination}"; then
+    budget_error 'off-site destination is outside the exact allowlist' "${status}"
+  fi
+}
+
 budget_validate_safe_path() {
   local path="${1:-}"
   local expected_basename="${2:-}"

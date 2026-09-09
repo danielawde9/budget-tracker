@@ -69,6 +69,27 @@ describe('scratch-only Budget restore boundary', () => {
     expect(existsSync(log)).toBe(false);
   });
 
+  it.each([
+    '/absolute',
+    '-leading-dash',
+    'configured-budget-live-offsite/*',
+    'configured-budget-live-offsite/../escape',
+    'configured-budget-live-offsite/./object',
+    'configured-budget-live-offsite//object',
+    'configured-budget-live-offsite\nobject',
+    'unknown-prefix',
+  ])('refuses unsafe or unknown off-site destination %j', (destination) => {
+    const { env, log } = makeRestoreFixture();
+    const result = run('restore', {
+      ...env,
+      BUDGET_OFFSITE_DESTINATION: destination,
+    });
+
+    expect(result.status).toBe(75);
+    expect(result.stderr).toContain('off-site destination is outside the exact allowlist');
+    expect(existsSync(log)).toBe(false);
+  });
+
   it('refuses an age identity file that is not mode 0600', () => {
     const { env, identity, log } = makeRestoreFixture();
     chmodSync(identity, 0o644);
