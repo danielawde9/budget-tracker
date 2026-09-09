@@ -63,7 +63,7 @@ export function makeBackupFixture() {
 
   makeExecutable(
     timeout,
-    'seconds="$1"; shift; printf "timeout:%s:%s\\n" "$seconds" "${1##*/}" >> "$BUDGET_FAKE_LOG"; "$@"',
+    'seconds="$1"; shift; printf "timeout:%s:%s\\n" "$seconds" "${1##*/}" >> "$BUDGET_FAKE_LOG"; if [[ "${BUDGET_FAKE_TIMEOUT_REFUSE_WC:-0}" == "1" && "${1##*/}" == "wc" && -f "${BUDGET_FAKE_FIFO_MARKER:-}" ]]; then exit 89; fi; "$@"',
   );
   makeExecutable(
     pgDump,
@@ -85,7 +85,16 @@ export function makeBackupFixture() {
     offsite,
     [
       'printf "offsite:%s\\n" "$1" >> "$BUDGET_FAKE_LOG"',
-      '[[ "$1" == "put" ]] && exit 0',
+      'if [[ "$1" == "put" ]]; then',
+      '  if [[ "${BUDGET_FAKE_OFFSITE_REPLACE_PAYLOAD_WITH_FIFO:-0}" == "1" ]]; then',
+      '    /bin/mv -- "$2" "$2.regular"',
+      '    /usr/bin/mkfifo "$2"',
+      '    /bin/chmod 0600 "$2"',
+      '    /usr/bin/touch "$BUDGET_FAKE_FIFO_MARKER"',
+      '    ( /bin/sleep 2; if [[ -p "$2" ]]; then printf "release" > "$2"; fi ) >/dev/null 2>&1 &',
+      '  fi',
+      '  exit 0',
+      'fi',
       '[[ "$1" == "verify" ]] || exit 64',
       '[[ "${BUDGET_FAKE_OFFSITE_RECEIPT_INVALID:-0}" == "1" ]] && { printf "verified\\n"; exit 0; }',
       'size="$(/usr/bin/wc -c < "$2")"; size="${size//[[:space:]]/}"',
@@ -191,6 +200,7 @@ export function makeBackupFixture() {
     BUDGET_DB_VERIFY_BIN: join(process.cwd(), 'scripts/ops/verify-budget-db.sh'),
     BUDGET_VERIFY_PSQL_BIN: verifyPsql,
     BUDGET_FAKE_VERIFY_COUNTER: join(base, 'verify-counter'),
+    BUDGET_FAKE_FIFO_MARKER: join(base, 'fifo-swapped'),
     BUDGET_FAKE_LOG: log,
   };
 
@@ -301,6 +311,15 @@ export function makeRestoreFixture() {
       'printf "offsite:%s\\n" "$1" >> "$BUDGET_FAKE_LOG"',
       '[[ "$1" == "get" ]] || exit 64',
       'cp "$BUDGET_OFFSITE_FIXTURE_ROOT/$3" "$4"',
+      'if [[ "${BUDGET_FAKE_OFFSITE_REPLACE_PAYLOAD_WITH_FIFO:-0}" == "1" ]]; then',
+      '  /bin/mv -- "$4" "$4.regular"',
+      '  /usr/bin/mkfifo "$4"',
+      '  /bin/chmod 0600 "$4"',
+      '  /usr/bin/touch "$BUDGET_FAKE_FIFO_MARKER"',
+      '  ( /bin/sleep 2; if [[ -p "$4" ]]; then printf "release" > "$4"; fi ) >/dev/null 2>&1 &',
+      '  printf "receipt_version=1|provider=%s|object_key=%s|object_version=fixture-v1|remote_size=0|remote_sha256=%064d|immutable=1|monitoring=1\\n" "$BUDGET_OFFSITE_PROVIDER_ID" "$3" 0',
+      '  exit 0',
+      'fi',
       'size="$(/usr/bin/wc -c < "$4")"; size="${size//[[:space:]]/}"',
       'hash="$(/usr/bin/shasum -a 256 "$4")"; hash="${hash%% *}"',
       'printf "receipt_version=1|provider=%s|object_key=%s|object_version=fixture-v1|remote_size=%s|remote_sha256=%s|immutable=1|monitoring=1\\n" "$BUDGET_OFFSITE_PROVIDER_ID" "$3" "$size" "$hash"',

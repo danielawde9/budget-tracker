@@ -29,7 +29,9 @@ scripts/ops/migrate-budget.sh verify-manifest MIGRATIONS EXPECTED APPLIED ACTUAL
 `check:ops` runs deterministic ops tests, Bash syntax checks, and a bounded
 tracked-text secret scan. Pass explicit absolute artifact/log files to
 `scripts/ops/check-budget.sh` to include them in the same 256-file, 10 MiB-per-
-file bound. Secret assignments exempt only an empty value, the exact matching
+file bound. Each candidate is read once through a five-second, no-follow file
+descriptor after matching its regular-file identity and size. Secret assignments
+exempt only an empty value, the exact matching
 `${NAME:?required}` form, or the exact `<external-secret-reference>` token;
 mixed values fail closed. If `shellcheck` is installed it runs that too;
 absence is reported rather than hidden.
@@ -82,6 +84,8 @@ directories) are created component by component with no-follow metadata checks.
 Every component must remain an operator-owned private directory; the active
 run directory is revalidated immediately around writes and before cleanup.
 Existing or swapped descendant symlinks are never followed.
+Cleanup starts a fresh five-second monotonic deadline, independent of an expired
+operation deadline, and uses it for all exact descendant checks before removal.
 
 The operator configures the expected system identifier and database OID. The
 tracked read-only verifier measures the system identifier, PostgreSQL server
@@ -178,7 +182,9 @@ receipt remain **BLOCKED**.
    starts one 30-minute deadline from a monotonic clock, and measures and pins
    the database receipt. Every adapter receives only the remaining operation
    time; no child starts a fresh budget. The same immutable endpoint is measured
-   again immediately before `pg_dump`.
+   again immediately before `pg_dump`. Payload sizes are measured by passing the
+   file path to `wc` only after the deadline wrapper has started; shell input
+   redirection never opens a candidate before that bound.
 5. It creates a full custom-format dump, a roles-only/no-role-passwords dump,
    and bounded catalog metadata.
 6. The three plaintexts live under one mode-`0700` directory and are age
@@ -240,7 +246,9 @@ repository intentionally includes no deletion command.
    that catalog/data comparison receipt is not a verified restore.
 8. The trap removes exact temp files. Export redacted timings/comparison, then
    use a separately approved cleanup that revalidates markers and identities.
-   This repository deletes no database, volume, service, or directory.
+   Trap validation gets its own five-second deadline so an expired restore
+   operation cannot suppress exact temp-file or lock cleanup. This repository
+   deletes no database, volume, service, or persistent directory.
 
 The script deliberately refuses every live restore, even when incident fields
 are present. A live extension needs a separate review with incident ID, typed

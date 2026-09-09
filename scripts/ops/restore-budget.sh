@@ -246,19 +246,26 @@ restore_hash() {
 
 restore_size() {
   local candidate="${1:?size candidate is required}"
-  local output
-  output="$(restore_run /usr/bin/wc -c < "${candidate}")"
-  output="${output//[[:space:]]/}"
+  local output ignored
+  if ! output="$(restore_run /usr/bin/wc -c "${candidate}")"; then
+    budget_error 'bounded size measurement failed' 75
+    return
+  fi
+  read -r output ignored <<< "${output}"
   [[ "${output}" =~ ^[0-9]{1,20}$ ]] || return 1
   printf '%s\n' "${output}"
 }
 
 restore_cleanup() {
   local status=$?
+  local cleanup_deadline=''
   trap - EXIT INT TERM HUP
-  if [[ "${restore_temp_created:-0}" == '1' ]]; then
+  if ! cleanup_deadline="$(budget_start_cleanup_deadline 76)"; then
+    cleanup_deadline=''
+  fi
+  if [[ -n "${cleanup_deadline}" && "${restore_temp_created:-0}" == '1' ]]; then
     if budget_validate_private_descendant "${RESTORE_ROOT}" \
-      "${restore_temp_relative}" "${restore_deadline}" 76 >/dev/null; then
+      "${restore_temp_relative}" "${cleanup_deadline}" 76 >/dev/null; then
       rm -f -- "${restore_manifest}" "${restore_archive_cipher}" \
         "${restore_roles_cipher}" "${restore_catalog_cipher}" \
         "${restore_archive_plain}" "${restore_roles_plain}" \
@@ -267,9 +274,9 @@ restore_cleanup() {
       rmdir -- "${restore_temp_dir}" 2>/dev/null || true
     fi
   fi
-  if [[ "${restore_lock_acquired:-0}" == '1' ]]; then
+  if [[ -n "${cleanup_deadline}" && "${restore_lock_acquired:-0}" == '1' ]]; then
     if budget_validate_private_descendant "${RESTORE_ROOT}" \
-      "${restore_lock_relative}" "${restore_deadline}" 76 >/dev/null; then
+      "${restore_lock_relative}" "${cleanup_deadline}" 76 >/dev/null; then
       rmdir -- "${restore_lock_dir}" 2>/dev/null || true
     fi
   fi

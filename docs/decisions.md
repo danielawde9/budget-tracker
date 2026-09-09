@@ -442,3 +442,19 @@ sending domain.
 enumeration-safe recovery, lifecycle/deletion policy, and owner-approved support
 capacity. Omitting email recovery requires a separately designed and rehearsed
 account-recovery mechanism before real data.
+
+## 2026-09-09 — Failure cleanup has an independent five-second bound
+
+**Decision:** Backup and scratch-restore traps start one fresh five-second
+monotonic deadline for exact descendant validation and cleanup. They do not
+reuse the main operation deadline, which may already be expired when the trap
+runs. Payload-size and tracked-text reads open candidates only inside their
+bounded command or no-follow descriptor.
+
+**Why:** An expired operation must still remove exact plaintext, incomplete
+ciphertext, restore-temp, and lock artifacts without allowing cleanup to become
+unbounded or to follow a swapped path.
+
+**If changed:** A different cleanup budget needs measured slow-filesystem
+evidence and new timeout-path tests. Any broader cleanup target needs a separate
+review of path identity, ownership, permissions, and recoverability.

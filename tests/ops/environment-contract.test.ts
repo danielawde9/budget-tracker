@@ -80,6 +80,45 @@ describe('Budget operations environment contract', () => {
     expect(source).not.toContain("alarm 5; exec @ARGV");
   });
 
+  it('uses a fresh bounded descendant validation for cleanup after the operation deadline', () => {
+    const { root } = fixture();
+    mkdirSync(join(root, 'tmp'), { mode: 0o700 });
+    mkdirSync(join(root, 'tmp', 'cleanup-target'), { mode: 0o700 });
+    const result = spawnSync(
+      'bash',
+      [
+        '-c',
+        'source "$1"; operation_deadline=1; cleanup_deadline="$(budget_start_cleanup_deadline 66)"; budget_validate_private_descendant "$2" "tmp/cleanup-target" "$cleanup_deadline" 66',
+        'cleanup-deadline-test',
+        script,
+        root,
+      ],
+      { cwd: process.cwd(), encoding: 'utf8', env: { ...process.env } },
+    );
+    const backupSource = readFileSync(
+      join(process.cwd(), 'scripts/ops/backup-budget.sh'),
+      'utf8',
+    );
+    const restoreSource = readFileSync(
+      join(process.cwd(), 'scripts/ops/restore-budget.sh'),
+      'utf8',
+    );
+    const backupCleanup = backupSource.slice(
+      backupSource.indexOf('backup_cleanup()'),
+      backupSource.indexOf('backup_execute()'),
+    );
+    const restoreCleanup = restoreSource.slice(
+      restoreSource.indexOf('restore_cleanup()'),
+      restoreSource.indexOf('restore_manifest_value()'),
+    );
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(backupCleanup).toContain('budget_start_cleanup_deadline');
+    expect(backupCleanup).not.toContain('${backup_deadline}');
+    expect(restoreCleanup).toContain('budget_start_cleanup_deadline');
+    expect(restoreCleanup).not.toContain('${restore_deadline}');
+  });
+
   it.each(['', 'production', 'LIVE', 'scratch'])(
     'rejects empty or unknown environment %j',
     (environment) => {
@@ -279,6 +318,28 @@ describe('Budget operations environment contract', () => {
     );
 
     expect(result.status).toBe(0);
+  });
+
+  it('does not follow a swapped or linked secret-scan candidate', () => {
+    const { base } = fixture();
+    const target = join(base, 'scan-target.log');
+    const candidate = join(base, 'scan-candidate.log');
+    writeFileSync(target, 'ordinary fixture text\n');
+    symlinkSync(target, candidate);
+
+    const result = spawnSync('bash', [script, 'scan-secrets', candidate], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      env: { ...process.env },
+    });
+    const source = readFileSync(script, 'utf8');
+
+    expect(result.status).toBe(64);
+    expect(result.stderr).toContain(
+      'secret scan candidate is not a bounded regular file',
+    );
+    expect(source).not.toContain('wc -c <');
+    expect(source).not.toContain('content="$(<"');
   });
 
   it.each([

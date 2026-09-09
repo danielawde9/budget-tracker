@@ -18,11 +18,17 @@ import { makeBackupFixture, makeExecutable } from './ops-fixture.js';
 
 const script = join(process.cwd(), 'scripts/ops/backup-budget.sh');
 
-function run(command: string, env: NodeJS.ProcessEnv, extraArgs: string[] = []) {
+function run(
+  command: string,
+  env: NodeJS.ProcessEnv,
+  extraArgs: string[] = [],
+  timeout?: number,
+) {
   return spawnSync('bash', [script, command, ...extraArgs], {
     cwd: process.cwd(),
     encoding: 'utf8',
     env,
+    timeout,
   });
 }
 
@@ -394,6 +400,25 @@ describe('encrypted Budget backup boundary', () => {
     expect(existsSync(join(tempRoot, '2026-09-09T021500Z-fixture.plaintext'))).toBe(
       false,
     );
+  });
+
+  it('starts the deadline wrapper before opening a replaced payload for size', () => {
+    const { env } = makeBackupFixture();
+    const result = run(
+      'backup',
+      {
+        ...env,
+        BUDGET_FAKE_OFFSITE_REPLACE_PAYLOAD_WITH_FIFO: '1',
+        BUDGET_FAKE_TIMEOUT_REFUSE_WC: '1',
+      },
+      [],
+      5_000,
+    );
+
+    expect(result.status).toBe(70);
+    expect(result.signal).toBeNull();
+    expect(result.stderr).toContain('bounded size measurement failed');
+    expect(readFileSync(script, 'utf8')).not.toContain('wc -c <');
   });
 
   it('keeps bounded daily, Sunday-weekly, and first-of-month recovery points plus pinned and newest points', () => {

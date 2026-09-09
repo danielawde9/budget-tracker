@@ -18,11 +18,12 @@ import { makeRestoreFixture } from './ops-fixture.js';
 
 const script = join(process.cwd(), 'scripts/ops/restore-budget.sh');
 
-function run(command: string, env: NodeJS.ProcessEnv) {
+function run(command: string, env: NodeJS.ProcessEnv, timeout?: number) {
   return spawnSync('bash', [script, command], {
     cwd: process.cwd(),
     encoding: 'utf8',
     env,
+    timeout,
   });
 }
 
@@ -361,5 +362,23 @@ describe('scratch-only Budget restore boundary', () => {
     expect(
       existsSync(join(scratchRoot, 'tmp/2026-09-09T021500Z-fixture.restore')),
     ).toBe(false);
+  });
+
+  it('starts the deadline wrapper before opening a replaced payload for size', () => {
+    const { env } = makeRestoreFixture();
+    const result = run(
+      'restore',
+      {
+        ...env,
+        BUDGET_FAKE_OFFSITE_REPLACE_PAYLOAD_WITH_FIFO: '1',
+        BUDGET_FAKE_TIMEOUT_REFUSE_WC: '1',
+      },
+      5_000,
+    );
+
+    expect(result.status).toBe(75);
+    expect(result.signal).toBeNull();
+    expect(result.stderr).toContain('bounded size measurement failed');
+    expect(readFileSync(script, 'utf8')).not.toContain('wc -c <');
   });
 });

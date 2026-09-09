@@ -30,6 +30,16 @@ budget_start_deadline() {
   printf '%s\n' "$((started_at + total_seconds))"
 }
 
+budget_start_cleanup_deadline() {
+  local status="${1:?status is required}"
+  local deadline
+  if ! deadline="$(budget_start_deadline 5)"; then
+    budget_error 'cleanup deadline unavailable' "${status}"
+    return
+  fi
+  printf '%s\n' "${deadline}"
+}
+
 budget_remaining_seconds() {
   local deadline="${1:?deadline is required}"
   local now remaining
@@ -632,24 +642,59 @@ budget_assert_database_receipt() {
   printf '%s\n' "${receipt}"
 }
 
+budget_read_bounded_regular_file() {
+  local candidate="${1:-}"
+  local maximum_bytes="${2:-}"
+  local status="${3:-64}"
+  if [[ -z "${candidate}" || ! "${maximum_bytes}" =~ ^[1-9][0-9]{0,8}$ ]] || \
+    ! /usr/bin/perl -MFcntl=:DEFAULT,O_NOFOLLOW,:mode -e '
+      use strict;
+      use warnings;
+      my ($path, $limit) = @ARGV;
+      alarm 5;
+      my @before = lstat($path);
+      die "type\n" unless @before && S_ISREG($before[2]) && $before[7] <= $limit;
+      sysopen(my $handle, $path, O_RDONLY | O_NOFOLLOW) or die "open\n";
+      my @opened = stat($handle);
+      die "swap\n" unless @opened && S_ISREG($opened[2]);
+      die "swap\n" unless $opened[0] == $before[0] && $opened[1] == $before[1];
+      my $content = "";
+      my $eof = 0;
+      my $max_chunks = int($limit / 65_536) + 2;
+      for (my $chunk = 0; $chunk < $max_chunks; $chunk++) {
+        my $buffer;
+        my $count = sysread($handle, $buffer, 65_536);
+        die "read\n" unless defined $count;
+        if ($count == 0) { $eof = 1; last; }
+        $content .= substr($buffer, 0, $count);
+        die "size\n" if length($content) > $limit;
+      }
+      die "bound\n" unless $eof;
+      my @after = stat($handle);
+      die "swap\n" unless @after && $after[0] == $opened[0] && $after[1] == $opened[1];
+      die "binary\n" if index($content, "\0") >= 0;
+      print $content;
+    ' "${candidate}" "${maximum_bytes}"; then
+    budget_error 'secret scan candidate is not a bounded regular file' "${status}"
+    return
+  fi
+}
+
 budget_scan_secrets() {
   if (( $# == 0 || $# > BUDGET_MAX_SCAN_FILES )); then
     budget_error 'secret scan requires 1 to 256 explicit files' 64
     return
   fi
 
-  local candidate size content line secret display_name
+  local candidate content line secret display_name read_status
   for candidate in "$@"; do
-    if [[ ! -f "${candidate}" ]]; then
-      budget_error 'secret scan candidate is not a regular file' 64
-      return
+    if content="$(budget_read_bounded_regular_file \
+      "${candidate}" "${BUDGET_MAX_SCAN_BYTES}" 64)"; then
+      :
+    else
+      read_status=$?
+      return "${read_status}"
     fi
-    size="$(wc -c < "${candidate}")"
-    if (( size > BUDGET_MAX_SCAN_BYTES )); then
-      budget_error 'secret scan candidate exceeds 10 MiB' 64
-      return
-    fi
-    content="$(<"${candidate}")"
     display_name="${candidate##*/}"
 
     while IFS= read -r secret; do
@@ -672,7 +717,7 @@ budget_scan_secrets() {
           return
         fi
       fi
-    done < "${candidate}"
+    done <<< "${content}"
   done
 
   printf '%s\n' "secret scan passed for $# file(s)"

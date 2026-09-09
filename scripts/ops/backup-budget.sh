@@ -183,35 +183,44 @@ backup_hash() {
 
 backup_size() {
   local candidate="${1:?size candidate is required}"
-  local output
-  output="$(backup_run /usr/bin/wc -c < "${candidate}")"
-  output="${output//[[:space:]]/}"
+  local output ignored
+  if ! output="$(backup_run /usr/bin/wc -c "${candidate}")"; then
+    budget_error 'bounded size measurement failed' 70
+    return
+  fi
+  read -r output ignored <<< "${output}"
   [[ "${output}" =~ ^[0-9]{1,20}$ ]] || return 1
   printf '%s\n' "${output}"
 }
 
 backup_cleanup() {
   local status=$?
+  local cleanup_deadline=''
   trap - EXIT INT TERM HUP
 
-  if [[ "${backup_temp_created:-0}" == '1' ]]; then
+  if ! cleanup_deadline="$(budget_start_cleanup_deadline 66)"; then
+    cleanup_deadline=''
+  fi
+
+  if [[ -n "${cleanup_deadline}" && "${backup_temp_created:-0}" == '1' ]]; then
     if budget_validate_private_descendant "${BACKUP_ROOT}" \
-      "${backup_plain_relative}" "${backup_deadline}" 66 >/dev/null; then
+      "${backup_plain_relative}" "${cleanup_deadline}" 66 >/dev/null; then
       rm -f -- "${backup_archive_plain}" "${backup_roles_plain}" "${backup_catalog_plain}"
       rmdir -- "${backup_plain_dir}" 2>/dev/null || true
     fi
   fi
-  if [[ "${backup_published:-0}" != '1' && "${backup_recovery_created:-0}" == '1' ]]; then
+  if [[ -n "${cleanup_deadline}" && "${backup_published:-0}" != '1' && \
+    "${backup_recovery_created:-0}" == '1' ]]; then
     if budget_validate_private_descendant "${BACKUP_ROOT}" \
-      "${backup_recovery_relative}" "${backup_deadline}" 66 >/dev/null; then
+      "${backup_recovery_relative}" "${cleanup_deadline}" 66 >/dev/null; then
       rm -f -- "${backup_archive_cipher}" "${backup_roles_cipher}" \
         "${backup_catalog_cipher}" "${backup_manifest}" "${backup_success}"
       rmdir -- "${backup_recovery_dir}" 2>/dev/null || true
     fi
   fi
-  if [[ "${backup_lock_acquired:-0}" == '1' ]]; then
+  if [[ -n "${cleanup_deadline}" && "${backup_lock_acquired:-0}" == '1' ]]; then
     if budget_validate_private_descendant "${BACKUP_ROOT}" \
-      "${backup_lock_relative}" "${backup_deadline}" 66 >/dev/null; then
+      "${backup_lock_relative}" "${cleanup_deadline}" 66 >/dev/null; then
       rmdir -- "${backup_lock_dir}" 2>/dev/null || true
     fi
   fi
