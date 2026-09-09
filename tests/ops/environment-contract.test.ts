@@ -250,4 +250,26 @@ describe('Budget operations environment contract', () => {
 
     expect(result.status).toBe(0);
   });
+
+  it.each([
+    'DB_PASSWORD=actual-secret${DB_PASSWORD:?required}',
+    'AGE_IDENTITY=actual-secret<external-secret-reference>',
+    'SMTP_TOKEN=<external-secret-reference>actual-secret',
+  ])('rejects a secret mixed with placeholder syntax: %s', (line) => {
+    const { base } = fixture();
+    const candidate = join(base, 'mixed-placeholder.example');
+    writeFileSync(candidate, `${line}\n`);
+
+    const result = spawnSync('bash', [script, 'scan-secrets', candidate], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      env: { ...process.env },
+    });
+
+    expect(result.status).toBe(69);
+    expect(result.stderr).toContain(
+      'secret material detected in mixed-placeholder.example',
+    );
+    expect(result.stderr).not.toContain('actual-secret');
+  });
 });

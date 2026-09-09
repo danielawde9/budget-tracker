@@ -307,12 +307,15 @@ budget_scan_secrets() {
       fi
     done <<< "${BUDGET_DISCOVERED_SECRETS:-}"
 
-    local assigned_value
+    local assigned_value assignment_key approved_placeholder
     while IFS= read -r line; do
       if [[ "${line}" =~ ^[[:space:]]*(export[[:space:]]+)?(SUPABASE_SERVICE_ROLE_KEY|JWT_SECRET|DB_PASSWORD|SMTP_(PASSWORD|TOKEN)|AGE_IDENTITY|ADMIN_TOKEN)[[:space:]]*= ]]; then
+        assignment_key="${BASH_REMATCH[2]}"
         assigned_value="${line#*=}"
+        printf -v approved_placeholder '${%s:?required}' "${assignment_key}"
         if [[ ! "${assigned_value}" =~ ^[[:space:]]*$ && \
-          "${assigned_value}" != *'${'* && "${assigned_value}" != *'<'* ]]; then
+          "${assigned_value}" != "${approved_placeholder}" && \
+          "${assigned_value}" != '<external-secret-reference>' ]]; then
           budget_error "secret material detected in ${display_name}" 69
           return
         fi

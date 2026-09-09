@@ -40,6 +40,18 @@ while IFS= read -r tracked_file; do
   fi
 done < <(cd "${CHECK_REPO_ROOT}" && git ls-files)
 
+for extra_scan_file in "$@"; do
+  if [[ "${extra_scan_file}" != /* || ! -f "${extra_scan_file}" ]]; then
+    budget_error 'artifact/log scan inputs must be explicit absolute files' 69
+    exit 69
+  fi
+  tracked_files+=("${extra_scan_file}")
+  if (( ${#tracked_files[@]} > BUDGET_MAX_SCAN_FILES )); then
+    budget_error 'combined secret scan exceeds 256 files' 69
+    exit 69
+  fi
+done
+
 if (( ${#tracked_files[@]} == 0 )); then
   budget_error 'tracked text-file secret scan found no candidates' 69
   exit 69

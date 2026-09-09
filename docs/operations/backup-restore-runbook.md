@@ -27,8 +27,12 @@ scripts/ops/migrate-budget.sh verify-manifest MIGRATIONS EXPECTED APPLIED ACTUAL
 ```
 
 `check:ops` runs deterministic ops tests, Bash syntax checks, and a bounded
-tracked-text secret scan. If `shellcheck` is installed it runs that too; absence
-is reported rather than hidden.
+tracked-text secret scan. Pass explicit absolute artifact/log files to
+`scripts/ops/check-budget.sh` to include them in the same 256-file, 10 MiB-per-
+file bound. Secret assignments exempt only an empty value, the exact matching
+`${NAME:?required}` form, or the exact `<external-secret-reference>` token;
+mixed values fail closed. If `shellcheck` is installed it runs that too;
+absence is reported rather than hidden.
 
 Every real command requires explicit, validated environment variables. Do not
 put their values in Git, shell history, tickets, screenshots, logs, or this
