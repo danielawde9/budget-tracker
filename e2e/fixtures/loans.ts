@@ -209,7 +209,7 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
     }
     if (path.endsWith('/rpc/create_wallet')) {
       const body = request.postDataJSON() as { p_space_id: string; p_name: string; p_currency: 'USD' | 'LBP' };
-      const created = { id: `created-wallet-${visibleWallets.length + 1}`, space_id: body.p_space_id, name: body.p_name, currency: body.p_currency, archived_at: null, created_at: '2026-09-08T00:00:00Z' };
+      const created = { id: `d0000000-0000-4000-8000-${String(visibleWallets.length + 1).padStart(12, '0')}`, space_id: body.p_space_id, name: body.p_name, currency: body.p_currency, archived_at: null, created_at: '2026-09-08T00:00:00Z' };
       if (!visibleWallets.some((wallet) => wallet.id === created.id)) visibleWallets.push(created);
       visibleWalletBalances.push({ wallet_id: created.id, space_id: body.p_space_id, currency: body.p_currency, amount_minor: '0' });
       return json(route, [{ id: created.id }]);
@@ -262,7 +262,7 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
     if (path.endsWith('/rpc/record_financial_event')) {
       const body = request.postDataJSON() as { p_space_id: string; p_request_id: string; p_kind: string; p_effective_date: string; p_movements: Array<{ walletId: string; amountMinor: string }> };
       eventSequence += 1;
-      const id = `general-event-${eventSequence}`;
+      const id = `e1000000-0000-4000-8000-${String(eventSequence).padStart(12, '0')}`;
       visibleEvents.unshift({ id, space_id: body.p_space_id, request_id: body.p_request_id, kind: body.p_kind, effective_date: body.p_effective_date, created_at: `2026-09-08T12:${String(eventSequence).padStart(2, '0')}:00Z`, reversal_of: null });
       for (const movement of body.p_movements) {
         visibleMovements.push({ event_id: id, space_id: body.p_space_id, wallet_id: movement.walletId, amount_minor: movement.amountMinor });
@@ -285,7 +285,7 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
         return json(route, { message: 'the requested event already has a reversal' }, 400);
       }
       eventSequence += 1;
-      const id = `reversal-event-${eventSequence}`;
+      const id = `e2000000-0000-4000-8000-${String(eventSequence).padStart(12, '0')}`;
       visibleEvents.unshift({ id, space_id: body.p_space_id, request_id: body.p_request_id, kind: 'reversal', effective_date: body.p_effective_date, created_at: `2026-09-08T13:${String(eventSequence).padStart(2, '0')}:00Z`, reversal_of: original.id });
       for (const movement of visibleMovements.filter((item) => item.event_id === original.id)) {
         const amountMinor = (-BigInt(movement.amount_minor)).toString();
@@ -297,7 +297,18 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
     }
     if (path.endsWith('/rpc/loan_monthly_plan')) return json(route, plan);
     if (path.endsWith('/rpc/loan_monthly_currency_summary')) return json(route, summary);
-    if (path.includes('/rpc/')) return json(route, [{ id: 'result-id', loan_id: 'new-loan', event_id: 'new-event' }]);
+    if (path.endsWith('/rpc/open_loan_outstanding') || path.endsWith('/rpc/record_cash_loan')) {
+      return json(route, [{
+        loan_id: 'f1000000-0000-4000-8000-000000000001',
+        event_id: 'f2000000-0000-4000-8000-000000000001',
+      }]);
+    }
+    if (path.endsWith('/rpc/record_loan_repayment')) {
+      return json(route, [{ event_id: 'f2000000-0000-4000-8000-000000000002' }]);
+    }
+    if (path.endsWith('/rpc/set_loan_monthly_target')) {
+      return json(route, [{ id: 'f3000000-0000-4000-8000-000000000001' }]);
+    }
     if (path.endsWith('/spaces')) return json(route, visibleSpaces);
     if (path.endsWith('/categories')) {
       if (categoryFailuresRemaining > 0) {
