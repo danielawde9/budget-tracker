@@ -23,6 +23,7 @@ const copy = {
     account: 'Account', signOut: 'Sign out', navigation: 'Primary navigation', workspace: 'Workspace',
     backupReadiness: 'Backup readiness',
     backupWarning: 'Do not enter real financial data until an encrypted off-site backup and a measured scratch restore are verified.',
+    backupRunbookReference: 'Operator repository reference',
   },
   ar: {
     product: 'دفتر الميزانية', currentSpace: 'المساحة الحالية', personal: 'مساحة شخصية', household: 'مساحة منزلية',
@@ -30,6 +31,7 @@ const copy = {
     account: 'الحساب', signOut: 'تسجيل الخروج', navigation: 'التنقل الرئيسي', workspace: 'مساحة العمل',
     backupReadiness: 'جاهزية النسخ الاحتياطي',
     backupWarning: 'لا تُدخل بيانات مالية حقيقية قبل التحقق من نسخة احتياطية مشفّرة خارج الجهاز واستعادة تجريبية مقاسة.',
+    backupRunbookReference: 'مرجع المستودع للمشغّل',
   },
 } as const;
 
@@ -58,6 +60,7 @@ export function ApplicationShell(props: ApplicationShellProps) {
             <aside className="backup-readiness" role="note" aria-label={text.backupReadiness}>
               <strong>{text.backupReadiness}</strong>
               <p>{text.backupWarning}</p>
+              <span>{text.backupRunbookReference}</span>
               <bdi>docs/operations/backup-restore-runbook.md</bdi>
             </aside>
             <button type="button" onClick={props.onSignOut}>{text.signOut}</button>

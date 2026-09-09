@@ -18,7 +18,7 @@ receipt.
 | Loans | Desktop + mobile / EN/AR | Overview/detail, overlays, overpayment and dependent-repayment recovery | Pass | `loans.visual.spec.ts` |
 | Categories | Desktop / EN | Create, categorized expense, archive, archived history after reload | Pass, fixture lifetime only | `private-uat.spec.ts` |
 | Categories | Desktop + mobile / EN/AR | Active registers, duplicate rejection, ambiguity, load retry, RTL history | Pass | `categories.visual.spec.ts` |
-| Backup readiness | Desktop / EN; mobile / AR | Account warning and repository runbook path reachable | Pass | `private-uat.spec.ts`, shell unit tests |
+| Backup readiness | Desktop / EN; mobile / AR | Account warning visible; operator repository reference displayed; README links runbook | Pass | `private-uat.spec.ts`, shell unit tests, `README.md` |
 | Supabase Auth/RLS | Private UAT | Real token, expiry, authorization, user isolation | **Blocked** | No environment contact authorized |
 | PostgreSQL persistence | Private UAT | Process/service restart and immutable database history | **Blocked** | In-memory fixture is not database proof |
 | Private artifact/device | Desktop + mobile / EN/AR | Exact build over private HTTPS; tailnet loss/recovery | **Blocked** | No deployment or remote host contact authorized |

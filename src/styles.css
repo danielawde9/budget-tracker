@@ -34,6 +34,7 @@ bdi, dd, strong { font-variant-numeric: tabular-nums; }
 .account-popover bdi { overflow: hidden; text-overflow: ellipsis; }
 .backup-readiness { display: grid; gap: 5px; padding-block: 10px; border-block: 1px solid #d6ddd6; }
 .backup-readiness p { margin: 0; color: #536158; font-size: .82rem; line-height: 1.45; }
+.backup-readiness span { color: #536158; font-size: .76rem; }
 .backup-readiness bdi { color: #68756c; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .7rem; overflow-wrap: anywhere; }
 .shell-main { min-width: 0; padding: 42px clamp(24px, 4.5vw, 70px) 80px; }
 .loans-workspace { width: min(1180px, 100%); margin-inline: auto; }

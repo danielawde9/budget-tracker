@@ -28,8 +28,9 @@ Therefore:
   test fixture, not database, process-restart, device, or backup persistence;
 - the production Vite build proves compilation and bundling, not deployment or
   private-device reachability;
-- the account warning and linked backup runbook prove the readiness gate is
-  reachable, not that any backup or restore exists.
+- the account warning displays an operator repository reference; the README
+  links the runbook. These prove that the readiness guidance is discoverable,
+  not that any backup or restore exists.
 
 Do not enter real financial data based on this rehearsal.
 

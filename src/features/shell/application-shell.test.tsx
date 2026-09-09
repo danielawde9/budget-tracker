@@ -37,6 +37,9 @@ describe('ApplicationShell', () => {
       'Do not enter real financial data',
     );
     expect(screen.getByRole('note', { name: 'Backup readiness' })).toHaveTextContent(
+      'Operator repository reference',
+    );
+    expect(screen.getByRole('note', { name: 'Backup readiness' })).toHaveTextContent(
       'docs/operations/backup-restore-runbook.md',
     );
     await user.click(screen.getByRole('button', { name: 'Sign out' }));
