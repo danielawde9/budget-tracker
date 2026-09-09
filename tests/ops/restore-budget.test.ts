@@ -213,6 +213,20 @@ describe('scratch-only Budget restore boundary', () => {
     expect(commands).not.toContain('pg_restore');
   });
 
+  it('rejects a scratch marker swapped after validation before restore effects', () => {
+    const { env, log, scratchMarker } = makeRestoreFixture();
+    const result = run('restore', {
+      ...env,
+      BUDGET_FAKE_SWAP_MARKER_PATH: scratchMarker,
+    });
+
+    expect(result.status).toBe(76);
+    expect(result.stderr).toContain('scratch marker is unsafe');
+    const commands = readFileSync(log, 'utf8').trimEnd().split('\n');
+    expect(commands).not.toContain('psql');
+    expect(commands).not.toContain('pg_restore');
+  });
+
   it('removes decrypted plaintext after a restore failure', () => {
     const { env, log, scratchRoot } = makeRestoreFixture();
     const result = run('restore', {

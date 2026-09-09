@@ -63,7 +63,8 @@ restore_validate_configuration() {
 
   local required_value
   for required_value in BUDGET_RECOVERY_POINT BUDGET_SCRATCH_ROOT \
-    BUDGET_SCRATCH_MARKER_PATH BUDGET_SCRATCH_PROJECT_ID BUDGET_SCRATCH_PORT \
+    BUDGET_SCRATCH_TRUSTED_PARENT BUDGET_SCRATCH_MARKER_PATH \
+    BUDGET_SCRATCH_PROJECT_ID BUDGET_SCRATCH_PORT \
     BUDGET_SCRATCH_EXPECTED_SYSTEM_ID BUDGET_SCRATCH_EXPECTED_DATABASE_OID \
     BUDGET_SCRATCH_DATABASE_NAME BUDGET_SCRATCH_POSTGRES_MAJOR \
     BUDGET_SCRATCH_REQUIRED_BYTES BUDGET_SCRATCH_AVAILABLE_BYTES \
@@ -106,25 +107,7 @@ restore_validate_configuration() {
     budget_error 'scratch restore contains a protected Sandooq/POS identifier' 76
     return
   fi
-  budget_validate_safe_path "${BUDGET_SCRATCH_ROOT}" "${BUDGET_SCRATCH_PROJECT_ID}"
-  if [[ "${BUDGET_SCRATCH_MARKER_PATH}" != "${BUDGET_SCRATCH_ROOT}/.budget-ops-marker" ]]; then
-    budget_error 'scratch marker path is unsafe' 76
-    return
-  fi
-  if [[ ! -f "${BUDGET_SCRATCH_MARKER_PATH}" ]]; then
-    budget_error 'scratch marker is missing' 76
-    return
-  fi
-
-  local scratch_marker
-  scratch_marker="$(<"${BUDGET_SCRATCH_MARKER_PATH}")"
-  if [[ "${scratch_marker}" != "budget-restore-marker-v1
-target=scratch
-project=${BUDGET_SCRATCH_PROJECT_ID}
-system_id=${BUDGET_SCRATCH_EXPECTED_SYSTEM_ID}" ]]; then
-    budget_error 'scratch marker identity mismatch' 76
-    return
-  fi
+  restore_revalidate_scratch
   if [[ ! "${BUDGET_SCRATCH_EXPECTED_SYSTEM_ID}" =~ ^[0-9]{10,22}$ ]]; then
     budget_error 'scratch system identifier is invalid' 76
     return
@@ -158,12 +141,35 @@ system_id=${BUDGET_SCRATCH_EXPECTED_SYSTEM_ID}" ]]; then
   readonly RESTORE_TARGET="scratch"
   readonly RESTORE_POINT="${BUDGET_RECOVERY_POINT}"
   readonly RESTORE_ROOT="${BUDGET_SCRATCH_ROOT}"
+  readonly RESTORE_TRUSTED_PARENT="${BUDGET_SCRATCH_TRUSTED_PARENT}"
   readonly RESTORE_TIMEOUT_BIN="${BUDGET_TIMEOUT_BIN}"
   readonly RESTORE_DB_HOST="${BUDGET_DATABASE_HOST}"
   readonly RESTORE_DB_PORT="${BUDGET_SCRATCH_PORT}"
   readonly RESTORE_DB_NAME="${BUDGET_SCRATCH_DATABASE_NAME}"
   readonly RESTORE_DB_USER="${BUDGET_DATABASE_USER}"
   readonly RESTORE_DB_OID="${BUDGET_SCRATCH_EXPECTED_DATABASE_OID}"
+}
+
+restore_revalidate_scratch() {
+  local scratch_marker
+  budget_validate_safe_path "${BUDGET_SCRATCH_ROOT}" "${BUDGET_SCRATCH_PROJECT_ID}" \
+    "${BUDGET_SCRATCH_TRUSTED_PARENT}" >/dev/null
+  if [[ "${BUDGET_SCRATCH_MARKER_PATH}" != "${BUDGET_SCRATCH_ROOT}/.budget-ops-marker" ]]; then
+    budget_error 'scratch marker path is unsafe' 76
+    return
+  fi
+  if [[ ! -e "${BUDGET_SCRATCH_MARKER_PATH}" && ! -L "${BUDGET_SCRATCH_MARKER_PATH}" ]]; then
+    budget_error 'scratch marker is missing' 76
+    return
+  fi
+  scratch_marker="$(budget_read_private_marker "${BUDGET_SCRATCH_MARKER_PATH}" 76 \
+    'scratch marker is unsafe')"
+  if [[ "${scratch_marker}" != "budget-restore-marker-v1
+target=scratch
+project=${BUDGET_SCRATCH_PROJECT_ID}
+system_id=${BUDGET_SCRATCH_EXPECTED_SYSTEM_ID}" ]]; then
+    budget_error 'scratch marker identity mismatch' 76
+  fi
 }
 
 restore_measure_database() {
@@ -256,6 +262,8 @@ restore_execute() {
   budget_assert_database_receipt "${initial_database_receipt}" \
     "${BUDGET_SCRATCH_EXPECTED_SYSTEM_ID}" "${BUDGET_SCRATCH_POSTGRES_MAJOR}" \
     "${RESTORE_DB_NAME}" "${RESTORE_DB_OID}" 1 76 >/dev/null
+  budget_revalidate_environment
+  restore_revalidate_scratch
   mkdir -p -- "${RESTORE_ROOT}/tmp"
   if ! mkdir -- "${restore_temp_dir}"; then
     budget_error 'restore temporary directory already exists' 77
@@ -335,6 +343,8 @@ restore_execute() {
   budget_assert_database_receipt "${current_database_receipt}" \
     "${BUDGET_SCRATCH_EXPECTED_SYSTEM_ID}" "${BUDGET_SCRATCH_POSTGRES_MAJOR}" \
     "${RESTORE_DB_NAME}" "${RESTORE_DB_OID}" 1 76 >/dev/null
+  budget_revalidate_environment
+  restore_revalidate_scratch
   "${RESTORE_TIMEOUT_BIN}" "${RESTORE_VERIFY_TIMEOUT_SECONDS}" \
     "${BUDGET_PSQL_BIN}" --set=ON_ERROR_STOP=on \
     --host="${RESTORE_DB_HOST}" --port="${RESTORE_DB_PORT}" \

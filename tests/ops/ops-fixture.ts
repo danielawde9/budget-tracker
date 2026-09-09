@@ -3,6 +3,7 @@ import {
   chmodSync,
   mkdirSync,
   mkdtempSync,
+  realpathSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -16,7 +17,7 @@ export function makeExecutable(path: string, body: string) {
 }
 
 export function makeBackupFixture() {
-  const base = mkdtempSync(join(tmpdir(), 'budget-ops-backup-'));
+  const base = mkdtempSync(join(realpathSync(tmpdir()), 'budget-ops-backup-'));
   const root = join(base, 'budget-live');
   const bin = join(base, 'bin');
   const log = join(base, 'commands.log');
@@ -88,6 +89,14 @@ export function makeBackupFixture() {
       'counter=$((counter + 1))',
       'printf "%s\\n" "$counter" > "$counter_file"',
       'printf "db-verify:%s\\n" "$counter" >> "$BUDGET_FAKE_LOG"',
+      'if [[ "$counter" == "1" && -n "${BUDGET_FAKE_SWAP_MARKER_PATH:-}" ]]; then',
+      '  mv -- "$BUDGET_FAKE_SWAP_MARKER_PATH" "${BUDGET_FAKE_SWAP_MARKER_PATH}.real"',
+      '  ln -s -- "${BUDGET_FAKE_SWAP_MARKER_PATH}.real" "$BUDGET_FAKE_SWAP_MARKER_PATH"',
+      'fi',
+      'if [[ "$counter" == "1" && -n "${BUDGET_FAKE_SWAP_ROOT_PATH:-}" ]]; then',
+      '  mv -- "$BUDGET_FAKE_SWAP_ROOT_PATH" "${BUDGET_FAKE_SWAP_ROOT_PATH}.real"',
+      '  ln -s -- "${BUDGET_FAKE_SWAP_ROOT_PATH}.real" "$BUDGET_FAKE_SWAP_ROOT_PATH"',
+      'fi',
       'system_id="${BUDGET_FAKE_VERIFY_SYSTEM_ID:-7000000000000000001}"',
       'database_name="${BUDGET_VERIFY_DATABASE_NAME:?}"',
       'database_oid="${BUDGET_FAKE_VERIFY_DATABASE_OID:-17001}"',

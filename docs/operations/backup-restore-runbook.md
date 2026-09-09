@@ -49,9 +49,13 @@ material.
 | live | `budget-live` | `54620-54629` |
 
 The validated root must be absolute and environment-specific, with a basename
-equal to the project. It cannot be `/`, a home root, the repository root,
-`/home/lelabo`, contain `..`, a wildcard, or an unresolved variable. Its marker
-must be exactly `<validated-root>/.budget-ops-marker`:
+equal to the project. `BUDGET_TRUSTED_PARENT` names its canonical, existing
+operator-owned parent. The configured parent and root must already equal their
+resolved paths; the parent, root, and every component between them must be real
+directories owned by the operator with no group/other permission bits. Symlink
+components are refused. The root cannot be `/`, a home root, the repository
+root, `/home/lelabo`, contain `..`, a wildcard, or an unresolved variable. Its
+marker must be exactly `<validated-root>/.budget-ops-marker`:
 
 ```text
 budget-ops-marker-v1
@@ -59,6 +63,13 @@ environment=<exact environment>
 project=<exact project>
 system_id=<exact PostgreSQL system identifier>
 ```
+
+Markers must be operator-owned regular files with mode `0600` and at most
+4 KiB. They are opened with a no-follow descriptor and matched byte-for-byte.
+The root and marker are checked again after each database identity verifier and
+immediately before database effects, so an adapter-side path or marker swap
+fails closed. Scratch applies the same rules through
+`BUDGET_SCRATCH_TRUSTED_PARENT`.
 
 The operator configures the expected system identifier and database OID. The
 tracked read-only verifier measures the system identifier, PostgreSQL server

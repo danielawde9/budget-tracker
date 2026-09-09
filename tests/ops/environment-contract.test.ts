@@ -1,8 +1,12 @@
 import { spawnSync } from 'node:child_process';
 import {
+  chmodSync,
   mkdirSync,
   mkdtempSync,
+  renameSync,
   readFileSync,
+  realpathSync,
+  symlinkSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -14,7 +18,7 @@ import { describe, expect, it } from 'vitest';
 const script = join(process.cwd(), 'scripts/ops/budget-common.sh');
 
 function fixture() {
-  const base = mkdtempSync(join(tmpdir(), 'budget-ops-environment-'));
+  const base = mkdtempSync(join(realpathSync(tmpdir()), 'budget-ops-environment-'));
   const root = join(base, 'budget-live');
   const marker = join(root, '.budget-ops-marker');
   const operationLog = join(base, 'operation.log');
@@ -130,13 +134,49 @@ describe('Budget operations environment contract', () => {
     const { env, marker } = fixture();
     unlinkSync(marker);
     const missing = run('validate-environment', env);
-    writeFileSync(marker, 'budget-ops-marker-v1\nenvironment=uat\n');
+    writeFileSync(marker, 'budget-ops-marker-v1\nenvironment=uat\n', {
+      mode: 0o600,
+    });
     const wrong = run('validate-environment', env);
 
     expect(missing.status).toBe(67);
     expect(missing.stderr).toContain('marker is missing');
     expect(wrong.status).toBe(67);
     expect(wrong.stderr).toContain('marker identity mismatch');
+  });
+
+  it('rejects a root whose configured path resolves through a symlink', () => {
+    const { env, root } = fixture();
+    const realRoot = `${root}.real`;
+    renameSync(root, realRoot);
+    symlinkSync(realRoot, root, 'dir');
+
+    const result = run('validate-environment', env);
+
+    expect(result.status).toBe(66);
+    expect(result.stderr).toContain('unsafe Budget root');
+  });
+
+  it('rejects a marker symlink instead of following it', () => {
+    const { env, marker } = fixture();
+    const realMarker = `${marker}.real`;
+    renameSync(marker, realMarker);
+    symlinkSync(realMarker, marker);
+
+    const result = run('validate-environment', env);
+
+    expect(result.status).toBe(67);
+    expect(result.stderr).toContain('environment marker is unsafe');
+  });
+
+  it('rejects a trusted parent that is writable by another account', () => {
+    const { base, env } = fixture();
+    chmodSync(base, 0o770);
+
+    const result = run('validate-environment', env);
+
+    expect(result.status).toBe(66);
+    expect(result.stderr).toContain('unsafe Budget root');
   });
 
   it('rejects a malformed expected database system identifier', () => {

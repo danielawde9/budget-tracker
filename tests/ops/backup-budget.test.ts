@@ -182,6 +182,30 @@ describe('encrypted Budget backup boundary', () => {
     expect(readFileSync(log, 'utf8')).not.toContain('pg_dump');
   });
 
+  it('rejects a marker swapped after validation before backup effects', () => {
+    const { env, log, marker } = makeBackupFixture();
+    const result = run('backup', {
+      ...env,
+      BUDGET_FAKE_SWAP_MARKER_PATH: marker,
+    });
+
+    expect(result.status).toBe(67);
+    expect(result.stderr).toContain('environment marker is unsafe');
+    expect(readFileSync(log, 'utf8').trimEnd().split('\n')).not.toContain('pg_dump');
+  });
+
+  it('rejects a root swapped after validation before backup effects', () => {
+    const { env, log, root } = makeBackupFixture();
+    const result = run('backup', {
+      ...env,
+      BUDGET_FAKE_SWAP_ROOT_PATH: root,
+    });
+
+    expect(result.status).toBe(66);
+    expect(result.stderr).toContain('unsafe Budget root');
+    expect(readFileSync(log, 'utf8').trimEnd().split('\n')).not.toContain('pg_dump');
+  });
+
   it('removes every plaintext payload when encryption fails', () => {
     const { env, log, root } = makeBackupFixture();
     const result = run('backup', { ...env, BUDGET_FAKE_AGE_FAIL: '1' });

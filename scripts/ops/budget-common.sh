@@ -24,20 +24,81 @@ budget_is_protected_identifier() {
 budget_validate_safe_path() {
   local path="${1:-}"
   local expected_basename="${2:-}"
+  local trusted_parent="${3:-}"
 
   if [[ -z "${path}" || "${path}" != /* || "${path}" == '/' || \
     "${path}" == '/home/lelabo' || "${path}" == '~' || \
     "${path}" == "${HOME:-__unset_home__}" || \
-    "${path}" == "${BUDGET_OPS_REPO_ROOT}" || \
+    "${path}" == "${BUDGET_OPS_REPO_ROOT}" || -z "${trusted_parent}" || \
+    "${trusted_parent}" != /* || \
     "${path}" == *'$'* || "${path}" == *'{'* || "${path}" == *'}'* || \
     "${path}" == *'*'* || "${path}" == *'?'* || "${path}" == *'['* || \
-    "${path}" == *'/../'* || "${path}" == */.. ]]; then
+    "${path}" == *'/../'* || "${path}" == */.. || \
+    "${path}" == *$'\n'* || "${trusted_parent}" == *$'\n'* ]]; then
     budget_error 'unsafe Budget root' 66
     return
   fi
 
   if [[ -n "${expected_basename}" && "${path##*/}" != "${expected_basename}" ]]; then
     budget_error 'unsafe Budget root' 66
+    return
+  fi
+
+  if ! /usr/bin/perl -MCwd=abs_path -MFcntl=:mode -e '
+    alarm 5;
+    my ($path, $trusted_parent, $expected_basename) = @ARGV;
+    my $resolved_path = abs_path($path);
+    my $resolved_parent = abs_path($trusted_parent);
+    exit 1 unless defined $resolved_path && defined $resolved_parent;
+    exit 1 unless $resolved_path eq $path && $resolved_parent eq $trusted_parent;
+    exit 1 unless index($path, "$trusted_parent/") == 0;
+    my $relative = substr($path, length($trusted_parent) + 1);
+    my @parts = split m{/}, $relative, -1;
+    exit 1 unless @parts && $parts[-1] eq $expected_basename;
+    my $cursor = $trusted_parent;
+    for my $part ("", @parts) {
+      if (length $part) {
+        exit 1 if $part eq "." || $part eq ".." || !length $part;
+        $cursor .= "/$part";
+      }
+      my @details = lstat($cursor);
+      exit 1 unless @details && S_ISDIR($details[2]);
+      exit 1 unless $details[4] == $<;
+      exit 1 unless (($details[2] & 0077) == 0);
+    }
+  ' "${path}" "${trusted_parent}" "${expected_basename}"; then
+    budget_error 'unsafe Budget root' 66
+    return
+  fi
+
+  printf '%s\n' "${path}"
+}
+
+budget_read_private_marker() {
+  local marker="${1:-}"
+  local status="${2:-67}"
+  local unsafe_message="${3:-environment marker is unsafe}"
+
+  if [[ -z "${marker}" || ( ! -e "${marker}" && ! -L "${marker}" ) ]]; then
+    return 2
+  fi
+  if ! /usr/bin/perl -MFcntl=:DEFAULT,O_NOFOLLOW,:mode -e '
+    alarm 5;
+    my ($path) = @ARGV;
+    my @before = lstat($path);
+    exit 1 unless @before && S_ISREG($before[2]);
+    exit 1 unless $before[4] == $< && (($before[2] & 0777) == 0600);
+    exit 1 unless $before[7] <= 4096;
+    sysopen(my $handle, $path, O_RDONLY | O_NOFOLLOW) or exit 1;
+    my @opened = stat($handle);
+    exit 1 unless @opened && $opened[0] == $before[0] && $opened[1] == $before[1];
+    local $/;
+    my $contents = <$handle>;
+    exit 1 unless defined $contents && length($contents) <= 4096;
+    print $contents;
+  ' "${marker}"; then
+    budget_error "${unsafe_message}" "${status}"
+    return
   fi
 }
 
@@ -86,7 +147,8 @@ budget_validate_environment() {
   local network="${BUDGET_NETWORK:-}"
   local port_range="${BUDGET_PORT_RANGE:-}"
   local expected_system_id="${BUDGET_EXPECTED_SYSTEM_ID:-}"
-  local expected_project expected_port marker_contents
+  local trusted_parent="${BUDGET_TRUSTED_PARENT:-}"
+  local expected_project expected_port marker_contents canonical_root
 
   case "${environment}" in
     development|uat|live) ;;
@@ -97,7 +159,7 @@ budget_validate_environment() {
   esac
 
   for value in "${root}" "${marker}" "${project}" "${hostname}" "${volume}" \
-    "${network}" "${port_range}" "${expected_system_id}"; do
+    "${network}" "${port_range}" "${expected_system_id}" "${trusted_parent}"; do
     if budget_is_protected_identifier "${value}"; then
       budget_error 'protected Sandooq/POS identifier refused' 65
       return
@@ -120,7 +182,7 @@ budget_validate_environment() {
     return
   fi
 
-  budget_validate_safe_path "${root}" "${project}"
+  canonical_root="$(budget_validate_safe_path "${root}" "${project}" "${trusted_parent}")"
   if [[ "${marker}" != "${root}/.budget-ops-marker" ]]; then
     budget_error 'unsafe Budget root' 66
     return
@@ -130,11 +192,11 @@ budget_validate_environment() {
     return
   fi
 
-  if [[ ! -f "${marker}" ]]; then
+  if [[ ! -e "${marker}" && ! -L "${marker}" ]]; then
     budget_error 'environment marker is missing' 67
     return
   fi
-  marker_contents="$(<"${marker}")"
+  marker_contents="$(budget_read_private_marker "${marker}" 67 'environment marker is unsafe')"
   if [[ "${marker_contents}" != "budget-ops-marker-v1
 environment=${environment}
 project=${project}
@@ -143,10 +205,28 @@ system_id=${expected_system_id}" ]]; then
     return
   fi
   readonly BUDGET_VALIDATED_ENV="${environment}"
-  readonly BUDGET_VALIDATED_ROOT="${root}"
+  readonly BUDGET_VALIDATED_ROOT="${canonical_root}"
+  readonly BUDGET_VALIDATED_TRUSTED_PARENT="${trusted_parent}"
   readonly BUDGET_VALIDATED_PROJECT="${project}"
   readonly BUDGET_VALIDATED_SYSTEM_ID="${expected_system_id}"
   printf '%s\n' "validated Budget ${environment} target"
+}
+
+budget_revalidate_environment() {
+  local marker_contents
+  budget_validate_safe_path "${BUDGET_VALIDATED_ROOT}" "${BUDGET_VALIDATED_PROJECT}" \
+    "${BUDGET_VALIDATED_TRUSTED_PARENT}" >/dev/null
+  marker_contents="$(budget_read_private_marker "${BUDGET_MARKER_PATH}" 67 \
+    'environment marker is unsafe')" || {
+      if [[ $? -eq 2 ]]; then budget_error 'environment marker is missing' 67; fi
+      return 67
+    }
+  if [[ "${marker_contents}" != "budget-ops-marker-v1
+environment=${BUDGET_VALIDATED_ENV}
+project=${BUDGET_VALIDATED_PROJECT}
+system_id=${BUDGET_VALIDATED_SYSTEM_ID}" ]]; then
+    budget_error 'environment marker identity mismatch' 67
+  fi
 }
 
 budget_assert_database_receipt() {

@@ -200,6 +200,7 @@ backup_execute() {
   budget_assert_database_receipt "${initial_database_receipt}" \
     "${BUDGET_VALIDATED_SYSTEM_ID}" "${BUDGET_POSTGRES_MAJOR}" \
     "${BACKUP_DB_NAME}" "${BACKUP_DB_OID}" 0 68 >/dev/null
+  budget_revalidate_environment
   backup_started_at="$("${BACKUP_TIMEOUT_BIN}" "${BACKUP_HASH_TIMEOUT_SECONDS}" \
     "${BUDGET_CLOCK_BIN}")"
 
@@ -225,6 +226,7 @@ backup_execute() {
   budget_assert_database_receipt "${current_database_receipt}" \
     "${BUDGET_VALIDATED_SYSTEM_ID}" "${BUDGET_POSTGRES_MAJOR}" \
     "${BACKUP_DB_NAME}" "${BACKUP_DB_OID}" 0 68 >/dev/null
+  budget_revalidate_environment
 
   "${BACKUP_TIMEOUT_BIN}" "${BACKUP_TIMEOUT_SECONDS}" \
     "${BUDGET_PG_DUMP_BIN}" --format=custom --compress=9 \
