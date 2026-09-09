@@ -26,13 +26,13 @@ receipt.
 
 ## Verification receipt
 
-Code/docs candidate: `0ebe5cf` (the following evidence update changes only this
-matrix and removes one extra blank line from the plan).
+Code/docs candidate: `c9f9608` (the following evidence update changes only this
+matrix).
 
 | Check | Result |
 | --- | --- |
 | `pnpm install --offline --frozen-lockfile` | Pass; already current, no network download |
-| `pnpm check:ops` | Pass; 7 files, 152 tests; secret scan passed for 150 tracked files |
+| `pnpm check:ops` | Pass; 7 files, 152 tests; secret scan passed for 151 tracked files |
 | Shell static analysis | Blocked; `shellcheck` is not installed; Bash syntax checks passed |
 | `pnpm typecheck` | Pass |
 | `pnpm test:ui` | Pass; 23 files, 271 tests |
@@ -47,12 +47,12 @@ matrix and removes one extra blank line from the plan).
 Production build SHA-256 values:
 
 ```text
-fa3adde2796a1daff18303d6b7045751059cfa2f653929e5438a6da4a0676866  dist/index.html
-3f71fb129f00d0e45520f2b90521ad7556fd2aef44b222f368770e65830c39b3  dist/assets/categories-page-CHY-qjZG.js
-15ae1a7701ecc3b1d9de979d9f1ed2fa1b4e7e8e4b5443dfbf95f00e91dfb07b  dist/assets/dialog-shell-iz08xc-Y.js
-fbef30ebd24f756d9061002d8f32063b053b34e4ad54246ae79a586dfef75a92  dist/assets/index-CdWfb-fA.js
-29d981a12eac7b6b60b25f35466efaf217dd0a020ed1c953c8e5e046f9402813  dist/assets/index-CgBOJgQr.css
-4fdccebb12e7fbe838180662f22e6598efadaddc75c77eb9be32b0bdf83f96f4  dist/assets/wallets-page-DfMxYUvu.js
+aa0ec7f002c01d5bb0d428d327bbd704fbba1a1764af0ebc93757459fdb7440e  dist/index.html
+9d771676c8cbc9ce1ee44251c1164d734cd05acc1e63dab3a2fb76d1a14a0a48  dist/assets/categories-page-CmuvPxE-.js
+df6b0f7f083aefca0afc5846dcd5e7d1afdd32d39bf10bb3b97ef680f807b453  dist/assets/dialog-shell-CMZSQLEg.js
+4eba3e3a116ad6ebc37ef35bb45c000ed83d2990ad235aff9b5d35ae87e704d3  dist/assets/index-BoxGXpGv.css
+f519e7b235a6fde6c3e5089dbf4d974a3415b27a9be6f23c822afc74a80b4f1b  dist/assets/index-DTX77Y34.js
+17ebdd1ac2b8fca807d6550a1a3a965060d7933f674432d57e837a56b3b847c4  dist/assets/wallets-page-CeYjOLJM.js
 ```
 
 Ready for private live authenticated UAT: **No**.
