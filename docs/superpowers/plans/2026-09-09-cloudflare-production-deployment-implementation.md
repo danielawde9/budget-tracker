@@ -488,26 +488,25 @@ Expected: `origin/main` advances to the exact reviewed commit. If Cloudflare's c
 
 - [ ] **Step 6: Build with protected values and deploy once**
 
-Load the intended values from the ignored local environment without printing
-them, map the current `VITE_SUPABASE_PUBLISHABLE_KEY` value to the required
-`VITE_SUPABASE_ANON_KEY` only for this process when necessary, and run:
+Load the intended values without printing them. If ignored `.env.local` uses
+the legacy `VITE_SUPABASE_PUBLISHABLE_KEY` name, rename only that assignment's
+variable name to `VITE_SUPABASE_ANON_KEY` in the local file, preserving its
+value. Delete the legacy entry entirely before the build; `loadEnv` rereads
+`.env.local`, so process-only mapping cannot hide it. Do not source/export the
+legacy key and do not rely on a final `unset` to report build success. Then run:
 
 ```bash
-set -a
-source ./.env.local
-set +a
-if [[ -z "${VITE_SUPABASE_ANON_KEY:-}" && -n "${VITE_SUPABASE_PUBLISHABLE_KEY:-}" ]]; then
-  export VITE_SUPABASE_ANON_KEY="${VITE_SUPABASE_PUBLISHABLE_KEY}"
-fi
 pnpm build:cloudflare
-unset VITE_SUPABASE_ANON_KEY VITE_SUPABASE_PUBLISHABLE_KEY VITE_SUPABASE_URL
+pnpm deploy:cloudflare:dry-run
 ```
 
-If the push started the connected Workers Build, wait for that one build and do
-not run a second deployment. If no connected build started, run
-`pnpm deploy:cloudflare` once after the local build. Expected: exactly one path
-publishes a new version and reports its workers.dev HTTPS origin. Do not add a
-custom route or domain during this operation.
+Both commands must succeed immediately before deployment. If the push started
+the connected Workers Build, wait for that one build and do not run a second
+deployment. If no connected build started, run `pnpm deploy:cloudflare` once;
+the script rebuilds and dry-runs again before its local Wrangler deployment, so
+stale `dist/` cannot publish. Expected: exactly one path publishes a new version
+and reports its workers.dev HTTPS origin. Do not add a custom route or domain
+during this operation.
 
 - [ ] **Step 7: Verify the deployed commit and browser boundary**
 

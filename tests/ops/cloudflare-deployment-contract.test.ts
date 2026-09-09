@@ -11,7 +11,9 @@ describe('Cloudflare deployment contract', () => {
     expect(packageJson.scripts['deploy:cloudflare:dry-run']).toBe(
       'pnpm exec wrangler deploy --dry-run',
     );
-    expect(packageJson.scripts['deploy:cloudflare']).toBe('pnpm exec wrangler deploy');
+    expect(packageJson.scripts['deploy:cloudflare']).toBe(
+      'pnpm build:cloudflare && pnpm deploy:cloudflare:dry-run && pnpm exec wrangler deploy',
+    );
     expect(JSON.stringify(packageJson)).not.toContain('npx wrangler');
   });
 
@@ -52,9 +54,15 @@ describe('Cloudflare deployment contract', () => {
     expect(runbook).toContain('VITE_SUPABASE_URL');
     expect(runbook).toContain('VITE_SUPABASE_ANON_KEY');
     expect(runbook).toContain('pnpm deploy:cloudflare:dry-run');
-    expect(runbook).toContain('pnpm deploy:cloudflare');
-    expect(runbook).toContain('main');
+    expect(runbook).toContain('```bash\npnpm deploy:cloudflare\n```');
+    expect(runbook).toContain('The Cloudflare production branch is `main`.');
     expect(runbook).toContain('synthetic or replaceable data');
+    expect(runbook).toContain('`VITE_SUPABASE_PUBLISHABLE_KEY` must be absent');
+    expect(runbook).toContain('Do not source and export the legacy value');
+    expect(runbook).toContain(
+      'A successful `pnpm build:cloudflare` and `pnpm deploy:cloudflare:dry-run` are hard prerequisites',
+    );
+    expect(runbook).toContain('`env -u DEBUG`');
     expect(runbook).not.toContain('VITE_SUPABASE_PUBLISHABLE_KEY=');
     expect(runbook).not.toContain('npx wrangler');
   });

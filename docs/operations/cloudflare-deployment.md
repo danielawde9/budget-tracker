@@ -32,6 +32,19 @@ surface; it is not a privileged credential. A Supabase service-role key is
 forbidden in the browser, Vite variables, Cloudflare static assets, and this
 deployment path.
 
+### Local legacy-name migration
+
+The exact local build name is `VITE_SUPABASE_ANON_KEY`. If an ignored
+`.env.local` still uses the legacy `VITE_SUPABASE_PUBLISHABLE_KEY`, edit that
+file locally without printing its value: change only the variable name on its
+existing assignment to `VITE_SUPABASE_ANON_KEY`, then save it. The legacy
+`VITE_SUPABASE_PUBLISHABLE_KEY` must be absent from `.env.local` afterwards.
+
+Do not source and export the legacy value to map it temporarily. Vite's strict
+preflight loads `.env.local` again, so a legacy entry remains visible even when
+it is unset from the calling shell. Start a clean shell after the name-only
+migration; `pnpm build:cloudflare` reads the canonical local file directly.
+
 With the protected variables present, produce the deployable static bundle:
 
 ```bash
@@ -39,7 +52,9 @@ pnpm build:cloudflare
 ```
 
 This validates the approved variable names before running the production Vite
-build. A successful build proves only that the repository can produce `dist/`;
+build. It runs both stages with `env -u DEBUG` so Vite debug environment output
+cannot disclose release values. A successful build proves only that the
+repository can produce `dist/`;
 it does not prove a deployed route, Auth session, RLS decision, persistence,
 backup, or recovery operation.
 
@@ -51,8 +66,14 @@ First inspect the generated release without changing Cloudflare:
 pnpm deploy:cloudflare:dry-run
 ```
 
-After a responsible owner has approved the release and the dry-run output,
-perform the first workers.dev deployment with:
+A successful `pnpm build:cloudflare` and `pnpm deploy:cloudflare:dry-run` are hard prerequisites before deployment. The standalone deploy script repeats both
+checks with `&&` before invoking local Wrangler, so an old `dist/` directory
+cannot publish if either prerequisite fails. Do not append a final `unset` or
+other successful cleanup command to a failed build: that can mask the failure
+and make stale artifacts appear deployable.
+
+After a responsible owner has approved the successful build and dry-run,
+perform the first workers.dev deployment with the complete standalone command:
 
 ```bash
 pnpm deploy:cloudflare

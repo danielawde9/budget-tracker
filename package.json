@@ -18,7 +18,7 @@
     "check:cloudflare-env": "node scripts/cloudflare/check-build-environment.mjs",
     "build:cloudflare": "env -u DEBUG pnpm check:cloudflare-env && env -u DEBUG pnpm build",
     "deploy:cloudflare:dry-run": "pnpm exec wrangler deploy --dry-run",
-    "deploy:cloudflare": "pnpm exec wrangler deploy",
+    "deploy:cloudflare": "pnpm build:cloudflare && pnpm deploy:cloudflare:dry-run && pnpm exec wrangler deploy",
     "check:ui": "pnpm typecheck && pnpm test:ui && pnpm build",
     "check:uat:scope": "bash scripts/check-private-uat-scope.sh",
     "check:uat:offline": "pnpm check:uat:scope && pnpm check:ops && pnpm typecheck && pnpm test:ui && pnpm build && pnpm test:e2e",
