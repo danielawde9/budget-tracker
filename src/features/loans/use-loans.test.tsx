@@ -51,41 +51,77 @@ describe('useLoans controlled space loading', () => {
     await waitFor(() => expect(result.current.dashboard?.space.id).toBe(householdSpace.id));
   });
 
-  it.each([
-    ['null data', null, /exactly one result/],
-    ['zero rows', [], /exactly one result/],
-    ['multiple rows', [
-      { loan_id: '11111111-1111-4111-8111-111111111111', event_id: '22222222-2222-4222-8222-222222222222' },
-      { loan_id: '33333333-3333-4333-8333-333333333333', event_id: '44444444-4444-4444-8444-444444444444' },
-    ], /exactly one result/],
-    ['a null row', [null], /invalid row/],
-    ['a missing loan identifier', [{ event_id: '22222222-2222-4222-8222-222222222222' }], /missing loan_id/],
-    ['a missing event identifier', [{ loan_id: '11111111-1111-4111-8111-111111111111' }], /missing event_id/],
-    ['a null identifier', [{ loan_id: null, event_id: '22222222-2222-4222-8222-222222222222' }], /missing loan_id/],
-    ['a malformed identifier', [{ loan_id: 'loan-1', event_id: '22222222-2222-4222-8222-222222222222' }], /invalid loan_id/],
-  ] as const)('does not refresh or report success when loan creation returns %s', async (_label, response, message) => {
-    const adapter = createSupabaseLoansGateway({
-      from() { throw new Error('Loan query access is not used by this command test.'); },
-      async rpc() { return { data: response === null ? null : [...response], error: null }; },
+  describe.each([
+    ['opening loan', ['loan_id', 'event_id']],
+    ['cash loan', ['loan_id', 'event_id']],
+    ['repayment', ['event_id']],
+    ['monthly target', ['id']],
+    ['reversal', ['id']],
+  ] as const)('%s command boundary', (command, requiredKeys) => {
+    const validRow: Record<string, string> = Object.fromEntries(requiredKeys.map((key, index) => [
+      key,
+      `${index + 1}1111111-1111-4111-8111-111111111111`,
+    ]));
+    const identifierCases: Array<[string, readonly unknown[], RegExp]> = requiredKeys.flatMap((key) => {
+      const missing = Object.fromEntries(Object.entries(validRow).filter(([candidate]) => candidate !== key));
+      return [
+        [`a missing ${key}`, [missing], new RegExp(`missing ${key}`)],
+        [`a null ${key}`, [{ ...validRow, [key]: null }], new RegExp(`missing ${key}`)],
+        [`a malformed ${key}`, [{ ...validRow, [key]: 'not-a-uuid' }], new RegExp(`invalid ${key}`)],
+      ];
     });
-    const loadDashboard = vi.fn(async () => loansFixture(personalSpace));
-    const service: LoansGateway = {
-      listSpaces: vi.fn(async () => [personalSpace]),
-      loadDashboard,
-      createLoan: adapter.createLoan,
-      recordRepayment: adapter.recordRepayment,
-      setMonthlyTarget: adapter.setMonthlyTarget,
-      reverseEvent: adapter.reverseEvent,
-    };
-    const { result } = renderHook(() => useLoans(service, { spaceId: personalSpace.id }));
-    await waitFor(() => expect(result.current.dashboard?.space.id).toBe(personalSpace.id));
+    const responses: Array<[string, readonly unknown[] | null, RegExp]> = [
+      ['null data', null, /exactly one result/],
+      ['zero rows', [], /exactly one result/],
+      ['multiple rows', [validRow, validRow], /exactly one result/],
+      ['a null row', [null], /invalid row/],
+      ...identifierCases,
+    ];
 
-    await act(async () => {
-      await expect(result.current.createLoan({
-        mode: 'opening', spaceId: personalSpace.id, direction: 'they_owe_me', personName: 'Maya',
-        currency: 'USD', amountMinor: '12500', effectiveDate: '2026-09-01', dueDate: null, note: null,
-      })).rejects.toThrow(message);
+    it.each(responses)('does not refresh or report success when the RPC returns %s', async (_label, response, message) => {
+      const adapter = createSupabaseLoansGateway({
+        from() { throw new Error('Loan query access is not used by this command test.'); },
+        async rpc() { return { data: response === null ? null : [...response], error: null }; },
+      });
+      const loadDashboard = vi.fn(async () => loansFixture(personalSpace));
+      const service: LoansGateway = {
+        listSpaces: vi.fn(async () => [personalSpace]),
+        loadDashboard,
+        createLoan: adapter.createLoan,
+        recordRepayment: adapter.recordRepayment,
+        setMonthlyTarget: adapter.setMonthlyTarget,
+        reverseEvent: adapter.reverseEvent,
+      };
+      const { result } = renderHook(() => useLoans(service, { spaceId: personalSpace.id }));
+      await waitFor(() => expect(result.current.dashboard?.space.id).toBe(personalSpace.id));
+
+      const invoke = command === 'opening loan'
+        ? () => result.current.createLoan({
+            mode: 'opening', spaceId: personalSpace.id, direction: 'they_owe_me', personName: 'Maya',
+            currency: 'USD', amountMinor: '12500', effectiveDate: '2026-09-01', dueDate: null, note: null,
+          })
+        : command === 'cash loan'
+          ? () => result.current.createLoan({
+              mode: 'cash', spaceId: personalSpace.id, direction: 'i_owe_them', personName: 'Omar',
+              currency: 'USD', walletId: 'wallet-1', amountMinor: '12500', effectiveDate: '2026-09-01',
+              dueDate: null, note: null,
+            })
+          : command === 'repayment'
+            ? () => result.current.recordRepayment({
+                spaceId: personalSpace.id, loanId: 'loan-1', walletId: 'wallet-1',
+                amountMinor: '2500', effectiveDate: '2026-09-02',
+              })
+            : command === 'monthly target'
+              ? () => result.current.setMonthlyTarget({
+                  spaceId: personalSpace.id, loanId: 'loan-1', month: '2026-09-01', targetMinor: '5000',
+                })
+              : () => result.current.reverseEvent({
+                  spaceId: personalSpace.id, eventId: 'event-1', effectiveDate: '2026-09-03',
+                });
+      await act(async () => {
+        await expect(invoke()).rejects.toThrow(message);
+      });
+      expect(loadDashboard).toHaveBeenCalledOnce();
     });
-    expect(loadDashboard).toHaveBeenCalledOnce();
   });
 });

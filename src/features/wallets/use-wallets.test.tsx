@@ -73,31 +73,47 @@ describe('useWallets', () => {
     expect(result.current.wallets[0]?.name).toBe('Daily');
   });
 
-  it.each([
-    ['null data', null, /exactly one result/],
-    ['zero rows', [], /exactly one result/],
-    ['multiple rows', [
-      { id: '11111111-1111-4111-8111-111111111111' },
-      { id: '22222222-2222-4222-8222-222222222222' },
-    ], /exactly one result/],
-    ['a null row', [null], /invalid row/],
-    ['a missing identifier', [{}], /missing id/],
-    ['a null identifier', [{ id: null }], /missing id/],
-    ['a malformed identifier', [{ id: 'wallet-new' }], /invalid id/],
-  ] as const)('does not refresh or report success when wallet creation returns %s', async (_label, response, message) => {
-    const adapter = createSupabaseWalletsGateway({
-      from() { throw new Error('Wallet query access is not used by this command test.'); },
-      async rpc() { return { data: response === null ? null : [...response], error: null }; },
-    });
-    const loadSnapshot = vi.fn(async () => emptySnapshot);
-    const service = gateway({ loadSnapshot, createWallet: adapter.createWallet });
-    const { result } = renderHook(() => useWallets(service, 'space-1'));
-    await waitFor(() => expect(result.current.status).toBe('ready'));
+  describe.each(['wallet creation', 'event posting', 'event reversal'] as const)('%s command boundary', (command) => {
+    it.each([
+      ['null data', null, /exactly one result/],
+      ['zero rows', [], /exactly one result/],
+      ['multiple rows', [
+        { id: '11111111-1111-4111-8111-111111111111' },
+        { id: '22222222-2222-4222-8222-222222222222' },
+      ], /exactly one result/],
+      ['a null row', [null], /invalid row/],
+      ['a missing identifier', [{}], /missing id/],
+      ['a null identifier', [{ id: null }], /missing id/],
+      ['a malformed identifier', [{ id: 'wallet-new' }], /invalid id/],
+    ] as const)('does not refresh or report success when the RPC returns %s', async (_label, response, message) => {
+      const adapter = createSupabaseWalletsGateway({
+        from() { throw new Error('Wallet query access is not used by this command test.'); },
+        async rpc() { return { data: response === null ? null : [...response], error: null }; },
+      });
+      const loadSnapshot = vi.fn(async () => emptySnapshot);
+      const service = gateway({
+        loadSnapshot,
+        createWallet: adapter.createWallet,
+        recordEvent: adapter.recordEvent,
+        reverseEvent: adapter.reverseEvent,
+      });
+      const { result } = renderHook(() => useWallets(service, 'space-1', undefined, () => 'request-fixed'));
+      await waitFor(() => expect(result.current.status).toBe('ready'));
 
-    await act(async () => {
-      await expect(result.current.createWallet({ name: 'Daily', currency: 'USD' })).rejects.toThrow(message);
+      const invoke = command === 'wallet creation'
+        ? () => result.current.createWallet({ name: 'Daily', currency: 'USD' })
+        : command === 'event posting'
+          ? () => result.current.recordEvent({
+              kind: 'income', effectiveDate: '2026-09-08',
+              movements: [{ walletId: 'wallet-1', amountMinor: '500' }],
+            })
+          : () => result.current.reverseEvent({ eventId: 'event-1', effectiveDate: '2026-09-09' });
+      await act(async () => {
+        await expect(invoke()).rejects.toThrow(message);
+      });
+      expect(loadSnapshot).toHaveBeenCalledOnce();
+      expect(result.current.ambiguous).toBeNull();
     });
-    expect(loadSnapshot).toHaveBeenCalledOnce();
   });
 
   it('enriches categorized history while reconciling an ambiguous wallet creation without replaying it', async () => {
