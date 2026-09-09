@@ -257,15 +257,21 @@ restore_cleanup() {
   local status=$?
   trap - EXIT INT TERM HUP
   if [[ "${restore_temp_created:-0}" == '1' ]]; then
-    rm -f -- "${restore_manifest}" "${restore_archive_cipher}" \
-      "${restore_roles_cipher}" "${restore_catalog_cipher}" \
-      "${restore_archive_plain}" "${restore_roles_plain}" \
-      "${restore_catalog_plain}" "${restore_roles_filtered}" \
-      "${restore_archive_list}"
-    rmdir -- "${restore_temp_dir}" 2>/dev/null || true
+    if budget_validate_private_descendant "${RESTORE_ROOT}" \
+      "${restore_temp_relative}" "${restore_deadline}" 76 >/dev/null; then
+      rm -f -- "${restore_manifest}" "${restore_archive_cipher}" \
+        "${restore_roles_cipher}" "${restore_catalog_cipher}" \
+        "${restore_archive_plain}" "${restore_roles_plain}" \
+        "${restore_catalog_plain}" "${restore_roles_filtered}" \
+        "${restore_archive_list}"
+      rmdir -- "${restore_temp_dir}" 2>/dev/null || true
+    fi
   fi
   if [[ "${restore_lock_acquired:-0}" == '1' ]]; then
-    rmdir -- "${restore_lock_dir}" 2>/dev/null || true
+    if budget_validate_private_descendant "${RESTORE_ROOT}" \
+      "${restore_lock_relative}" "${restore_deadline}" 76 >/dev/null; then
+      rmdir -- "${restore_lock_dir}" 2>/dev/null || true
+    fi
   fi
   budget_cleanup_executable_snapshot_dir "${restore_exec_dir:-}"
   exit "${status}"
@@ -311,7 +317,9 @@ restore_execute() {
   restore_validate_configuration
 
   local restore_lock_dir="${RESTORE_ROOT}/locks/restore-scratch.lock"
+  local restore_lock_relative='locks/restore-scratch.lock'
   local restore_temp_dir="${RESTORE_ROOT}/tmp/${RESTORE_POINT}.restore"
+  local restore_temp_relative="tmp/${RESTORE_POINT}.restore"
   local restore_manifest="${restore_temp_dir}/manifest.txt"
   local restore_archive_cipher="${restore_temp_dir}/archive.dump.age"
   local restore_roles_cipher="${restore_temp_dir}/roles.sql.age"
@@ -322,12 +330,15 @@ restore_execute() {
   local restore_roles_filtered="${restore_temp_dir}/roles.allowlisted.sql"
   local restore_archive_list="${restore_temp_dir}/archive.list"
   local initial_database_receipt current_database_receipt
-  mkdir -p -- "${RESTORE_ROOT}/locks"
+  budget_ensure_private_descendant "${RESTORE_ROOT}" locks \
+    "${restore_deadline}" 76 >/dev/null
   if ! mkdir -- "${restore_lock_dir}" 2>/dev/null; then
     budget_error 'restore is already running' 77
     return
   fi
   restore_lock_acquired=1
+  budget_validate_private_descendant "${RESTORE_ROOT}" "${restore_lock_relative}" \
+    "${restore_deadline}" 76 >/dev/null
   export PGPASSFILE="${BUDGET_PGPASS_FILE}"
   initial_database_receipt="$(restore_measure_database)"
   budget_assert_database_receipt "${initial_database_receipt}" \
@@ -335,15 +346,20 @@ restore_execute() {
     "${RESTORE_DB_NAME}" "${RESTORE_DB_OID}" 1 76 >/dev/null
   budget_revalidate_environment
   restore_revalidate_scratch
-  mkdir -p -- "${RESTORE_ROOT}/tmp"
+  budget_ensure_private_descendant "${RESTORE_ROOT}" tmp \
+    "${restore_deadline}" 76 >/dev/null
   if ! mkdir -- "${restore_temp_dir}"; then
     budget_error 'restore temporary directory already exists' 77
     return
   fi
   restore_temp_created=1
+  budget_validate_private_descendant "${RESTORE_ROOT}" "${restore_temp_relative}" \
+    "${restore_deadline}" 76 >/dev/null
 
   local filename local_path object_key local_size local_hash offsite_receipt
   for filename in manifest.txt archive.dump.age roles.sql.age catalog.txt.age; do
+    budget_validate_private_descendant "${RESTORE_ROOT}" "${restore_temp_relative}" \
+      "${restore_deadline}" 76 >/dev/null
     local_path="${restore_temp_dir}/${filename}"
     object_key="${RESTORE_POINT}/${filename}"
     offsite_receipt="$(restore_run "${BUDGET_OFFSITE_BIN}" get \
@@ -354,6 +370,9 @@ restore_execute() {
       "${BUDGET_OFFSITE_PROVIDER_ID}" "${object_key}" "${local_size}" \
       "${local_hash}" 78 >/dev/null
   done
+
+  budget_validate_private_descendant "${RESTORE_ROOT}" "${restore_temp_relative}" \
+    "${restore_deadline}" 76 >/dev/null
 
   local trusted_manifest_hash
   trusted_manifest_hash="$(restore_hash "${restore_manifest}")"
@@ -404,6 +423,8 @@ restore_execute() {
     -o "${restore_roles_plain}" "${restore_roles_cipher}"
   restore_run "${BUDGET_AGE_BIN}" -d -i "${BUDGET_AGE_IDENTITY_FILE}" \
     -o "${restore_catalog_plain}" "${restore_catalog_cipher}"
+  budget_validate_private_descendant "${RESTORE_ROOT}" "${restore_temp_relative}" \
+    "${restore_deadline}" 76 >/dev/null
   budget_require_private_artifact "${restore_archive_plain}" 78
   budget_require_private_artifact "${restore_roles_plain}" 78
   budget_require_private_artifact "${restore_catalog_plain}" 78
@@ -427,6 +448,8 @@ restore_execute() {
     "${RESTORE_DB_NAME}" "${RESTORE_DB_OID}" 1 76 >/dev/null
   budget_revalidate_environment
   restore_revalidate_scratch
+  budget_validate_private_descendant "${RESTORE_ROOT}" "${restore_temp_relative}" \
+    "${restore_deadline}" 76 >/dev/null
   restore_run "${BUDGET_PSQL_BIN}" --set=ON_ERROR_STOP=on \
     --host="${RESTORE_DB_HOST}" --port="${RESTORE_DB_PORT}" \
     --username="${RESTORE_DB_USER}" --dbname="${RESTORE_DB_NAME}" \

@@ -6,6 +6,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  symlinkSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -191,6 +192,7 @@ describe('scratch-only Budget restore boundary', () => {
     const { env, log, scratchRoot } = makeRestoreFixture();
     mkdirSync(join(scratchRoot, 'locks', 'restore-scratch.lock'), {
       recursive: true,
+      mode: 0o700,
     });
     const result = run('restore', env);
 
@@ -318,6 +320,21 @@ describe('scratch-only Budget restore boundary', () => {
     const commands = readFileSync(log, 'utf8').trimEnd().split('\n');
     expect(commands).not.toContain('psql');
     expect(commands).not.toContain('pg_restore');
+  });
+
+  it('refuses a scratch tmp symlink without writing outside the validated root', () => {
+    const { env, offsiteRoot, scratchRoot } = makeRestoreFixture();
+    const outside = join(offsiteRoot, 'outside-restore-tmp');
+    mkdirSync(outside, { mode: 0o700 });
+    symlinkSync(outside, join(scratchRoot, 'tmp'), 'dir');
+
+    const result = run('restore', env);
+
+    expect(result.status).toBe(76);
+    expect(result.stderr).toContain('unsafe Budget descendant');
+    expect(
+      existsSync(join(outside, '2026-09-09T021500Z-fixture.restore')),
+    ).toBe(false);
   });
 
   it('removes decrypted plaintext after a restore failure', () => {

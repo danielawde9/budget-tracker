@@ -195,16 +195,25 @@ backup_cleanup() {
   trap - EXIT INT TERM HUP
 
   if [[ "${backup_temp_created:-0}" == '1' ]]; then
-    rm -f -- "${backup_archive_plain}" "${backup_roles_plain}" "${backup_catalog_plain}"
-    rmdir -- "${backup_plain_dir}" 2>/dev/null || true
+    if budget_validate_private_descendant "${BACKUP_ROOT}" \
+      "${backup_plain_relative}" "${backup_deadline}" 66 >/dev/null; then
+      rm -f -- "${backup_archive_plain}" "${backup_roles_plain}" "${backup_catalog_plain}"
+      rmdir -- "${backup_plain_dir}" 2>/dev/null || true
+    fi
   fi
   if [[ "${backup_published:-0}" != '1' && "${backup_recovery_created:-0}" == '1' ]]; then
-    rm -f -- "${backup_archive_cipher}" "${backup_roles_cipher}" \
-      "${backup_catalog_cipher}" "${backup_manifest}" "${backup_success}"
-    rmdir -- "${backup_recovery_dir}" 2>/dev/null || true
+    if budget_validate_private_descendant "${BACKUP_ROOT}" \
+      "${backup_recovery_relative}" "${backup_deadline}" 66 >/dev/null; then
+      rm -f -- "${backup_archive_cipher}" "${backup_roles_cipher}" \
+        "${backup_catalog_cipher}" "${backup_manifest}" "${backup_success}"
+      rmdir -- "${backup_recovery_dir}" 2>/dev/null || true
+    fi
   fi
   if [[ "${backup_lock_acquired:-0}" == '1' ]]; then
-    rmdir -- "${backup_lock_dir}" 2>/dev/null || true
+    if budget_validate_private_descendant "${BACKUP_ROOT}" \
+      "${backup_lock_relative}" "${backup_deadline}" 66 >/dev/null; then
+      rmdir -- "${backup_lock_dir}" 2>/dev/null || true
+    fi
   fi
   budget_cleanup_executable_snapshot_dir "${backup_exec_dir:-}"
   exit "${status}"
@@ -221,8 +230,11 @@ backup_execute() {
   backup_validate_configuration
 
   local backup_lock_dir="${BACKUP_ROOT}/locks/backup-live.lock"
+  local backup_lock_relative='locks/backup-live.lock'
   local backup_plain_dir="${BACKUP_ROOT}/tmp/${BACKUP_RUN_ID}.plaintext"
+  local backup_plain_relative="tmp/${BACKUP_RUN_ID}.plaintext"
   local backup_recovery_dir="${BACKUP_ROOT}/backups/live/${BACKUP_RUN_ID}"
+  local backup_recovery_relative="backups/live/${BACKUP_RUN_ID}"
   local backup_archive_plain="${backup_plain_dir}/archive.dump"
   local backup_roles_plain="${backup_plain_dir}/roles.sql"
   local backup_catalog_plain="${backup_plain_dir}/catalog.txt"
@@ -233,12 +245,14 @@ backup_execute() {
   local backup_success="${backup_recovery_dir}/SUCCESS"
   local backup_started_at backup_finished_at backup_started_seconds="${SECONDS}"
   local initial_database_receipt current_database_receipt
-  mkdir -p -- "${BACKUP_ROOT}/locks"
+  budget_ensure_private_descendant "${BACKUP_ROOT}" locks "${backup_deadline}" 66 >/dev/null
   if ! mkdir -- "${backup_lock_dir}" 2>/dev/null; then
     budget_error 'backup is already running' 72
     return
   fi
   backup_lock_acquired=1
+  budget_validate_private_descendant "${BACKUP_ROOT}" "${backup_lock_relative}" \
+    "${backup_deadline}" 66 >/dev/null
   export PGPASSFILE="${BUDGET_PGPASS_FILE}"
   initial_database_receipt="$(backup_measure_database)"
   budget_assert_database_receipt "${initial_database_receipt}" \
@@ -247,17 +261,23 @@ backup_execute() {
   budget_revalidate_environment
   backup_started_at="$(backup_run "${BUDGET_CLOCK_BIN}")"
 
-  mkdir -p -- "${BACKUP_ROOT}/tmp" "${BACKUP_ROOT}/backups/live"
+  budget_ensure_private_descendant "${BACKUP_ROOT}" tmp "${backup_deadline}" 66 >/dev/null
+  budget_ensure_private_descendant "${BACKUP_ROOT}" backups/live \
+    "${backup_deadline}" 66 >/dev/null
   if ! mkdir -- "${backup_plain_dir}"; then
     budget_error 'backup plaintext directory already exists' 72
     return
   fi
   backup_temp_created=1
+  budget_validate_private_descendant "${BACKUP_ROOT}" "${backup_plain_relative}" \
+    "${backup_deadline}" 66 >/dev/null
   if ! mkdir -- "${backup_recovery_dir}"; then
     budget_error 'backup recovery point already exists' 72
     return
   fi
   backup_recovery_created=1
+  budget_validate_private_descendant "${BACKUP_ROOT}" "${backup_recovery_relative}" \
+    "${backup_deadline}" 66 >/dev/null
 
   export PGCONNECT_TIMEOUT=5
   export PGOPTIONS='-c lock_timeout=30s -c statement_timeout=29min'
@@ -270,6 +290,10 @@ backup_execute() {
     "${BUDGET_VALIDATED_SYSTEM_ID}" "${BUDGET_POSTGRES_MAJOR}" \
     "${BACKUP_DB_NAME}" "${BACKUP_DB_OID}" 0 68 >/dev/null
   budget_revalidate_environment
+  budget_validate_private_descendant "${BACKUP_ROOT}" "${backup_plain_relative}" \
+    "${backup_deadline}" 66 >/dev/null
+  budget_validate_private_descendant "${BACKUP_ROOT}" "${backup_recovery_relative}" \
+    "${backup_deadline}" 66 >/dev/null
 
   backup_run "${BUDGET_PG_DUMP_BIN}" --format=custom --compress=9 \
     --file="${backup_archive_plain}" --host="${BACKUP_DB_HOST}" \
@@ -280,6 +304,11 @@ backup_execute() {
     --username="${BACKUP_DB_USER}" > "${backup_roles_plain}"
   backup_run "${BUDGET_CATALOG_BIN}" --database="${BACKUP_DB_NAME}" \
     --max-row-summaries=100 > "${backup_catalog_plain}"
+
+  budget_validate_private_descendant "${BACKUP_ROOT}" "${backup_plain_relative}" \
+    "${backup_deadline}" 66 >/dev/null
+  budget_validate_private_descendant "${BACKUP_ROOT}" "${backup_recovery_relative}" \
+    "${backup_deadline}" 66 >/dev/null
 
   backup_run "${BUDGET_AGE_BIN}" -r "${BUDGET_AGE_RECIPIENT}" \
     -o "${backup_archive_cipher}" "${backup_archive_plain}"
@@ -300,6 +329,8 @@ backup_execute() {
   catalog_size="$(backup_size "${backup_catalog_cipher}")"
   backup_finished_at="$(backup_run "${BUDGET_CLOCK_BIN}")"
   duration_seconds=$((SECONDS - backup_started_seconds))
+  budget_validate_private_descendant "${BACKUP_ROOT}" "${backup_recovery_relative}" \
+    "${backup_deadline}" 66 >/dev/null
   {
     printf '%s\n' 'backup_manifest_version=1'
     printf 'run_id=%s\n' "${BACKUP_RUN_ID}"
@@ -329,6 +360,8 @@ backup_execute() {
   local -a offsite_receipts=()
   for payload in "${backup_archive_cipher}" "${backup_roles_cipher}" \
     "${backup_catalog_cipher}" "${backup_manifest}"; do
+    budget_validate_private_descendant "${BACKUP_ROOT}" "${backup_recovery_relative}" \
+      "${backup_deadline}" 66 >/dev/null
     object_key="${BACKUP_RUN_ID}/${payload##*/}"
     backup_run "${BUDGET_OFFSITE_BIN}" put "${payload}" \
       "${BUDGET_OFFSITE_DESTINATION}" "${object_key}"
@@ -341,6 +374,8 @@ backup_execute() {
       "${expected_hash}" 70)")
   done
 
+  budget_validate_private_descendant "${BACKUP_ROOT}" "${backup_recovery_relative}" \
+    "${backup_deadline}" 66 >/dev/null
   {
     printf '%s\n' 'recovery_evidence_version=1'
     for offsite_receipt in "${offsite_receipts[@]}"; do

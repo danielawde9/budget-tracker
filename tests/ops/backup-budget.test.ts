@@ -7,6 +7,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
@@ -101,7 +102,10 @@ describe('encrypted Budget backup boundary', () => {
 
   it('uses a nonblocking single-run lock', () => {
     const { env, root, log } = makeBackupFixture();
-    mkdirSync(join(root, 'locks', 'backup-live.lock'), { recursive: true });
+    mkdirSync(join(root, 'locks', 'backup-live.lock'), {
+      recursive: true,
+      mode: 0o700,
+    });
     const result = run('backup', env);
 
     expect(result.status).toBe(72);
@@ -315,6 +319,41 @@ describe('encrypted Budget backup boundary', () => {
     expect(result.status).toBe(67);
     expect(result.stderr).toContain('environment marker is unsafe');
     expect(readFileSync(log, 'utf8').trimEnd().split('\n')).not.toContain('pg_dump');
+  });
+
+  it('refuses a backups descendant symlink without writing outside the validated root', () => {
+    const { base, env, root } = makeBackupFixture();
+    const outside = join(base, 'outside-backups');
+    mkdirSync(outside, { mode: 0o700 });
+    symlinkSync(outside, join(root, 'backups'), 'dir');
+
+    const result = run('backup', env);
+
+    expect(result.status).toBe(66);
+    expect(result.stderr).toContain('unsafe Budget descendant');
+    expect(
+      existsSync(join(outside, 'live/2026-09-09T021500Z-fixture/SUCCESS')),
+    ).toBe(false);
+  });
+
+  it('rechecks backup descendants immediately before creating recovery files', () => {
+    const { base, env, root } = makeBackupFixture();
+    const backups = join(root, 'backups');
+    const outside = join(base, 'swapped-backups');
+    mkdirSync(backups, { mode: 0o700 });
+    mkdirSync(outside, { mode: 0o700 });
+
+    const result = run('backup', {
+      ...env,
+      BUDGET_FAKE_SWAP_DESCENDANT_PATH: backups,
+      BUDGET_FAKE_SWAP_DESCENDANT_TARGET: outside,
+    });
+
+    expect(result.status).toBe(66);
+    expect(result.stderr).toContain('unsafe Budget descendant');
+    expect(
+      existsSync(join(outside, 'live/2026-09-09T021500Z-fixture/SUCCESS')),
+    ).toBe(false);
   });
 
   it('rejects a root swapped after validation before backup effects', () => {

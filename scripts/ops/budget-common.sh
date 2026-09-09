@@ -365,6 +365,63 @@ budget_validate_safe_path() {
   printf '%s\n' "${path}"
 }
 
+budget_private_descendant() {
+  local root="${1:-}"
+  local relative="${2:-}"
+  local create_missing="${3:-0}"
+  local deadline="${4:?deadline is required}"
+  local status="${5:?status is required}"
+  local remaining
+  if [[ "${root}" != /* || -z "${relative}" || ${#relative} -gt 512 || \
+    ! "${relative}" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}(/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}){0,7}$ || \
+    ( "${create_missing}" != '0' && "${create_missing}" != '1' ) ]]; then
+    budget_error 'unsafe Budget descendant' "${status}"
+    return
+  fi
+  if ! remaining="$(budget_remaining_seconds "${deadline}")"; then
+    budget_error 'whole-operation deadline exceeded' "${status}"
+    return
+  fi
+  if ! /usr/bin/perl -MCwd=abs_path -MFcntl=:mode -e '
+    use strict;
+    use warnings;
+    my ($seconds, $root, $relative, $create_missing) = @ARGV;
+    alarm $seconds;
+    my @root_details = lstat($root);
+    die "root\n" unless @root_details && S_ISDIR($root_details[2]);
+    die "root\n" unless $root_details[4] == $< && !(($root_details[2] & 0077));
+    my $resolved_root = abs_path($root);
+    die "root\n" unless defined $resolved_root && $resolved_root eq $root;
+    my @parts = split m{/}, $relative, -1;
+    die "depth\n" unless @parts && @parts <= 8;
+    my $cursor = $root;
+    for my $part (@parts) {
+      $cursor .= "/$part";
+      my @details = lstat($cursor);
+      if (!@details && $create_missing eq "1") {
+        mkdir($cursor, 0700) or die "mkdir\n";
+        @details = lstat($cursor);
+      }
+      die "directory\n" unless @details && S_ISDIR($details[2]);
+      die "owner\n" unless $details[4] == $< && !(($details[2] & 0077));
+      my $resolved = abs_path($cursor);
+      die "path\n" unless defined $resolved && $resolved eq $cursor;
+    }
+    print "$cursor\n";
+  ' "${remaining}" "${root}" "${relative}" "${create_missing}" 2>/dev/null; then
+    budget_error 'unsafe Budget descendant' "${status}"
+    return
+  fi
+}
+
+budget_ensure_private_descendant() {
+  budget_private_descendant "$1" "$2" 1 "$3" "$4"
+}
+
+budget_validate_private_descendant() {
+  budget_private_descendant "$1" "$2" 0 "$3" "$4"
+}
+
 budget_read_private_marker() {
   local marker="${1:-}"
   local status="${2:-67}"

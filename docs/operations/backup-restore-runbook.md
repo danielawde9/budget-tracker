@@ -77,6 +77,12 @@ immediately before database effects, so an adapter-side path or marker swap
 fails closed. Scratch applies the same rules through
 `BUDGET_SCRATCH_TRUSTED_PARENT`.
 
+Operational descendants (`locks`, `tmp`, `backups/live`, and their exact run
+directories) are created component by component with no-follow metadata checks.
+Every component must remain an operator-owned private directory; the active
+run directory is revalidated immediately around writes and before cleanup.
+Existing or swapped descendant symlinks are never followed.
+
 The operator configures the expected system identifier and database OID. The
 tracked read-only verifier measures the system identifier, PostgreSQL server
 major, database name/OID, and relation count from the exact host, port,
