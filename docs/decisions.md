@@ -571,3 +571,24 @@ artifact on an approved private HTTPS origin, a separate synthetic UAT Supabase
 environment, real Auth/RLS/protected-command evidence, and redacted operator
 receipts. A claim of data recovery additionally requires a named encrypted
 off-site backup and measured scratch restore.
+
+## 2026-09-09 — Public beta may precede exact-schema and human UAT
+
+**Decision:** Daniel explicitly authorized proceeding toward a public Cloudflare
+launch without waiting for the isolated exact-schema UAT environment or the
+first-time-user browser audit. The release must still pass its automated gate,
+use the reviewed release-candidate boundary, and pass a pinned Cloudflare build
+and dry run. Until an encrypted off-site backup has been restored successfully,
+the public deployment is a beta for synthetic or replaceable data rather than an
+approved store for irreplaceable financial records.
+
+**Why:** Daniel prioritized reaching a live public origin now and accepted the
+remaining usability, physical-device, exact-schema, and recovery uncertainty.
+Recording the waiver preserves an honest distinction between availability and
+evidence that the product is understandable and recoverable.
+
+**If changed:** Requiring full launch evidence blocks public or real-data use
+until authenticated exact-schema desktop/mobile UAT, a first-time-user browser
+audit, physical-device coverage, an encrypted off-site backup, and a measured
+scratch restore have passed. Approving real data before recovery proof requires
+a separate explicit loss-risk decision.
