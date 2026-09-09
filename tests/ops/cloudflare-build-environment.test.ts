@@ -82,6 +82,7 @@ describe('Cloudflare build environment', () => {
   it('validates Vite production env files before the build', () => {
     const directory = mkdtempSync(join(tmpdir(), 'cloudflare-build-environment-'));
     const secretShapedValue = 'env-file-DO_NOT_PRINT_THIS_VALUE';
+    const forbiddenVariableName = 'VITE_SSH_PASSWORD';
     const environment = Object.fromEntries(
       Object.entries(process.env).filter(([name]) => !name.startsWith('VITE_')),
     );
@@ -92,7 +93,7 @@ describe('Cloudflare build environment', () => {
         [
           `VITE_SUPABASE_URL=${valid.VITE_SUPABASE_URL}`,
           `VITE_SUPABASE_ANON_KEY=${valid.VITE_SUPABASE_ANON_KEY}`,
-          `VITE_SSH_PASSWORD=${secretShapedValue}`,
+          `${forbiddenVariableName}=${secretShapedValue}`,
           '',
         ].join('\n'),
       );
@@ -104,7 +105,7 @@ describe('Cloudflare build environment', () => {
       );
 
       expect(result.status).not.toBe(0);
-      expect(result.stderr).toContain('VITE_SSH_PASSWORD');
+      expect(result.stderr).toContain(forbiddenVariableName);
       expect(`${result.stdout}${result.stderr}`).not.toContain(secretShapedValue);
     } finally {
       rmSync(directory, { recursive: true, force: true });

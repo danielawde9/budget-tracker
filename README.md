@@ -55,6 +55,12 @@ Backup and recovery tooling is documented in the
 Repository tests and dry-runs are not live backup, restore, deployment, or
 real-data-entry evidence.
 
+Cloudflare build and release boundaries are documented in the
+[Cloudflare deployment runbook](docs/operations/cloudflare-deployment.md).
+Use `pnpm build:cloudflare` only after the protected build variables have been
+provided through the approved release environment; a local build is not a
+deployment.
+
 The [private synthetic UAT rehearsal](docs/operations/private-synthetic-uat-rehearsal.md)
 reproduces the offline browser acceptance matrix without contacting Supabase or
 any remote host. Its injected session and in-memory HTTP fixtures are explicitly
