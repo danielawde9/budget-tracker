@@ -40,7 +40,7 @@ matrix and removes one extra blank line from the plan).
 | `pnpm build` | Pass; 104 modules transformed |
 | `pnpm test:uat:offline` | Pass; 4 tests, 2 intentional project skips |
 | `pnpm test:e2e` | Pass; 36 tests, 34 intentional cross-device skips |
-| Protected DB/migration/gateway diff from release start | Pass; empty |
+| `pnpm check:uat:scope` | Pass; protected DB, migration, Auth, gateway, Household, Monthly Budget, and Reporting paths unchanged from release start |
 | `git diff --check` | Pass after removing the plan's extra EOF blank line |
 | `test:db` | Blocked by scope; no local test URL exists and remote database contact was forbidden |
 

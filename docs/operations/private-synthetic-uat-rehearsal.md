@@ -44,16 +44,21 @@ variables required.
 ```bash
 pnpm install --offline --frozen-lockfile
 pnpm test:uat:offline
+pnpm check:uat:scope
 pnpm check:uat:offline
 git diff --check
 git status --short
 ```
 
-`test:uat:offline` is the focused acceptance rehearsal. `check:uat:offline`
-runs ops fixtures and the bounded secret scan, TypeScript, all UI tests, the
-production build, and the complete Playwright suite. It intentionally omits
-`test:db`: the ignored database environment is absent in this worktree, and
-database contact is outside this session's authority.
+`test:uat:offline` is the focused acceptance rehearsal. `check:uat:scope`
+fails when the release-start-to-working-tree diff touches Supabase or database
+tests, Auth implementation, typed Supabase gateways, Household, Monthly Budget,
+or Reporting paths. It includes tracked, staged, and untracked files and first
+proves that `HEAD` descends from the fixed release start. `check:uat:offline`
+runs that ratchet, ops fixtures and the bounded secret scan, TypeScript, all UI
+tests, the production build, and the complete Playwright suite. It
+intentionally omits `test:db`: the ignored database environment is absent in
+this worktree, and database contact is outside this session's authority.
 
 All Playwright screenshots and traces from an ordinary run remain in ignored
 `test-results/`. Set no update flag: committed curated screenshots are not
