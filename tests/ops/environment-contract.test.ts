@@ -112,6 +112,27 @@ describe('Budget operations environment contract', () => {
     expect(result.status).toBe(0);
   });
 
+  it('does not execute a utility injected through ambient PATH', () => {
+    const { base, env } = fixture();
+    const maliciousBin = join(base, 'malicious-bin');
+    const maliciousLog = join(base, 'ambient-path.log');
+    mkdirSync(maliciousBin, { mode: 0o700 });
+    writeFileSync(
+      join(maliciousBin, 'tr'),
+      '#!/bin/bash\nprintf "ambient-tr\\n" >> "$BUDGET_AMBIENT_PATH_LOG"\n/usr/bin/tr "$@"\n',
+      { mode: 0o700 },
+    );
+
+    const result = run('validate-environment', {
+      ...env,
+      PATH: `${maliciousBin}:${process.env.PATH ?? ''}`,
+      BUDGET_AMBIENT_PATH_LOG: maliciousLog,
+    });
+
+    expect(result.status).toBe(0);
+    expect(() => readFileSync(maliciousLog, 'utf8')).toThrow();
+  });
+
   it('rejects a cross-environment identifier outside the exact live allowlist', () => {
     const { env } = fixture();
     const result = run('validate-environment', {

@@ -1,6 +1,7 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -euo pipefail
 umask 077
+export PATH='/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin'
 
 readonly BUDGET_COMMON_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly BUDGET_OPS_REPO_ROOT="$(cd "${BUDGET_COMMON_SCRIPT_DIR}/../.." && pwd -P)"

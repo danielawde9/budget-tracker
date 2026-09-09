@@ -1,6 +1,7 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -euo pipefail
 umask 077
+export PATH='/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin'
 
 readonly CHECK_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly CHECK_REPO_ROOT="$(cd "${CHECK_SCRIPT_DIR}/../.." && pwd -P)"

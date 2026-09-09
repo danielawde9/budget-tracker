@@ -1,6 +1,7 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -euo pipefail
 umask 077
+export PATH='/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin'
 
 readonly verify_host="${1:-}"
 readonly verify_port="${2:-}"

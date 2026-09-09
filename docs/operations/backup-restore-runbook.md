@@ -39,7 +39,9 @@ put their values in Git, shell history, tickets, screenshots, logs, or this
 runbook. Secret files must be outside Git, operator-owned, mode `0600`, and
 injected by the service manager. Only the age public recipient belongs on the
 backup host; the private identity belongs in separately custodied recovery
-material.
+material. Ops entrypoints replace ambient `PATH` before their first utility
+lookup with the fixed system/toolchain allowlist documented in source; adapters
+still require reviewed absolute executable paths.
 
 ## Exact target and marker contract
 
