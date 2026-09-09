@@ -210,8 +210,8 @@ export function useWallets(
     if (!normalized.name) throw new Error('Enter a wallet name.');
     try {
       await gateway.createWallet(normalized);
-      await refreshAfterCommand();
-      return { status: 'success', reconciled: false };
+      const refreshed = await refreshAfterCommand(true);
+      return { status: refreshed ? 'success' : 'refresh-required', reconciled: false };
     } catch (cause) {
       if (!isAmbiguousTransportFailure(cause)) throw cause;
       const snapshot = await gateway.loadSnapshot(targetSpaceId);

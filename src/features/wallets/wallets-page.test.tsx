@@ -62,6 +62,42 @@ describe('WalletsPage', () => {
     expect(within(dialog).getByDisplayValue('LBP')).toBeInTheDocument();
   });
 
+  it('uses refresh-only recovery when definite wallet creation cannot enrich history', async () => {
+    const walletGateway = new InMemoryWalletsGateway();
+    const createWallet = vi.spyOn(walletGateway, 'createWallet');
+    const categoriesGateway = new InMemoryCategoriesGateway();
+    categoriesGateway.categories = categoriesGateway.categories.map((category) => ({ ...category, spaceId: 'personal-space' }));
+    categoriesGateway.resolveEventCategories = vi.fn()
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error('raw category history failure'))
+      .mockResolvedValueOnce([]);
+    const { user } = await renderPage(walletGateway, 'en', categoriesGateway);
+    await user.click(screen.getByRole('button', { name: 'New wallet' }));
+    const dialog = screen.getByRole('dialog', { name: 'Create a wallet' });
+    const name = within(dialog).getByLabelText('Wallet name');
+    const currency = within(dialog).getByLabelText('Currency');
+    await user.type(name, 'Travel cash');
+    await user.selectOptions(currency, 'LBP');
+    await user.click(within(dialog).getByRole('button', { name: 'Create wallet' }));
+
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent('The wallet was created, but categories and history could not be refreshed.');
+    expect(alert).not.toHaveTextContent('raw category history failure');
+    expect(within(dialog).queryByText('Wallet created', { selector: 'strong' })).not.toBeInTheDocument();
+    expect(name).toHaveValue('Travel cash');
+    expect(name).toBeDisabled();
+    expect(currency).toHaveValue('LBP');
+    expect(currency).toBeDisabled();
+    expect(createWallet).toHaveBeenCalledOnce();
+
+    await user.click(within(alert).getByRole('button', { name: 'Refresh wallets' }));
+
+    expect(await within(dialog).findByRole('status')).toHaveTextContent('Wallet created');
+    expect(createWallet).toHaveBeenCalledOnce();
+    await user.click(within(dialog).getByRole('button', { name: 'Done' }));
+    expect(screen.getAllByText('Travel cash').some((element) => element.closest('bdi') !== null)).toBe(true);
+  });
+
   it('uses localized refresh-only recovery after an ambiguous wallet is accepted but category enrichment fails', async () => {
     const walletGateway = new InMemoryWalletsGateway();
     const createdWallet = {
