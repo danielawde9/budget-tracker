@@ -1,4 +1,5 @@
 const PUBLISHABLE_KEY = /^sb_publishable_[A-Za-z0-9_-]{20,}$/;
+const CANONICAL_SUPABASE_URL = /^https:\/\/(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$/;
 const ALLOWED_VITE_VARIABLES = new Set(['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY']);
 
 function required(environment, name) {
@@ -23,18 +24,27 @@ export function validateCloudflareBuildEnvironment(environment) {
   const supabaseUrl = required(environment, 'VITE_SUPABASE_URL');
   const anonKey = required(environment, 'VITE_SUPABASE_ANON_KEY');
 
+  if (!CANONICAL_SUPABASE_URL.test(supabaseUrl)) {
+    throw new Error('VITE_SUPABASE_URL must be a credential-free HTTPS URL');
+  }
+
   let parsedUrl;
   try {
     parsedUrl = new URL(supabaseUrl);
   } catch {
     throw new Error('VITE_SUPABASE_URL must be a valid HTTPS URL');
   }
-  if (parsedUrl.protocol !== 'https:' || parsedUrl.username || parsedUrl.password) {
+  if (
+    parsedUrl.protocol !== 'https:' ||
+    parsedUrl.username ||
+    parsedUrl.password ||
+    parsedUrl.origin !== supabaseUrl
+  ) {
     throw new Error('VITE_SUPABASE_URL must be a credential-free HTTPS URL');
   }
   if (!PUBLISHABLE_KEY.test(anonKey)) {
     throw new Error('VITE_SUPABASE_ANON_KEY must contain the browser publishable key');
   }
 
-  return { supabaseUrl, anonKey };
+  return { supabaseUrl: parsedUrl.origin, anonKey };
 }

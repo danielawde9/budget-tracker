@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -32,6 +32,17 @@ function runCli(directory: string, environment: Record<string, string | undefine
   });
 }
 
+function createIsolatedBuildDirectory() {
+  const directory = mkdtempSync(join(tmpdir(), 'cloudflare-build-environment-'));
+  for (const name of ['index.html', 'package.json', 'pnpm-workspace.yaml', 'tsconfig.json', 'vite.config.ts']) {
+    cpSync(join(process.cwd(), name), join(directory, name));
+  }
+  cpSync(join(process.cwd(), 'scripts'), join(directory, 'scripts'), { recursive: true });
+  cpSync(join(process.cwd(), 'src'), join(directory, 'src'), { recursive: true });
+  symlinkSync(join(process.cwd(), 'node_modules'), join(directory, 'node_modules'));
+  return directory;
+}
+
 describe('Cloudflare build environment', () => {
   it.each([
     [{}, 'VITE_SUPABASE_URL'],
@@ -42,6 +53,11 @@ describe('Cloudflare build environment', () => {
     [{ ...valid, VITE_SUPABASE_ANON_KEY: 'replace-with-key' }, 'VITE_SUPABASE_ANON_KEY'],
     [{ ...valid, VITE_SUPABASE_URL: ` ${valid.VITE_SUPABASE_URL}` }, 'VITE_SUPABASE_URL'],
     [{ ...valid, VITE_SUPABASE_ANON_KEY: `${valid.VITE_SUPABASE_ANON_KEY}\n` }, 'VITE_SUPABASE_ANON_KEY'],
+    [{ ...valid, VITE_SUPABASE_URL: 'https://budget-project.\nsupabase.co' }, 'VITE_SUPABASE_URL'],
+    [{ ...valid, VITE_SUPABASE_URL: 'https://budget-project.\rsupabase.co' }, 'VITE_SUPABASE_URL'],
+    [{ ...valid, VITE_SUPABASE_URL: 'https://budget-project.\tsupabase.co' }, 'VITE_SUPABASE_URL'],
+    [{ ...valid, VITE_SUPABASE_URL: 'https://budget-project.supabase.co\\evil' }, 'VITE_SUPABASE_URL'],
+    [{ ...valid, VITE_SUPABASE_URL: 'https://budget-project.supabase.co:443' }, 'VITE_SUPABASE_URL'],
   ])('rejects invalid input without returning values', (environment, expectedName) => {
     expect(() => validateCloudflareBuildEnvironment(environment)).toThrow(expectedName);
   });
@@ -140,6 +156,31 @@ describe('Cloudflare build environment', () => {
       expect(result.stdout).toContain('Cloudflare public build-variable contract passed');
       expect(`${result.stdout}${result.stderr}`).not.toContain(markerUrl);
       expect(`${result.stdout}${result.stderr}`).not.toContain(valid.VITE_SUPABASE_ANON_KEY);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('suppresses DEBUG values through the complete Cloudflare build command', () => {
+    const markerUrl = 'https://debug-build-command-marker.supabase.co';
+    const markerKey = 'sb_publishable_debug_build_command_marker_1234567890';
+    const directory = createIsolatedBuildDirectory();
+
+    try {
+      const result = spawnSync('pnpm', ['build:cloudflare'], {
+        cwd: directory,
+        encoding: 'utf8',
+        env: cleanSubprocessEnvironment({
+          DEBUG: 'vite:env',
+          VITE_SUPABASE_URL: markerUrl,
+          VITE_SUPABASE_ANON_KEY: markerKey,
+        }),
+      });
+
+      expect(result.status).toBe(0);
+      expect(`${result.stdout}${result.stderr}`).not.toContain(markerUrl);
+      expect(`${result.stdout}${result.stderr}`).not.toContain(markerKey);
+      expect(`${result.stdout}${result.stderr}`).not.toContain('vite:env using resolved env');
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
