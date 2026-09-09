@@ -1,4 +1,10 @@
-import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -107,4 +113,111 @@ export function makeBackupFixture() {
   };
 
   return { base, env, log, marker, root };
+}
+
+export function makeRestoreFixture() {
+  const backup = makeBackupFixture();
+  const scratchRoot = join(backup.base, 'budget-restore-scratch');
+  const scratchMarker = join(scratchRoot, '.budget-ops-marker');
+  const identity = join(backup.base, 'age-identity');
+  const offsiteRoot = join(backup.base, 'offsite');
+  const recoveryPoint = '2026-09-09T021500Z-fixture';
+  const remotePoint = join(offsiteRoot, recoveryPoint);
+  mkdirSync(scratchRoot, { mode: 0o700 });
+  mkdirSync(remotePoint, { recursive: true, mode: 0o700 });
+  writeFileSync(
+    scratchMarker,
+    [
+      'budget-restore-marker-v1',
+      'target=scratch',
+      'project=budget-restore-scratch',
+      'system_id=8000000000000000001',
+      '',
+    ].join('\n'),
+    { mode: 0o600 },
+  );
+  writeFileSync(identity, 'AGE-SECRET-KEY-fixture-only\n', { mode: 0o600 });
+
+  const hashes: string[] = [];
+  for (const [filename, contents] of [
+    ['archive.dump.age', 'fixture custom archive\n'],
+    ['roles.sql.age', 'CREATE ROLE budget_authenticated;\n'],
+    ['catalog.txt.age', 'catalog_hash=fixture-catalog-hash\n'],
+  ]) {
+    writeFileSync(join(remotePoint, filename), contents, { mode: 0o600 });
+    const hash = createHash('sha256').update(contents).digest('hex');
+    hashes.push(`${hash}  ${filename}`);
+  }
+  writeFileSync(
+    join(remotePoint, 'manifest.txt'),
+    [
+      'backup_manifest_version=1',
+      `run_id=${recoveryPoint}`,
+      'environment=live',
+      'project=budget-live',
+      'system_id=7000000000000000001',
+      'postgres_major=17',
+      'pg_dump_major=17',
+      'release_id=release-fixture',
+      'migration_manifest_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      ...hashes,
+      '',
+    ].join('\n'),
+    { mode: 0o600 },
+  );
+
+  const pgRestore = join(backup.base, 'bin', 'pg_restore');
+  const psql = join(backup.base, 'bin', 'psql');
+  const roleFilter = join(backup.base, 'bin', 'role-filter');
+  const compare = join(backup.base, 'bin', 'compare');
+  makeExecutable(
+    pgRestore,
+    'if [[ "$*" == *"--list"* ]]; then printf "fixture archive list\\n"; exit 0; fi; printf "pg_restore\\n" >> "$BUDGET_FAKE_LOG"; if [[ "${BUDGET_FAKE_RESTORE_FAIL:-0}" == "1" ]]; then exit 19; fi',
+  );
+  makeExecutable(psql, 'printf "psql\\n" >> "$BUDGET_FAKE_LOG"');
+  makeExecutable(
+    roleFilter,
+    'cp "$1" "$2"; printf "role-filter\\n" >> "$BUDGET_FAKE_LOG"',
+  );
+  makeExecutable(
+    compare,
+    'printf "comparison=verified\\n"; printf "compare\\n" >> "$BUDGET_FAKE_LOG"',
+  );
+  makeExecutable(
+    backup.env.BUDGET_OFFSITE_BIN as string,
+    'printf "offsite:%s\\n" "$1" >> "$BUDGET_FAKE_LOG"; case "$1" in get) cp "$BUDGET_OFFSITE_FIXTURE_ROOT/$3" "$4" ;; *) exit 64 ;; esac',
+  );
+
+  const env: NodeJS.ProcessEnv = {
+    ...backup.env,
+    BUDGET_RESTORE_TARGET: 'scratch',
+    BUDGET_RECOVERY_POINT: recoveryPoint,
+    BUDGET_AGE_IDENTITY_FILE: identity,
+    BUDGET_OFFSITE_FIXTURE_ROOT: offsiteRoot,
+    BUDGET_SCRATCH_ROOT: scratchRoot,
+    BUDGET_SCRATCH_MARKER_PATH: scratchMarker,
+    BUDGET_SCRATCH_PROJECT_ID: 'budget-restore-scratch',
+    BUDGET_SCRATCH_PORT: '54722',
+    BUDGET_SCRATCH_EXPECTED_SYSTEM_ID: '8000000000000000001',
+    BUDGET_SCRATCH_ACTUAL_SYSTEM_ID: '8000000000000000001',
+    BUDGET_SCRATCH_EMPTY: '1',
+    BUDGET_SCRATCH_POSTGRES_MAJOR: '17',
+    BUDGET_SCRATCH_REQUIRED_BYTES: '1024',
+    BUDGET_SCRATCH_AVAILABLE_BYTES: '10485760',
+    BUDGET_PG_RESTORE_BIN: pgRestore,
+    BUDGET_PSQL_BIN: psql,
+    BUDGET_ROLE_FILTER_BIN: roleFilter,
+    BUDGET_COMPARE_BIN: compare,
+    BUDGET_ROLE_ALLOWLIST: 'budget_authenticated,budget_anon,budget_service',
+  };
+
+  return {
+    ...backup,
+    env,
+    identity,
+    offsiteRoot,
+    recoveryPoint,
+    scratchMarker,
+    scratchRoot,
+  };
 }
