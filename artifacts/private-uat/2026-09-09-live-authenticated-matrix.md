@@ -8,6 +8,18 @@ Application source: detached `80d0432334e26f8bdb74184930a6677f8b5dc3e9`
 
 Branch/publish state: no branch; local and unpushed
 
+## Release-candidate integration note
+
+This note records integration after the attempt; it does not rewrite any result
+below. The reviewed correction-label fix from source
+`8d5d1661f1cd6ec303a88615b24b994d7b0c25b9` is integrated in this release
+candidate as `0d849194a51ec7c4ae30854e7d9654ad45b50393`. It distinguishes loan
+openings from borrowing repayments in the correction action's accessible name.
+
+Formal authenticated UAT against an isolated exact 18-migration schema has not
+been rerun. The historical Fail/Blocked observations and remaining private-UAT
+gates below therefore remain unchanged.
+
 ## Safety and environment identity
 
 Formal private live UAT was **not executed**: this run used local Vite and the
