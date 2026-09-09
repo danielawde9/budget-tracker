@@ -21,11 +21,15 @@ const copy = {
     product: 'Budget ledger', currentSpace: 'Current space', personal: 'Personal space', household: 'Household space',
     loans: 'Loans', wallets: 'Wallets', categories: 'Categories', reports: 'Reports — coming later', language: 'العربية',
     account: 'Account', signOut: 'Sign out', navigation: 'Primary navigation', workspace: 'Workspace',
+    backupReadiness: 'Backup readiness',
+    backupWarning: 'Do not enter real financial data until an encrypted off-site backup and a measured scratch restore are verified.',
   },
   ar: {
     product: 'دفتر الميزانية', currentSpace: 'المساحة الحالية', personal: 'مساحة شخصية', household: 'مساحة منزلية',
     loans: 'القروض', wallets: 'المحافظ', categories: 'الفئات', reports: 'التقارير — قريبًا', language: 'English',
     account: 'الحساب', signOut: 'تسجيل الخروج', navigation: 'التنقل الرئيسي', workspace: 'مساحة العمل',
+    backupReadiness: 'جاهزية النسخ الاحتياطي',
+    backupWarning: 'لا تُدخل بيانات مالية حقيقية قبل التحقق من نسخة احتياطية مشفّرة خارج الجهاز واستعادة تجريبية مقاسة.',
   },
 } as const;
 
@@ -49,7 +53,15 @@ export function ApplicationShell(props: ApplicationShellProps) {
         <button type="button" className="locale-button" onClick={props.onLocaleChange}>{text.language}</button>
         <details className="account-menu">
           <summary>{text.account}</summary>
-          <div className="account-popover"><bdi>{props.userEmail ?? ''}</bdi><button type="button" onClick={props.onSignOut}>{text.signOut}</button></div>
+          <div className="account-popover">
+            <bdi>{props.userEmail ?? ''}</bdi>
+            <aside className="backup-readiness" role="note" aria-label={text.backupReadiness}>
+              <strong>{text.backupReadiness}</strong>
+              <p>{text.backupWarning}</p>
+              <bdi>docs/operations/backup-restore-runbook.md</bdi>
+            </aside>
+            <button type="button" onClick={props.onSignOut}>{text.signOut}</button>
+          </div>
         </details>
       </div>
     </aside>

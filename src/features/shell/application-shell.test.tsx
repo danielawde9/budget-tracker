@@ -33,6 +33,12 @@ describe('ApplicationShell', () => {
     expect(changeSpace).toHaveBeenCalledWith(personalSpace.id);
     await user.click(screen.getByText('Account'));
     expect(screen.getByText('owner@example.com').closest('bdi')).not.toBeNull();
+    expect(screen.getByRole('note', { name: 'Backup readiness' })).toHaveTextContent(
+      'Do not enter real financial data',
+    );
+    expect(screen.getByRole('note', { name: 'Backup readiness' })).toHaveTextContent(
+      'docs/operations/backup-restore-runbook.md',
+    );
     await user.click(screen.getByRole('button', { name: 'Sign out' }));
     expect(signOut).toHaveBeenCalledOnce();
   });
@@ -45,5 +51,8 @@ describe('ApplicationShell', () => {
     expect(screen.getByRole('button', { name: 'القروض' })).not.toHaveAttribute('aria-current');
     expect(screen.getByRole('button', { name: 'الفئات' })).not.toHaveAttribute('aria-current');
     expect(screen.getByRole('button', { name: 'English' })).toBeInTheDocument();
+    expect(screen.getByRole('note', { name: 'جاهزية النسخ الاحتياطي' })).toHaveTextContent(
+      'لا تُدخل بيانات مالية حقيقية',
+    );
   });
 });

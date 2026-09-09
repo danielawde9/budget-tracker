@@ -118,5 +118,5 @@ test('sign-out followed by another user starts a fresh authenticated shell', asy
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByText('Maya')).toBeVisible();
   await page.getByText('Account').click();
-  await expect(page.locator('.account-popover bdi')).toHaveText('second@example.test');
+  await expect(page.getByText('second@example.test').locator('xpath=ancestor-or-self::bdi')).toBeVisible();
 });
