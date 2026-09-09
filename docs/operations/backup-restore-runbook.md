@@ -133,7 +133,9 @@ must match exactly during restore before decryption or PostgreSQL execution.
   reject prefixes, wildcards, and implicit newest selection. Every `verify` or
   `get` must emit one bounded receipt containing the exact configured provider,
   object key, nonempty object version, remote size/SHA-256, `immutable=1`, and
-  `monitoring=1`; a successful exit without that receipt fails closed.
+  `monitoring=1`. The output must be exactly one canonical record: trailing
+  lines, control bytes, duplicate fields, and a successful exit without that
+  receipt fail closed.
 - `BUDGET_CATALOG_BIN --database=NAME --max-row-summaries=100` emits bounded row
   summaries/catalog hashes without rows, emails, tokens, or secrets.
 - `BUDGET_ROLE_FILTER_BIN INPUT OUTPUT ALLOWLIST` emits only reviewed roles and
@@ -152,7 +154,8 @@ must match exactly during restore before decryption or PostgreSQL execution.
   RLS/policies, ACLs, owners/function bodies, triggers, constraints, indexes,
   and protected financial-command inventory. It must return the exact scratch
   target plus the independently measured manifest and plaintext catalog hashes;
-  exit status alone is not recovery evidence.
+  exactly one canonical record is accepted, and exit status alone is not
+  recovery evidence.
 - `BUDGET_DB_VERIFY_BIN` must be the tracked `verify-budget-db.sh` executable.
   It invokes the configured absolute `BUDGET_VERIFY_PSQL_BIN` with a five-second
   connection and statement bound, read-only transaction/session settings, no

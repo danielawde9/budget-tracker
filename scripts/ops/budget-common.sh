@@ -275,7 +275,8 @@ budget_assert_offsite_receipt() {
 
   IFS='|' read -r version provider object_key object_version remote_size remote_hash \
     immutable monitoring extra <<< "${receipt}"
-  if [[ ${#receipt} -gt 1024 || "${version}" != 'receipt_version=1' || \
+  if [[ -z "${receipt}" || ${#receipt} -gt 1024 || \
+    "${receipt}" =~ [[:cntrl:]] || "${version}" != 'receipt_version=1' || \
     "${provider}" != "provider=${expected_provider}" || \
     "${object_key}" != "object_key=${expected_key}" || \
     ! "${object_version}" =~ ^object_version=[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$ || \
@@ -300,7 +301,8 @@ budget_assert_comparison_receipt() {
   local version comparison_status target manifest_hash catalog_hash extra
 
   IFS='|' read -r version comparison_status target manifest_hash catalog_hash extra <<< "${receipt}"
-  if [[ ${#receipt} -gt 512 || "${version}" != 'comparison_version=1' || \
+  if [[ -z "${receipt}" || ${#receipt} -gt 512 || \
+    "${receipt}" =~ [[:cntrl:]] || "${version}" != 'comparison_version=1' || \
     "${comparison_status}" != 'status=verified' || "${target}" != 'target=scratch' || \
     "${manifest_hash}" != "manifest_sha256=${expected_manifest_hash}" || \
     "${catalog_hash}" != "catalog_sha256=${expected_catalog_hash}" || \

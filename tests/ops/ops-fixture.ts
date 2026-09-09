@@ -91,6 +91,7 @@ export function makeBackupFixture() {
       'size="$(/usr/bin/wc -c < "$2")"; size="${size//[[:space:]]/}"',
       'hash="$(/usr/bin/shasum -a 256 "$2")"; hash="${hash%% *}"',
       'printf "receipt_version=1|provider=%s|object_key=%s|object_version=fixture-v1|remote_size=%s|remote_sha256=%s|immutable=1|monitoring=1\\n" "$BUDGET_OFFSITE_PROVIDER_ID" "$4" "$size" "$hash"',
+      'if [[ "${BUDGET_FAKE_OFFSITE_RECEIPT_TRAILING:-0}" == "1" ]]; then printf "UNVALIDATED=payload\\n"; fi',
     ].join('\n'),
   );
   makeExecutable(clock, 'printf "2026-09-09T02:15:00Z\\n"');
@@ -291,6 +292,7 @@ export function makeRestoreFixture() {
       'manifest_hash="$(/usr/bin/shasum -a 256 "$manifest")"; manifest_hash="${manifest_hash%% *}"',
       'catalog_hash="$(/usr/bin/shasum -a 256 "$catalog")"; catalog_hash="${catalog_hash%% *}"',
       'printf "comparison_version=1|status=verified|target=scratch|manifest_sha256=%s|catalog_sha256=%s\\n" "$manifest_hash" "$catalog_hash"',
+      'if [[ "${BUDGET_FAKE_COMPARISON_RECEIPT_TRAILING:-0}" == "1" ]]; then printf "status=verified\\n"; fi',
     ].join('\n'),
   );
   makeExecutable(

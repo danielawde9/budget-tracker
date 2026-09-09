@@ -131,7 +131,7 @@ describe('encrypted Budget backup boundary', () => {
       root,
       'backups/live/2026-09-09T021500Z-fixture',
     );
-    expect(result.status).toBe(0);
+    expect(result.status, `${result.stderr}\n${result.stdout}`).toBe(0);
     const commandLog = readFileSync(log, 'utf8');
     const manifest = readFileSync(join(recoveryPoint, 'manifest.txt'), 'utf8');
     expect(commandLog).toMatch(/timeout:[0-9]+:exec-01-pg_dump\n/);
@@ -254,6 +254,22 @@ describe('encrypted Budget backup boundary', () => {
     const result = run('backup', {
       ...env,
       BUDGET_FAKE_OFFSITE_RECEIPT_INVALID: '1',
+    });
+    const success = join(
+      root,
+      'backups/live/2026-09-09T021500Z-fixture/SUCCESS',
+    );
+
+    expect(result.status).toBe(70);
+    expect(result.stderr).toContain('off-site receipt is invalid');
+    expect(existsSync(success)).toBe(false);
+  });
+
+  it('rejects a valid off-site receipt followed by an unvalidated record', () => {
+    const { env, root } = makeBackupFixture();
+    const result = run('backup', {
+      ...env,
+      BUDGET_FAKE_OFFSITE_RECEIPT_TRAILING: '1',
     });
     const success = join(
       root,

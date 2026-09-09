@@ -257,7 +257,7 @@ describe('scratch-only Budget restore boundary', () => {
     const result = run('restore', env);
     const commands = readFileSync(log, 'utf8');
 
-    expect(result.status, result.stderr).toBe(0);
+    expect(result.status, `${result.stderr}\n${result.stdout}`).toBe(0);
     expect(commands.match(/offsite:get/g)).toHaveLength(4);
     expect(commands.match(/db-verify:/g)).toHaveLength(2);
     expect(commands.match(/timeout:[0-9]+:exec-01-age/g)).toHaveLength(3);
@@ -305,6 +305,18 @@ describe('scratch-only Budget restore boundary', () => {
 
     expect(result.status).toBe(75);
     expect(result.stderr).toContain('executable snapshot validation failed');
+    expect(result.stdout).not.toContain('scratch restore comparison verified');
+  });
+
+  it('rejects a valid comparison receipt followed by a duplicate status record', () => {
+    const { env } = makeRestoreFixture();
+    const result = run('restore', {
+      ...env,
+      BUDGET_FAKE_COMPARISON_RECEIPT_TRAILING: '1',
+    });
+
+    expect(result.status).toBe(78);
+    expect(result.stderr).toContain('comparison receipt is invalid');
     expect(result.stdout).not.toContain('scratch restore comparison verified');
   });
 
