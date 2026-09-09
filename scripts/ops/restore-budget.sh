@@ -76,6 +76,16 @@ restore_validate_configuration() {
     fi
   done
 
+
+  local database_identifier
+  for database_identifier in "${BUDGET_DATABASE_HOST}" "${BUDGET_DATABASE_USER}" \
+    "${BUDGET_PGPASS_FILE}"; do
+    if budget_is_protected_identifier "${database_identifier}"; then
+      budget_error 'protected Sandooq/POS database identifier refused' 75
+      return
+    fi
+  done
+
   if [[ ! "${BUDGET_RECOVERY_POINT}" =~ ^[0-9TZ:-]{16,32}-[A-Za-z0-9._-]{1,64}$ || \
     "${BUDGET_SCRATCH_PROJECT_ID}" != 'budget-restore-scratch' || \
     "${BUDGET_SCRATCH_PORT}" != '54722' || \

@@ -49,6 +49,19 @@ describe('encrypted Budget backup boundary', () => {
     expect(existsSync(log)).toBe(false);
   });
 
+  it.each([
+    ['BUDGET_DATABASE_HOST', 'sandooq.internal'],
+    ['BUDGET_DATABASE_NAME', 'supabase_db_pos'],
+    ['BUDGET_DATABASE_USER', 'pos_operator'],
+  ])('refuses protected database setting %s before any tool runs', (key, value) => {
+    const { env, log } = makeBackupFixture();
+    const result = run('backup', { ...env, [key]: value });
+
+    expect(result.status).toBe(70);
+    expect(result.stderr).toContain('protected Sandooq/POS database identifier');
+    expect(existsSync(log)).toBe(false);
+  });
+
   it('refuses a database secret file that is not mode 0600', () => {
     const { env, log, passfile } = makeBackupFixture();
     chmodSync(passfile, 0o644);

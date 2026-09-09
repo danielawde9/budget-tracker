@@ -66,6 +66,15 @@ backup_validate_configuration() {
     fi
   done
 
+  local database_identifier
+  for database_identifier in "${BUDGET_DATABASE_HOST}" "${BUDGET_DATABASE_NAME}" \
+    "${BUDGET_DATABASE_USER}" "${BUDGET_PGPASS_FILE}"; do
+    if budget_is_protected_identifier "${database_identifier}"; then
+      budget_error 'protected Sandooq/POS database identifier refused' 70
+      return
+    fi
+  done
+
   if [[ ! "${BUDGET_RUN_ID}" =~ ^[0-9TZ:-]{16,32}-[A-Za-z0-9._-]{1,64}$ || \
     ! "${BUDGET_DATABASE_PORT}" =~ ^[0-9]{1,5}$ || \
     ! "${BUDGET_REQUIRED_BYTES}" =~ ^[0-9]{1,20}$ || \

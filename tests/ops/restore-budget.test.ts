@@ -79,6 +79,18 @@ describe('scratch-only Budget restore boundary', () => {
     expect(existsSync(log)).toBe(false);
   });
 
+  it('refuses a protected database endpoint before fetching or restoring', () => {
+    const { env, log } = makeRestoreFixture();
+    const result = run('restore', {
+      ...env,
+      BUDGET_DATABASE_HOST: 'pos.internal',
+    });
+
+    expect(result.status).toBe(75);
+    expect(result.stderr).toContain('protected Sandooq/POS database identifier');
+    expect(existsSync(log)).toBe(false);
+  });
+
   it('rejects missing/wrong scratch markers and a reused live system identifier', () => {
     const first = makeRestoreFixture();
     unlinkSync(first.scratchMarker);
