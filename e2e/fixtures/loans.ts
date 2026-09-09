@@ -150,16 +150,20 @@ function authSession(email = 'manager@example.test', id = 'visual-user') {
   };
 }
 
+function cloneRows<T extends object>(rows: readonly T[]): T[] {
+  return rows.map((row) => ({ ...row }));
+}
+
 export async function installLoansApiFixture(page: Page, options: ApplicationFixtureOptions = {}) {
   const authenticated = options.authenticated ?? true;
-  const visibleSpaces = options.emptySpaces ? [] : [...spaces];
-  const visibleWallets = options.emptySpaces || options.emptyWallets ? [] : [...wallets];
-  const visibleWalletBalances = options.emptySpaces || options.emptyWallets ? [] : [...walletBalances];
-  const visibleEvents = options.emptyWallets ? [] : [...events];
-  const visibleMovements = options.emptyWallets ? [] : [...movements];
-  const visiblePostings = options.emptyWallets ? [] : [...postings];
-  const visibleCategories = options.emptySpaces ? [] : [...categoryRows];
-  const visibleEventCategories = options.emptyWallets ? [] : [...eventCategoryRows];
+  const visibleSpaces = options.emptySpaces ? [] : cloneRows(spaces);
+  const visibleWallets = options.emptySpaces || options.emptyWallets ? [] : cloneRows(wallets);
+  const visibleWalletBalances = options.emptySpaces || options.emptyWallets ? [] : cloneRows(walletBalances);
+  const visibleEvents = options.emptyWallets ? [] : cloneRows(events);
+  const visibleMovements = options.emptyWallets ? [] : cloneRows(movements);
+  const visiblePostings = options.emptyWallets ? [] : cloneRows(postings);
+  const visibleCategories = options.emptySpaces ? [] : cloneRows(categoryRows);
+  const visibleEventCategories = options.emptyWallets ? [] : cloneRows(eventCategoryRows);
   const categoryCommandResults = new Map<string, { command_kind: 'create_category' | 'archive_category'; category_id: string; created_at: string }>();
   let signInAttempts = 0;
   let ambiguousSpaceRemaining = options.ambiguousSpaceOnce ? 1 : 0;
