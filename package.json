@@ -13,6 +13,7 @@
     "test:ui:watch": "vitest --config vitest.ui.config.ts",
     "test:e2e": "env -u NO_COLOR playwright test",
     "test:uat:offline": "env -u NO_COLOR playwright test e2e/private-uat.spec.ts",
+    "check:uat:infra": "pnpm exec vitest run tests/ops/budget-uat-18.test.ts --pool=forks --no-file-parallelism",
     "typecheck": "tsc --noEmit",
     "check:ops": "bash scripts/ops/check-budget.sh",
     "check:ui": "pnpm typecheck && pnpm test:ui && pnpm build",
