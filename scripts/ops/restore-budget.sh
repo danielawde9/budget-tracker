@@ -7,11 +7,7 @@ readonly RESTORE_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=./budget-common.sh
 source "${RESTORE_SCRIPT_DIR}/budget-common.sh"
 
-readonly RESTORE_TIMEOUT_SECONDS=3600
-readonly RESTORE_VERIFY_TIMEOUT_SECONDS=600
-readonly RESTORE_HELPER_TIMEOUT_SECONDS=300
-readonly RESTORE_HASH_TIMEOUT_SECONDS=60
-readonly RESTORE_DB_VERIFY_TIMEOUT_SECONDS=15
+readonly RESTORE_OPERATION_TIMEOUT_SECONDS=3600
 
 restore_validate_live_gate() {
   local expected_confirmation="live:${BUDGET_PROJECT_ID:-}:${BUDGET_EXPECTED_SYSTEM_ID:-}"
@@ -177,15 +173,18 @@ system_id=${BUDGET_SCRATCH_EXPECTED_SYSTEM_ID}" ]]; then
 
 restore_measure_database() {
   BUDGET_VERIFY_PSQL_BIN="${BUDGET_VERIFY_PSQL_BIN}" \
-    "${RESTORE_TIMEOUT_BIN}" "${RESTORE_DB_VERIFY_TIMEOUT_SECONDS}" \
-    "${BUDGET_DB_VERIFY_BIN}" "${RESTORE_DB_HOST}" "${RESTORE_DB_PORT}" \
+    restore_run "${BUDGET_DB_VERIFY_BIN}" "${RESTORE_DB_HOST}" "${RESTORE_DB_PORT}" \
     "${RESTORE_DB_NAME}" "${RESTORE_DB_USER}"
+}
+
+restore_run() {
+  budget_run_before_deadline "${restore_deadline}" 75 "${RESTORE_TIMEOUT_BIN}" "$@"
 }
 
 restore_hash() {
   local candidate="${1:?hash candidate is required}"
   local output
-  output="$("${RESTORE_TIMEOUT_BIN}" "${RESTORE_HASH_TIMEOUT_SECONDS}" shasum -a 256 "${candidate}")"
+  output="$(restore_run /usr/bin/shasum -a 256 "${candidate}")"
   printf '%s\n' "${output%% *}"
 }
 
@@ -237,6 +236,8 @@ restore_expected_hash() {
 }
 
 restore_execute() {
+  local restore_deadline
+  restore_deadline="$(budget_start_deadline "${RESTORE_OPERATION_TIMEOUT_SECONDS}")"
   restore_validate_configuration
 
   local restore_lock_acquired=0 restore_temp_created=0
@@ -277,8 +278,7 @@ restore_execute() {
   local filename local_path
   for filename in manifest.txt archive.dump.age roles.sql.age catalog.txt.age; do
     local_path="${restore_temp_dir}/${filename}"
-    "${RESTORE_TIMEOUT_BIN}" "${RESTORE_HELPER_TIMEOUT_SECONDS}" \
-      "${BUDGET_OFFSITE_BIN}" get "${BUDGET_OFFSITE_DESTINATION}" \
+    restore_run "${BUDGET_OFFSITE_BIN}" get "${BUDGET_OFFSITE_DESTINATION}" \
       "${RESTORE_POINT}/${filename}" "${local_path}"
   done
 
@@ -321,19 +321,14 @@ restore_execute() {
     fi
   done
 
-  "${RESTORE_TIMEOUT_BIN}" "${RESTORE_HELPER_TIMEOUT_SECONDS}" \
-    "${BUDGET_AGE_BIN}" -d -i "${BUDGET_AGE_IDENTITY_FILE}" \
+  restore_run "${BUDGET_AGE_BIN}" -d -i "${BUDGET_AGE_IDENTITY_FILE}" \
     -o "${restore_archive_plain}" "${restore_archive_cipher}"
-  "${RESTORE_TIMEOUT_BIN}" "${RESTORE_HELPER_TIMEOUT_SECONDS}" \
-    "${BUDGET_AGE_BIN}" -d -i "${BUDGET_AGE_IDENTITY_FILE}" \
+  restore_run "${BUDGET_AGE_BIN}" -d -i "${BUDGET_AGE_IDENTITY_FILE}" \
     -o "${restore_roles_plain}" "${restore_roles_cipher}"
-  "${RESTORE_TIMEOUT_BIN}" "${RESTORE_HELPER_TIMEOUT_SECONDS}" \
-    "${BUDGET_AGE_BIN}" -d -i "${BUDGET_AGE_IDENTITY_FILE}" \
+  restore_run "${BUDGET_AGE_BIN}" -d -i "${BUDGET_AGE_IDENTITY_FILE}" \
     -o "${restore_catalog_plain}" "${restore_catalog_cipher}"
-  "${RESTORE_TIMEOUT_BIN}" "${RESTORE_HELPER_TIMEOUT_SECONDS}" \
-    "${BUDGET_PG_RESTORE_BIN}" --list "${restore_archive_plain}" > "${restore_archive_list}"
-  "${RESTORE_TIMEOUT_BIN}" "${RESTORE_HELPER_TIMEOUT_SECONDS}" \
-    "${BUDGET_ROLE_FILTER_BIN}" "${restore_roles_plain}" \
+  restore_run "${BUDGET_PG_RESTORE_BIN}" --list "${restore_archive_plain}" > "${restore_archive_list}"
+  restore_run "${BUDGET_ROLE_FILTER_BIN}" "${restore_roles_plain}" \
     "${restore_roles_filtered}" "${BUDGET_ROLE_ALLOWLIST}"
 
   export PGCONNECT_TIMEOUT=5
@@ -348,18 +343,15 @@ restore_execute() {
     "${RESTORE_DB_NAME}" "${RESTORE_DB_OID}" 1 76 >/dev/null
   budget_revalidate_environment
   restore_revalidate_scratch
-  "${RESTORE_TIMEOUT_BIN}" "${RESTORE_VERIFY_TIMEOUT_SECONDS}" \
-    "${BUDGET_PSQL_BIN}" --set=ON_ERROR_STOP=on \
+  restore_run "${BUDGET_PSQL_BIN}" --set=ON_ERROR_STOP=on \
     --host="${RESTORE_DB_HOST}" --port="${RESTORE_DB_PORT}" \
     --username="${RESTORE_DB_USER}" --dbname="${RESTORE_DB_NAME}" \
     --file="${restore_roles_filtered}"
-  "${RESTORE_TIMEOUT_BIN}" "${RESTORE_TIMEOUT_SECONDS}" \
-    "${BUDGET_PG_RESTORE_BIN}" --exit-on-error --jobs=1 \
+  restore_run "${BUDGET_PG_RESTORE_BIN}" --exit-on-error --jobs=1 \
     --host="${RESTORE_DB_HOST}" --port="${RESTORE_DB_PORT}" \
     --username="${RESTORE_DB_USER}" --dbname="${RESTORE_DB_NAME}" \
     "${restore_archive_plain}"
-  "${RESTORE_TIMEOUT_BIN}" "${RESTORE_VERIFY_TIMEOUT_SECONDS}" \
-    "${BUDGET_COMPARE_BIN}" --source-manifest="${restore_manifest}" \
+  restore_run "${BUDGET_COMPARE_BIN}" --source-manifest="${restore_manifest}" \
     --source-catalog="${restore_catalog_plain}" --target=scratch \
     --max-row-summaries=100 --max-content-hashes=100
 

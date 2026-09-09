@@ -24,6 +24,17 @@ function run(command: string, env: NodeJS.ProcessEnv, extraArgs: string[] = []) 
   });
 }
 
+function expectShrinkingDeadline(commandLog: string, maximum: number) {
+  const budgets = [...commandLog.matchAll(/^timeout:([0-9]+):/gm)].map(
+    (match) => Number(match[1]),
+  );
+  expect(budgets.length).toBeGreaterThan(0);
+  expect(budgets[0]).toBeLessThanOrEqual(maximum);
+  for (let position = 1; position < budgets.length; position += 1) {
+    expect(budgets[position]!).toBeLessThanOrEqual(budgets[position - 1]!);
+  }
+}
+
 describe('encrypted Budget backup boundary', () => {
   it.each([
     ['BUDGET_AGE_RECIPIENT', 'encryption recipient is not configured'],
@@ -118,11 +129,11 @@ describe('encrypted Budget backup boundary', () => {
     expect(result.status).toBe(0);
     const commandLog = readFileSync(log, 'utf8');
     const manifest = readFileSync(join(recoveryPoint, 'manifest.txt'), 'utf8');
-    expect(commandLog).toContain('timeout:1800:pg_dump');
+    expect(commandLog).toMatch(/timeout:[0-9]+:pg_dump\n/);
     expect(commandLog.match(/db-verify:/g)).toHaveLength(2);
-    expect(commandLog).toContain('timeout:1800:pg_dumpall');
-    expect(commandLog).toContain('timeout:300:catalog');
-    expect(commandLog.match(/timeout:300:age/g)).toHaveLength(3);
+    expect(commandLog).toMatch(/timeout:[0-9]+:pg_dumpall\n/);
+    expect(commandLog).toMatch(/timeout:[0-9]+:catalog\n/);
+    expect(commandLog.match(/timeout:[0-9]+:age/g)).toHaveLength(3);
     expect(commandLog.match(/offsite:put/g)).toHaveLength(4);
     expect(commandLog.match(/offsite:verify/g)).toHaveLength(4);
     expect(readdirSync(recoveryPoint).sort()).toEqual([
@@ -155,6 +166,7 @@ describe('encrypted Budget backup boundary', () => {
     expect(manifest).toMatch(/roles\.sql\.age_size=[1-9][0-9]*/);
     expect(manifest).toMatch(/catalog\.txt\.age_size=[1-9][0-9]*/);
     expect(manifest).not.toContain('fixture-only');
+    expectShrinkingDeadline(commandLog, 1800);
   });
 
   it('trusts the measured database identity instead of a caller declaration', () => {
@@ -212,7 +224,7 @@ describe('encrypted Budget backup boundary', () => {
     const tempRoot = join(root, 'tmp');
 
     expect(result.status).toBe(17);
-    expect(readFileSync(log, 'utf8')).toContain('timeout:300:age');
+    expect(readFileSync(log, 'utf8')).toMatch(/timeout:[0-9]+:age\n/);
     expect(existsSync(join(tempRoot, '2026-09-09T021500Z-fixture.plaintext'))).toBe(
       false,
     );

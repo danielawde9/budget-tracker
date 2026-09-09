@@ -15,6 +15,36 @@ budget_error() {
   return "${status}"
 }
 
+budget_monotonic_seconds() {
+  /usr/bin/perl -MTime::HiRes=clock_gettime,CLOCK_MONOTONIC -e '
+    alarm 5;
+    printf "%d\n", int(clock_gettime(CLOCK_MONOTONIC));
+  '
+}
+
+budget_start_deadline() {
+  local total_seconds="${1:-}"
+  local started_at
+  [[ "${total_seconds}" =~ ^[1-9][0-9]{0,5}$ ]] || return 1
+  started_at="$(budget_monotonic_seconds)"
+  printf '%s\n' "$((started_at + total_seconds))"
+}
+
+budget_run_before_deadline() {
+  local deadline="${1:?deadline is required}"
+  local status="${2:?status is required}"
+  local timeout_bin="${3:?timeout binary is required}"
+  shift 3
+  local now remaining
+  now="$(budget_monotonic_seconds)"
+  remaining=$((deadline - now))
+  if (( remaining <= 0 )); then
+    budget_error 'whole-operation deadline exceeded' "${status}"
+    return
+  fi
+  "${timeout_bin}" "${remaining}" "$@"
+}
+
 budget_is_protected_identifier() {
   local value="${1:-}"
   local lowered

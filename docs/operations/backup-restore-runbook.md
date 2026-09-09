@@ -139,9 +139,10 @@ receipt remain **BLOCKED**.
 3. Run `dry-run`; it validates configuration but takes no lock, creates no file,
    and invokes no database, encryption, or network binary.
 4. In an approved window, run `backup`. It takes a nonblocking live lock,
-   measures and pins the database receipt, uses a five-second connection
-   timeout, 30-second lock wait, and 30-minute wall bound, then measures the
-   same immutable endpoint again immediately before `pg_dump`.
+   starts one 30-minute deadline from a monotonic clock, and measures and pins
+   the database receipt. Every adapter receives only the remaining operation
+   time; no child starts a fresh budget. The same immutable endpoint is measured
+   again immediately before `pg_dump`.
 5. It creates a full custom-format dump, a roles-only/no-role-passwords dump,
    and bounded catalog metadata.
 6. The three plaintexts live under one mode-`0700` directory and are age
@@ -191,7 +192,9 @@ repository intentionally includes no deletion command.
    `psql` or `pg_restore`.
 6. Decryption stays in private scratch temp. The archive is listed; roles are
    filtered. `psql` uses `ON_ERROR_STOP`; `pg_restore` uses one job and
-   `--exit-on-error` within 60 minutes.
+   `--exit-on-error` within one monotonic 60-minute whole-operation deadline.
+   Every fetch, hash, decrypt, list, filter, database, and comparison adapter
+   receives only the remaining time.
 7. The bounded comparison adapter must pass. Process exit without catalog/data
    comparison is not a verified restore.
 8. The trap removes exact temp files. Export redacted timings/comparison, then

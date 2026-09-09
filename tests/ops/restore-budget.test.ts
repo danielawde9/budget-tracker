@@ -24,6 +24,17 @@ function run(command: string, env: NodeJS.ProcessEnv) {
   });
 }
 
+function expectShrinkingDeadline(commandLog: string, maximum: number) {
+  const budgets = [...commandLog.matchAll(/^timeout:([0-9]+):/gm)].map(
+    (match) => Number(match[1]),
+  );
+  expect(budgets.length).toBeGreaterThan(0);
+  expect(budgets[0]).toBeLessThanOrEqual(maximum);
+  for (let position = 1; position < budgets.length; position += 1) {
+    expect(budgets[position]!).toBeLessThanOrEqual(budgets[position - 1]!);
+  }
+}
+
 describe('scratch-only Budget restore boundary', () => {
   it('defaults to scratch and dry-runs without filesystem, database, or network mutation', () => {
     const { env, log, scratchRoot } = makeRestoreFixture();
@@ -212,12 +223,13 @@ describe('scratch-only Budget restore boundary', () => {
     expect(result.status).toBe(0);
     expect(commands.match(/offsite:get/g)).toHaveLength(4);
     expect(commands.match(/db-verify:/g)).toHaveLength(2);
-    expect(commands.match(/timeout:300:age/g)).toHaveLength(3);
-    expect(commands).toContain('timeout:3600:pg_restore');
-    expect(commands).toContain('timeout:600:psql');
+    expect(commands.match(/timeout:[0-9]+:age/g)).toHaveLength(3);
+    expect(commands).toMatch(/timeout:[0-9]+:pg_restore\n/);
+    expect(commands).toMatch(/timeout:[0-9]+:psql\n/);
     expect(commands).toContain('role-filter');
-    expect(commands).toContain('timeout:600:compare');
+    expect(commands).toMatch(/timeout:[0-9]+:compare\n/);
     expect(result.stdout).toContain('scratch restore comparison verified');
+    expectShrinkingDeadline(commands, 3600);
   });
 
   it('rechecks scratch identity and emptiness immediately before database effects', () => {

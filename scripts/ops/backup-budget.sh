@@ -7,10 +7,7 @@ readonly BACKUP_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=./budget-common.sh
 source "${BACKUP_SCRIPT_DIR}/budget-common.sh"
 
-readonly BACKUP_TIMEOUT_SECONDS=1800
-readonly BACKUP_HELPER_TIMEOUT_SECONDS=300
-readonly BACKUP_HASH_TIMEOUT_SECONDS=60
-readonly BACKUP_VERIFY_TIMEOUT_SECONDS=15
+readonly BACKUP_OPERATION_TIMEOUT_SECONDS=1800
 readonly MAX_RETENTION_ROWS=1000
 readonly KEEP_DAILY=14
 readonly KEEP_WEEKLY=8
@@ -125,22 +122,25 @@ backup_validate_configuration() {
 
 backup_measure_database() {
   BUDGET_VERIFY_PSQL_BIN="${BUDGET_VERIFY_PSQL_BIN}" \
-    "${BACKUP_TIMEOUT_BIN}" "${BACKUP_VERIFY_TIMEOUT_SECONDS}" \
-    "${BUDGET_DB_VERIFY_BIN}" "${BACKUP_DB_HOST}" "${BACKUP_DB_PORT}" \
+    backup_run "${BUDGET_DB_VERIFY_BIN}" "${BACKUP_DB_HOST}" "${BACKUP_DB_PORT}" \
     "${BACKUP_DB_NAME}" "${BACKUP_DB_USER}"
+}
+
+backup_run() {
+  budget_run_before_deadline "${backup_deadline}" 70 "${BACKUP_TIMEOUT_BIN}" "$@"
 }
 
 backup_hash() {
   local candidate="${1:?hash candidate is required}"
   local output
-  output="$("${BACKUP_TIMEOUT_BIN}" "${BACKUP_HASH_TIMEOUT_SECONDS}" shasum -a 256 "${candidate}")"
+  output="$(backup_run /usr/bin/shasum -a 256 "${candidate}")"
   printf '%s\n' "${output%% *}"
 }
 
 backup_size() {
   local candidate="${1:?size candidate is required}"
   local output
-  output="$("${BACKUP_TIMEOUT_BIN}" "${BACKUP_HASH_TIMEOUT_SECONDS}" wc -c < "${candidate}")"
+  output="$(backup_run /usr/bin/wc -c < "${candidate}")"
   output="${output//[[:space:]]/}"
   [[ "${output}" =~ ^[0-9]{1,20}$ ]] || return 1
   printf '%s\n' "${output}"
@@ -166,6 +166,8 @@ backup_cleanup() {
 }
 
 backup_execute() {
+  local backup_deadline
+  backup_deadline="$(budget_start_deadline "${BACKUP_OPERATION_TIMEOUT_SECONDS}")"
   backup_validate_configuration
 
   local backup_lock_acquired=0 backup_temp_created=0 backup_recovery_created=0
@@ -197,8 +199,7 @@ backup_execute() {
     "${BUDGET_VALIDATED_SYSTEM_ID}" "${BUDGET_POSTGRES_MAJOR}" \
     "${BACKUP_DB_NAME}" "${BACKUP_DB_OID}" 0 68 >/dev/null
   budget_revalidate_environment
-  backup_started_at="$("${BACKUP_TIMEOUT_BIN}" "${BACKUP_HASH_TIMEOUT_SECONDS}" \
-    "${BUDGET_CLOCK_BIN}")"
+  backup_started_at="$(backup_run "${BUDGET_CLOCK_BIN}")"
 
   mkdir -p -- "${BACKUP_ROOT}/tmp" "${BACKUP_ROOT}/backups/live"
   if ! mkdir -- "${backup_plain_dir}"; then
@@ -224,27 +225,21 @@ backup_execute() {
     "${BACKUP_DB_NAME}" "${BACKUP_DB_OID}" 0 68 >/dev/null
   budget_revalidate_environment
 
-  "${BACKUP_TIMEOUT_BIN}" "${BACKUP_TIMEOUT_SECONDS}" \
-    "${BUDGET_PG_DUMP_BIN}" --format=custom --compress=9 \
+  backup_run "${BUDGET_PG_DUMP_BIN}" --format=custom --compress=9 \
     --file="${backup_archive_plain}" --host="${BACKUP_DB_HOST}" \
     --port="${BACKUP_DB_PORT}" --username="${BACKUP_DB_USER}" \
     --dbname="${BACKUP_DB_NAME}"
-  "${BACKUP_TIMEOUT_BIN}" "${BACKUP_TIMEOUT_SECONDS}" \
-    "${BUDGET_PG_DUMPALL_BIN}" --roles-only --no-role-passwords \
+  backup_run "${BUDGET_PG_DUMPALL_BIN}" --roles-only --no-role-passwords \
     --host="${BACKUP_DB_HOST}" --port="${BACKUP_DB_PORT}" \
     --username="${BACKUP_DB_USER}" > "${backup_roles_plain}"
-  "${BACKUP_TIMEOUT_BIN}" "${BACKUP_HELPER_TIMEOUT_SECONDS}" \
-    "${BUDGET_CATALOG_BIN}" --database="${BACKUP_DB_NAME}" \
+  backup_run "${BUDGET_CATALOG_BIN}" --database="${BACKUP_DB_NAME}" \
     --max-row-summaries=100 > "${backup_catalog_plain}"
 
-  "${BACKUP_TIMEOUT_BIN}" "${BACKUP_HELPER_TIMEOUT_SECONDS}" \
-    "${BUDGET_AGE_BIN}" -r "${BUDGET_AGE_RECIPIENT}" \
+  backup_run "${BUDGET_AGE_BIN}" -r "${BUDGET_AGE_RECIPIENT}" \
     -o "${backup_archive_cipher}" "${backup_archive_plain}"
-  "${BACKUP_TIMEOUT_BIN}" "${BACKUP_HELPER_TIMEOUT_SECONDS}" \
-    "${BUDGET_AGE_BIN}" -r "${BUDGET_AGE_RECIPIENT}" \
+  backup_run "${BUDGET_AGE_BIN}" -r "${BUDGET_AGE_RECIPIENT}" \
     -o "${backup_roles_cipher}" "${backup_roles_plain}"
-  "${BACKUP_TIMEOUT_BIN}" "${BACKUP_HELPER_TIMEOUT_SECONDS}" \
-    "${BUDGET_AGE_BIN}" -r "${BUDGET_AGE_RECIPIENT}" \
+  backup_run "${BUDGET_AGE_BIN}" -r "${BUDGET_AGE_RECIPIENT}" \
     -o "${backup_catalog_cipher}" "${backup_catalog_plain}"
 
   local migration_hash archive_hash roles_hash catalog_hash catalog_metadata_hash
@@ -257,8 +252,7 @@ backup_execute() {
   archive_size="$(backup_size "${backup_archive_cipher}")"
   roles_size="$(backup_size "${backup_roles_cipher}")"
   catalog_size="$(backup_size "${backup_catalog_cipher}")"
-  backup_finished_at="$("${BACKUP_TIMEOUT_BIN}" "${BACKUP_HASH_TIMEOUT_SECONDS}" \
-    "${BUDGET_CLOCK_BIN}")"
+  backup_finished_at="$(backup_run "${BUDGET_CLOCK_BIN}")"
   duration_seconds=$((SECONDS - backup_started_seconds))
   {
     printf '%s\n' 'backup_manifest_version=1'
@@ -287,11 +281,9 @@ backup_execute() {
   local payload
   for payload in "${backup_archive_cipher}" "${backup_roles_cipher}" \
     "${backup_catalog_cipher}" "${backup_manifest}"; do
-    "${BACKUP_TIMEOUT_BIN}" "${BACKUP_HELPER_TIMEOUT_SECONDS}" \
-      "${BUDGET_OFFSITE_BIN}" put "${payload}" \
+    backup_run "${BUDGET_OFFSITE_BIN}" put "${payload}" \
       "${BUDGET_OFFSITE_DESTINATION}" "${BACKUP_RUN_ID}/${payload##*/}"
-    "${BACKUP_TIMEOUT_BIN}" "${BACKUP_HELPER_TIMEOUT_SECONDS}" \
-      "${BUDGET_OFFSITE_BIN}" verify "${payload}" \
+    backup_run "${BUDGET_OFFSITE_BIN}" verify "${payload}" \
       "${BUDGET_OFFSITE_DESTINATION}" "${BACKUP_RUN_ID}/${payload##*/}"
   done
 
