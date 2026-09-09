@@ -62,6 +62,15 @@ function run(command: string, env: NodeJS.ProcessEnv) {
 }
 
 describe('Budget operations environment contract', () => {
+  it('rechecks private marker metadata on the opened descriptor', () => {
+    const source = readFileSync(script, 'utf8');
+
+    expect(source).toContain('S_ISREG($opened[2])');
+    expect(source).toContain('$opened[4] == $<');
+    expect(source).toContain('(($opened[2] & 0777) == 0600)');
+    expect(source).toContain('$opened[7] <= 4096');
+  });
+
   it.each(['', 'production', 'LIVE', 'scratch'])(
     'rejects empty or unknown environment %j',
     (environment) => {

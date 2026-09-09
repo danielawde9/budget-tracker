@@ -92,6 +92,9 @@ budget_read_private_marker() {
     sysopen(my $handle, $path, O_RDONLY | O_NOFOLLOW) or exit 1;
     my @opened = stat($handle);
     exit 1 unless @opened && $opened[0] == $before[0] && $opened[1] == $before[1];
+    exit 1 unless S_ISREG($opened[2]);
+    exit 1 unless $opened[4] == $< && (($opened[2] & 0777) == 0600);
+    exit 1 unless $opened[7] <= 4096;
     local $/;
     my $contents = <$handle>;
     exit 1 unless defined $contents && length($contents) <= 4096;
