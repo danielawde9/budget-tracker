@@ -33,23 +33,23 @@
 - Modify: `scripts/ops/check-budget.sh`
 - Modify: `package.json`
 
-- [ ] **Step 1: Write failing static contract tests**
+- [x] **Step 1: Write failing static contract tests**
 
   Assert exact host, root, project, marker, ports, container/network/volume names, four pinned image digests, loopback-only port mappings, restart policy `no`, no privileged containers, no existing-resource lifecycle command, no `supabase start|stop|db reset|nuke`, no secret value in tracked files, a 300-second health bound, and cleanup refusal unless the exact marker and Docker labels match.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
   Run `pnpm exec vitest run tests/ops/budget-uat-18.test.ts --pool=forks --no-file-parallelism`. Expected: fail because the UAT files and entrypoint do not exist.
 
-- [ ] **Step 3: Implement the minimal static inputs and command dispatcher**
+- [x] **Step 3: Implement the minimal static inputs and command dispatcher**
 
   The dispatcher exposes only `preflight`, `sync`, `provision`, `verify`, `stop`, and `cleanup`; sets `umask 077`; uses fixed SSH timeout options; checks exact Git head and clean migration inputs; validates the canonical 18-row manifest before SSH; rejects occupied ports/names/paths; snapshots existing Budget development identities before and after every mutating command; never prints or requests secret values; and delegates remote work only to the synchronized, hash-verified script snapshot.
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
   Run the focused Vitest file, `bash -n scripts/ops/budget-uat-18.sh`, and `BUDGET_OPS_STATIC_ONLY=1 pnpm check:ops`. Expected: all pass and the secret scan names files only.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   Commit `feat(ops): enforce isolated budget uat contract`.
 
@@ -62,23 +62,23 @@
 - Modify: `tests/ops/budget-uat-18.test.ts`
 - Modify: `scripts/ops/check-budget.sh`
 
-- [ ] **Step 1: Write failing behavior tests**
+- [x] **Step 1: Write failing behavior tests**
 
   In a private fixture root with fake Docker/SSH adapters, prove the remote helper rejects a missing/wrong marker, nonempty migration journal, manifest count other than 18, reversed/duplicate/unknown versions, a changed SQL hash, unsafe file mode, reused secret file, occupied port, pre-existing foreign container/network/volume, and cleanup labels that do not exactly equal `budget-uat-18`. Prove error text never includes injected secret fixtures.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
   Run the focused Vitest file. Expected: the new behavior tests fail on missing commands.
 
-- [ ] **Step 3: Implement minimal remote mechanics**
+- [x] **Step 3: Implement minimal remote mechanics**
 
   Generate PostgreSQL/JWT/admin credentials and anon/service JWTs with host CSPRNGs only when `.env` is absent; write directly through a no-follow exclusive descriptor at mode `0600`; never emit them. Validate the release manifest and remote SQL hashes before `docker compose up`; wait at most 60 five-second polls; apply each migration in one transaction and insert its version/name into `supabase_migrations.schema_migrations`; verify exactly 18 ordered rows; and make stop/cleanup exact-label, exact-root, marker-gated operations. Cleanup removes only the four named UAT containers, its named network, named volume, and exact marked root after the operator invokes `cleanup`.
 
-- [ ] **Step 4: Verify GREEN and the redaction ratchet**
+- [x] **Step 4: Verify GREEN and the redaction ratchet**
 
   Run the focused tests, all ops tests, shell syntax, and the tracked secret scan. Expected: all pass; no test or command output contains the fixture secret.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   Commit `feat(ops): add disposable budget uat lifecycle`.
 
