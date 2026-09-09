@@ -549,3 +549,25 @@ plaintext or recovery material while appearing to have attempted cleanup.
 **If changed:** Supporting nested directories or more than 32 entries requires
 a new bounded traversal design, adversarial symlink/swap tests, and an explicit
 review of which additional artifacts cleanup is authorized to remove.
+
+## 2026-09-09 — Offline acceptance is a rehearsal, not authenticated UAT
+
+**Decision:** The release candidate has a deterministic offline acceptance
+rehearsal using only synthetic identities, synthetic minor-unit amounts, an
+injected browser session, and in-memory HTTP fixtures. The harness records only
+the allowlisted protected-command names it observed and never records payloads.
+Fixture state retained across a page reload proves only browser rehydration from
+that fixture process. It is not evidence of Supabase Auth, RLS, PostgreSQL
+persistence, private HTTPS, encrypted backup, off-site durability, or restore.
+
+**Why:** This session explicitly forbids remote database, host, provider, and
+deployment contact. Calling intercepted browser traffic “live UAT” would hide
+the most important real-data-entry blockers. The rehearsal still gives
+maintainers a fast, reproducible release check without weakening the reviewed
+database or gateway boundaries.
+
+**If changed:** A claim of private authenticated UAT requires the exact release
+artifact on an approved private HTTPS origin, a separate synthetic UAT Supabase
+environment, real Auth/RLS/protected-command evidence, and redacted operator
+receipts. A claim of data recovery additionally requires a named encrypted
+off-site backup and measured scratch restore.

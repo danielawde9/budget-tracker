@@ -55,6 +55,12 @@ Backup and recovery tooling is documented in the
 Repository tests and dry-runs are not live backup, restore, deployment, or
 real-data-entry evidence.
 
+The [private synthetic UAT rehearsal](docs/operations/private-synthetic-uat-rehearsal.md)
+reproduces the offline browser acceptance matrix without contacting Supabase or
+any remote host. Its injected session and in-memory HTTP fixtures are explicitly
+not live Auth, RLS, PostgreSQL persistence, backup, restore, or private HTTPS
+evidence.
+
 ## Current boundaries
 
 - Loan openings, lending, borrowing, repayments, targets, and corrections use
