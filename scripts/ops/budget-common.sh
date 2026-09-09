@@ -147,7 +147,6 @@ budget_snapshot_executable() {
       close $output or die "close\n";
       die "hash\n" unless $digest->hexdigest eq $expected_hash;
     ' "${remaining}" "${source}" "${destination}" "${expected_hash}" 2>/dev/null; then
-    /bin/rm -f -- "${destination}" 2>/dev/null || true
     budget_error 'executable snapshot validation failed' "${status}"
     return
   fi
@@ -163,29 +162,124 @@ budget_seal_executable_snapshot_dir() {
   fi
 }
 
+budget_remove_private_descendant() {
+  local root="${1:-}"
+  local relative="${2:-}"
+  local deadline="${3:?deadline is required}"
+  local status="${4:?status is required}"
+  local root_policy="${5:-private}"
+  local entry_policy="${6:-artifact}"
+  local remaining
+  if [[ "${root}" != /* || -z "${relative}" || ${#relative} -gt 512 || \
+    ! "${relative}" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}(/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}){0,7}$ || \
+    ! "${root_policy}" =~ ^(private|sticky-tmp)$ || \
+    ! "${entry_policy}" =~ ^(artifact|executable)$ ]]; then
+    budget_error 'unsafe bounded cleanup target' "${status}"
+    return
+  fi
+  if ! remaining="$(budget_remaining_seconds "${deadline}")"; then
+    budget_error 'cleanup deadline exceeded' "${status}"
+    return
+  fi
+  if ! /usr/bin/python3 -c '
+import os
+import re
+import signal
+import stat
+import sys
+
+seconds, root, relative, root_policy, entry_policy = sys.argv[1:]
+signal.alarm(int(seconds))
+flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+opened = []
+
+def private_directory(details):
+    return (
+        stat.S_ISDIR(details.st_mode)
+        and details.st_uid == os.geteuid()
+        and not details.st_mode & 0o077
+    )
+
+try:
+    root_before = os.lstat(root)
+    if os.path.realpath(root) != root:
+        raise RuntimeError("root")
+    if root_policy == "private":
+        if not private_directory(root_before):
+            raise RuntimeError("root")
+    elif (
+        root not in ("/tmp", "/private/tmp")
+        or root_before.st_uid != 0
+        or root_before.st_mode & 0o1777 != 0o1777
+    ):
+        raise RuntimeError("root")
+    root_fd = os.open(root, flags)
+    opened.append(root_fd)
+    root_after = os.fstat(root_fd)
+    if (root_after.st_dev, root_after.st_ino) != (
+        root_before.st_dev,
+        root_before.st_ino,
+    ):
+        raise RuntimeError("root")
+    parent_fd = root_fd
+    parts = relative.split("/")
+    for position, part in enumerate(parts):
+        child_fd = os.open(part, flags, dir_fd=parent_fd)
+        opened.append(child_fd)
+        child = os.fstat(child_fd)
+        if not private_directory(child):
+            raise RuntimeError("directory")
+        if position == len(parts) - 1:
+            target_fd = child_fd
+            target_name = part
+            target_identity = (child.st_dev, child.st_ino)
+        else:
+            parent_fd = child_fd
+    entries = os.listdir(target_fd)
+    if len(entries) > 32:
+        raise RuntimeError("entries")
+    pattern = (
+        r"exec-[0-9]{2}-[A-Za-z0-9._-]{1,64}"
+        if entry_policy == "executable"
+        else r"[A-Za-z0-9._:-]{1,128}"
+    )
+    os.fchmod(target_fd, 0o700)
+    for entry in entries:
+        if entry in (".", "..") or re.fullmatch(pattern, entry) is None:
+            raise RuntimeError("entry")
+        details = os.stat(entry, dir_fd=target_fd, follow_symlinks=False)
+        if stat.S_ISDIR(details.st_mode):
+            raise RuntimeError("nested")
+        os.unlink(entry, dir_fd=target_fd)
+    if os.listdir(target_fd):
+        raise RuntimeError("remaining")
+    named = os.stat(target_name, dir_fd=parent_fd, follow_symlinks=False)
+    if (named.st_dev, named.st_ino) != target_identity:
+        raise RuntimeError("swap")
+    os.rmdir(target_name, dir_fd=parent_fd)
+finally:
+    for descriptor in reversed(opened):
+        os.close(descriptor)
+  ' "${remaining}" "${root}" "${relative}" "${root_policy}" "${entry_policy}" \
+    2>/dev/null; then
+    budget_error 'bounded private cleanup failed' "${status}"
+    return
+  fi
+}
+
 budget_cleanup_executable_snapshot_dir() {
   local directory="${1:-}"
+  local deadline="${2:-}"
+  local status="${3:-66}"
+  local root relative
   [[ "${directory}" =~ ^/(private/)?tmp/budget-ops-exec-[A-Za-z0-9_]{8}$ ]] || return 0
-  /usr/bin/perl -MFcntl=:mode -e '
-    alarm 5;
-    my $directory = $ARGV[0];
-    my @directory_details = lstat($directory);
-    exit 0 unless @directory_details;
-    die "directory\n" unless S_ISDIR($directory_details[2]) && $directory_details[4] == $<;
-    chmod 0700, $directory or die "chmod\n";
-    opendir(my $handle, $directory) or die "open\n";
-    my @entries = grep { $_ ne "." && $_ ne ".." } readdir($handle);
-    closedir($handle);
-    die "entries\n" if @entries > 32;
-    for my $entry (@entries) {
-      die "entry\n" unless $entry =~ /^exec-[0-9]{2}-[A-Za-z0-9._-]{1,64}$/;
-      my $path = "$directory/$entry";
-      my @details = lstat($path);
-      die "file\n" unless @details && S_ISREG($details[2]) && $details[4] == $<;
-      unlink($path) or die "unlink\n";
-    }
-    rmdir($directory) or die "rmdir\n";
-  ' "${directory}" 2>/dev/null || true
+  if [[ -z "${deadline}" ]] && ! deadline="$(budget_start_cleanup_deadline "${status}")"; then
+    return
+  fi
+  root="${directory%/*}"
+  relative="${directory##*/}"
+  budget_remove_private_descendant "${root}" "${relative}" "${deadline}" \
+    "${status}" sticky-tmp executable
 }
 
 budget_file_sha256() {

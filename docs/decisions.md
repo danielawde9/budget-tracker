@@ -458,3 +458,20 @@ unbounded or to follow a swapped path.
 **If changed:** A different cleanup budget needs measured slow-filesystem
 evidence and new timeout-path tests. Any broader cleanup target needs a separate
 review of path identity, ownership, permissions, and recoverability.
+
+## 2026-09-09 — Cleanup owns the bounded run directory, not a filename list
+
+**Decision:** Failure cleanup removes each exact run-scoped temp, incomplete
+recovery, lock, and executable-snapshot directory through one no-follow helper.
+The helper uses the trap's single deadline, descriptor-relative traversal and
+unlink/rmdir operations, a 32-entry flat-directory cap, and safe bounded names.
+Symlink entries are unlinked without touching their targets; nested directories
+fail closed.
+
+**Why:** An adapter can create or rename a flat sibling that a predetermined
+filename list does not know about. Ignoring a nonempty `rmdir` then leaves
+plaintext or recovery material while appearing to have attempted cleanup.
+
+**If changed:** Supporting nested directories or more than 32 entries requires
+a new bounded traversal design, adversarial symlink/swap tests, and an explicit
+review of which additional artifacts cleanup is authorized to remove.

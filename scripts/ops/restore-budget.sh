@@ -264,23 +264,17 @@ restore_cleanup() {
     cleanup_deadline=''
   fi
   if [[ -n "${cleanup_deadline}" && "${restore_temp_created:-0}" == '1' ]]; then
-    if budget_validate_private_descendant "${RESTORE_ROOT}" \
-      "${restore_temp_relative}" "${cleanup_deadline}" 76 >/dev/null; then
-      rm -f -- "${restore_manifest}" "${restore_archive_cipher}" \
-        "${restore_roles_cipher}" "${restore_catalog_cipher}" \
-        "${restore_archive_plain}" "${restore_roles_plain}" \
-        "${restore_catalog_plain}" "${restore_roles_filtered}" \
-        "${restore_archive_list}"
-      rmdir -- "${restore_temp_dir}" 2>/dev/null || true
-    fi
+    budget_remove_private_descendant "${RESTORE_ROOT}" "${restore_temp_relative}" \
+      "${cleanup_deadline}" 76 || true
   fi
   if [[ -n "${cleanup_deadline}" && "${restore_lock_acquired:-0}" == '1' ]]; then
-    if budget_validate_private_descendant "${RESTORE_ROOT}" \
-      "${restore_lock_relative}" "${cleanup_deadline}" 76 >/dev/null; then
-      rmdir -- "${restore_lock_dir}" 2>/dev/null || true
-    fi
+    budget_remove_private_descendant "${RESTORE_ROOT}" "${restore_lock_relative}" \
+      "${cleanup_deadline}" 76 || true
   fi
-  budget_cleanup_executable_snapshot_dir "${restore_exec_dir:-}"
+  if [[ -n "${cleanup_deadline}" ]]; then
+    budget_cleanup_executable_snapshot_dir "${restore_exec_dir:-}" \
+      "${cleanup_deadline}" 76 || true
+  fi
   exit "${status}"
 }
 

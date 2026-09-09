@@ -203,28 +203,22 @@ backup_cleanup() {
   fi
 
   if [[ -n "${cleanup_deadline}" && "${backup_temp_created:-0}" == '1' ]]; then
-    if budget_validate_private_descendant "${BACKUP_ROOT}" \
-      "${backup_plain_relative}" "${cleanup_deadline}" 66 >/dev/null; then
-      rm -f -- "${backup_archive_plain}" "${backup_roles_plain}" "${backup_catalog_plain}"
-      rmdir -- "${backup_plain_dir}" 2>/dev/null || true
-    fi
+    budget_remove_private_descendant "${BACKUP_ROOT}" "${backup_plain_relative}" \
+      "${cleanup_deadline}" 66 || true
   fi
   if [[ -n "${cleanup_deadline}" && "${backup_published:-0}" != '1' && \
     "${backup_recovery_created:-0}" == '1' ]]; then
-    if budget_validate_private_descendant "${BACKUP_ROOT}" \
-      "${backup_recovery_relative}" "${cleanup_deadline}" 66 >/dev/null; then
-      rm -f -- "${backup_archive_cipher}" "${backup_roles_cipher}" \
-        "${backup_catalog_cipher}" "${backup_manifest}" "${backup_success}"
-      rmdir -- "${backup_recovery_dir}" 2>/dev/null || true
-    fi
+    budget_remove_private_descendant "${BACKUP_ROOT}" "${backup_recovery_relative}" \
+      "${cleanup_deadline}" 66 || true
   fi
   if [[ -n "${cleanup_deadline}" && "${backup_lock_acquired:-0}" == '1' ]]; then
-    if budget_validate_private_descendant "${BACKUP_ROOT}" \
-      "${backup_lock_relative}" "${cleanup_deadline}" 66 >/dev/null; then
-      rmdir -- "${backup_lock_dir}" 2>/dev/null || true
-    fi
+    budget_remove_private_descendant "${BACKUP_ROOT}" "${backup_lock_relative}" \
+      "${cleanup_deadline}" 66 || true
   fi
-  budget_cleanup_executable_snapshot_dir "${backup_exec_dir:-}"
+  if [[ -n "${cleanup_deadline}" ]]; then
+    budget_cleanup_executable_snapshot_dir "${backup_exec_dir:-}" \
+      "${cleanup_deadline}" 66 || true
+  fi
   exit "${status}"
 }
 

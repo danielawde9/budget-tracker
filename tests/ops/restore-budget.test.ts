@@ -365,7 +365,7 @@ describe('scratch-only Budget restore boundary', () => {
   });
 
   it('starts the deadline wrapper before opening a replaced payload for size', () => {
-    const { env } = makeRestoreFixture();
+    const { env, scratchRoot } = makeRestoreFixture();
     const result = run(
       'restore',
       {
@@ -373,12 +373,15 @@ describe('scratch-only Budget restore boundary', () => {
         BUDGET_FAKE_OFFSITE_REPLACE_PAYLOAD_WITH_FIFO: '1',
         BUDGET_FAKE_TIMEOUT_REFUSE_WC: '1',
       },
-      5_000,
+      10_000,
     );
 
     expect(result.status).toBe(75);
     expect(result.signal).toBeNull();
     expect(result.stderr).toContain('bounded size measurement failed');
     expect(readFileSync(script, 'utf8')).not.toContain('wc -c <');
+    expect(
+      existsSync(join(scratchRoot, 'tmp/2026-09-09T021500Z-fixture.restore')),
+    ).toBe(false);
   });
 });

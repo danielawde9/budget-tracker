@@ -85,7 +85,12 @@ Every component must remain an operator-owned private directory; the active
 run directory is revalidated immediately around writes and before cleanup.
 Existing or swapped descendant symlinks are never followed.
 Cleanup starts a fresh five-second monotonic deadline, independent of an expired
-operation deadline, and uses it for all exact descendant checks before removal.
+operation deadline, and shares it across run-directory and executable-snapshot
+cleanup. The cleanup helper opens each directory without following links,
+enumerates at most 32 flat safe-name entries, unlinks entries relative to the
+opened directory descriptor, verifies the target identity again, and removes
+the directory relative to its opened parent. Nested directories fail closed.
+The host therefore requires `/usr/bin/python3` with `dir_fd` unlink/rmdir support.
 
 The operator configures the expected system identifier and database OID. The
 tracked read-only verifier measures the system identifier, PostgreSQL server
@@ -244,11 +249,14 @@ repository intentionally includes no deletion command.
 7. The bounded comparison adapter must emit the exact structured receipt for
    the independently hashed manifest and plaintext catalog. Process exit without
    that catalog/data comparison receipt is not a verified restore.
-8. The trap removes exact temp files. Export redacted timings/comparison, then
+8. The trap removes the exact bounded temp directory as one validated unit,
+   including adapter-created flat sibling artifacts. Export redacted
+   timings/comparison, then
    use a separately approved cleanup that revalidates markers and identities.
-   Trap validation gets its own five-second deadline so an expired restore
-   operation cannot suppress exact temp-file or lock cleanup. This repository
-   deletes no database, volume, service, or persistent directory.
+   Trap validation, descriptor-relative unlinking, temp/lock directory removal,
+   and executable-snapshot removal share one five-second deadline so an expired
+   restore operation cannot suppress cleanup. This repository deletes no
+   database, volume, service, or persistent directory.
 
 The script deliberately refuses every live restore, even when incident fields
 are present. A live extension needs a separate review with incident ID, typed

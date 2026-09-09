@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   renameSync,
@@ -81,14 +82,27 @@ describe('Budget operations environment contract', () => {
   });
 
   it('uses a fresh bounded descendant validation for cleanup after the operation deadline', () => {
-    const { root } = fixture();
+    const { base, root } = fixture();
+    const outside = join(base, 'outside-cleanup.txt');
+    const cleanupTarget = join(root, 'tmp', 'cleanup-target');
     mkdirSync(join(root, 'tmp'), { mode: 0o700 });
-    mkdirSync(join(root, 'tmp', 'cleanup-target'), { mode: 0o700 });
+    mkdirSync(cleanupTarget, { mode: 0o700 });
+    writeFileSync(join(cleanupTarget, 'payload.regular'), 'fixture\n', {
+      mode: 0o600,
+    });
+    writeFileSync(outside, 'must remain\n', { mode: 0o600 });
+    symlinkSync(outside, join(cleanupTarget, 'linked-artifact'));
+    const fifo = spawnSync(
+      '/usr/bin/mkfifo',
+      [join(cleanupTarget, 'payload.fifo')],
+      { encoding: 'utf8' },
+    );
+    expect(fifo.status, fifo.stderr).toBe(0);
     const result = spawnSync(
       'bash',
       [
         '-c',
-        'source "$1"; operation_deadline=1; cleanup_deadline="$(budget_start_cleanup_deadline 66)"; budget_validate_private_descendant "$2" "tmp/cleanup-target" "$cleanup_deadline" 66',
+        'source "$1"; operation_deadline=1; cleanup_deadline="$(budget_start_cleanup_deadline 66)"; budget_remove_private_descendant "$2" "tmp/cleanup-target" "$cleanup_deadline" 66',
         'cleanup-deadline-test',
         script,
         root,
@@ -113,10 +127,56 @@ describe('Budget operations environment contract', () => {
     );
 
     expect(result.status, result.stderr).toBe(0);
+    expect(existsSync(cleanupTarget)).toBe(false);
+    expect(readFileSync(outside, 'utf8')).toBe('must remain\n');
     expect(backupCleanup).toContain('budget_start_cleanup_deadline');
+    expect(backupCleanup).toContain('budget_remove_private_descendant');
+    expect(backupCleanup).not.toContain('rm -f');
+    expect(backupCleanup).not.toContain('rmdir');
+    expect(backupCleanup).toContain(
+      'budget_cleanup_executable_snapshot_dir "${backup_exec_dir:-}"',
+    );
+    expect(backupCleanup).toContain('"${cleanup_deadline}" 66');
     expect(backupCleanup).not.toContain('${backup_deadline}');
     expect(restoreCleanup).toContain('budget_start_cleanup_deadline');
+    expect(restoreCleanup).toContain('budget_remove_private_descendant');
+    expect(restoreCleanup).not.toContain('rm -f');
+    expect(restoreCleanup).not.toContain('rmdir');
+    expect(restoreCleanup).toContain(
+      'budget_cleanup_executable_snapshot_dir "${restore_exec_dir:-}"',
+    );
+    expect(restoreCleanup).toContain('"${cleanup_deadline}" 76');
     expect(restoreCleanup).not.toContain('${restore_deadline}');
+    expect(readFileSync(script, 'utf8')).not.toContain(
+      '/bin/rm -f -- "${destination}"',
+    );
+  });
+
+  it('refuses cleanup when a run directory exceeds the flat entry bound', () => {
+    const { root } = fixture();
+    const cleanupTarget = join(root, 'tmp', 'oversized-cleanup');
+    mkdirSync(cleanupTarget, { recursive: true, mode: 0o700 });
+    for (let position = 0; position < 33; position += 1) {
+      writeFileSync(join(cleanupTarget, `artifact-${position}`), 'fixture\n', {
+        mode: 0o600,
+      });
+    }
+
+    const result = spawnSync(
+      'bash',
+      [
+        '-c',
+        'source "$1"; cleanup_deadline="$(budget_start_cleanup_deadline 66)"; budget_remove_private_descendant "$2" "tmp/oversized-cleanup" "$cleanup_deadline" 66',
+        'cleanup-bound-test',
+        script,
+        root,
+      ],
+      { cwd: process.cwd(), encoding: 'utf8', env: { ...process.env } },
+    );
+
+    expect(result.status).toBe(66);
+    expect(result.stderr).toContain('bounded private cleanup failed');
+    expect(existsSync(cleanupTarget)).toBe(true);
   });
 
   it.each(['', 'production', 'LIVE', 'scratch'])(

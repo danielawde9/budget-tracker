@@ -403,7 +403,7 @@ describe('encrypted Budget backup boundary', () => {
   });
 
   it('starts the deadline wrapper before opening a replaced payload for size', () => {
-    const { env } = makeBackupFixture();
+    const { env, root } = makeBackupFixture();
     const result = run(
       'backup',
       {
@@ -412,13 +412,16 @@ describe('encrypted Budget backup boundary', () => {
         BUDGET_FAKE_TIMEOUT_REFUSE_WC: '1',
       },
       [],
-      5_000,
+      10_000,
     );
 
     expect(result.status).toBe(70);
     expect(result.signal).toBeNull();
     expect(result.stderr).toContain('bounded size measurement failed');
     expect(readFileSync(script, 'utf8')).not.toContain('wc -c <');
+    expect(
+      existsSync(join(root, 'backups/live/2026-09-09T021500Z-fixture')),
+    ).toBe(false);
   });
 
   it('keeps bounded daily, Sunday-weekly, and first-of-month recovery points plus pinned and newest points', () => {
