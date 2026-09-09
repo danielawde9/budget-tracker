@@ -39,7 +39,7 @@ matrix).
 | Focused browser gateway ratchets | Pass; 5 files, 51 tests |
 | `pnpm build` | Pass; 104 modules transformed |
 | `pnpm test:uat:offline` | Pass; 4 tests, 2 intentional project skips |
-| `pnpm test:e2e` | Pass; 36 tests, 34 intentional cross-device skips |
+| `pnpm test:e2e` | Pass in completed normal run; 36 tests, 34 intentional cross-device skips. A later parallel rerun completed the same test bodies but required interruption during runner teardown |
 | `pnpm test:e2e --workers=1` | Pass; 36 tests, 34 intentional cross-device skips; fixture seeds remain isolated across suite order |
 | `pnpm check:uat:scope` | Pass; protected DB, migration, Auth, gateway, Household, Monthly Budget, and Reporting paths unchanged from release start |
 | `git diff --check` | Pass after removing the plan's extra EOF blank line |
