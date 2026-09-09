@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { classifyLoanError } from './errors.js';
 import { formatMinorAmount, parseMinorAmount } from './money.js';
-import type { Currency, Loan, LoanErrorView, Locale, Wallet } from './types.js';
+import type { Currency, Loan, LoanErrorView, LoanHistoryItem, Locale, Wallet } from './types.js';
 
 interface ModalProps { title: string; locale: Locale; onClose: () => void; children: ReactNode; wide?: boolean }
 
@@ -115,7 +115,16 @@ function PlanFigures({ loan, locale }: { loan: Loan; locale: Locale }) {
 }
 
 function historyLabel(loan: Loan, item: NonNullable<Loan['history']>[number], locale: Locale): string {
-  const kind = item.kind === 'loan_lend' ? localized(locale, 'lending entry', 'قرض إقراض') : item.kind === 'loan_borrow' ? localized(locale, 'borrowing entry', 'قرض اقتراض') : item.kind.includes('repayment') ? localized(locale, 'repayment', 'دفعة') : item.kind === 'reversal' ? localized(locale, 'reversal', 'قيد عكسي') : localized(locale, 'opening entry', 'رصيد افتتاحي');
+  const kindLabels = {
+    loan_opening: ['opening entry', 'رصيد افتتاحي'],
+    loan_lend: ['lending entry', 'قرض إقراض'],
+    loan_borrow: ['borrowing entry', 'قرض اقتراض'],
+    loan_receive_repayment: ['received repayment', 'دفعة مستلمة'],
+    loan_repay_borrowing: ['borrowing repayment', 'دفعة سداد قرض'],
+    reversal: ['reversal', 'قيد عكسي'],
+  } as const satisfies Record<LoanHistoryItem['kind'], readonly [string, string]>;
+  const kindLabel = kindLabels[item.kind];
+  const kind = localized(locale, kindLabel[0], kindLabel[1]);
   const date = new Intl.DateTimeFormat(locale === 'ar' ? 'ar-LB' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${item.effectiveDate}T00:00:00Z`));
   return localized(locale, `Correct ${kind} from ${date}`, `تصحيح ${kind} بتاريخ ${date}`);
 }
