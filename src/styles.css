@@ -210,6 +210,7 @@ dd { margin: 8px 0 0; font-weight: 760; white-space: nowrap; }
   .primary-nav > * { inline-size: auto; flex: 0 0 auto; }
   .rail-footer { position: absolute; inset-block-start: 12px; inset-inline-end: 14px; grid-template-columns: auto auto; margin: 0; padding: 0; border: 0; }
   .app-rail .locale-button, .account-menu summary { border-color: #688174; padding-inline: 10px; }
+  .account-popover { inset-block-start: calc(100% + 8px); inset-block-end: auto; }
   .shell-main { padding: 28px 14px 64px; }
   .loans-workspace .topbar h1 { font-size: 3.5rem; }
   .wallets-topbar { display: grid; }

@@ -187,7 +187,9 @@ test('mobile Arabic rehearsal keeps the empty state, RTL, recovery notice, and s
   await page.getByRole('button', { name: 'المحافظ' }).click();
   await expect(page.getByText('محفظة تجريبية')).toBeVisible();
   await page.getByText('الحساب').click();
-  await expect(page.getByRole('note', { name: 'جاهزية النسخ الاحتياطي' })).toContainText('لا تُدخل بيانات مالية حقيقية');
+  const backupReadiness = page.getByRole('note', { name: 'جاهزية النسخ الاحتياطي' });
+  await expect(backupReadiness).toContainText('لا تُدخل بيانات مالية حقيقية');
+  await expect(backupReadiness).toBeInViewport({ ratio: 1 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.screenshot({ path: testInfo.outputPath('mobile-ar-reload-retention.png'), fullPage: true });
 });
