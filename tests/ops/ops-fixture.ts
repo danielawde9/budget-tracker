@@ -28,6 +28,10 @@ export function makeBackupFixture() {
   const bin = join(base, 'bin');
   const log = join(base, 'commands.log');
   const psqlArgsLog = join(base, 'psql-args.log');
+  const pgDumpArgsLog = join(base, 'pg-dump-args.log');
+  const pgDumpallArgsLog = join(base, 'pg-dumpall-args.log');
+  const pgRestoreArgsLog = join(base, 'pg-restore-args.log');
+  const execDirLog = join(base, 'exec-dir.log');
   const marker = join(root, '.budget-ops-marker');
   const passfile = join(base, 'pgpass');
   const migrationManifest = join(base, 'migrations.sha256');
@@ -68,11 +72,11 @@ export function makeBackupFixture() {
   );
   makeExecutable(
     pgDump,
-    'if [[ "${1:-}" == "--version" ]]; then printf "pg_dump (PostgreSQL) %s\\n" "${BUDGET_FAKE_PG_VERSION:-17.6}"; exit 0; fi; [[ "$(/usr/bin/shasum -a 256 "$PGPASSFILE")" == "$BUDGET_FAKE_PGPASS_SHA256  $PGPASSFILE" ]] || exit 92; output=""; for argument in "$@"; do case "$argument" in --file=*) output="${argument#--file=}" ;; esac; done; test -n "$output"; printf "fixture custom archive\\n" > "$output"; printf "pg_dump\\n" >> "$BUDGET_FAKE_LOG"',
+    'if [[ "${1:-}" == "--version" ]]; then printf "pg_dump (PostgreSQL) %s\\n" "${BUDGET_FAKE_PG_VERSION:-17.6}"; exit 0; fi; [[ "$(/usr/bin/shasum -a 256 "$PGPASSFILE")" == "$BUDGET_FAKE_PGPASS_SHA256  $PGPASSFILE" ]] || exit 92; printf "%s\\n" "$@" > "$BUDGET_FAKE_PG_DUMP_ARGS_LOG"; if [[ "${BUDGET_FAKE_BLOCK_PG_DUMP:-0}" == "1" ]]; then printf "%s\\n" "${0%/*}" > "$BUDGET_FAKE_EXEC_DIR_LOG"; touch "$BUDGET_FAKE_SIGNAL_MARKER"; /bin/sleep 1; fi; output=""; for argument in "$@"; do case "$argument" in --file=*) output="${argument#--file=}" ;; esac; done; test -n "$output"; printf "fixture custom archive\\n" > "$output"; printf "pg_dump\\n" >> "$BUDGET_FAKE_LOG"',
   );
   makeExecutable(
     pgDumpall,
-    'if [[ "${1:-}" == "--version" ]]; then printf "pg_dumpall (PostgreSQL) %s\\n" "${BUDGET_FAKE_PG_VERSION:-17.6}"; exit 0; fi; [[ "$(/usr/bin/shasum -a 256 "$PGPASSFILE")" == "$BUDGET_FAKE_PGPASS_SHA256  $PGPASSFILE" ]] || exit 92; printf "CREATE ROLE budget_authenticated;\\n"; printf "pg_dumpall\\n" >> "$BUDGET_FAKE_LOG"',
+    'if [[ "${1:-}" == "--version" ]]; then printf "pg_dumpall (PostgreSQL) %s\\n" "${BUDGET_FAKE_PG_VERSION:-17.6}"; exit 0; fi; [[ "$(/usr/bin/shasum -a 256 "$PGPASSFILE")" == "$BUDGET_FAKE_PGPASS_SHA256  $PGPASSFILE" ]] || exit 92; printf "%s\\n" "$@" > "$BUDGET_FAKE_PG_DUMPALL_ARGS_LOG"; printf "CREATE ROLE budget_authenticated;\\n"; printf "pg_dumpall\\n" >> "$BUDGET_FAKE_LOG"',
   );
   makeExecutable(
     age,
@@ -218,9 +222,27 @@ export function makeBackupFixture() {
     BUDGET_FAKE_FIFO_MARKER: join(base, 'fifo-swapped'),
     BUDGET_FAKE_LOG: log,
     BUDGET_FAKE_PGPASS_SHA256: fileSha256(passfile),
+    BUDGET_FAKE_PG_DUMP_ARGS_LOG: pgDumpArgsLog,
+    BUDGET_FAKE_PG_DUMPALL_ARGS_LOG: pgDumpallArgsLog,
+    BUDGET_FAKE_PG_RESTORE_ARGS_LOG: pgRestoreArgsLog,
+    BUDGET_FAKE_EXEC_DIR_LOG: execDirLog,
+    BUDGET_FAKE_SIGNAL_MARKER: join(base, 'signal-marker'),
   };
 
-  return { base, env, log, marker, passfile, pgDump, psqlArgsLog, root };
+  return {
+    base,
+    env,
+    execDirLog,
+    log,
+    marker,
+    passfile,
+    pgDump,
+    pgDumpArgsLog,
+    pgDumpallArgsLog,
+    pgRestoreArgsLog,
+    psqlArgsLog,
+    root,
+  };
 }
 
 export function makeRestoreFixture() {
@@ -299,7 +321,7 @@ export function makeRestoreFixture() {
   const compare = join(backup.base, 'bin', 'compare');
   makeExecutable(
     pgRestore,
-    'if [[ "${1:-}" == "--version" ]]; then printf "pg_restore (PostgreSQL) %s\\n" "${BUDGET_FAKE_PG_VERSION:-17.6}"; exit 0; fi; if [[ "$*" == *"--list"* ]]; then printf "215; 1259 16384 TABLE public wallets %s\\n" "${BUDGET_FAKE_TOC_OWNER:-budget_service}"; exit 0; fi; printf "pg_restore\\n" >> "$BUDGET_FAKE_LOG"; if [[ "${BUDGET_FAKE_RESTORE_FAIL:-0}" == "1" ]]; then exit 19; fi',
+    'if [[ "${1:-}" == "--version" ]]; then printf "pg_restore (PostgreSQL) %s\\n" "${BUDGET_FAKE_PG_VERSION:-17.6}"; exit 0; fi; if [[ "$*" == *"--list"* ]]; then printf "215; 1259 16384 TABLE public wallets %s\\n" "${BUDGET_FAKE_TOC_OWNER:-budget_service}"; exit 0; fi; printf "%s\\n" "$@" > "$BUDGET_FAKE_PG_RESTORE_ARGS_LOG"; if [[ "${BUDGET_FAKE_BLOCK_PG_RESTORE:-0}" == "1" ]]; then printf "%s\\n" "${0%/*}" > "$BUDGET_FAKE_EXEC_DIR_LOG"; touch "$BUDGET_FAKE_SIGNAL_MARKER"; /bin/sleep 1; fi; printf "pg_restore\\n" >> "$BUDGET_FAKE_LOG"; if [[ "${BUDGET_FAKE_RESTORE_FAIL:-0}" == "1" ]]; then exit 19; fi',
   );
   makeExecutable(
     psql,
@@ -391,6 +413,8 @@ export function makeRestoreFixture() {
     scratchMarker,
     scratchRoot,
     targetRoleManifest,
+    execDirLog: backup.execDirLog,
+    pgRestoreArgsLog: backup.pgRestoreArgsLog,
     psqlArgsLog: backup.psqlArgsLog,
   };
 }

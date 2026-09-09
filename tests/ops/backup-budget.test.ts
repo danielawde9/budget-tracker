@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import {
   appendFileSync,
   chmodSync,
@@ -42,6 +42,36 @@ function expectShrinkingDeadline(commandLog: string, maximum: number) {
   for (let position = 1; position < budgets.length; position += 1) {
     expect(budgets[position]!).toBeLessThanOrEqual(budgets[position - 1]!);
   }
+}
+
+async function runAndTerminate(env: NodeJS.ProcessEnv) {
+  const child = spawn('bash', [script, 'backup'], {
+    cwd: process.cwd(),
+    env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let stdout = '';
+  let stderr = '';
+  child.stdout.setEncoding('utf8');
+  child.stderr.setEncoding('utf8');
+  child.stdout.on('data', (chunk: string) => { stdout += chunk; });
+  child.stderr.on('data', (chunk: string) => { stderr += chunk; });
+  const completion = new Promise<{ signal: NodeJS.Signals | null; status: number | null }>(
+    (resolve, reject) => {
+      child.once('error', reject);
+      child.once('close', (status, signal) => resolve({ signal, status }));
+    },
+  );
+  const marker = env.BUDGET_FAKE_SIGNAL_MARKER as string;
+  for (let attempt = 0; attempt < 200 && !existsSync(marker); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  if (!existsSync(marker)) {
+    child.kill('SIGKILL');
+    throw new Error('backup signal fixture did not reach pg_dump');
+  }
+  child.kill('SIGTERM');
+  return { ...(await completion), stderr, stdout };
 }
 
 describe('encrypted Budget backup boundary', () => {
@@ -146,7 +176,7 @@ describe('encrypted Budget backup boundary', () => {
   });
 
   it('bounds dump and packaging tools, encrypts every payload, verifies off-site, and writes ciphertext hashes', () => {
-    const { env, log, root } = makeBackupFixture();
+    const { env, log, pgDumpArgsLog, pgDumpallArgsLog, root } = makeBackupFixture();
     const result = run('backup', env);
     const recoveryPoint = join(
       root,
@@ -158,6 +188,24 @@ describe('encrypted Budget backup boundary', () => {
     expect(commandLog).toMatch(/timeout:[0-9]+:exec-01-pg_dump\n/);
     expect(commandLog.match(/db-verify:/g)).toHaveLength(2);
     expect(commandLog).toMatch(/timeout:[0-9]+:exec-02-pg_dumpall\n/);
+    expect(readFileSync(pgDumpArgsLog, 'utf8').trimEnd().split('\n')).toEqual([
+      '--no-password',
+      '--format=custom',
+      '--compress=9',
+      expect.stringMatching(/^--file=\/.*\/archive\.dump$/),
+      '--host=fixture-budget-db.internal',
+      '--port=5432',
+      '--username=budget_backup',
+      '--dbname=budget',
+    ]);
+    expect(readFileSync(pgDumpallArgsLog, 'utf8').trimEnd().split('\n')).toEqual([
+      '--no-password',
+      '--roles-only',
+      '--no-role-passwords',
+      '--host=fixture-budget-db.internal',
+      '--port=5432',
+      '--username=budget_backup',
+    ]);
     expect(commandLog).toMatch(/timeout:[0-9]+:exec-04-catalog\n/);
     expect(commandLog.match(/timeout:[0-9]+:exec-03-age/g)).toHaveLength(3);
     expect(commandLog.match(/offsite:put/g)).toHaveLength(4);
@@ -450,6 +498,20 @@ describe('encrypted Budget backup boundary', () => {
 
     expect(result.status).toBe(17);
     expect(result.stderr).toContain('bounded private cleanup failed');
+  });
+
+  it('returns 143 and cleans private state when TERM arrives during pg_dump', async () => {
+    const { env, execDirLog, root } = makeBackupFixture();
+    const result = await runAndTerminate({
+      ...env,
+      BUDGET_FAKE_BLOCK_PG_DUMP: '1',
+    });
+
+    expect(result.status, `${result.stderr}\n${result.stdout}`).toBe(143);
+    expect(result.signal).toBeNull();
+    expect(existsSync(join(root, 'tmp/2026-09-09T021500Z-fixture.plaintext'))).toBe(false);
+    expect(existsSync(join(root, 'locks/backup-live.lock'))).toBe(false);
+    expect(existsSync(readFileSync(execDirLog, 'utf8').trim())).toBe(false);
   });
 
   it('starts the deadline wrapper before opening a replaced payload for size', () => {

@@ -236,13 +236,22 @@ backup_cleanup() {
   exit "${status}"
 }
 
+backup_signal_exit() {
+  local status="${1:?signal status is required}"
+  trap - INT TERM HUP
+  exit "${status}"
+}
+
 backup_execute() {
   local backup_deadline
   backup_deadline="$(budget_start_deadline "${BACKUP_OPERATION_TIMEOUT_SECONDS}")"
   local backup_lock_acquired=0 backup_temp_created=0 backup_recovery_created=0
   local backup_published=0
   local backup_exec_dir=''
-  trap backup_cleanup EXIT INT TERM HUP
+  trap backup_cleanup EXIT
+  trap 'backup_signal_exit 130' INT
+  trap 'backup_signal_exit 143' TERM
+  trap 'backup_signal_exit 129' HUP
   backup_exec_dir="$(budget_create_executable_snapshot_dir "${backup_deadline}" 70)"
   backup_validate_configuration
 
@@ -312,11 +321,12 @@ backup_execute() {
   budget_validate_private_descendant "${BACKUP_ROOT}" "${backup_recovery_relative}" \
     "${backup_deadline}" 66 >/dev/null
 
-  backup_run "${BUDGET_PG_DUMP_BIN}" --format=custom --compress=9 \
+  backup_run "${BUDGET_PG_DUMP_BIN}" --no-password --format=custom --compress=9 \
     --file="${backup_archive_plain}" --host="${BACKUP_DB_HOST}" \
     --port="${BACKUP_DB_PORT}" --username="${BACKUP_DB_USER}" \
     --dbname="${BACKUP_DB_NAME}"
-  backup_run "${BUDGET_PG_DUMPALL_BIN}" --roles-only --no-role-passwords \
+  backup_run "${BUDGET_PG_DUMPALL_BIN}" --no-password --roles-only \
+    --no-role-passwords \
     --host="${BACKUP_DB_HOST}" --port="${BACKUP_DB_PORT}" \
     --username="${BACKUP_DB_USER}" > "${backup_roles_plain}"
   backup_run "${BUDGET_CATALOG_BIN}" --database="${BACKUP_DB_NAME}" \
@@ -407,7 +417,10 @@ backup_execute() {
 backup_dry_run() {
   local backup_deadline backup_exec_dir=''
   backup_deadline="$(budget_start_deadline "${BACKUP_OPERATION_TIMEOUT_SECONDS}")"
-  trap 'budget_cleanup_executable_snapshot_dir "${backup_exec_dir}"' EXIT INT TERM HUP
+  trap 'budget_cleanup_executable_snapshot_dir "${backup_exec_dir}"' EXIT
+  trap 'backup_signal_exit 130' INT
+  trap 'backup_signal_exit 143' TERM
+  trap 'backup_signal_exit 129' HUP
   backup_exec_dir="$(budget_create_executable_snapshot_dir "${backup_deadline}" 70)"
   backup_validate_configuration
   printf '%s\n' 'DRY RUN ONLY: no lock, dump, encryption, upload, cleanup, or database/network command executed'

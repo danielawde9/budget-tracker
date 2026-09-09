@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import {
   chmodSync,
   existsSync,
@@ -36,6 +36,36 @@ function expectShrinkingDeadline(commandLog: string, maximum: number) {
   for (let position = 1; position < budgets.length; position += 1) {
     expect(budgets[position]!).toBeLessThanOrEqual(budgets[position - 1]!);
   }
+}
+
+async function runAndTerminate(env: NodeJS.ProcessEnv) {
+  const child = spawn('bash', [script, 'restore'], {
+    cwd: process.cwd(),
+    env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let stdout = '';
+  let stderr = '';
+  child.stdout.setEncoding('utf8');
+  child.stderr.setEncoding('utf8');
+  child.stdout.on('data', (chunk: string) => { stdout += chunk; });
+  child.stderr.on('data', (chunk: string) => { stderr += chunk; });
+  const completion = new Promise<{ signal: NodeJS.Signals | null; status: number | null }>(
+    (resolve, reject) => {
+      child.once('error', reject);
+      child.once('close', (status, signal) => resolve({ signal, status }));
+    },
+  );
+  const marker = env.BUDGET_FAKE_SIGNAL_MARKER as string;
+  for (let attempt = 0; attempt < 600 && !existsSync(marker); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  if (!existsSync(marker)) {
+    child.kill('SIGKILL');
+    throw new Error('restore signal fixture did not reach pg_restore');
+  }
+  child.kill('SIGTERM');
+  return { ...(await completion), stderr, stdout };
 }
 
 describe('scratch-only Budget restore boundary', () => {
@@ -273,7 +303,7 @@ describe('scratch-only Budget restore boundary', () => {
   });
 
   it('bounds fetch/decrypt/restore, filters roles, and requires the comparison hook', () => {
-    const { env, log, psqlArgsLog } = makeRestoreFixture();
+    const { env, log, pgRestoreArgsLog, psqlArgsLog } = makeRestoreFixture();
     const result = run('restore', env);
     const commands = readFileSync(log, 'utf8');
 
@@ -294,6 +324,16 @@ describe('scratch-only Budget restore boundary', () => {
       '--username=budget_backup',
       '--dbname=budget_restore_scratch',
       expect.stringMatching(/^--file=\/.*\/roles\.allowlisted\.sql$/),
+    ]);
+    expect(readFileSync(pgRestoreArgsLog, 'utf8').trimEnd().split('\n')).toEqual([
+      '--no-password',
+      '--exit-on-error',
+      '--jobs=1',
+      '--host=fixture-budget-db.internal',
+      '--port=54722',
+      '--username=budget_backup',
+      '--dbname=budget_restore_scratch',
+      expect.stringMatching(/^\/.*\/archive\.dump$/),
     ]);
     expect(result.stdout).toContain('scratch restore comparison verified');
     expectShrinkingDeadline(commands, 3600);
@@ -431,6 +471,20 @@ describe('scratch-only Budget restore boundary', () => {
 
     expect(result.status).toBe(19);
     expect(result.stderr).toContain('bounded private cleanup failed');
+  });
+
+  it('returns 143 and cleans private state when TERM arrives during pg_restore', async () => {
+    const { env, execDirLog, scratchRoot } = makeRestoreFixture();
+    const result = await runAndTerminate({
+      ...env,
+      BUDGET_FAKE_BLOCK_PG_RESTORE: '1',
+    });
+
+    expect(result.status, `${result.stderr}\n${result.stdout}`).toBe(143);
+    expect(result.signal).toBeNull();
+    expect(existsSync(join(scratchRoot, 'tmp/2026-09-09T021500Z-fixture.restore'))).toBe(false);
+    expect(existsSync(join(scratchRoot, 'locks/restore-scratch.lock'))).toBe(false);
+    expect(existsSync(readFileSync(execDirLog, 'utf8').trim())).toBe(false);
   });
 
   it('starts the deadline wrapper before opening a replaced payload for size', () => {

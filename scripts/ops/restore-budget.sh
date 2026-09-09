@@ -292,6 +292,12 @@ restore_cleanup() {
   exit "${status}"
 }
 
+restore_signal_exit() {
+  local status="${1:?signal status is required}"
+  trap - INT TERM HUP
+  exit "${status}"
+}
+
 restore_manifest_value() {
   local key="${1:?manifest key is required}"
   local manifest="${2:?manifest is required}"
@@ -327,7 +333,10 @@ restore_execute() {
   restore_deadline="$(budget_start_deadline "${RESTORE_OPERATION_TIMEOUT_SECONDS}")"
   local restore_lock_acquired=0 restore_temp_created=0
   local restore_exec_dir=''
-  trap restore_cleanup EXIT INT TERM HUP
+  trap restore_cleanup EXIT
+  trap 'restore_signal_exit 130' INT
+  trap 'restore_signal_exit 143' TERM
+  trap 'restore_signal_exit 129' HUP
   restore_exec_dir="$(budget_create_executable_snapshot_dir "${restore_deadline}" 75)"
   restore_validate_configuration
 
@@ -470,7 +479,7 @@ restore_execute() {
     --host="${RESTORE_DB_HOST}" --port="${RESTORE_DB_PORT}" \
     --username="${RESTORE_DB_USER}" --dbname="${RESTORE_DB_NAME}" \
     --file="${restore_roles_filtered}"
-  restore_run "${BUDGET_PG_RESTORE_BIN}" --exit-on-error --jobs=1 \
+  restore_run "${BUDGET_PG_RESTORE_BIN}" --no-password --exit-on-error --jobs=1 \
     --host="${RESTORE_DB_HOST}" --port="${RESTORE_DB_PORT}" \
     --username="${RESTORE_DB_USER}" --dbname="${RESTORE_DB_NAME}" \
     "${restore_archive_plain}"
@@ -494,7 +503,10 @@ restore_execute() {
 restore_dry_run() {
   local restore_deadline restore_exec_dir=''
   restore_deadline="$(budget_start_deadline "${RESTORE_OPERATION_TIMEOUT_SECONDS}")"
-  trap 'budget_cleanup_executable_snapshot_dir "${restore_exec_dir}"' EXIT INT TERM HUP
+  trap 'budget_cleanup_executable_snapshot_dir "${restore_exec_dir}"' EXIT
+  trap 'restore_signal_exit 130' INT
+  trap 'restore_signal_exit 143' TERM
+  trap 'restore_signal_exit 129' HUP
   restore_exec_dir="$(budget_create_executable_snapshot_dir "${restore_deadline}" 75)"
   restore_validate_configuration
   printf '%s\n' "restore_target=${RESTORE_TARGET}"
