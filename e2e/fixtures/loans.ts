@@ -33,6 +33,20 @@ interface VisualCategory {
   archived_at: string | null;
 }
 
+const protectedMutationNames = new Set([
+  'archive_category',
+  'create_category',
+  'create_space',
+  'create_wallet',
+  'open_loan_outstanding',
+  'record_cash_loan',
+  'record_categorized_financial_event',
+  'record_financial_event',
+  'record_loan_repayment',
+  'reverse_financial_event',
+  'set_loan_monthly_target',
+]);
+
 const spaces = [
   { id: 'personal-space', name: 'My money', kind: 'personal', created_at: '2026-01-01T00:00:00Z' },
   { id: 'household-space', name: 'Home budget', kind: 'household', created_at: '2026-01-02T00:00:00Z' },
@@ -157,6 +171,7 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
   // three times; exhaust all sixteen requests before the manager-triggered retry.
   let categoryFailuresRemaining = options.failCategoriesOnce ? 16 : 0;
   let eventSequence = 0;
+  const protectedMutationCalls = new Set<string>();
 
   if (authenticated) {
     await page.addInitScript((value) => localStorage.setItem('sb-127-auth-token', JSON.stringify(value)), authSession());
@@ -187,6 +202,8 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname;
+    const rpcName = path.includes('/rpc/') ? path.slice(path.lastIndexOf('/') + 1) : null;
+    if (rpcName && protectedMutationNames.has(rpcName)) protectedMutationCalls.add(rpcName);
     const equalValue = (name: string) => {
       const value = url.searchParams.get(name);
       return value?.startsWith('eq.') ? value.slice(3) : null;
@@ -197,6 +214,15 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       return new Set(value.slice(4, -1).split(','));
     };
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' } });
+    if (path.endsWith('/__fixture_audit')) {
+      return json(route, {
+        boundary: 'simulated-local-http',
+        authentication: 'injected-local-storage-session',
+        database: 'in-memory-fixture-state',
+        payloadsRecorded: false,
+        protectedMutationCalls: [...protectedMutationCalls],
+      });
+    }
     if (path.endsWith('/rpc/create_space')) {
       const body = request.postDataJSON() as { p_name: string; p_kind: 'personal' | 'household' };
       const created = { id: 'created-space', name: body.p_name, kind: body.p_kind, created_at: '2026-09-08T00:00:00Z' };
