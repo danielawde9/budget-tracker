@@ -232,7 +232,7 @@ migration_verify_applied() {
     return
   fi
   local -a applied_versions=()
-  local version existing count=0
+  local version existing expected_position count=0
   while IFS= read -r version; do
     [[ -z "${version}" ]] && continue
     count=$((count + 1))
@@ -250,6 +250,11 @@ migration_verify_applied() {
     fi
     if ! migration_find_version "${version}" "${EXPECTED_VERSIONS[@]}" >/dev/null; then
       budget_error 'unknown applied migration row' 79
+      return
+    fi
+    expected_position=$((count - 1))
+    if [[ "${version}" != "${EXPECTED_VERSIONS[expected_position]}" ]]; then
+      budget_error 'applied migration history is not an ordered prefix' 79
       return
     fi
     applied_versions+=("${version}")

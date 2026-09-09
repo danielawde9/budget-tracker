@@ -271,9 +271,11 @@ separately approved release. Do not overwrite a manifest or edit an applied
 migration.
 
 Before release, export applied versions to an operator-owned file, one 14-digit
-version per line, with a reviewed read-only query. `verify-manifest` rejects a
-wrong source SHA, duplicate versions, changed/missing applied files,
-unmanifested local files, and unknown/duplicate applied rows. It never applies,
+version per line, with a reviewed read-only query. An untouched database has an
+empty applied file; otherwise the rows must equal an ordered contiguous prefix
+of the manifest. `verify-manifest` rejects a wrong source SHA, duplicate
+versions, changed/missing applied files, unmanifested local files, and applied
+rows that are unknown, duplicated, gapped, or out of order. It never applies,
 replays, rolls back, or auto-retries a migration.
 
 ## Key loss and disaster recovery

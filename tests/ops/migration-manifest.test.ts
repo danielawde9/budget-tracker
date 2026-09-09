@@ -38,6 +38,21 @@ function writeExpected(path: string) {
   );
 }
 
+function addThirdMigration(migrations: string, expected: string) {
+  writeFileSync(join(migrations, '20260903000000_third.sql'), 'select 3;\n');
+  writeFileSync(
+    expected,
+    [
+      'budget_migration_manifest_version=1',
+      `source_sha=${sourceSha}`,
+      `20260901000000|20260901000000_first.sql|${hash('select 1;\n')}`,
+      `20260902000000|20260902000000_second.sql|${hash('select 2;\n')}`,
+      `20260903000000|20260903000000_third.sql|${hash('select 3;\n')}`,
+      '',
+    ].join('\n'),
+  );
+}
+
 function run(args: string[]) {
   return spawnSync('bash', [script, ...args], {
     cwd: process.cwd(),
@@ -120,33 +135,100 @@ describe('forward-only migration manifest gate', () => {
     expect(result.stderr).toContain('unmanifested migration file');
   });
 
-  it('rejects unknown and duplicate applied migration rows', () => {
-    const first = fixture();
-    writeExpected(first.expected);
-    writeFileSync(first.applied, '20260901000000\n20260909999999\n');
-    const unknown = run([
+  it('rejects a gap in applied migration history', () => {
+    const { applied, expected, migrations } = fixture();
+    addThirdMigration(migrations, expected);
+    writeFileSync(applied, '20260901000000\n20260903000000\n');
+    const result = run([
       'verify-manifest',
-      first.migrations,
-      first.expected,
-      first.applied,
+      migrations,
+      expected,
+      applied,
       sourceSha,
     ]);
 
-    const second = fixture();
-    writeExpected(second.expected);
-    writeFileSync(second.applied, '20260901000000\n20260901000000\n');
-    const duplicate = run([
+    expect(result.status).toBe(79);
+    expect(result.stderr).toContain('ordered prefix');
+  });
+
+  it('rejects out-of-order applied migration history', () => {
+    const { applied, expected, migrations } = fixture();
+    writeExpected(expected);
+    writeFileSync(applied, '20260902000000\n20260901000000\n');
+    const result = run([
       'verify-manifest',
-      second.migrations,
-      second.expected,
-      second.applied,
+      migrations,
+      expected,
+      applied,
       sourceSha,
     ]);
 
-    expect(unknown.status).toBe(79);
-    expect(unknown.stderr).toContain('unknown applied migration row');
-    expect(duplicate.status).toBe(79);
-    expect(duplicate.stderr).toContain('duplicate applied migration row');
+    expect(result.status).toBe(79);
+    expect(result.stderr).toContain('ordered prefix');
+  });
+
+  it('rejects an unknown applied migration row', () => {
+    const { applied, expected, migrations } = fixture();
+    writeExpected(expected);
+    writeFileSync(applied, '20260901000000\n20260909999999\n');
+    const result = run([
+      'verify-manifest',
+      migrations,
+      expected,
+      applied,
+      sourceSha,
+    ]);
+
+    expect(result.status).toBe(79);
+    expect(result.stderr).toContain('unknown applied migration row');
+  });
+
+  it('rejects a duplicate applied migration row', () => {
+    const { applied, expected, migrations } = fixture();
+    writeExpected(expected);
+    writeFileSync(applied, '20260901000000\n20260901000000\n');
+    const result = run([
+      'verify-manifest',
+      migrations,
+      expected,
+      applied,
+      sourceSha,
+    ]);
+
+    expect(result.status).toBe(79);
+    expect(result.stderr).toContain('duplicate applied migration row');
+  });
+
+  it('accepts empty applied migration history', () => {
+    const { applied, expected, migrations } = fixture();
+    writeExpected(expected);
+    writeFileSync(applied, '');
+    const result = run([
+      'verify-manifest',
+      migrations,
+      expected,
+      applied,
+      sourceSha,
+    ]);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('verified 2 migration files and 0 applied rows');
+  });
+
+  it('accepts an ordered prefix of applied migration history', () => {
+    const { applied, expected, migrations } = fixture();
+    writeExpected(expected);
+    writeFileSync(applied, '20260901000000\n');
+    const result = run([
+      'verify-manifest',
+      migrations,
+      expected,
+      applied,
+      sourceSha,
+    ]);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('verified 2 migration files and 1 applied rows');
   });
 
   it('rejects the wrong source SHA before checking migration files', () => {
@@ -164,7 +246,7 @@ describe('forward-only migration manifest gate', () => {
     expect(result.stderr).toContain('source SHA mismatch');
   });
 
-  it('accepts an exact unchanged journal and known applied rows without database access', () => {
+  it('accepts full applied migration history without database access', () => {
     const { applied, expected, migrations } = fixture();
     writeExpected(expected);
     const result = run([
