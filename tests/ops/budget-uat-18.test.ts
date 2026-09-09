@@ -1,4 +1,6 @@
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { basename, join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -7,6 +9,7 @@ const scriptPath = 'scripts/ops/budget-uat-18.sh';
 const remoteScriptPath = 'ops/uat/remote-budget-uat-18.sh';
 const composePath = 'ops/uat/docker-compose.yml';
 const environmentExamplePath = 'ops/uat/budget-uat-18.env.example';
+const manifestPath = 'ops/uat/budget-uat-18-migrations.sha256';
 
 function trackedText(path: string): string {
   return readFileSync(path, 'utf8');
@@ -64,6 +67,11 @@ describe('Budget exact-schema UAT static contract', () => {
     expect(script).toContain('ConnectionAttempts=2');
     expect(script).toContain('ServerAliveInterval=15');
     expect(script).toContain('ServerAliveCountMax=2');
+    expect(script).toContain('readonly UAT_SSH_WALL_SECONDS=45');
+    expect(script).toContain('alarm shift @ARGV; exec @ARGV');
+    expect(script).toContain('bounded_ssh');
+    expect(script).toContain('bounded_scp');
+    expect(script).toContain('validate_cleanup_entrypoint');
     expect(script).toContain('UAT_MAX_HEALTH_POLLS=60');
     expect(script).toContain('UAT_HEALTH_POLL_SECONDS=5');
     expect(script).not.toMatch(/supabase\s+(?:start|stop|db\s+reset|nuke)/);
@@ -92,6 +100,7 @@ describe('Budget exact-schema UAT static contract', () => {
 
     expect(remoteScript).toContain('require_exact_marker');
     expect(remoteScript).toContain('require_exact_project_labels');
+    expect(remoteScript).toContain('reject_unknown_uat_resources');
     expect(remoteScript).toContain("readonly UAT_PROJECT='budget-uat-18'");
     expect(remoteScript).toContain("readonly UAT_MARKER='.budget-uat-18-project'");
     expect(remoteScript).not.toMatch(/docker\s+system\s+prune/);
@@ -110,5 +119,68 @@ describe('Budget exact-schema UAT static contract', () => {
     );
     expect(opsCheck).toContain('budget-uat-18.sh');
     expect(opsCheck).toContain('remote-budget-uat-18.sh');
+  });
+
+  it('pins exactly the release candidate migration tree in canonical order', () => {
+    const rows = trackedText(manifestPath).trimEnd().split('\n');
+    const migrationRows = rows.slice(2);
+    const localMigrationNames = migrationRows.map((row) => row.split('|')[1]);
+
+    expect(rows[0]).toBe('budget_uat_migration_manifest_version=1');
+    expect(rows[1]).toBe(`source_sha=${releaseHead}`);
+    expect(migrationRows).toHaveLength(18);
+    expect(localMigrationNames).toEqual([...localMigrationNames].sort());
+
+    for (const row of migrationRows) {
+      const [version, filename, expectedHash] = row.split('|');
+      const migration = trackedText(join('supabase/migrations', filename));
+
+      expect(filename).toBe(`${version}_${basename(filename).split('_').slice(1).join('_')}`);
+      expect(createHash('sha256').update(migration).digest('hex')).toBe(expectedHash);
+    }
+  });
+
+  it('generates secrets only on Ubuntu through an exclusive no-follow mode-0600 file', () => {
+    const localScript = trackedText(scriptPath);
+    const remoteScript = trackedText(remoteScriptPath);
+
+    expect(localScript).not.toMatch(/(?:JWT_SECRET|POSTGRES_PASSWORD|ANON_KEY|SERVICE_ROLE_KEY)=/);
+    expect(remoteScript).toContain('generate_secret_environment');
+    expect(remoteScript).toContain('os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW');
+    expect(remoteScript).toContain('0o600');
+    expect(remoteScript).not.toContain('run.sh secrets');
+    expect(remoteScript).not.toContain('docker compose config');
+    expect(remoteScript).not.toMatch(/set\s+-x/);
+  });
+
+  it('verifies all hashes before startup and journals each migration transactionally', () => {
+    const localScript = trackedText(scriptPath);
+    const remoteScript = trackedText(remoteScriptPath);
+
+    expect(localScript).toContain('validate_local_manifest');
+    expect(localScript).toContain('run_remote verify-sync');
+    expect(remoteScript).toContain('verify_migration_bundle');
+    expect(remoteScript).toContain('[[ "${migration_count}" -eq 18 ]]');
+    expect(remoteScript).toContain('apply_migrations');
+    expect(remoteScript).toContain("printf '%s\\n' 'begin;'");
+    expect(remoteScript).toContain('supabase_migrations.schema_migrations');
+    expect(remoteScript).toContain("printf '%s\\n' 'commit;'");
+  });
+
+  it('bounds health and cleanup to exact UAT resources', () => {
+    const remoteScript = trackedText(remoteScriptPath);
+
+    expect(remoteScript).toContain('wait_for_health');
+    expect(remoteScript).toContain('readonly UAT_DOCKER_WALL_SECONDS=30');
+    expect(remoteScript).toContain('/usr/bin/timeout --signal=TERM');
+    expect(remoteScript).toContain('for ((poll = 1; poll <= UAT_MAX_HEALTH_POLLS; poll += 1))');
+    expect(remoteScript).toContain('sleep "${UAT_HEALTH_POLL_SECONDS}"');
+    expect(remoteScript).toContain('snapshot_budget_development');
+    expect(remoteScript).toContain('compare_budget_development_snapshots');
+    expect(remoteScript).toContain('docker compose --project-name "${UAT_PROJECT}"');
+    expect(remoteScript).toContain('compose down');
+    expect(remoteScript).toContain('docker volume rm "${UAT_VOLUME}"');
+    expect(remoteScript).toContain('docker network rm "${UAT_NETWORK}"');
+    expect(remoteScript).not.toMatch(/docker\s+(?:system|container|network|volume)\s+prune/);
   });
 });
