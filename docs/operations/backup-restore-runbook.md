@@ -273,10 +273,12 @@ migration.
 Before release, export applied versions to an operator-owned file, one 14-digit
 version per line, with a reviewed read-only query. An untouched database has an
 empty applied file; otherwise the rows must equal an ordered contiguous prefix
-of the manifest. `verify-manifest` rejects a wrong source SHA, duplicate
-versions, changed/missing applied files, unmanifested local files, and applied
-rows that are unknown, duplicated, gapped, or out of order. It never applies,
-replays, rolls back, or auto-retries a migration.
+of the manifest. Applied exports are capped at 256 physical lines and 4 KiB;
+manifests are capped at 258 physical lines and 128 KiB. `verify-manifest`
+rejects a wrong source SHA, duplicate versions, changed/missing applied files,
+unmanifested local files, and applied rows that are unknown, duplicated,
+gapped, or out of order. It never applies, replays, rolls back, or auto-retries
+a migration.
 
 ## Key loss and disaster recovery
 

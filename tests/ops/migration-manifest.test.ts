@@ -167,10 +167,42 @@ describe('forward-only migration manifest gate', () => {
     expect(result.stderr).toContain('ordered prefix');
   });
 
+  it('rejects an unterminated final row that creates a gap', () => {
+    const { applied, expected, migrations } = fixture();
+    addThirdMigration(migrations, expected);
+    writeFileSync(applied, '20260901000000\n20260903000000');
+    const result = run([
+      'verify-manifest',
+      migrations,
+      expected,
+      applied,
+      sourceSha,
+    ]);
+
+    expect(result.status).toBe(79);
+    expect(result.stderr).toContain('ordered prefix');
+  });
+
   it('rejects an unknown applied migration row', () => {
     const { applied, expected, migrations } = fixture();
     writeExpected(expected);
     writeFileSync(applied, '20260901000000\n20260909999999\n');
+    const result = run([
+      'verify-manifest',
+      migrations,
+      expected,
+      applied,
+      sourceSha,
+    ]);
+
+    expect(result.status).toBe(79);
+    expect(result.stderr).toContain('unknown applied migration row');
+  });
+
+  it('rejects an unknown unterminated final applied row', () => {
+    const { applied, expected, migrations } = fixture();
+    writeExpected(expected);
+    writeFileSync(applied, '20260901000000\n20260909999999');
     const result = run([
       'verify-manifest',
       migrations,
@@ -229,6 +261,85 @@ describe('forward-only migration manifest gate', () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('verified 2 migration files and 1 applied rows');
+  });
+
+  it('accepts an unterminated ordered prefix', () => {
+    const { applied, expected, migrations } = fixture();
+    writeExpected(expected);
+    writeFileSync(applied, '20260901000000');
+    const result = run([
+      'verify-manifest',
+      migrations,
+      expected,
+      applied,
+      sourceSha,
+    ]);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('verified 2 migration files and 1 applied rows');
+  });
+
+  it('rejects applied history over the physical-line bound', () => {
+    const { applied, expected, migrations } = fixture();
+    writeExpected(expected);
+    writeFileSync(applied, '\n'.repeat(257));
+    const result = run([
+      'verify-manifest',
+      migrations,
+      expected,
+      applied,
+      sourceSha,
+    ]);
+
+    expect(result.status).toBe(79);
+    expect(result.stderr).toContain('applied migration rows exceed 256 lines');
+  });
+
+  it('rejects applied history over the byte bound', () => {
+    const { applied, expected, migrations } = fixture();
+    writeExpected(expected);
+    writeFileSync(applied, '1'.repeat(4097));
+    const result = run([
+      'verify-manifest',
+      migrations,
+      expected,
+      applied,
+      sourceSha,
+    ]);
+
+    expect(result.status).toBe(79);
+    expect(result.stderr).toContain('applied migration rows file is invalid or unbounded');
+  });
+
+  it('rejects a manifest over the physical-line bound', () => {
+    const { applied, expected, migrations } = fixture();
+    writeExpected(expected);
+    writeFileSync(expected, `${readFileSync(expected, 'utf8')}${'\n'.repeat(300)}`);
+    const result = run([
+      'verify-manifest',
+      migrations,
+      expected,
+      applied,
+      sourceSha,
+    ]);
+
+    expect(result.status).toBe(79);
+    expect(result.stderr).toContain('migration manifest exceeds 258 lines');
+  });
+
+  it('rejects a manifest over the byte bound', () => {
+    const { applied, expected, migrations } = fixture();
+    writeFileSync(expected, '1'.repeat(131073));
+    const result = run([
+      'verify-manifest',
+      migrations,
+      expected,
+      applied,
+      sourceSha,
+    ]);
+
+    expect(result.status).toBe(79);
+    expect(result.stderr).toContain('migration manifest is invalid or unbounded');
   });
 
   it('rejects the wrong source SHA before checking migration files', () => {

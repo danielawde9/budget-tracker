@@ -8,6 +8,9 @@ readonly MIGRATE_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 source "${MIGRATE_SCRIPT_DIR}/budget-common.sh"
 
 readonly MIGRATION_MAX_FILES=256
+readonly MIGRATION_MAX_APPLIED_BYTES=4096
+readonly MIGRATION_MAX_MANIFEST_BYTES=131072
+readonly MIGRATION_MAX_MANIFEST_LINES=$((MIGRATION_MAX_FILES + 2))
 readonly MIGRATION_HASH_TIMEOUT_SECONDS=60
 readonly MIGRATION_SHA256_BIN='/usr/bin/shasum'
 readonly MIGRATION_PERL_BIN='/usr/bin/perl'
@@ -19,6 +22,7 @@ EXPECTED_VERSIONS=()
 EXPECTED_FILENAMES=()
 EXPECTED_HASHES=()
 EXPECTED_SOURCE_SHA=''
+MIGRATION_BOUNDED_CONTENT=''
 
 migration_bounded_run() {
   if [[ -n "${BUDGET_TIMEOUT_BIN:-}" ]]; then
@@ -49,6 +53,19 @@ migration_validate_input_path() {
   if budget_is_protected_identifier "${path}"; then
     budget_error 'migration path contains a protected Sandooq/POS identifier' 79
   fi
+}
+
+migration_read_bounded_input() {
+  local path="${1:?input path is required}"
+  local maximum_bytes="${2:?maximum input bytes is required}"
+  local label="${3:?input label is required}"
+  local captured
+  if ! captured="$(budget_read_bounded_regular_file \
+    "${path}" "${maximum_bytes}" 79 2>/dev/null && printf 'x')"; then
+    budget_error "${label} is invalid or unbounded" 79
+    return
+  fi
+  MIGRATION_BOUNDED_CONTENT="${captured%x}"
 }
 
 migration_hash() {
@@ -136,14 +153,20 @@ migration_read_expected() {
     budget_error 'expected migration manifest is missing' 79
     return
   fi
+  migration_read_bounded_input \
+    "${manifest}" "${MIGRATION_MAX_MANIFEST_BYTES}" 'migration manifest'
 
   EXPECTED_VERSIONS=()
   EXPECTED_FILENAMES=()
   EXPECTED_HASHES=()
   EXPECTED_SOURCE_SHA=''
   local line line_number=0 version filename hash extra existing count=0
-  while IFS= read -r line; do
+  while IFS= read -r line || [[ -n "${line}" ]]; do
     line_number=$((line_number + 1))
+    if (( line_number > MIGRATION_MAX_MANIFEST_LINES )); then
+      budget_error "migration manifest exceeds ${MIGRATION_MAX_MANIFEST_LINES} lines" 79
+      return
+    fi
     if (( line_number == 1 )); then
       [[ "${line}" == 'budget_migration_manifest_version=1' ]] || {
         budget_error 'migration manifest version is invalid' 79; return; }
@@ -180,7 +203,7 @@ migration_read_expected() {
     EXPECTED_VERSIONS+=("${version}")
     EXPECTED_FILENAMES+=("${filename}")
     EXPECTED_HASHES+=("${hash}")
-  done < "${manifest}"
+  done < <(printf '%s' "${MIGRATION_BOUNDED_CONTENT}")
   if (( count == 0 )); then
     budget_error 'migration manifest has no migration rows' 79
   fi
@@ -231,9 +254,16 @@ migration_verify_applied() {
     budget_error 'applied migration rows file is missing' 79
     return
   fi
+  migration_read_bounded_input \
+    "${applied}" "${MIGRATION_MAX_APPLIED_BYTES}" 'applied migration rows file'
   local -a applied_versions=()
-  local version existing expected_position count=0
-  while IFS= read -r version; do
+  local version existing expected_position count=0 line_number=0
+  while IFS= read -r version || [[ -n "${version}" ]]; do
+    line_number=$((line_number + 1))
+    if (( line_number > MIGRATION_MAX_FILES )); then
+      budget_error "applied migration rows exceed ${MIGRATION_MAX_FILES} lines" 79
+      return
+    fi
     [[ -z "${version}" ]] && continue
     count=$((count + 1))
     if (( count > MIGRATION_MAX_FILES )) || [[ ! "${version}" =~ ^[0-9]{14}$ ]]; then
@@ -258,7 +288,7 @@ migration_verify_applied() {
       return
     fi
     applied_versions+=("${version}")
-  done < "${applied}"
+  done < <(printf '%s' "${MIGRATION_BOUNDED_CONTENT}")
   printf '%s\n' "${count}"
 }
 
