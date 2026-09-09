@@ -292,6 +292,8 @@ apply_migrations() {
       printf '%s\n' 'commit;'
     } | docker exec -i "${UAT_DB_CONTAINER}" psql -X -q -U postgres -d postgres -v ON_ERROR_STOP=1
   done < <(tail -n +3 "${UAT_ROOT}/${UAT_MANIFEST}")
+  docker exec "${UAT_DB_CONTAINER}" psql -XAt -U postgres -d postgres -v ON_ERROR_STOP=1 -c \
+    "notify pgrst, 'reload schema';" >/dev/null
 }
 
 verify_journal() {
@@ -326,6 +328,143 @@ verify_stack_base() {
   printf 'UAT_DATABASE|version=%s|system_id=%s\n' "${server_version}" "${system_id}"
   printf 'UAT_CONTAINERS|count=4|healthy=4|restart_policy=no\n'
   printf 'UAT_BINDINGS|gateway=127.0.0.1:54521|database=127.0.0.1:54522\n'
+}
+
+verify_catalog() {
+  local rls_count writable_count function_acl
+  rls_count="$(docker exec "${UAT_DB_CONTAINER}" psql -XAt -U postgres -d postgres -v ON_ERROR_STOP=1 -c \
+    "select count(*) from pg_class as relation join pg_namespace as namespace on namespace.oid = relation.relnamespace where namespace.nspname = 'public' and relation.relname = any (array['spaces','space_memberships','wallets','financial_events','wallet_movements','loans','loan_postings','loan_monthly_target_revisions','categories','category_command_requests','financial_event_categories']) and relation.relrowsecurity;")"
+  [[ "${rls_count}" == '11' ]] || uat_remote_error 'UAT RLS catalog mismatch' 80
+  writable_count="$(docker exec "${UAT_DB_CONTAINER}" psql -XAt -U postgres -d postgres -v ON_ERROR_STOP=1 -c \
+    "with roles(role_name) as (values ('anon'),('authenticated'),('service_role')), relations(relation_name) as (values ('spaces'),('space_memberships'),('wallets'),('financial_events'),('wallet_movements'),('loans'),('loan_postings'),('loan_monthly_target_revisions'),('categories'),('category_command_requests'),('financial_event_categories')) select count(*) from roles cross join relations where has_table_privilege(role_name, format('public.%I', relation_name), 'insert') or has_table_privilege(role_name, format('public.%I', relation_name), 'update') or has_table_privilege(role_name, format('public.%I', relation_name), 'delete') or has_table_privilege(role_name, format('public.%I', relation_name), 'truncate');")"
+  [[ "${writable_count}" == '0' ]] || uat_remote_error 'UAT direct-write privilege mismatch' 80
+  function_acl="$(docker exec "${UAT_DB_CONTAINER}" psql -XAt -U postgres -d postgres -v ON_ERROR_STOP=1 -c \
+    "select has_function_privilege('anon', 'public.reverse_financial_event(uuid,uuid,uuid,date)', 'execute') || '|' || has_function_privilege('authenticated', 'public.reverse_financial_event(uuid,uuid,uuid,date)', 'execute') || '|' || has_function_privilege('service_role', 'public.reverse_financial_event(uuid,uuid,uuid,date)', 'execute');")"
+  [[ "${function_acl}" == 'false|true|false' || "${function_acl}" == 'f|t|f' ]] || \
+    uat_remote_error 'UAT reversal function privilege mismatch' 80
+  printf '%s\n' 'RLS_CATALOG|scoped=11|enabled=11'
+  printf '%s\n' 'DIRECT_WRITE_CATALOG|roles=3|relations=11|writable=0'
+  printf '%s\n' 'FUNCTION_ACL|reverse=authenticated_only'
+}
+
+verify_file_permissions() {
+  local input
+  [[ "$(stat -c '%a' "${UAT_ROOT}")" == '700' ]] || uat_remote_error 'UAT root permission mismatch' 81
+  [[ "$(stat -c '%a' "${UAT_ROOT}/.env")" == '600' ]] || uat_remote_error 'UAT secret permission mismatch' 81
+  [[ "$(stat -c '%a' "${UAT_ROOT}/migrations")" == '700' ]] || uat_remote_error 'UAT migration directory permission mismatch' 81
+  for input in "${UAT_MARKER}" .gitignore docker-compose.yml kong.yml "${UAT_MANIFEST}"; do
+    [[ "$(stat -c '%a' "${UAT_ROOT}/${input}")" == '600' ]] || uat_remote_error 'UAT input permission mismatch' 81
+  done
+  while IFS= read -r input; do
+    [[ "$(stat -c '%a' "${input}")" == '600' ]] || uat_remote_error 'UAT migration file permission mismatch' 81
+  done < <(find "${UAT_ROOT}/migrations" -maxdepth 1 -type f -name '*.sql' | LC_ALL=C sort)
+  printf '%s\n' 'SECRETS|env_mode=0600|root_mode=0700|values_printed=no'
+}
+
+run_auth_api_smoke() {
+  python3 - "${UAT_ROOT}/.env" <<'PY'
+import json
+import secrets
+import sys
+import urllib.error
+import urllib.request
+import uuid
+
+environment_path = sys.argv[1]
+environment = {}
+with open(environment_path, "r", encoding="utf-8") as source:
+    for line in source:
+        name, separator, value = line.rstrip("\n").partition("=")
+        if separator:
+            environment[name] = value
+
+anon_key = environment["ANON_KEY"]
+base_url = "http://127.0.0.1:54521"
+
+def api(method, path, body=None, token=None, key=anon_key):
+    payload = None if body is None else json.dumps(body, separators=(",", ":")).encode()
+    headers = {"apikey": key, "Authorization": f"Bearer {token or key}", "Content-Type": "application/json"}
+    request = urllib.request.Request(base_url + path, data=payload, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            raw = response.read(1_048_577)
+            if len(raw) > 1_048_576:
+                raise RuntimeError("response exceeded bound")
+            return response.status, json.loads(raw) if raw else None
+    except urllib.error.HTTPError as error:
+        raw = error.read(1_048_577)
+        if len(raw) > 1_048_576:
+            raise RuntimeError("error response exceeded bound")
+        try:
+            parsed = json.loads(raw) if raw else None
+        except json.JSONDecodeError:
+            parsed = None
+        return error.code, parsed
+
+def signup(label):
+    email = f"uat-{label}-{secrets.token_hex(8)}@example.test"
+    password = secrets.token_urlsafe(24)
+    status, result = api("POST", "/auth/v1/signup", {"email": email, "password": password})
+    if status != 200 or not isinstance(result, dict):
+        raise RuntimeError("signup failed")
+    session = result.get("session") if isinstance(result.get("session"), dict) else result
+    user = result.get("user") if isinstance(result.get("user"), dict) else session.get("user", {})
+    if not session.get("access_token") or not session.get("refresh_token") or not user.get("id"):
+        raise RuntimeError("signup returned no session")
+    return session, user["id"]
+
+first_session, first_user_id = signup("first")
+refresh_status, refreshed = api("POST", "/auth/v1/token?grant_type=refresh_token", {"refresh_token": first_session["refresh_token"]})
+if refresh_status != 200 or not isinstance(refreshed, dict) or not refreshed.get("access_token") or not refreshed.get("refresh_token"):
+    raise RuntimeError("refresh failed")
+second_session, second_user_id = signup("second")
+
+space_status, spaces = api("POST", "/rest/v1/rpc/create_space", {"p_name": "Synthetic UAT Space", "p_kind": "personal"}, refreshed["access_token"])
+if space_status != 200 or not isinstance(spaces, list) or len(spaces) != 1 or not spaces[0].get("id"):
+    raise RuntimeError("protected create_space RPC failed")
+space_id = spaces[0]["id"]
+wallet_status, wallets = api("POST", "/rest/v1/rpc/create_wallet", {"p_space_id": space_id, "p_name": "Synthetic UAT Wallet", "p_currency": "USD"}, refreshed["access_token"])
+if wallet_status != 200 or not isinstance(wallets, list) or len(wallets) != 1 or not wallets[0].get("id"):
+    raise RuntimeError("protected create_wallet RPC failed")
+
+anonymous_read_status, anonymous_spaces = api("GET", "/rest/v1/spaces?select=id")
+if anonymous_read_status != 200 or anonymous_spaces != []:
+    raise RuntimeError("anonymous RLS read was not denied")
+anonymous_rpc_status, _ = api("POST", "/rest/v1/rpc/create_space", {"p_name": "Rejected", "p_kind": "personal"})
+if anonymous_rpc_status not in (401, 403):
+    raise RuntimeError("anonymous RPC was not rejected")
+cross_status, _ = api("POST", "/rest/v1/rpc/create_wallet", {"p_space_id": space_id, "p_name": "Rejected", "p_currency": "USD"}, second_session["access_token"])
+if cross_status not in (401, 403):
+    raise RuntimeError("cross-tenant RPC was not rejected")
+
+logout_status, _ = api("POST", "/auth/v1/logout?scope=global", token=refreshed["access_token"])
+if logout_status not in (200, 204):
+    raise RuntimeError("global logout failed")
+revoked_status, _ = api("POST", "/auth/v1/token?grant_type=refresh_token", {"refresh_token": refreshed["refresh_token"]})
+if revoked_status not in (400, 401):
+    raise RuntimeError("revoked refresh token was accepted")
+second_logout_status, _ = api("POST", "/auth/v1/logout?scope=global", token=second_session["access_token"])
+if second_logout_status not in (200, 204):
+    raise RuntimeError("second logout failed")
+if first_user_id == second_user_id or uuid.UUID(first_user_id).version not in (4, 7) or uuid.UUID(second_user_id).version not in (4, 7):
+    raise RuntimeError("Auth user identity mismatch")
+
+print("AUTH_SMOKE|signup=pass|refresh=pass|global_revoke=pass")
+print("API_SMOKE|postgrest=pass|protected_rpc=pass")
+print("RLS_SMOKE|anonymous=denied|cross_tenant=denied")
+PY
+}
+
+verify_stack_full() {
+  local before after
+  before="$(snapshot_budget_development)"
+  verify_stack_base
+  verify_catalog
+  verify_file_permissions
+  run_auth_api_smoke
+  after="$(snapshot_budget_development)"
+  compare_budget_development_snapshots "${before}" "${after}"
+  printf '%s\n' 'BUDGET_DEV_NONINTERFERENCE|unchanged=yes'
 }
 
 provision_stack() {
@@ -429,7 +568,7 @@ case "${1:-}" in
     ;;
   verify)
     host_preflight
-    verify_stack_base
+    verify_stack_full
     ;;
   stop)
     host_preflight

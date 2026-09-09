@@ -183,4 +183,52 @@ describe('Budget exact-schema UAT static contract', () => {
     expect(remoteScript).toContain('docker network rm "${UAT_NETWORK}"');
     expect(remoteScript).not.toMatch(/docker\s+(?:system|container|network|volume)\s+prune/);
   });
+
+  it('verifies real Auth refresh and global revocation without emitting session material', () => {
+    const remoteScript = trackedText(remoteScriptPath);
+
+    expect(remoteScript).toContain('run_auth_api_smoke');
+    expect(remoteScript).toContain('/auth/v1/signup');
+    expect(remoteScript).toContain('/auth/v1/token?grant_type=refresh_token');
+    expect(remoteScript).toContain('/auth/v1/logout?scope=global');
+    expect(remoteScript).toContain('AUTH_SMOKE|signup=pass|refresh=pass|global_revoke=pass');
+    expect(remoteScript).not.toContain('print(access_token)');
+    expect(remoteScript).not.toContain('print(refresh_token)');
+  });
+
+  it('uses PostgREST for one protected RPC and proves anonymous and cross-tenant rejection', () => {
+    const remoteScript = trackedText(remoteScriptPath);
+
+    expect(remoteScript).toContain('/rest/v1/rpc/create_space');
+    expect(remoteScript).toContain('/rest/v1/rpc/create_wallet');
+    expect(remoteScript).toContain('/rest/v1/spaces?select=id');
+    expect(remoteScript).toContain('API_SMOKE|postgrest=pass|protected_rpc=pass');
+    expect(remoteScript).toContain('RLS_SMOKE|anonymous=denied|cross_tenant=denied');
+  });
+
+  it('checks exact-schema catalog invariants and restrictive secret permissions', () => {
+    const remoteScript = trackedText(remoteScriptPath);
+
+    expect(remoteScript).toContain('verify_catalog');
+    expect(remoteScript).toContain('relrowsecurity');
+    expect(remoteScript).toContain('has_table_privilege');
+    expect(remoteScript).toContain('has_function_privilege');
+    expect(remoteScript).toContain('verify_file_permissions');
+    expect(remoteScript).toContain('SECRETS|env_mode=0600|root_mode=0700|values_printed=no');
+    expect(remoteScript).toContain('RLS_CATALOG|scoped=11|enabled=11');
+  });
+
+  it('compares Budget development before and after every full verification', () => {
+    const remoteScript = trackedText(remoteScriptPath);
+    const verifyFunction = remoteScript.slice(
+      remoteScript.indexOf('verify_stack_full()'),
+      remoteScript.indexOf('\n}\n', remoteScript.indexOf('verify_stack_full()')) + 3,
+    );
+
+    expect(verifyFunction).toContain('before="$(snapshot_budget_development)"');
+    expect(verifyFunction).toContain('after="$(snapshot_budget_development)"');
+    expect(verifyFunction).toContain(
+      'compare_budget_development_snapshots "${before}" "${after}"',
+    );
+  });
 });
