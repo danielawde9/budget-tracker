@@ -203,7 +203,6 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
     const url = new URL(request.url());
     const path = url.pathname;
     const rpcName = path.includes('/rpc/') ? path.slice(path.lastIndexOf('/') + 1) : null;
-    if (rpcName && protectedMutationNames.has(rpcName)) protectedMutationCalls.add(rpcName);
     const equalValue = (name: string) => {
       const value = url.searchParams.get(name);
       return value?.startsWith('eq.') ? value.slice(3) : null;
@@ -214,6 +213,7 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       return new Set(value.slice(4, -1).split(','));
     };
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' } });
+    if (request.method() === 'POST' && rpcName && protectedMutationNames.has(rpcName)) protectedMutationCalls.add(rpcName);
     if (path.endsWith('/__fixture_audit')) {
       return json(route, {
         boundary: 'simulated-local-http',

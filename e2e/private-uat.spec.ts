@@ -44,13 +44,21 @@ test('offline rehearsal exposes an explicit simulated-boundary receipt', async (
   await installApplicationFixture(page);
   await page.goto('/');
 
+  const preflightStatus = await page.evaluate(async () => {
+    const response = await fetch('http://127.0.0.1:55432/rest/v1/rpc/create_category', { method: 'OPTIONS' });
+    return response.status;
+  });
+
   const receipt = await fixtureAudit(page);
 
+  expect(preflightStatus).toBe(204);
   expect(receipt.status).toBe(200);
   expect(receipt.body).toMatchObject({
     boundary: 'simulated-local-http',
     authentication: 'injected-local-storage-session',
     database: 'in-memory-fixture-state',
+    payloadsRecorded: false,
+    protectedMutationCalls: [],
   });
 });
 
