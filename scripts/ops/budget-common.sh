@@ -30,19 +30,137 @@ budget_start_deadline() {
   printf '%s\n' "$((started_at + total_seconds))"
 }
 
+budget_remaining_seconds() {
+  local deadline="${1:?deadline is required}"
+  local now remaining
+  now="$(budget_monotonic_seconds)"
+  remaining=$((deadline - now))
+  (( remaining > 0 )) || return 1
+  printf '%s\n' "${remaining}"
+}
+
 budget_run_before_deadline() {
   local deadline="${1:?deadline is required}"
   local status="${2:?status is required}"
   local timeout_bin="${3:?timeout binary is required}"
   shift 3
-  local now remaining
-  now="$(budget_monotonic_seconds)"
-  remaining=$((deadline - now))
-  if (( remaining <= 0 )); then
+  local remaining
+  if ! remaining="$(budget_remaining_seconds "${deadline}")"; then
     budget_error 'whole-operation deadline exceeded' "${status}"
     return
   fi
   "${timeout_bin}" "${remaining}" "$@"
+}
+
+budget_create_executable_snapshot_dir() {
+  local deadline="${1:?deadline is required}"
+  local status="${2:?status is required}"
+  local remaining snapshot_dir
+  if ! remaining="$(budget_remaining_seconds "${deadline}")"; then
+    budget_error 'whole-operation deadline exceeded' "${status}"
+    return
+  fi
+  if ! snapshot_dir="$(/usr/bin/perl -MCwd=abs_path -MFile::Temp=tempdir -e '
+    alarm shift @ARGV;
+    my $directory = tempdir("budget-ops-exec-XXXXXXXX", DIR => "/tmp", CLEANUP => 0);
+    chmod 0700, $directory or die "chmod\n";
+    my $canonical = abs_path($directory);
+    die "canonical\n" unless defined $canonical;
+    print "$canonical\n";
+  ' "${remaining}")"; then
+    budget_error 'executable snapshot directory creation failed' "${status}"
+    return
+  fi
+  printf '%s\n' "${snapshot_dir}"
+}
+
+budget_snapshot_executable() {
+  local source="${1:-}"
+  local expected_hash="${2:-}"
+  local destination="${3:-}"
+  local deadline="${4:?deadline is required}"
+  local status="${5:?status is required}"
+  local remaining
+  if ! remaining="$(budget_remaining_seconds "${deadline}")"; then
+    budget_error 'whole-operation deadline exceeded' "${status}"
+    return
+  fi
+  if [[ ! "${expected_hash}" =~ ^[a-f0-9]{64}$ ]] || \
+    ! /usr/bin/perl -MCwd=abs_path -MDigest::SHA -MFcntl=:DEFAULT,O_NOFOLLOW,:mode -e '
+      use strict;
+      use warnings;
+      my ($seconds, $source, $destination, $expected_hash) = @ARGV;
+      alarm $seconds;
+      my @before = lstat($source);
+      die "source\n" unless @before && S_ISREG($before[2]);
+      die "owner\n" unless ($before[4] == $< || $before[4] == 0);
+      die "mode\n" unless ($before[2] & 0111) && !(($before[2] & 0022));
+      die "size\n" unless $before[7] > 0 && $before[7] <= 104_857_600;
+      my $resolved = abs_path($source);
+      die "path\n" unless defined $resolved && $resolved eq $source;
+      die "placeholder\n" if $resolved =~ m{^/(?:usr/)?bin/(?:true|false)$};
+      sysopen(my $input, $source, O_RDONLY | O_NOFOLLOW) or die "open source\n";
+      my @opened = stat($input);
+      die "swap\n" unless @opened && S_ISREG($opened[2]);
+      die "swap\n" unless $opened[0] == $before[0] && $opened[1] == $before[1];
+      sysopen(my $output, $destination, O_WRONLY | O_CREAT | O_EXCL, 0500)
+        or die "open destination\n";
+      my $digest = Digest::SHA->new(256);
+      my $buffer;
+      while (1) {
+        my $count = sysread($input, $buffer, 65_536);
+        die "read\n" unless defined $count;
+        last if $count == 0;
+        $digest->add(substr($buffer, 0, $count));
+        my $offset = 0;
+        while ($offset < $count) {
+          my $written = syswrite($output, $buffer, $count - $offset, $offset);
+          die "write\n" unless defined $written && $written > 0;
+          $offset += $written;
+        }
+      }
+      close $output or die "close\n";
+      die "hash\n" unless $digest->hexdigest eq $expected_hash;
+    ' "${remaining}" "${source}" "${destination}" "${expected_hash}" 2>/dev/null; then
+    /bin/rm -f -- "${destination}" 2>/dev/null || true
+    budget_error 'executable snapshot validation failed' "${status}"
+    return
+  fi
+  printf '%s\n' "${destination}"
+}
+
+budget_seal_executable_snapshot_dir() {
+  local directory="${1:-}"
+  local status="${2:?status is required}"
+  if [[ ! "${directory}" =~ ^/(private/)?tmp/budget-ops-exec-[A-Za-z0-9_]{8}$ ]] || \
+    ! /bin/chmod 0500 "${directory}"; then
+    budget_error 'executable snapshot directory sealing failed' "${status}"
+  fi
+}
+
+budget_cleanup_executable_snapshot_dir() {
+  local directory="${1:-}"
+  [[ "${directory}" =~ ^/(private/)?tmp/budget-ops-exec-[A-Za-z0-9_]{8}$ ]] || return 0
+  /usr/bin/perl -MFcntl=:mode -e '
+    alarm 5;
+    my $directory = $ARGV[0];
+    my @directory_details = lstat($directory);
+    exit 0 unless @directory_details;
+    die "directory\n" unless S_ISDIR($directory_details[2]) && $directory_details[4] == $<;
+    chmod 0700, $directory or die "chmod\n";
+    opendir(my $handle, $directory) or die "open\n";
+    my @entries = grep { $_ ne "." && $_ ne ".." } readdir($handle);
+    closedir($handle);
+    die "entries\n" if @entries > 32;
+    for my $entry (@entries) {
+      die "entry\n" unless $entry =~ /^exec-[0-9]{2}-[A-Za-z0-9._-]{1,64}$/;
+      my $path = "$directory/$entry";
+      my @details = lstat($path);
+      die "file\n" unless @details && S_ISREG($details[2]) && $details[4] == $<;
+      unlink($path) or die "unlink\n";
+    }
+    rmdir($directory) or die "rmdir\n";
+  ' "${directory}" 2>/dev/null || true
 }
 
 budget_file_sha256() {

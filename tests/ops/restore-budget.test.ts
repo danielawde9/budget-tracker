@@ -131,7 +131,7 @@ describe('scratch-only Budget restore boundary', () => {
     });
 
     expect(result.status).toBe(75);
-    expect(result.stderr).toContain('placeholder PostgreSQL executable refused');
+    expect(result.stderr).toContain('executable snapshot validation failed');
     expect(existsSync(log)).toBe(false);
   });
 
@@ -232,14 +232,14 @@ describe('scratch-only Budget restore boundary', () => {
     const result = run('restore', env);
     const commands = readFileSync(log, 'utf8');
 
-    expect(result.status).toBe(0);
+    expect(result.status, result.stderr).toBe(0);
     expect(commands.match(/offsite:get/g)).toHaveLength(4);
     expect(commands.match(/db-verify:/g)).toHaveLength(2);
-    expect(commands.match(/timeout:[0-9]+:age/g)).toHaveLength(3);
-    expect(commands).toMatch(/timeout:[0-9]+:pg_restore\n/);
-    expect(commands).toMatch(/timeout:[0-9]+:psql\n/);
+    expect(commands.match(/timeout:[0-9]+:exec-01-age/g)).toHaveLength(3);
+    expect(commands).toMatch(/timeout:[0-9]+:exec-03-pg_restore\n/);
+    expect(commands).toMatch(/timeout:[0-9]+:exec-04-psql\n/);
     expect(commands).toContain('role-filter');
-    expect(commands).toMatch(/timeout:[0-9]+:compare\n/);
+    expect(commands).toMatch(/timeout:[0-9]+:exec-06-compare\n/);
     expect(result.stdout).toContain('scratch restore comparison verified');
     expectShrinkingDeadline(commands, 3600);
   });
@@ -251,7 +251,7 @@ describe('scratch-only Budget restore boundary', () => {
       BUDGET_FAKE_VERIFY_SECOND_SYSTEM_ID: '8000000000000000999',
     });
 
-    expect(result.status).toBe(76);
+    expect(result.status, result.stderr).toBe(76);
     expect(result.stderr).toContain('scratch identity changed before restore');
     const commands = readFileSync(log, 'utf8').trimEnd().split('\n');
     expect(commands).not.toContain('psql');
@@ -278,8 +278,8 @@ describe('scratch-only Budget restore boundary', () => {
       BUDGET_COMPARE_BIN: '/usr/bin/true',
     });
 
-    expect(result.status).toBe(78);
-    expect(result.stderr).toContain('comparison receipt is invalid');
+    expect(result.status).toBe(75);
+    expect(result.stderr).toContain('executable snapshot validation failed');
     expect(result.stdout).not.toContain('scratch restore comparison verified');
   });
 

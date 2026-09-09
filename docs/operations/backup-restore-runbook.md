@@ -106,12 +106,15 @@ non-system relations at both checks.
 Configure only reviewed absolute executable paths. Each adapter is wall-time
 bounded and must emit safe metadata only.
 
-PostgreSQL client paths are canonical regular executables, never placeholder
-`true`/`false` commands. Configuration pins their SHA-256 values and expected
-exact PostgreSQL version; the scripts hash and run `--version` locally before
-effects. The tracked database verifier is hash-pinned as well. The current
-repository commit must match `BUDGET_SOURCE_COMMIT`, which is recorded in every
-backup manifest and validated as recovery provenance.
+Every configured adapter path must resolve to a canonical, regular, executable,
+non-group/world-writable file and have an exact configured SHA-256; placeholder
+`true`/`false` commands are refused. At operation start, each opened file is
+copied and hashed into one private snapshot directory, which is sealed read-only
+before any adapter runs. All later execution uses those validated copies, so a
+source-path replacement cannot change operation content. PostgreSQL snapshots
+also run the exact expected `--version`. The current repository commit must
+match `BUDGET_SOURCE_COMMIT`, which is recorded in every backup manifest and
+validated as recovery provenance.
 
 - `BUDGET_OFFSITE_BIN put LOCAL DESTINATION KEY` uploads one ciphertext or safe
   manifest.

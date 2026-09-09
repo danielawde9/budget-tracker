@@ -9,6 +9,30 @@ source "${RESTORE_SCRIPT_DIR}/budget-common.sh"
 
 readonly RESTORE_OPERATION_TIMEOUT_SECONDS=3600
 
+restore_snapshot_executables() {
+  BUDGET_TIMEOUT_BIN="$(budget_snapshot_executable "${BUDGET_TIMEOUT_BIN}" \
+    "${BUDGET_TIMEOUT_SHA256}" "${restore_exec_dir}/exec-00-timeout" "${restore_deadline}" 75)"
+  BUDGET_AGE_BIN="$(budget_snapshot_executable "${BUDGET_AGE_BIN}" \
+    "${BUDGET_AGE_SHA256}" "${restore_exec_dir}/exec-01-age" "${restore_deadline}" 75)"
+  BUDGET_OFFSITE_BIN="$(budget_snapshot_executable "${BUDGET_OFFSITE_BIN}" \
+    "${BUDGET_OFFSITE_SHA256}" "${restore_exec_dir}/exec-02-offsite" "${restore_deadline}" 75)"
+  BUDGET_PG_RESTORE_BIN="$(budget_snapshot_executable "${BUDGET_PG_RESTORE_BIN}" \
+    "${BUDGET_PG_RESTORE_SHA256}" "${restore_exec_dir}/exec-03-pg_restore" "${restore_deadline}" 75)"
+  BUDGET_PSQL_BIN="$(budget_snapshot_executable "${BUDGET_PSQL_BIN}" \
+    "${BUDGET_PSQL_SHA256}" "${restore_exec_dir}/exec-04-psql" "${restore_deadline}" 75)"
+  BUDGET_ROLE_FILTER_BIN="$(budget_snapshot_executable "${BUDGET_ROLE_FILTER_BIN}" \
+    "${BUDGET_ROLE_FILTER_SHA256}" "${restore_exec_dir}/exec-05-role-filter" "${restore_deadline}" 75)"
+  BUDGET_COMPARE_BIN="$(budget_snapshot_executable "${BUDGET_COMPARE_BIN}" \
+    "${BUDGET_COMPARE_SHA256}" "${restore_exec_dir}/exec-06-compare" "${restore_deadline}" 75)"
+  BUDGET_DB_VERIFY_BIN="$(budget_snapshot_executable "${BUDGET_DB_VERIFY_BIN}" \
+    "${BUDGET_DB_VERIFY_SHA256}" "${restore_exec_dir}/exec-07-verify-budget-db.sh" "${restore_deadline}" 75)"
+  BUDGET_VERIFY_PSQL_BIN="$(budget_snapshot_executable "${BUDGET_VERIFY_PSQL_BIN}" \
+    "${BUDGET_VERIFY_PSQL_SHA256}" "${restore_exec_dir}/exec-08-verify-psql" "${restore_deadline}" 75)"
+  BUDGET_ROLE_VALIDATOR_BIN="$(budget_snapshot_executable "${BUDGET_ROLE_VALIDATOR_BIN}" \
+    "${BUDGET_ROLE_VALIDATOR_SHA256}" "${restore_exec_dir}/exec-09-role-validator" "${restore_deadline}" 75)"
+  budget_seal_executable_snapshot_dir "${restore_exec_dir}" 75
+}
+
 restore_validate_live_gate() {
   local expected_confirmation="live:${BUDGET_PROJECT_ID:-}:${BUDGET_EXPECTED_SYSTEM_ID:-}"
   if [[ ! "${BUDGET_INCIDENT_ID:-}" =~ ^INC-[A-Za-z0-9._-]{4,64}$ || \
@@ -79,7 +103,9 @@ restore_validate_configuration() {
     BUDGET_VERIFY_PSQL_SHA256 BUDGET_PG_RESTORE_SHA256 BUDGET_PSQL_SHA256 \
     BUDGET_PG_DUMP_VERSION BUDGET_SOURCE_COMMIT \
     BUDGET_OFFSITE_BIN BUDGET_PG_RESTORE_BIN BUDGET_PSQL_BIN \
-    BUDGET_ROLE_FILTER_BIN BUDGET_COMPARE_BIN; do
+    BUDGET_ROLE_FILTER_BIN BUDGET_COMPARE_BIN BUDGET_TIMEOUT_SHA256 \
+    BUDGET_AGE_SHA256 BUDGET_OFFSITE_SHA256 BUDGET_ROLE_FILTER_SHA256 \
+    BUDGET_COMPARE_SHA256; do
     if [[ -z "${!required_value:-}" ]]; then
       budget_error "required restore setting is missing: ${required_value}" 75
       return
@@ -151,6 +177,7 @@ restore_validate_configuration() {
     budget_error 'role validator must be the tracked pinned validator' 75
     return
   fi
+  restore_snapshot_executables
   budget_validate_executable_hash "${BUDGET_DB_VERIFY_BIN}" \
     "${BUDGET_DB_VERIFY_SHA256}" 75
   budget_validate_executable_hash "${BUDGET_ROLE_VALIDATOR_BIN}" \
@@ -237,6 +264,7 @@ restore_cleanup() {
   if [[ "${restore_lock_acquired:-0}" == '1' ]]; then
     rmdir -- "${restore_lock_dir}" 2>/dev/null || true
   fi
+  budget_cleanup_executable_snapshot_dir "${restore_exec_dir:-}"
   exit "${status}"
 }
 
@@ -273,9 +301,12 @@ restore_expected_hash() {
 restore_execute() {
   local restore_deadline
   restore_deadline="$(budget_start_deadline "${RESTORE_OPERATION_TIMEOUT_SECONDS}")"
+  local restore_lock_acquired=0 restore_temp_created=0
+  local restore_exec_dir=''
+  trap restore_cleanup EXIT INT TERM HUP
+  restore_exec_dir="$(budget_create_executable_snapshot_dir "${restore_deadline}" 75)"
   restore_validate_configuration
 
-  local restore_lock_acquired=0 restore_temp_created=0
   local restore_lock_dir="${RESTORE_ROOT}/locks/restore-scratch.lock"
   local restore_temp_dir="${RESTORE_ROOT}/tmp/${RESTORE_POINT}.restore"
   local restore_manifest="${restore_temp_dir}/manifest.txt"
@@ -288,8 +319,6 @@ restore_execute() {
   local restore_roles_filtered="${restore_temp_dir}/roles.allowlisted.sql"
   local restore_archive_list="${restore_temp_dir}/archive.list"
   local initial_database_receipt current_database_receipt
-  trap restore_cleanup EXIT INT TERM HUP
-
   mkdir -p -- "${RESTORE_ROOT}/locks"
   if ! mkdir -- "${restore_lock_dir}" 2>/dev/null; then
     budget_error 'restore is already running' 77
@@ -420,10 +449,16 @@ restore_execute() {
 }
 
 restore_dry_run() {
+  local restore_deadline restore_exec_dir=''
+  restore_deadline="$(budget_start_deadline "${RESTORE_OPERATION_TIMEOUT_SECONDS}")"
+  trap 'budget_cleanup_executable_snapshot_dir "${restore_exec_dir}"' EXIT INT TERM HUP
+  restore_exec_dir="$(budget_create_executable_snapshot_dir "${restore_deadline}" 75)"
   restore_validate_configuration
   printf '%s\n' "restore_target=${RESTORE_TARGET}"
   printf '%s\n' 'DRY RUN ONLY: no lock, fetch, decrypt, role, restore, compare, cleanup, database, or network command executed'
   printf '%s\n' 'real-data recovery evidence remains BLOCKED until measured scratch restore and operator approval'
+  budget_cleanup_executable_snapshot_dir "${restore_exec_dir}"
+  trap - EXIT INT TERM HUP
 }
 
 case "${1:-}" in

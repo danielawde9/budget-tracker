@@ -22,6 +22,28 @@ backup_validate_scalar() {
   fi
 }
 
+backup_snapshot_executables() {
+  BUDGET_TIMEOUT_BIN="$(budget_snapshot_executable "${BUDGET_TIMEOUT_BIN}" \
+    "${BUDGET_TIMEOUT_SHA256}" "${backup_exec_dir}/exec-00-timeout" "${backup_deadline}" 70)"
+  BUDGET_PG_DUMP_BIN="$(budget_snapshot_executable "${BUDGET_PG_DUMP_BIN}" \
+    "${BUDGET_PG_DUMP_SHA256}" "${backup_exec_dir}/exec-01-pg_dump" "${backup_deadline}" 70)"
+  BUDGET_PG_DUMPALL_BIN="$(budget_snapshot_executable "${BUDGET_PG_DUMPALL_BIN}" \
+    "${BUDGET_PG_DUMPALL_SHA256}" "${backup_exec_dir}/exec-02-pg_dumpall" "${backup_deadline}" 70)"
+  BUDGET_AGE_BIN="$(budget_snapshot_executable "${BUDGET_AGE_BIN}" \
+    "${BUDGET_AGE_SHA256}" "${backup_exec_dir}/exec-03-age" "${backup_deadline}" 70)"
+  BUDGET_CATALOG_BIN="$(budget_snapshot_executable "${BUDGET_CATALOG_BIN}" \
+    "${BUDGET_CATALOG_SHA256}" "${backup_exec_dir}/exec-04-catalog" "${backup_deadline}" 70)"
+  BUDGET_OFFSITE_BIN="$(budget_snapshot_executable "${BUDGET_OFFSITE_BIN}" \
+    "${BUDGET_OFFSITE_SHA256}" "${backup_exec_dir}/exec-05-offsite" "${backup_deadline}" 70)"
+  BUDGET_CLOCK_BIN="$(budget_snapshot_executable "${BUDGET_CLOCK_BIN}" \
+    "${BUDGET_CLOCK_SHA256}" "${backup_exec_dir}/exec-06-clock" "${backup_deadline}" 70)"
+  BUDGET_DB_VERIFY_BIN="$(budget_snapshot_executable "${BUDGET_DB_VERIFY_BIN}" \
+    "${BUDGET_DB_VERIFY_SHA256}" "${backup_exec_dir}/exec-07-verify-budget-db.sh" "${backup_deadline}" 70)"
+  BUDGET_VERIFY_PSQL_BIN="$(budget_snapshot_executable "${BUDGET_VERIFY_PSQL_BIN}" \
+    "${BUDGET_VERIFY_PSQL_SHA256}" "${backup_exec_dir}/exec-08-verify-psql" "${backup_deadline}" 70)"
+  budget_seal_executable_snapshot_dir "${backup_exec_dir}" 70
+}
+
 backup_validate_configuration() {
   budget_validate_environment >/dev/null
   if [[ "${BUDGET_VALIDATED_ENV}" != 'live' ]]; then
@@ -61,7 +83,9 @@ backup_validate_configuration() {
     BUDGET_PG_DUMP_SHA256 BUDGET_PG_DUMPALL_SHA256 BUDGET_SOURCE_COMMIT \
     BUDGET_MIGRATION_MANIFEST BUDGET_REQUIRED_BYTES BUDGET_AVAILABLE_BYTES \
     BUDGET_TIMEOUT_BIN BUDGET_PG_DUMP_BIN BUDGET_PG_DUMPALL_BIN \
-    BUDGET_AGE_BIN BUDGET_CATALOG_BIN BUDGET_OFFSITE_BIN BUDGET_CLOCK_BIN; do
+    BUDGET_AGE_BIN BUDGET_CATALOG_BIN BUDGET_OFFSITE_BIN BUDGET_CLOCK_BIN \
+    BUDGET_TIMEOUT_SHA256 BUDGET_AGE_SHA256 BUDGET_CATALOG_SHA256 \
+    BUDGET_OFFSITE_SHA256 BUDGET_CLOCK_SHA256; do
     if [[ -z "${!required_value:-}" ]]; then
       budget_error "required backup setting is missing: ${required_value}" 70
       return
@@ -116,6 +140,7 @@ backup_validate_configuration() {
     budget_error 'database verifier must be the tracked pinned verifier' 70
     return
   fi
+  backup_snapshot_executables
   budget_validate_executable_hash "${BUDGET_DB_VERIFY_BIN}" \
     "${BUDGET_DB_VERIFY_SHA256}" 70
   budget_validate_postgres_binary "${BUDGET_VERIFY_PSQL_BIN}" \
@@ -178,16 +203,20 @@ backup_cleanup() {
   if [[ "${backup_lock_acquired:-0}" == '1' ]]; then
     rmdir -- "${backup_lock_dir}" 2>/dev/null || true
   fi
+  budget_cleanup_executable_snapshot_dir "${backup_exec_dir:-}"
   exit "${status}"
 }
 
 backup_execute() {
   local backup_deadline
   backup_deadline="$(budget_start_deadline "${BACKUP_OPERATION_TIMEOUT_SECONDS}")"
-  backup_validate_configuration
-
   local backup_lock_acquired=0 backup_temp_created=0 backup_recovery_created=0
   local backup_published=0
+  local backup_exec_dir=''
+  trap backup_cleanup EXIT INT TERM HUP
+  backup_exec_dir="$(budget_create_executable_snapshot_dir "${backup_deadline}" 70)"
+  backup_validate_configuration
+
   local backup_lock_dir="${BACKUP_ROOT}/locks/backup-live.lock"
   local backup_plain_dir="${BACKUP_ROOT}/tmp/${BACKUP_RUN_ID}.plaintext"
   local backup_recovery_dir="${BACKUP_ROOT}/backups/live/${BACKUP_RUN_ID}"
@@ -201,8 +230,6 @@ backup_execute() {
   local backup_success="${backup_recovery_dir}/SUCCESS"
   local backup_started_at backup_finished_at backup_started_seconds="${SECONDS}"
   local initial_database_receipt current_database_receipt
-  trap backup_cleanup EXIT INT TERM HUP
-
   mkdir -p -- "${BACKUP_ROOT}/locks"
   if ! mkdir -- "${backup_lock_dir}" 2>/dev/null; then
     budget_error 'backup is already running' 72
@@ -322,9 +349,15 @@ backup_execute() {
 }
 
 backup_dry_run() {
+  local backup_deadline backup_exec_dir=''
+  backup_deadline="$(budget_start_deadline "${BACKUP_OPERATION_TIMEOUT_SECONDS}")"
+  trap 'budget_cleanup_executable_snapshot_dir "${backup_exec_dir}"' EXIT INT TERM HUP
+  backup_exec_dir="$(budget_create_executable_snapshot_dir "${backup_deadline}" 70)"
   backup_validate_configuration
   printf '%s\n' 'DRY RUN ONLY: no lock, dump, encryption, upload, cleanup, or database/network command executed'
   printf '%s\n' 'external recovery evidence remains BLOCKED until configured off-site proof and scratch restore'
+  budget_cleanup_executable_snapshot_dir "${backup_exec_dir}"
+  trap - EXIT INT TERM HUP
 }
 
 backup_retention_epoch() {

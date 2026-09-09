@@ -13,7 +13,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { makeBackupFixture } from './ops-fixture.js';
+import { makeBackupFixture, makeExecutable } from './ops-fixture.js';
 
 const script = join(process.cwd(), 'scripts/ops/backup-budget.sh');
 
@@ -114,7 +114,7 @@ describe('encrypted Budget backup boundary', () => {
     const before = readdirSync(root);
     const result = run('dry-run', env);
 
-    expect(result.status).toBe(0);
+    expect(result.status, result.stderr).toBe(0);
     expect(result.stdout).toContain('BLOCKED until configured off-site proof');
     expect(readdirSync(root)).toEqual(before);
     expect(existsSync(log)).toBe(false);
@@ -130,11 +130,11 @@ describe('encrypted Budget backup boundary', () => {
     expect(result.status).toBe(0);
     const commandLog = readFileSync(log, 'utf8');
     const manifest = readFileSync(join(recoveryPoint, 'manifest.txt'), 'utf8');
-    expect(commandLog).toMatch(/timeout:[0-9]+:pg_dump\n/);
+    expect(commandLog).toMatch(/timeout:[0-9]+:exec-01-pg_dump\n/);
     expect(commandLog.match(/db-verify:/g)).toHaveLength(2);
-    expect(commandLog).toMatch(/timeout:[0-9]+:pg_dumpall\n/);
-    expect(commandLog).toMatch(/timeout:[0-9]+:catalog\n/);
-    expect(commandLog.match(/timeout:[0-9]+:age/g)).toHaveLength(3);
+    expect(commandLog).toMatch(/timeout:[0-9]+:exec-02-pg_dumpall\n/);
+    expect(commandLog).toMatch(/timeout:[0-9]+:exec-04-catalog\n/);
+    expect(commandLog.match(/timeout:[0-9]+:exec-03-age/g)).toHaveLength(3);
     expect(commandLog.match(/offsite:put/g)).toHaveLength(4);
     expect(commandLog.match(/offsite:verify/g)).toHaveLength(4);
     expect(readdirSync(recoveryPoint).sort()).toEqual([
@@ -182,7 +182,7 @@ describe('encrypted Budget backup boundary', () => {
     });
 
     expect(result.status).toBe(70);
-    expect(result.stderr).toContain('placeholder PostgreSQL executable refused');
+    expect(result.stderr).toContain('executable snapshot validation failed');
     expect(existsSync(log)).toBe(false);
   });
 
@@ -193,7 +193,7 @@ describe('encrypted Budget backup boundary', () => {
     const result = run('backup', env);
 
     expect(result.status).toBe(70);
-    expect(result.stderr).toContain('PostgreSQL executable hash mismatch');
+    expect(result.stderr).toContain('executable snapshot validation failed');
     expect(existsSync(log)).toBe(false);
   });
 
@@ -221,7 +221,7 @@ describe('encrypted Budget backup boundary', () => {
     );
 
     expect(result.status).toBe(70);
-    expect(result.stderr).toContain('off-site receipt is invalid');
+    expect(result.stderr).toContain('executable snapshot validation failed');
     expect(existsSync(success)).toBe(false);
   });
 
@@ -266,6 +266,25 @@ describe('encrypted Budget backup boundary', () => {
     expect(readFileSync(log, 'utf8')).not.toContain('pg_dump');
   });
 
+  it('executes the validated pg_dump content after its source path is swapped', () => {
+    const { base, env, log, pgDump } = makeBackupFixture();
+    const replacement = join(base, 'bin', 'replacement-pg-dump');
+    makeExecutable(
+      replacement,
+      'printf "swapped-pg-dump\\n" >> "$BUDGET_FAKE_LOG"; exit 91',
+    );
+    const result = run('backup', {
+      ...env,
+      BUDGET_FAKE_SWAP_EXECUTABLE_PATH: pgDump,
+      BUDGET_FAKE_SWAP_EXECUTABLE_REPLACEMENT: replacement,
+    });
+
+    expect(result.status, result.stderr).toBe(0);
+    const commands = readFileSync(log, 'utf8');
+    expect(commands).toContain('pg_dump');
+    expect(commands).not.toContain('swapped-pg-dump');
+  });
+
   it('rejects a marker swapped after validation before backup effects', () => {
     const { env, log, marker } = makeBackupFixture();
     const result = run('backup', {
@@ -296,7 +315,7 @@ describe('encrypted Budget backup boundary', () => {
     const tempRoot = join(root, 'tmp');
 
     expect(result.status).toBe(17);
-    expect(readFileSync(log, 'utf8')).toMatch(/timeout:[0-9]+:age\n/);
+    expect(readFileSync(log, 'utf8')).toMatch(/timeout:[0-9]+:exec-03-age\n/);
     expect(existsSync(join(tempRoot, '2026-09-09T021500Z-fixture.plaintext'))).toBe(
       false,
     );
