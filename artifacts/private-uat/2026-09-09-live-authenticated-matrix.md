@@ -15,6 +15,10 @@ below. The reviewed correction-label fix from source
 `8d5d1661f1cd6ec303a88615b24b994d7b0c25b9` is integrated in this release
 candidate as `0d849194a51ec7c4ae30854e7d9654ad45b50393`. It distinguishes loan
 openings from borrowing repayments in the correction action's accessible name.
+The evidence-only sources `abb8bf18ac8581dc7e3ec83784a1871d31abcdff` and
+`0bc87416087aa5adce3f0de98a8584f586a71572` are integrated as
+`0253c955d6ba3c6101e1d31fdb8a52dfa479b4e8` and
+`9239f0ec0f9038af8aff8e45c5f658bb2c4928e9`, respectively.
 
 Formal authenticated UAT against an isolated exact 18-migration schema has not
 been rerun. The historical Fail/Blocked observations and remaining private-UAT
