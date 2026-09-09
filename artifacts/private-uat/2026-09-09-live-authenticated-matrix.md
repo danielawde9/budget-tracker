@@ -1,8 +1,11 @@
 # Budget development-stack authenticated integration UAT attempt
 
-Run time: 2026-09-09 20:13-20:41 EEST  
-Run tag: `909c40535809`  
-Application source: detached `80d0432334e26f8bdb74184930a6677f8b5dc3e9`  
+Run time: 2026-09-09 20:13-20:41 EEST
+
+Run tag: `909c40535809`
+
+Application source: detached `80d0432334e26f8bdb74184930a6677f8b5dc3e9`
+
 Branch/publish state: no branch; local and unpushed
 
 ## Safety and environment identity
