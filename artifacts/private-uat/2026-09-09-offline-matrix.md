@@ -26,7 +26,7 @@ receipt.
 
 ## Verification receipt
 
-Code/docs candidate: `c9f9608` (the following evidence update changes only this
+Code/docs candidate: `944abe7` (the following evidence update changes only this
 matrix).
 
 | Check | Result |
@@ -40,6 +40,7 @@ matrix).
 | `pnpm build` | Pass; 104 modules transformed |
 | `pnpm test:uat:offline` | Pass; 4 tests, 2 intentional project skips |
 | `pnpm test:e2e` | Pass; 36 tests, 34 intentional cross-device skips |
+| `pnpm test:e2e --workers=1` | Pass; 36 tests, 34 intentional cross-device skips; fixture seeds remain isolated across suite order |
 | `pnpm check:uat:scope` | Pass; protected DB, migration, Auth, gateway, Household, Monthly Budget, and Reporting paths unchanged from release start |
 | `git diff --check` | Pass after removing the plan's extra EOF blank line |
 | `test:db` | Blocked by scope; no local test URL exists and remote database contact was forbidden |
