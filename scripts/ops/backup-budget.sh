@@ -142,14 +142,17 @@ backup_validate_configuration() {
   fi
   backup_snapshot_executables
   budget_validate_executable_hash "${BUDGET_DB_VERIFY_BIN}" \
-    "${BUDGET_DB_VERIFY_SHA256}" 70
+    "${BUDGET_DB_VERIFY_SHA256}" 70 "${backup_deadline}"
   budget_validate_postgres_binary "${BUDGET_VERIFY_PSQL_BIN}" \
-    "${BUDGET_VERIFY_PSQL_SHA256}" psql "${BUDGET_PG_DUMP_VERSION}" 70
+    "${BUDGET_VERIFY_PSQL_SHA256}" psql "${BUDGET_PG_DUMP_VERSION}" 70 \
+    "${backup_deadline}"
   budget_validate_postgres_binary "${BUDGET_PG_DUMP_BIN}" \
-    "${BUDGET_PG_DUMP_SHA256}" pg_dump "${BUDGET_PG_DUMP_VERSION}" 70
+    "${BUDGET_PG_DUMP_SHA256}" pg_dump "${BUDGET_PG_DUMP_VERSION}" 70 \
+    "${backup_deadline}"
   budget_validate_postgres_binary "${BUDGET_PG_DUMPALL_BIN}" \
-    "${BUDGET_PG_DUMPALL_SHA256}" pg_dumpall "${BUDGET_PG_DUMP_VERSION}" 70
-  budget_validate_source_commit "${BUDGET_SOURCE_COMMIT}" 70
+    "${BUDGET_PG_DUMPALL_SHA256}" pg_dumpall "${BUDGET_PG_DUMP_VERSION}" 70 \
+    "${backup_deadline}"
+  budget_validate_source_commit "${BUDGET_SOURCE_COMMIT}" 70 "${backup_deadline}"
 
   readonly BACKUP_RUN_ID="${BUDGET_RUN_ID}"
   readonly BACKUP_TIMEOUT_BIN="${BUDGET_TIMEOUT_BIN}"

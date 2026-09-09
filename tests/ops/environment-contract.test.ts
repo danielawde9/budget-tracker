@@ -71,6 +71,15 @@ describe('Budget operations environment contract', () => {
     expect(source).toContain('$opened[7] <= 4096');
   });
 
+  it('routes executable hashes, version probes, and source checks through the operation deadline', () => {
+    const source = readFileSync(script, 'utf8');
+
+    expect(source).toContain('budget_run_internal_before_deadline');
+    expect(source).not.toContain('output="$(/usr/bin/shasum');
+    expect(source).not.toContain('actual="$(/usr/bin/git');
+    expect(source).not.toContain("alarm 5; exec @ARGV");
+  });
+
   it.each(['', 'production', 'LIVE', 'scratch'])(
     'rejects empty or unknown environment %j',
     (environment) => {

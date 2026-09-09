@@ -179,16 +179,19 @@ restore_validate_configuration() {
   fi
   restore_snapshot_executables
   budget_validate_executable_hash "${BUDGET_DB_VERIFY_BIN}" \
-    "${BUDGET_DB_VERIFY_SHA256}" 75
+    "${BUDGET_DB_VERIFY_SHA256}" 75 "${restore_deadline}"
   budget_validate_executable_hash "${BUDGET_ROLE_VALIDATOR_BIN}" \
-    "${BUDGET_ROLE_VALIDATOR_SHA256}" 75
+    "${BUDGET_ROLE_VALIDATOR_SHA256}" 75 "${restore_deadline}"
   budget_validate_postgres_binary "${BUDGET_VERIFY_PSQL_BIN}" \
-    "${BUDGET_VERIFY_PSQL_SHA256}" psql "${BUDGET_PG_DUMP_VERSION}" 75
+    "${BUDGET_VERIFY_PSQL_SHA256}" psql "${BUDGET_PG_DUMP_VERSION}" 75 \
+    "${restore_deadline}"
   budget_validate_postgres_binary "${BUDGET_PG_RESTORE_BIN}" \
-    "${BUDGET_PG_RESTORE_SHA256}" pg_restore "${BUDGET_PG_DUMP_VERSION}" 75
+    "${BUDGET_PG_RESTORE_SHA256}" pg_restore "${BUDGET_PG_DUMP_VERSION}" 75 \
+    "${restore_deadline}"
   budget_validate_postgres_binary "${BUDGET_PSQL_BIN}" \
-    "${BUDGET_PSQL_SHA256}" psql "${BUDGET_PG_DUMP_VERSION}" 75
-  budget_validate_source_commit "${BUDGET_SOURCE_COMMIT}" 75
+    "${BUDGET_PSQL_SHA256}" psql "${BUDGET_PG_DUMP_VERSION}" 75 \
+    "${restore_deadline}"
+  budget_validate_source_commit "${BUDGET_SOURCE_COMMIT}" 75 "${restore_deadline}"
 
   readonly RESTORE_TARGET="scratch"
   readonly RESTORE_POINT="${BUDGET_RECOVERY_POINT}"

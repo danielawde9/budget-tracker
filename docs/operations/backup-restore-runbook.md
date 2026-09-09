@@ -112,8 +112,11 @@ non-group/world-writable file and have an exact configured SHA-256; placeholder
 copied and hashed into one private snapshot directory, which is sealed read-only
 before any adapter runs. All later execution uses those validated copies, so a
 source-path replacement cannot change operation content. PostgreSQL snapshots
-also run the exact expected `--version`. The current repository commit must
-match `BUDGET_SOURCE_COMMIT`, which is recorded in every backup manifest and
+also run the exact expected `--version`. Snapshotting, hash/version probes, and
+the source-commit check consume the same monotonic operation deadline as later
+adapters; non-regular inputs fail before being opened. The current repository
+commit must match `BUDGET_SOURCE_COMMIT`, which is recorded in every backup
+manifest and
 must match exactly during restore before decryption or PostgreSQL execution.
 
 - `BUDGET_OFFSITE_BIN put LOCAL DESTINATION KEY` uploads one ciphertext or safe

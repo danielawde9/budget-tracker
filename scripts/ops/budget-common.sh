@@ -52,6 +52,21 @@ budget_run_before_deadline() {
   "${timeout_bin}" "${remaining}" "$@"
 }
 
+budget_run_internal_before_deadline() {
+  local deadline="${1:?deadline is required}"
+  local status="${2:?status is required}"
+  shift 2
+  local remaining
+  if ! remaining="$(budget_remaining_seconds "${deadline}")"; then
+    budget_error 'whole-operation deadline exceeded' "${status}"
+    return
+  fi
+  if ! /usr/bin/perl -e 'alarm shift @ARGV; exec @ARGV or die "exec failed\n"' \
+    "${remaining}" "$@"; then
+    budget_error 'bounded validation command failed' "${status}"
+  fi
+}
+
 budget_create_executable_snapshot_dir() {
   local deadline="${1:?deadline is required}"
   local status="${2:?status is required}"
@@ -165,8 +180,11 @@ budget_cleanup_executable_snapshot_dir() {
 
 budget_file_sha256() {
   local candidate="${1:-}"
+  local deadline="${2:?deadline is required}"
+  local status="${3:?status is required}"
   local output
-  output="$(/usr/bin/shasum -a 256 "${candidate}")" || return
+  output="$(budget_run_internal_before_deadline "${deadline}" "${status}" \
+    /usr/bin/shasum -a 256 "${candidate}")" || return
   printf '%s\n' "${output%% *}"
 }
 
@@ -174,22 +192,15 @@ budget_validate_executable_hash() {
   local candidate="${1:-}"
   local expected_hash="${2:-}"
   local status="${3:-70}"
-  local resolved actual_hash
+  local deadline="${4:?deadline is required}"
+  local actual_hash
 
-  if [[ "${candidate}" != /* || ! -x "${candidate}" || \
+  if [[ "${candidate}" != /* || ! -f "${candidate}" || ! -x "${candidate}" || \
     ! "${expected_hash}" =~ ^[a-f0-9]{64}$ ]]; then
     budget_error 'PostgreSQL executable contract is invalid' "${status}"
     return
   fi
-  resolved="$(/usr/bin/perl -MCwd=abs_path -e 'alarm 5; print abs_path($ARGV[0]) // ""' \
-    "${candidate}")"
-  if [[ "${resolved}" != "${candidate}" || "${resolved}" == '/usr/bin/true' || \
-    "${resolved}" == '/bin/true' || "${resolved}" == '/usr/bin/false' || \
-    "${resolved}" == '/bin/false' ]]; then
-    budget_error 'placeholder PostgreSQL executable refused' "${status}"
-    return
-  fi
-  actual_hash="$(budget_file_sha256 "${candidate}")"
+  actual_hash="$(budget_file_sha256 "${candidate}" "${deadline}" "${status}")"
   if [[ "${actual_hash}" != "${expected_hash}" ]]; then
     budget_error 'PostgreSQL executable hash mismatch' "${status}"
     return
@@ -202,10 +213,12 @@ budget_validate_postgres_binary() {
   local product="${3:-}"
   local expected_version="${4:-}"
   local status="${5:-70}"
+  local deadline="${6:?deadline is required}"
   local version_output
 
-  budget_validate_executable_hash "${candidate}" "${expected_hash}" "${status}"
-  version_output="$(/usr/bin/perl -e 'alarm 5; exec @ARGV or die "exec failed\n"' \
+  budget_validate_executable_hash "${candidate}" "${expected_hash}" "${status}" \
+    "${deadline}"
+  version_output="$(budget_run_internal_before_deadline "${deadline}" "${status}" \
     "${candidate}" --version)"
   if [[ "${version_output}" != "${product} (PostgreSQL) ${expected_version}" && \
     "${version_output}" != "${product} (PostgreSQL) ${expected_version} "* ]]; then
@@ -216,12 +229,14 @@ budget_validate_postgres_binary() {
 budget_validate_source_commit() {
   local expected="${1:-}"
   local status="${2:-70}"
+  local deadline="${3:?deadline is required}"
   local actual
   if [[ ! "${expected}" =~ ^[a-f0-9]{40}$ ]]; then
     budget_error 'source commit provenance is invalid' "${status}"
     return
   fi
-  actual="$(/usr/bin/git -C "${BUDGET_OPS_REPO_ROOT}" rev-parse HEAD)"
+  actual="$(budget_run_internal_before_deadline "${deadline}" "${status}" \
+    /usr/bin/git -C "${BUDGET_OPS_REPO_ROOT}" rev-parse HEAD)"
   if [[ "${actual}" != "${expected}" ]]; then
     budget_error 'source commit provenance mismatch' "${status}"
   fi

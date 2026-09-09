@@ -197,6 +197,26 @@ describe('encrypted Budget backup boundary', () => {
     expect(existsSync(log)).toBe(false);
   });
 
+  it('rejects an executable FIFO without opening or hashing it', () => {
+    const { base, env, log } = makeBackupFixture();
+    const fifo = join(base, 'bin', 'pg-dump-fifo');
+    const created = spawnSync('/usr/bin/mkfifo', [fifo], { encoding: 'utf8' });
+    expect(created.status).toBe(0);
+    chmodSync(fifo, 0o700);
+    const startedAt = Date.now();
+
+    const result = run('backup', {
+      ...env,
+      BUDGET_PG_DUMP_BIN: fifo,
+      BUDGET_PG_DUMP_SHA256: 'a'.repeat(64),
+    });
+
+    expect(result.status).toBe(70);
+    expect(result.stderr).toContain('executable snapshot validation failed');
+    expect(Date.now() - startedAt).toBeLessThan(2_000);
+    expect(existsSync(log)).toBe(false);
+  });
+
   it('rejects a caller version that differs from the measured binary version', () => {
     const { env, log } = makeBackupFixture();
     const result = run('backup', {
