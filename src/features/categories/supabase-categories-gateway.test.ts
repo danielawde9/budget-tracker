@@ -36,7 +36,8 @@ class RecordingBuilder implements CategoriesQueryBuilder {
 const categoryRows = [
   {
     id: '11111111-1111-4111-8111-111111111111', space_id: 'space-1', kind: 'income',
-    name_en: 'Salary', name_ar: 'راتب', created_at: '2026-09-08T10:00:00.000Z', archived_at: null,
+    name_en: 'Salary', name_ar: 'راتب', parent_category_id: null,
+    created_at: '2026-09-08T10:00:00.000Z', archived_at: null,
   },
 ];
 const eventId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -83,7 +84,9 @@ describe('Supabase Categories gateway', () => {
     const first = await gateway.listCategories('space-1', 'income', undefined, 1);
 
     expect(first.categories).toHaveLength(1);
-    expect(first.categories[0]).toMatchObject({ spaceId: 'space-1', kind: 'income', nameEn: 'Salary', nameAr: 'راتب' });
+    expect(first.categories[0]).toMatchObject({
+      spaceId: 'space-1', kind: 'income', nameEn: 'Salary', nameAr: 'راتب', parentCategoryId: null,
+    });
     expect(first.nextCursor).toEqual(expect.any(String));
     expect(operations).toContainEqual({ relation: 'categories', name: 'eq', args: ['space_id', 'space-1'] });
     expect(operations).toContainEqual({ relation: 'categories', name: 'eq', args: ['kind', 'income'] });
@@ -96,6 +99,20 @@ describe('Supabase Categories gateway', () => {
     await gateway.listCategories('space-1', 'income', first.nextCursor!, 50);
     expect(operations.find((operation) => operation.name === 'or')?.args[0]).toContain('created_at.gt.2026-09-08T10:00:00.000Z');
     expect(operations.find((operation) => operation.name === 'or')?.args[0]).toContain('id.gt.11111111-1111-4111-8111-111111111111');
+  });
+
+  it('parses an immutable parent category identifier for active children', async () => {
+    const parentId = categoryRows[0]!.id;
+    const child = {
+      ...categoryRows[0],
+      id: '22222222-2222-4222-8222-222222222222',
+      parent_category_id: parentId,
+      name_en: 'Bonus',
+    };
+    const { client } = clientWith({ categories: [child] });
+
+    await expect(createSupabaseCategoriesGateway(client).listCategories('space-1', 'income'))
+      .resolves.toMatchObject({ categories: [{ parentCategoryId: parentId }] });
   });
 
   it('enforces category page size and row bounds', async () => {
@@ -121,6 +138,7 @@ describe('Supabase Categories gateway', () => {
     [{ ...categoryRows[0], created_at: 'yesterday' }, 'invalid created_at'],
     [{ ...categoryRows[0], archived_at: 'yesterday' }, 'invalid archived_at'],
     [{ ...categoryRows[0], archived_at: '2026-09-08T12:00:00.000Z' }, 'active category row is archived'],
+    [{ ...categoryRows[0], parent_category_id: 'not-a-uuid' }, 'invalid parent_category_id'],
   ])('rejects malformed active category projections: %s', async (row, message) => {
     const { client } = clientWith({ categories: [row] });
     await expect(createSupabaseCategoriesGateway(client).listCategories('space-1', 'income')).rejects.toThrow(message);
@@ -176,6 +194,13 @@ describe('Supabase Categories gateway', () => {
         }),
       },
       {
+        rpc: 'create_subcategory',
+        invoke: (gateway: ReturnType<typeof createSupabaseCategoriesGateway>) => gateway.createSubcategory({
+          spaceId: 'space-1', requestId: 'request-1', parentCategoryId: categoryRows[0]!.id,
+          nameEn: 'Bonus', nameAr: null,
+        }),
+      },
+      {
         rpc: 'record_categorized_financial_event',
         invoke: (gateway: ReturnType<typeof createSupabaseCategoriesGateway>) => gateway.recordCategorizedEvent({
           spaceId: 'space-1', requestId: 'request-1', kind: 'income', effectiveDate: '2026-09-08',
@@ -194,6 +219,10 @@ describe('Supabase Categories gateway', () => {
     const { client, rpcCalls } = clientWith();
     const gateway = createSupabaseCategoriesGateway(client);
     await gateway.createCategory({ spaceId: 'space-1', requestId: 'create-request', kind: 'expense', nameEn: '  Groceries  ', nameAr: '  بقالة  ' });
+    await gateway.createSubcategory({
+      spaceId: 'space-1', requestId: 'child-request', parentCategoryId: categoryRows[0]!.id,
+      nameEn: '  Bonus  ', nameAr: '  مكافأة  ',
+    });
     await gateway.archiveCategory({ spaceId: 'space-1', requestId: 'archive-request', categoryId: categoryRows[0]!.id });
     await gateway.recordCategorizedEvent({
       spaceId: 'space-1', requestId: 'event-request', kind: 'expense', effectiveDate: '2026-09-08',
@@ -202,6 +231,7 @@ describe('Supabase Categories gateway', () => {
 
     expect(rpcCalls).toEqual([
       { name: 'create_category', args: { p_space_id: 'space-1', p_request_id: 'create-request', p_kind: 'expense', p_name_en: 'Groceries', p_name_ar: 'بقالة' } },
+      { name: 'create_subcategory', args: { p_space_id: 'space-1', p_request_id: 'child-request', p_parent_category_id: categoryRows[0]!.id, p_name_en: 'Bonus', p_name_ar: 'مكافأة' } },
       { name: 'archive_category', args: { p_space_id: 'space-1', p_request_id: 'archive-request', p_category_id: categoryRows[0]!.id } },
       { name: 'record_categorized_financial_event', args: { p_space_id: 'space-1', p_request_id: 'event-request', p_kind: 'expense', p_effective_date: '2026-09-08', p_movements: [{ walletId: 'wallet-1', amountMinor: '-1250' }], p_category_id: categoryRows[0]!.id } },
     ]);
@@ -220,6 +250,17 @@ describe('Supabase Categories gateway', () => {
     const result = await createSupabaseCategoriesGateway(client).getCommandResult('space-1', 'request-1');
     expect(result).toEqual({ commandKind: 'create_category', categoryId: categoryRows[0]?.id, createdAt: '2026-09-08T10:00:00.000Z' });
     expect(rpcCalls).toEqual([{ name: 'get_category_command_result', args: { p_space_id: 'space-1', p_request_id: 'request-1' } }]);
+  });
+
+  it('accepts create_subcategory from protected command reconciliation', async () => {
+    const { client } = clientWith({}, {
+      get_category_command_result: [{
+        command_kind: 'create_subcategory', category_id: categoryRows[0]?.id,
+        created_at: '2026-09-08T10:00:00.000Z',
+      }],
+    });
+    await expect(createSupabaseCategoriesGateway(client).getCommandResult('space-1', 'request-1'))
+      .resolves.toMatchObject({ commandKind: 'create_subcategory' });
   });
 
   it('reconciles a categorized event through bounded event and association reads', async () => {
@@ -248,7 +289,9 @@ describe('Supabase Categories gateway', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/features/categories/supabase-categories-gateway.ts'), 'utf8');
     expect(source).not.toMatch(/\.(insert|update|delete|upsert|truncate)\s*\(/);
     const mutationRpcNames = [...source.matchAll(/runCommand\('([^']+)'/g)].map((match) => match[1]);
-    expect([...new Set(mutationRpcNames)].sort()).toEqual(['archive_category', 'create_category', 'record_categorized_financial_event']);
+    expect([...new Set(mutationRpcNames)].sort()).toEqual([
+      'archive_category', 'create_category', 'create_subcategory', 'record_categorized_financial_event',
+    ]);
     expect(source.match(/client\.rpc\('get_category_command_result'/g)).toHaveLength(1);
   });
 });

@@ -15,6 +15,9 @@ describe('category errors', () => {
     [{ code: 'P0001', message: 'the category must be active, in the requested space, and match the event kind' }, 'invalid_category'],
     [{ code: 'P0001', message: 'request ID was already used with different data' }, 'request_collision'],
     [{ code: 'P0001', message: 'the category is already archived' }, 'already_archived'],
+    [{ code: 'P0001', message: 'the parent category must be an active root in the requested space and kind' }, 'invalid_parent'],
+    [{ code: 'P0001', message: 'subcategory depth is limited to one level' }, 'depth_limit'],
+    [{ code: 'P0001', message: 'archive active subcategories before archiving their parent' }, 'active_children'],
   ] as const)('maps %s to %s without exposing database internals', (cause, code) => {
     const result = classifyCategoryError(cause);
     expect(result.code).toBe(code);
@@ -36,6 +39,9 @@ describe('category errors', () => {
     'invalid_category',
     'request_collision',
     'already_archived',
+    'invalid_parent',
+    'depth_limit',
+    'active_children',
     'unknown',
   ] as const)('localizes %s without reusing English fallback copy', (code) => {
     const result = localizeCategoryError({ code, message: 'English message', recovery: 'English recovery' }, 'ar');

@@ -10,6 +10,7 @@ import type {
   CategoryPage,
   CategorizedEventInput,
   CreateCategoryInput,
+  CreateSubcategoryInput,
 } from './types.js';
 import { useCategories } from './use-categories.js';
 
@@ -21,11 +22,11 @@ function deferred<T>() {
 
 const salary: Category = {
   id: 'category-income', spaceId: 'space-1', kind: 'income', nameEn: 'Salary', nameAr: 'راتب',
-  createdAt: '2026-09-08T10:00:00Z', archivedAt: null,
+  parentCategoryId: null, createdAt: '2026-09-08T10:00:00Z', archivedAt: null,
 };
 const groceries: Category = {
   id: 'category-expense', spaceId: 'space-1', kind: 'expense', nameEn: 'Groceries', nameAr: 'بقالة',
-  createdAt: '2026-09-08T11:00:00Z', archivedAt: null,
+  parentCategoryId: null, createdAt: '2026-09-08T11:00:00Z', archivedAt: null,
 };
 
 class FakeCategoriesGateway implements CategoriesGateway {
@@ -44,6 +45,12 @@ class FakeCategoriesGateway implements CategoriesGateway {
     this.calls.push({ name: 'createCategory', input });
     if (this.error) throw this.error;
     return { id: 'created-category' };
+  }
+
+  async createSubcategory(input: CreateSubcategoryInput) {
+    this.calls.push({ name: 'createSubcategory', input });
+    if (this.error) throw this.error;
+    return { id: 'created-subcategory' };
   }
 
   async archiveCategory(input: ArchiveCategoryInput) {

@@ -34,6 +34,7 @@ function categoriesGateway(overrides: Partial<CategoriesGateway> = {}): Categori
   return {
     listCategories: vi.fn(async () => ({ categories: [], nextCursor: null })),
     createCategory: vi.fn(async () => ({ id: 'category-new' })),
+    createSubcategory: vi.fn(async () => ({ id: 'subcategory-new' })),
     archiveCategory: vi.fn(async () => ({ id: 'category-1' })),
     getCommandResult: vi.fn(async () => null),
     recordCategorizedEvent: vi.fn(async () => ({ eventId: 'event-new' })),
