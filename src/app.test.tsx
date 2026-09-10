@@ -9,6 +9,7 @@ import type { WorkspaceGateway } from './features/workspace/types.js';
 import { householdSpace, personalSpace } from './test/in-memory-loans-gateway.js';
 import { InMemoryWalletsGateway } from './test/in-memory-wallets-gateway.js';
 import { householdMemberId, householdOwnerId, InMemoryHouseholdGateway } from './test/in-memory-household-gateway.js';
+import { createHouseholdInvitationBootstrap } from './features/household/invitation-fragment.js';
 
 function authGateway(initial: AuthUser | null, session?: Promise<AuthUser | null>): AuthGateway {
   return {
@@ -109,8 +110,9 @@ describe('App', () => {
       listSpaces: vi.fn(async () => accepted ? [householdSpace] : []),
     };
     const token = 'A'.repeat(43);
+    const invitationBootstrap = createHouseholdInvitationBootstrap(token);
     render(<App
-      initialHouseholdInvitationToken={token}
+      householdInvitationBootstrap={invitationBootstrap}
       authGateway={authGateway({ id: householdMemberId, email: 'member@example.com' })}
       workspaceGateway={workspace}
       householdGateway={householdGateway}
@@ -120,6 +122,7 @@ describe('App', () => {
     />);
 
     const dialog = await screen.findByRole('dialog', { name: 'Accept household invitation' });
+    expect(invitationBootstrap.take()).toBeNull();
     expect(document.body).not.toHaveTextContent(token);
     expect(screen.queryByRole('dialog', { name: 'Create your first space' })).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Accept invitation' }));
@@ -132,7 +135,7 @@ describe('App', () => {
     const householdGateway = new InMemoryHouseholdGateway();
     householdGateway.failOnce = new Error('Failed to fetch');
     render(<App
-      initialHouseholdInvitationToken={'B'.repeat(43)}
+      householdInvitationBootstrap={createHouseholdInvitationBootstrap('B'.repeat(43))}
       authGateway={authGateway({ id: householdMemberId, email: 'member@example.com' })}
       workspaceGateway={workspaceGateway([])}
       householdGateway={householdGateway}

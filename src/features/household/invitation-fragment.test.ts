@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { takeHouseholdInvitation } from './invitation-fragment.js';
+import { createHouseholdInvitationBootstrap, takeHouseholdInvitation } from './invitation-fragment.js';
 
 const TOKEN = 'A'.repeat(43);
 
@@ -25,5 +25,11 @@ describe('household invitation fragment', () => {
     window.history.replaceState(null, '', '/budget#categories');
     expect(takeHouseholdInvitation(window.location, window.history)).toBeNull();
     expect(window.location.hash).toBe('#categories');
+  });
+
+  it('transfers a valid invitation token exactly once', () => {
+    const bootstrap = createHouseholdInvitationBootstrap(TOKEN);
+    expect(bootstrap.take()).toBe(TOKEN);
+    expect(bootstrap.take()).toBeNull();
   });
 });

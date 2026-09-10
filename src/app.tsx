@@ -21,6 +21,7 @@ import { createSupabaseHouseholdGateway } from './features/household/supabase-ho
 import type { HouseholdGateway } from './features/household/types.js';
 import { AcceptHouseholdInvitationDialog } from './features/household/household-dialogs.js';
 import { classifyHouseholdError, localizeHouseholdError, type HouseholdErrorView } from './features/household/errors.js';
+import type { HouseholdInvitationBootstrap } from './features/household/invitation-fragment.js';
 
 const WalletsPage = lazy(async () => {
   const module = await import('./features/wallets/wallets-page.js');
@@ -33,7 +34,7 @@ const CategoriesPage = lazy(async () => {
 });
 
 interface AppProps {
-  initialHouseholdInvitationToken?: string | null;
+  householdInvitationBootstrap?: HouseholdInvitationBootstrap | null;
   authGateway?: AuthGateway;
   categoriesGateway?: CategoriesGateway;
   householdGateway?: HouseholdGateway;
@@ -160,14 +161,14 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
   </ApplicationShell>;
 }
 
-interface ConfiguredAppProps extends Omit<Required<AppProps>, 'initialHouseholdInvitationToken'> {
-  readonly initialHouseholdInvitationToken: string | null;
+interface ConfiguredAppProps extends Omit<Required<AppProps>, 'householdInvitationBootstrap'> {
+  readonly householdInvitationBootstrap: HouseholdInvitationBootstrap | null;
 }
 
-function ConfiguredApp({ authGateway, categoriesGateway, householdGateway, initialHouseholdInvitationToken, loansGateway, walletsGateway, workspaceGateway }: ConfiguredAppProps) {
+function ConfiguredApp({ authGateway, categoriesGateway, householdGateway, householdInvitationBootstrap, loansGateway, walletsGateway, workspaceGateway }: ConfiguredAppProps) {
   const auth = useAuthSession(authGateway);
   const [locale, setLocale] = useState<Locale>('en');
-  const [householdInvitationToken, setHouseholdInvitationToken] = useState(initialHouseholdInvitationToken);
+  const [householdInvitationToken, setHouseholdInvitationToken] = useState(() => householdInvitationBootstrap?.take() ?? null);
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -208,7 +209,7 @@ function ConfiguredApp({ authGateway, categoriesGateway, householdGateway, initi
   />;
 }
 
-export function App({ initialHouseholdInvitationToken = null, authGateway, categoriesGateway, householdGateway, loansGateway, walletsGateway, workspaceGateway }: AppProps = {}) {
+export function App({ householdInvitationBootstrap = null, authGateway, categoriesGateway, householdGateway, loansGateway, walletsGateway, workspaceGateway }: AppProps = {}) {
   const client = useMemo(() => createBrowserDataClient(), []);
   const activeAuthGateway = useMemo(() => authGateway ?? (client ? createSupabaseAuthGateway(client) : null), [authGateway, client]);
   const activeCategoriesGateway = useMemo(() => categoriesGateway ?? (client ? createSupabaseCategoriesGateway(client) : null), [categoriesGateway, client]);
@@ -221,5 +222,5 @@ export function App({ initialHouseholdInvitationToken = null, authGateway, categ
     return <main className="configuration-page"><section><span className="brand">Budget ledger</span><h1>Configuration needed</h1><p>Connect this browser to the dedicated Budget development stack before continuing.</p></section></main>;
   }
 
-  return <ConfiguredApp initialHouseholdInvitationToken={initialHouseholdInvitationToken} authGateway={activeAuthGateway} categoriesGateway={activeCategoriesGateway} householdGateway={activeHouseholdGateway} loansGateway={activeLoansGateway} walletsGateway={activeWalletsGateway} workspaceGateway={activeWorkspaceGateway} />;
+  return <ConfiguredApp householdInvitationBootstrap={householdInvitationBootstrap} authGateway={activeAuthGateway} categoriesGateway={activeCategoriesGateway} householdGateway={activeHouseholdGateway} loansGateway={activeLoansGateway} walletsGateway={activeWalletsGateway} workspaceGateway={activeWorkspaceGateway} />;
 }
