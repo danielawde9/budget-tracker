@@ -20,7 +20,10 @@ export type SafeDeliveryErrorCode =
   | 'invalid_request'
   | 'invalid_authorization'
   | 'invalid_configuration'
-  | 'request_too_large';
+  | 'request_too_large'
+  | 'invitation_command_rejected'
+  | 'invitation_command_unavailable'
+  | 'upstream_response_invalid';
 
 export class SafeDeliveryError extends Error {
   readonly code: SafeDeliveryErrorCode;
@@ -33,3 +36,25 @@ export class SafeDeliveryError extends Error {
     this.status = status;
   }
 }
+
+export interface CreateInvitationInput {
+  readonly bearerToken: string;
+  readonly spaceId: string;
+  readonly requestId: string;
+  readonly inviteeEmail: string;
+}
+
+export interface CreatedInvitation {
+  readonly invitationId: string;
+  readonly invitationToken: string;
+  readonly expiresAt: string;
+}
+
+export interface InvitationCommand {
+  create(input: CreateInvitationInput): Promise<CreatedInvitation>;
+}
+
+export type FetchLike = (
+  input: RequestInfo | URL,
+  init?: RequestInit,
+) => Promise<Response>;
