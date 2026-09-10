@@ -54,9 +54,11 @@ function CategoryTree({ props }: { props: RegisterProps }) {
         <CategoryName category={root} locale={props.locale} />
         <div className="category-actions">
           <button type="button" className="text-button" aria-label={t(props.locale, `New subcategory for ${rootName}`, `فئة فرعية جديدة ضمن ${rootName}`)} onClick={() => props.onCreateSubcategory(root)}>{t(props.locale, 'New subcategory', 'فئة فرعية جديدة')}</button>
-          {children.length === 0
+          {children.length === 0 && props.nextCursor === null
             ? <button type="button" className="text-button" aria-label={`${t(props.locale, 'Archive', 'أرشفة')} ${rootName}`} onClick={() => props.onArchive(root)}>{t(props.locale, 'Archive', 'أرشفة')}</button>
-            : <span className="category-archive-note">{t(props.locale, 'Archive subcategories first', 'أرشف الفئات الفرعية أولًا')}</span>}
+            : children.length > 0
+              ? <span className="category-archive-note">{t(props.locale, 'Archive subcategories first', 'أرشف الفئات الفرعية أولًا')}</span>
+              : null}
         </div>
       </div>
       {children.length > 0 && <ul className="subcategory-list" aria-label={t(props.locale, `Subcategories of ${rootName}`, `الفئات الفرعية ضمن ${rootName}`)}>{children.map((child) => <li key={child.id}>

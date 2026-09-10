@@ -129,6 +129,16 @@ describe('CategoriesPage', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
+  it('does not offer root archival until the kind is fully loaded', async () => {
+    const gateway = new PagedCategoriesGateway();
+    gateway.failNextPage = false;
+    const { user } = await renderPage(gateway);
+
+    expect(screen.queryByRole('button', { name: 'Archive Salary' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Load more' }));
+    expect(await screen.findByRole('button', { name: 'Archive Salary' })).toBeInTheDocument();
+  });
+
   it('localizes initial membership and repeated next-page failures in Arabic', async () => {
     cleanup();
     const inaccessible = new InMemoryCategoriesGateway();
