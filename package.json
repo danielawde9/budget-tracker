@@ -11,6 +11,7 @@
     "test:db:watch": "vitest tests/db --pool=forks --no-file-parallelism",
     "test:ui": "vitest run --config vitest.ui.config.ts",
     "test:ui:watch": "vitest --config vitest.ui.config.ts",
+    "test:worker": "vitest run tests/worker",
     "test:e2e": "env -u NO_COLOR playwright test",
     "test:uat:offline": "env -u NO_COLOR playwright test e2e/private-uat.spec.ts",
     "check:uat:infra": "pnpm exec vitest run tests/ops/budget-uat-18.test.ts --pool=forks --no-file-parallelism",
@@ -24,7 +25,7 @@
     "check:ui": "pnpm typecheck && pnpm test:ui && pnpm build",
     "check:uat:scope": "bash scripts/check-private-uat-scope.sh",
     "check:uat:offline": "pnpm check:uat:scope && pnpm check:ops && pnpm typecheck && pnpm test:ui && pnpm build && pnpm test:e2e",
-    "check": "pnpm check:ops && pnpm typecheck && pnpm test:db && pnpm test:ui && pnpm build"
+    "check": "pnpm check:ops && pnpm typecheck && pnpm test:db && pnpm test:worker && pnpm test:ui && pnpm build"
   },
   "devDependencies": {
     "@playwright/test": "1.55.1",
