@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Locale, Space } from '../loans/types.js';
 
-export type ApplicationDestination = 'loans' | 'wallets' | 'categories';
+export type ApplicationDestination = 'loans' | 'wallets' | 'categories' | 'household';
 
 interface ApplicationShellProps {
   locale: Locale;
@@ -19,7 +19,7 @@ interface ApplicationShellProps {
 const copy = {
   en: {
     product: 'Budget ledger', currentSpace: 'Current space', personal: 'Personal space', household: 'Household space',
-    loans: 'Loans', wallets: 'Wallets', categories: 'Categories', reports: 'Reports — coming later', language: 'العربية',
+    loans: 'Loans', wallets: 'Wallets', categories: 'Categories', householdNav: 'Household', reports: 'Reports — coming later', language: 'العربية',
     account: 'Account', signOut: 'Sign out', navigation: 'Primary navigation', workspace: 'Workspace',
     backupReadiness: 'Backup readiness',
     backupWarning: 'Do not enter real financial data until an encrypted off-site backup and a measured scratch restore are verified.',
@@ -27,7 +27,7 @@ const copy = {
   },
   ar: {
     product: 'دفتر الميزانية', currentSpace: 'المساحة الحالية', personal: 'مساحة شخصية', household: 'مساحة منزلية',
-    loans: 'القروض', wallets: 'المحافظ', categories: 'الفئات', reports: 'التقارير — قريبًا', language: 'English',
+    loans: 'القروض', wallets: 'المحافظ', categories: 'الفئات', householdNav: 'المنزل', reports: 'التقارير — قريبًا', language: 'English',
     account: 'الحساب', signOut: 'تسجيل الخروج', navigation: 'التنقل الرئيسي', workspace: 'مساحة العمل',
     backupReadiness: 'جاهزية النسخ الاحتياطي',
     backupWarning: 'لا تُدخل بيانات مالية حقيقية قبل التحقق من نسخة احتياطية مشفّرة خارج الجهاز واستعادة تجريبية مقاسة.',
@@ -49,6 +49,7 @@ export function ApplicationShell(props: ApplicationShellProps) {
         <button type="button" className={activeDestination === 'loans' ? 'nav-active' : ''} aria-current={activeDestination === 'loans' ? 'page' : undefined} onClick={() => props.onDestinationChange?.('loans')}><span aria-hidden="true">◒</span>{text.loans}</button>
         <button type="button" className={activeDestination === 'wallets' ? 'nav-active' : ''} aria-current={activeDestination === 'wallets' ? 'page' : undefined} onClick={() => props.onDestinationChange?.('wallets')}><span aria-hidden="true">□</span>{text.wallets}</button>
         <button type="button" className={activeDestination === 'categories' ? 'nav-active' : ''} aria-current={activeDestination === 'categories' ? 'page' : undefined} onClick={() => props.onDestinationChange?.('categories')}><span aria-hidden="true">≡</span>{text.categories}</button>
+        {props.selectedSpace.kind === 'household' ? <button type="button" className={activeDestination === 'household' ? 'nav-active' : ''} aria-current={activeDestination === 'household' ? 'page' : undefined} onClick={() => props.onDestinationChange?.('household')}><span aria-hidden="true">⌂</span>{text.householdNav}</button> : null}
         <button type="button" disabled aria-label={text.reports}><span aria-hidden="true">⌁</span>{text.reports}</button>
       </nav>
       <div className="rail-footer">

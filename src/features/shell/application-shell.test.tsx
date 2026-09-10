@@ -57,5 +57,19 @@ describe('ApplicationShell', () => {
     expect(screen.getByRole('note', { name: 'جاهزية النسخ الاحتياطي' })).toHaveTextContent(
       'لا تُدخل بيانات مالية حقيقية',
     );
+    expect(screen.getByRole('button', { name: 'المنزل' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('exposes Household navigation only for a selected household space', async () => {
+    const user = userEvent.setup();
+    const changeDestination = vi.fn();
+    const { rerender } = render(<ApplicationShell locale="en" userEmail="owner@example.com" spaces={[personalSpace, householdSpace]} selectedSpace={householdSpace} activeDestination="household" onDestinationChange={changeDestination} onSpaceChange={vi.fn()} onLocaleChange={vi.fn()} onSignOut={vi.fn()}><div>Household workspace</div></ApplicationShell>);
+    const household = screen.getByRole('button', { name: 'Household' });
+    expect(household).toHaveAttribute('aria-current', 'page');
+    await user.click(household);
+    expect(changeDestination).toHaveBeenCalledWith('household');
+
+    rerender(<ApplicationShell locale="en" userEmail="owner@example.com" spaces={[personalSpace, householdSpace]} selectedSpace={personalSpace} activeDestination="loans" onDestinationChange={changeDestination} onSpaceChange={vi.fn()} onLocaleChange={vi.fn()} onSignOut={vi.fn()}><div>Loans workspace</div></ApplicationShell>);
+    expect(screen.queryByRole('button', { name: 'Household' })).not.toBeInTheDocument();
   });
 });

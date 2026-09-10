@@ -6,8 +6,9 @@ import type { AuthGateway, AuthUser } from './features/auth/types.js';
 import { InMemoryCategoriesGateway } from './test/in-memory-categories-gateway.js';
 import { InMemoryLoansGateway } from './test/in-memory-loans-gateway.js';
 import type { WorkspaceGateway } from './features/workspace/types.js';
-import { personalSpace } from './test/in-memory-loans-gateway.js';
+import { householdSpace, personalSpace } from './test/in-memory-loans-gateway.js';
 import { InMemoryWalletsGateway } from './test/in-memory-wallets-gateway.js';
+import { householdOwnerId, InMemoryHouseholdGateway } from './test/in-memory-household-gateway.js';
 
 function authGateway(initial: AuthUser | null, session?: Promise<AuthUser | null>): AuthGateway {
   return {
@@ -36,20 +37,20 @@ describe('App', () => {
   });
 
   it('never exposes financial content while the initial session is loading', () => {
-    render(<App authGateway={authGateway(null, new Promise(() => undefined))} workspaceGateway={workspaceGateway()} loansGateway={new InMemoryLoansGateway()} walletsGateway={new InMemoryWalletsGateway()} categoriesGateway={new InMemoryCategoriesGateway()} />);
+    render(<App authGateway={authGateway(null, new Promise(() => undefined))} workspaceGateway={workspaceGateway()} householdGateway={new InMemoryHouseholdGateway()} loansGateway={new InMemoryLoansGateway()} walletsGateway={new InMemoryWalletsGateway()} categoriesGateway={new InMemoryCategoriesGateway()} />);
     expect(screen.getByRole('status')).toHaveTextContent('Checking your session');
     expect(screen.queryByRole('heading', { name: 'Loans' })).not.toBeInTheDocument();
     expect(screen.queryByText('Maya')).not.toBeInTheDocument();
   });
 
   it('shows the signed-out experience when no browser session exists', async () => {
-    render(<App authGateway={authGateway(null)} workspaceGateway={workspaceGateway()} loansGateway={new InMemoryLoansGateway()} walletsGateway={new InMemoryWalletsGateway()} categoriesGateway={new InMemoryCategoriesGateway()} />);
+    render(<App authGateway={authGateway(null)} workspaceGateway={workspaceGateway()} householdGateway={new InMemoryHouseholdGateway()} loansGateway={new InMemoryLoansGateway()} walletsGateway={new InMemoryWalletsGateway()} categoriesGateway={new InMemoryCategoriesGateway()} />);
     expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
   });
 
   it('mounts the existing Loans workspace only for an authenticated session', async () => {
-    render(<App authGateway={authGateway({ id: 'user-1', email: 'owner@example.com' })} workspaceGateway={workspaceGateway()} loansGateway={new InMemoryLoansGateway()} walletsGateway={new InMemoryWalletsGateway()} categoriesGateway={new InMemoryCategoriesGateway()} />);
+    render(<App authGateway={authGateway({ id: 'user-1', email: 'owner@example.com' })} workspaceGateway={workspaceGateway()} householdGateway={new InMemoryHouseholdGateway()} loansGateway={new InMemoryLoansGateway()} walletsGateway={new InMemoryWalletsGateway()} categoriesGateway={new InMemoryCategoriesGateway()} />);
     await waitFor(() => expect(screen.getByText('Maya')).toBeInTheDocument());
     expect(screen.getByRole('heading', { name: 'Loans' })).toBeInTheDocument();
   });
@@ -58,7 +59,7 @@ describe('App', () => {
     const user = userEvent.setup();
     const categoriesGateway = new InMemoryCategoriesGateway();
     categoriesGateway.categories = categoriesGateway.categories.map((category) => ({ ...category, spaceId: 'personal-space' }));
-    render(<App authGateway={authGateway({ id: 'user-1', email: 'owner@example.com' })} workspaceGateway={workspaceGateway()} loansGateway={new InMemoryLoansGateway()} walletsGateway={new InMemoryWalletsGateway()} categoriesGateway={categoriesGateway} />);
+    render(<App authGateway={authGateway({ id: 'user-1', email: 'owner@example.com' })} workspaceGateway={workspaceGateway()} householdGateway={new InMemoryHouseholdGateway()} loansGateway={new InMemoryLoansGateway()} walletsGateway={new InMemoryWalletsGateway()} categoriesGateway={categoriesGateway} />);
     expect(await screen.findByRole('heading', { name: 'Loans' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Wallets' }));
     expect(await screen.findByRole('heading', { name: 'Wallets' })).toBeInTheDocument();
@@ -71,8 +72,25 @@ describe('App', () => {
   });
 
   it('shows onboarding instead of a Loans membership error when no spaces are visible', async () => {
-    render(<App authGateway={authGateway({ id: 'user-1', email: 'owner@example.com' })} workspaceGateway={workspaceGateway([])} loansGateway={new InMemoryLoansGateway()} walletsGateway={new InMemoryWalletsGateway()} categoriesGateway={new InMemoryCategoriesGateway()} />);
+    render(<App authGateway={authGateway({ id: 'user-1', email: 'owner@example.com' })} workspaceGateway={workspaceGateway([])} householdGateway={new InMemoryHouseholdGateway()} loansGateway={new InMemoryLoansGateway()} walletsGateway={new InMemoryWalletsGateway()} categoriesGateway={new InMemoryCategoriesGateway()} />);
     expect(await screen.findByRole('dialog', { name: 'Create your first space' })).toBeInTheDocument();
     expect(screen.queryByText('You no longer have access to this space')).not.toBeInTheDocument();
+  });
+
+  it('mounts Household for a selected household and returns to Loans after selecting personal space', async () => {
+    const user = userEvent.setup();
+    render(<App
+      authGateway={authGateway({ id: householdOwnerId, email: 'owner@example.com' })}
+      workspaceGateway={workspaceGateway([householdSpace, personalSpace])}
+      householdGateway={new InMemoryHouseholdGateway()}
+      loansGateway={new InMemoryLoansGateway()}
+      walletsGateway={new InMemoryWalletsGateway()}
+      categoriesGateway={new InMemoryCategoriesGateway()}
+    />);
+    await user.click(await screen.findByRole('button', { name: 'Household' }));
+    expect(await screen.findByRole('heading', { name: 'Household access' })).toBeInTheDocument();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Current space' }), personalSpace.id);
+    expect(await screen.findByRole('heading', { name: 'Loans' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Household' })).not.toBeInTheDocument();
   });
 });

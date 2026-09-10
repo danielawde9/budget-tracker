@@ -16,6 +16,9 @@ import { useWorkspace } from './features/workspace/use-workspace.js';
 import { createSupabaseWalletsGateway } from './features/wallets/supabase-wallets-gateway.js';
 import type { WalletsGateway } from './features/wallets/types.js';
 import { createBrowserDataClient } from './lib/supabase.js';
+import { HouseholdPage } from './features/household/household-page.js';
+import { createSupabaseHouseholdGateway } from './features/household/supabase-household-gateway.js';
+import type { HouseholdGateway } from './features/household/types.js';
 
 const WalletsPage = lazy(async () => {
   const module = await import('./features/wallets/wallets-page.js');
@@ -30,6 +33,7 @@ const CategoriesPage = lazy(async () => {
 interface AppProps {
   authGateway?: AuthGateway;
   categoriesGateway?: CategoriesGateway;
+  householdGateway?: HouseholdGateway;
   loansGateway?: LoansGateway;
   walletsGateway?: WalletsGateway;
   workspaceGateway?: WorkspaceGateway;
@@ -41,6 +45,7 @@ interface AuthenticatedWorkspaceProps {
   locale: Locale;
   workspaceGateway: WorkspaceGateway;
   categoriesGateway: CategoriesGateway;
+  householdGateway: HouseholdGateway;
   loansGateway: LoansGateway;
   walletsGateway: WalletsGateway;
   onLocaleChange(): void;
@@ -50,6 +55,12 @@ interface AuthenticatedWorkspaceProps {
 function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
   const workspace = useWorkspace(props.workspaceGateway, props.userId);
   const [activeDestination, setActiveDestination] = useState<ApplicationDestination>('loans');
+
+  useEffect(() => {
+    if (activeDestination === 'household' && workspace.selectedSpace?.kind !== 'household') {
+      setActiveDestination('loans');
+    }
+  }, [activeDestination, workspace.selectedSpace?.kind]);
 
   if (workspace.status === 'loading') {
     return <main className="workspace-state-page"><div role="status">Loading your spaces…</div></main>;
@@ -88,16 +99,23 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
       spaceId={workspace.selectedSpaceId}
       onSpaceUnavailable={() => void workspace.refresh()}
       onOpenLoans={() => setActiveDestination('loans')}
-    /></Suspense> : <Suspense fallback={<div className="state-panel" role="status">{props.locale === 'ar' ? 'جارٍ تحميل الفئات…' : 'Loading Categories…'}</div>}><CategoriesPage
+    /></Suspense> : activeDestination === 'categories' ? <Suspense fallback={<div className="state-panel" role="status">{props.locale === 'ar' ? 'جارٍ تحميل الفئات…' : 'Loading Categories…'}</div>}><CategoriesPage
       gateway={props.categoriesGateway}
       locale={props.locale}
       spaceId={workspace.selectedSpaceId}
       onSpaceUnavailable={() => void workspace.refresh()}
-    /></Suspense>}
+    /></Suspense> : <HouseholdPage
+      gateway={props.householdGateway}
+      locale={props.locale}
+      spaceId={workspace.selectedSpaceId}
+      spaceName={workspace.selectedSpace.name}
+      userId={props.userId}
+      onSpaceUnavailable={() => void workspace.refresh()}
+    />}
   </ApplicationShell>;
 }
 
-function ConfiguredApp({ authGateway, categoriesGateway, loansGateway, walletsGateway, workspaceGateway }: Required<AppProps>) {
+function ConfiguredApp({ authGateway, categoriesGateway, householdGateway, loansGateway, walletsGateway, workspaceGateway }: Required<AppProps>) {
   const auth = useAuthSession(authGateway);
   const [locale, setLocale] = useState<Locale>('en');
 
@@ -130,6 +148,7 @@ function ConfiguredApp({ authGateway, categoriesGateway, loansGateway, walletsGa
     locale={locale}
     workspaceGateway={workspaceGateway}
     categoriesGateway={categoriesGateway}
+    householdGateway={householdGateway}
     loansGateway={loansGateway}
     walletsGateway={walletsGateway}
     onLocaleChange={() => setLocale((current) => current === 'en' ? 'ar' : 'en')}
@@ -137,17 +156,18 @@ function ConfiguredApp({ authGateway, categoriesGateway, loansGateway, walletsGa
   />;
 }
 
-export function App({ authGateway, categoriesGateway, loansGateway, walletsGateway, workspaceGateway }: AppProps = {}) {
+export function App({ authGateway, categoriesGateway, householdGateway, loansGateway, walletsGateway, workspaceGateway }: AppProps = {}) {
   const client = useMemo(() => createBrowserDataClient(), []);
   const activeAuthGateway = useMemo(() => authGateway ?? (client ? createSupabaseAuthGateway(client) : null), [authGateway, client]);
   const activeCategoriesGateway = useMemo(() => categoriesGateway ?? (client ? createSupabaseCategoriesGateway(client) : null), [categoriesGateway, client]);
+  const activeHouseholdGateway = useMemo(() => householdGateway ?? (client ? createSupabaseHouseholdGateway(client) : null), [householdGateway, client]);
   const activeLoansGateway = useMemo(() => loansGateway ?? (client ? createSupabaseLoansGateway(client) : null), [loansGateway, client]);
   const activeWalletsGateway = useMemo(() => walletsGateway ?? (client ? createSupabaseWalletsGateway(client) : null), [walletsGateway, client]);
   const activeWorkspaceGateway = useMemo(() => workspaceGateway ?? (client ? createSupabaseWorkspaceGateway(client) : null), [workspaceGateway, client]);
 
-  if (!activeAuthGateway || !activeCategoriesGateway || !activeLoansGateway || !activeWalletsGateway || !activeWorkspaceGateway) {
+  if (!activeAuthGateway || !activeCategoriesGateway || !activeHouseholdGateway || !activeLoansGateway || !activeWalletsGateway || !activeWorkspaceGateway) {
     return <main className="configuration-page"><section><span className="brand">Budget ledger</span><h1>Configuration needed</h1><p>Connect this browser to the dedicated Budget development stack before continuing.</p></section></main>;
   }
 
-  return <ConfiguredApp authGateway={activeAuthGateway} categoriesGateway={activeCategoriesGateway} loansGateway={activeLoansGateway} walletsGateway={activeWalletsGateway} workspaceGateway={activeWorkspaceGateway} />;
+  return <ConfiguredApp authGateway={activeAuthGateway} categoriesGateway={activeCategoriesGateway} householdGateway={activeHouseholdGateway} loansGateway={activeLoansGateway} walletsGateway={activeWalletsGateway} workspaceGateway={activeWorkspaceGateway} />;
 }
