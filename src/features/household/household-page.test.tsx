@@ -48,6 +48,21 @@ describe('HouseholdPage', () => {
     expect(gateway.calls.some((call) => call.name === 'createInvitation')).toBe(true);
   });
 
+  it.each([
+    { locale: 'en', invite: 'Invite member', email: 'Member email', create: 'Create invitation record', close: 'Close' },
+    { locale: 'ar', invite: 'دعوة عضو', email: 'البريد الإلكتروني للعضو', create: 'إنشاء سجل دعوة', close: 'إغلاق' },
+  ] as const)('labels the $locale success action as close', async ({ locale, invite, email, create, close }) => {
+    const { user } = await renderPage(new InMemoryHouseholdGateway(), locale);
+    await user.click(screen.getByRole('button', { name: invite }));
+    const dialog = screen.getByRole('dialog', { name: create });
+    await user.type(within(dialog).getByLabelText(email), 'person@example.com');
+    await user.click(within(dialog).getByRole('button', { name: create }));
+    await within(dialog).findByRole('status');
+    const actions = dialog.querySelector('.dialog-actions');
+    expect(actions).not.toBeNull();
+    expect(within(actions!).getByRole('button', { name: close })).toBeInTheDocument();
+  });
+
   it('promotes and removes another member only after explicit confirmation', async () => {
     const { gateway, user } = await renderPage();
     await user.click(screen.getByRole('button', { name: `Promote ${householdMemberId} to owner` }));

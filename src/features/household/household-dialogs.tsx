@@ -86,7 +86,9 @@ export function InviteHouseholdDialog(props: InviteDialogProps) {
         ? 'تم إنشاء سجل الدعوة. خدمة الإرسال غير مهيأة.'
         : 'Invitation record created. Delivery is not configured.'}</p> : null}
       <div className="dialog-actions">
-        <button type="button" className="secondary" disabled={props.pending} onClick={props.onClose}>{ar ? 'إلغاء' : 'Cancel'}</button>
+        <button type="button" className="secondary" disabled={props.pending} onClick={props.onClose}>{props.succeeded
+          ? (ar ? 'إغلاق' : 'Close')
+          : (ar ? 'إلغاء' : 'Cancel')}</button>
         <button type="submit" disabled={props.pending || props.succeeded}>{props.pending
           ? (ar ? 'جارٍ الإنشاء…' : 'Creating…')
           : title}</button>
