@@ -133,9 +133,11 @@ that a category cannot reference itself.
 
 The database must also prove that a chosen parent is a root and is active.
 Because a foreign key cannot express those predicates, a private `BEFORE
-INSERT` validation trigger locks the parent `FOR KEY SHARE` and rejects missing,
-archived, or non-root parents. This also serializes a direct privileged insert
-against parent archival. Existing table-owner-only insert enforcement remains
+INSERT` validation trigger locks the parent `FOR UPDATE` and rejects missing,
+archived, or non-root parents. This conflicts with the `FOR NO KEY UPDATE` lock
+taken by an ordinary owner archive update, serializing a direct privileged
+insert against parent archival in either order. `FOR KEY SHARE` is insufficient
+because it permits that archive update concurrently. Existing table-owner-only insert enforcement remains
 in place. The archive-transition guard continues to reject changes to identity,
 space, kind, names, and the new parent column; only the one-way archive pair may
 change. The same guard rejects an active-to-archived root transition while an

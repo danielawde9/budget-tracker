@@ -561,6 +561,76 @@ async function columnNames(client: Client, tableName: string): Promise<string[]>
   return result.rows.map((row) => row.column_name);
 }
 
+async function waitForOwnerLock(
+  blocker: Client,
+  waiterPid: number,
+  finished: () => boolean,
+): Promise<void> {
+  const deadline = Date.now() + 5_000;
+  for (let attempt = 0; attempt < 256 && Date.now() < deadline; attempt += 1) {
+    if (finished()) {
+      throw new Error('owner mutation completed before waiting for the parent lock');
+    }
+    const result = await blocker.query<{ blocked: boolean }>(
+      'select pg_blocking_pids($1) = array[pg_backend_pid()] as blocked limit 1', [waiterPid],
+    );
+    if (result.rows[0]?.blocked === true) {
+      return;
+    }
+  }
+  throw new Error('owner mutation did not reach the parent lock within the bounded barrier');
+}
+
+async function orderedOwnerRace(
+  database: DisposableDatabase,
+  actions: readonly [(client: Client) => Promise<unknown>, (client: Client) => Promise<unknown>],
+  expectedError: { code: string; message: string },
+): Promise<void> {
+  const clients = [databaseClient(database.url), databaseClient(database.url)] as const;
+  const pids: number[] = [];
+  const errors: unknown[] = [];
+  let pending: Promise<PromiseSettledResult<unknown>[]> | undefined;
+  try {
+    for (const client of clients) {
+      await client.connect();
+      pids.push(await scalar(client, 'select pg_backend_pid() as value limit 1'));
+      await client.query('begin');
+    }
+    expect(new Set(pids).size).toBe(2);
+    await actions[0](clients[0]);
+    let finished = false;
+    pending = Promise.allSettled([actions[1](clients[1])]).then((results) => {
+      finished = true;
+      return results;
+    });
+    await waitForOwnerLock(clients[0], pids[1]!, () => finished);
+    await clients[0].query('commit');
+    expect(await pending).toEqual([{ status: 'rejected', reason: expect.objectContaining(expectedError) }]);
+    await clients[1].query('rollback');
+    for (const [index, client] of clients.entries()) {
+      const idle = await client.query(
+        `select state, xact_start from pg_stat_activity where pid = $1 limit 1`, [pids[1 - index]],
+      );
+      expect(idle.rows).toEqual([{ state: 'idle', xact_start: null }]);
+    }
+  } catch (error) {
+    errors.push(error);
+  } finally {
+    // Release the first lock before draining a possibly blocked second query.
+    const rollback = await Promise.allSettled([clients[0].query('rollback')]);
+    if (pending) await pending;
+    const cleanup = await Promise.allSettled([clients[1].query('rollback')]);
+    const closed = await Promise.allSettled(clients.map((client) => client.end()));
+    errors.push(...[...rollback, ...cleanup, ...closed]
+      .filter((result) => result.status === 'rejected').map((result) => result.reason));
+  }
+  const remaining = await database.client.query(
+    'select pid from pg_stat_activity where pid = any($1::int[]) limit 2', [pids],
+  );
+  expect(remaining.rows).toEqual([]);
+  if (errors.length > 0) throw new AggregateError(errors, 'ordered owner race or cleanup failed');
+}
+
 async function categoryById(
   client: Client,
   ownerId: string,
@@ -1590,6 +1660,46 @@ describe('subcategories database foundation', () => {
     ))).rejects.toMatchObject(archiveChildrenError);
     expect(await categoryById(client, ownerId, parent.id)).toMatchObject({ archived_at: null });
   });
+
+  it.each(['child first', 'archive first'] as const)(
+    'serializes two direct owner mutations with %s and no receipt side effects', async (order) => {
+      const { client, space, parent } = await fixture();
+      const childId = randomUUID();
+      const receiptsBefore = await client.query(
+        'select * from public.category_command_requests where space_id = $1 order by request_id limit 3',
+        [space.id],
+      );
+      expect(receiptsBefore.rows).toHaveLength(1);
+      const insert = (participant: Client) => participant.query(
+        `insert into public.categories (id, space_id, kind, name_en, parent_category_id, created_by)
+         values ($1, $2, 'expense', 'Owner race child', $3, $4)`,
+        [childId, space.id, parent.id, ownerId],
+      );
+      const archive = (participant: Client) => participant.query(
+        'update public.categories set archived_by = $2, archived_at = now() where id = $1',
+        [parent.id, ownerId],
+      );
+      await orderedOwnerRace(currentDatabase(), order === 'child first' ? [insert, archive] : [archive, insert],
+        order === 'child first' ? archiveChildrenError : parentError);
+      expect(await categoryIds(client, space.id)).toEqual(
+        (order === 'child first' ? [parent.id, childId] : [parent.id]).sort(),
+      );
+      expect(await categoryById(client, ownerId, parent.id)).toMatchObject({
+        parent_category_id: null, archived_at: order === 'child first' ? null : expect.any(Date),
+      });
+      const child = await categoryById(client, ownerId, childId);
+      if (order === 'child first') {
+        expect(child).toMatchObject({ parent_category_id: parent.id, archived_at: null });
+      } else {
+        expect(child).toBeUndefined();
+      }
+      const receiptsAfter = await client.query(
+        'select * from public.category_command_requests where space_id = $1 order by request_id limit 3',
+        [space.id],
+      );
+      expect(receiptsAfter.rows).toEqual(receiptsBefore.rows);
+    },
+  );
 
   it('retains the command archive guard when the trigger is disabled inside a rolled-back transaction', async () => {
     const { client, space, parent, input } = await fixture();

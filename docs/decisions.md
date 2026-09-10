@@ -655,3 +655,21 @@ global database state.
 **If changed:** A reusable suggested pack requires its own locale, duplicate,
 opt-in, versioning, and archive policy. Applying this list to another account
 requires a new exact-target verification and owner-approved data operation.
+
+## 2026-09-10 — Parent validation serializes independent owner writes
+
+**Decision:** The unapplied subcategory migration's parent validation trigger
+uses `FOR UPDATE`, matching the protected child creation command. Two-session
+owner tests cover child-first and archive-first ordering, exact rejection,
+unchanged receipts, and cleanup under bounded database and barrier deadlines.
+
+**Why:** A direct owner archive update takes a `FOR NO KEY UPDATE` row lock,
+which is compatible with the originally specified `FOR KEY SHARE`. Both
+transactions could therefore commit an active child beneath an archived root.
+The table invariant must survive independently of the protected RPC locks.
+The lesson is to test direct-writer lock conflicts as well as command races.
+
+**If changed:** Weakening the trigger lock reopens this proven race. An
+alternative needs a separately reviewed serialization mechanism and both
+owner-order rejection tests. The stronger lock serializes child creation for
+the same parent until each short transaction completes.

@@ -45,7 +45,8 @@ begin
     and category.space_id = new.space_id
     and category.kind = new.kind
   limit 1
-  for key share;
+  -- Conflict with direct owner archive UPDATE, including its NO KEY UPDATE lock.
+  for update;
 
   if not found or v_parent_archived_at is not null then
     raise exception using

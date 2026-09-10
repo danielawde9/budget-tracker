@@ -252,7 +252,7 @@ The existing `(space_id, request_id)` primary key remains unchanged.
 
 - [ ] **Step 3: Add parent validation at the table boundary**
 
-Create `private.validate_category_parent()` as a `SECURITY DEFINER` trigger function with `SET search_path = pg_catalog`. Return immediately for a null parent. Otherwise select the exact parent by ID, space, and kind `FOR KEY SHARE`; reject if it is missing, archived, or itself has a parent. Return `NEW` only after validation.
+Create `private.validate_category_parent()` as a `SECURITY DEFINER` trigger function with `SET search_path = pg_catalog`. Return immediately for a null parent. Otherwise select the exact parent by ID, space, and kind `FOR UPDATE`; reject if it is missing, archived, or itself has a parent. Return `NEW` only after validation. This lock must conflict with the `FOR NO KEY UPDATE` lock taken by a direct owner archive update; `FOR KEY SHARE` does not protect that independent table boundary. Prove both lock orders with exactly two owner transactions and bounded lock observation, then assert rejection, final state, unchanged receipts, and transaction cleanup.
 
 Use these stable errors:
 
