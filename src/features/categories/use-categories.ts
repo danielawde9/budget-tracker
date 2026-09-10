@@ -7,6 +7,7 @@ import type {
   Category,
   CategoryKind,
   CreateCategoryInput,
+  CreateSubcategoryInput,
 } from './types.js';
 
 export interface CategoryCommandOutcome {
@@ -20,8 +21,11 @@ export interface CreateCategoryDraft {
   nameAr: string | null;
 }
 
+export type CreateSubcategoryDraft = Pick<CreateCategoryDraft, 'nameEn' | 'nameAr'>;
+
 type RetryCommand =
   | { kind: 'create'; requestId: string; input: CreateCategoryInput }
+  | { kind: 'create-subcategory'; requestId: string; input: CreateSubcategoryInput }
   | { kind: 'archive'; requestId: string; input: ArchiveCategoryInput };
 
 interface CategoriesView {
@@ -48,14 +52,18 @@ function emptyView(spaceId: string): CategoriesView {
   };
 }
 
-function normalizeDraft(draft: CreateCategoryDraft): CreateCategoryDraft {
+function normalizeNames(draft: CreateSubcategoryDraft): CreateSubcategoryDraft {
   const nameEn = draft.nameEn?.trim() || null;
   const nameAr = draft.nameAr?.trim() || null;
   if (!nameEn && !nameAr) throw new Error('Enter at least one category name.');
   if ((nameEn?.length ?? 0) > 120 || (nameAr?.length ?? 0) > 120) {
     throw new Error('Category names must be 120 characters or fewer.');
   }
-  return { ...draft, nameEn, nameAr };
+  return { nameEn, nameAr };
+}
+
+function normalizeDraft(draft: CreateCategoryDraft): CreateCategoryDraft {
+  return { ...draft, ...normalizeNames(draft) };
 }
 
 function inaccessible(error: CategoryErrorView): boolean {
@@ -131,6 +139,7 @@ export function useCategories(
   const reconcile = useCallback(async (command: RetryCommand): Promise<CategoryCommandOutcome> => {
     try {
       if (command.kind === 'create') await gateway.createCategory(command.input);
+      else if (command.kind === 'create-subcategory') await gateway.createSubcategory(command.input);
       else await gateway.archiveCategory(command.input);
     } catch (cause) {
       if (!isAmbiguousTransportFailure(cause)) throw cause;
@@ -141,8 +150,10 @@ export function useCategories(
         if (currentSpace.current === command.input.spaceId) setRetry(command);
         throw reconciliationCause;
       }
-      const expectedKind = command.kind === 'create' ? 'create_category' : 'archive_category';
-      const matchingCategory = command.kind === 'create' || result?.categoryId === command.input.categoryId;
+      const expectedKind = command.kind === 'create'
+        ? 'create_category'
+        : command.kind === 'create-subcategory' ? 'create_subcategory' : 'archive_category';
+      const matchingCategory = command.kind !== 'archive' || result?.categoryId === command.input.categoryId;
       if (!result) {
         if (currentSpace.current === command.input.spaceId) setRetry(command);
         return { status: 'ambiguous', reconciled: false };
@@ -183,6 +194,27 @@ export function useCategories(
       kind: 'archive',
       requestId,
       input: { spaceId, requestId, categoryId },
+    };
+    setRetry(null);
+    return withPending(() => reconcile(command));
+  }, [createRequestId, reconcile, spaceId, withPending]);
+
+  const createSubcategory = useCallback(async (
+    parentCategoryId: string,
+    draft: CreateSubcategoryDraft,
+  ): Promise<CategoryCommandOutcome> => {
+    const normalized = normalizeNames(draft);
+    const requestId = createRequestId();
+    const command: RetryCommand = {
+      kind: 'create-subcategory',
+      requestId,
+      input: {
+        spaceId,
+        requestId,
+        parentCategoryId,
+        nameEn: normalized.nameEn,
+        nameAr: normalized.nameAr,
+      },
     };
     setRetry(null);
     return withPending(() => reconcile(command));
@@ -240,6 +272,7 @@ export function useCategories(
     recoverRefresh: () => load(true, false),
     loadMore,
     createCategory,
+    createSubcategory,
     archiveCategory,
     retryAmbiguous,
     clearAmbiguous: () => setRetry(null),
