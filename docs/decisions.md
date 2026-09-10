@@ -595,6 +595,32 @@ environment, real Auth/RLS/protected-command evidence, and redacted operator
 receipts. A claim of data recovery additionally requires a named encrypted
 off-site backup and measured scratch restore.
 
+## 2026-09-09 — Exact-schema UAT is isolated, minimal, and one-shot
+
+**Decision:** The disposable UAT backend for release
+`6af62c1b0105b75a9796cfb299791f4c26a7dd2e` uses a separate four-service Docker
+Compose project at `/home/lelabo/budget-uat-18`: PostgreSQL, GoTrue, PostgREST,
+and Kong only. It binds the gateway and database to loopback ports `54521` and
+`54522`, uses restart policy `no`, generates its secrets only on Ubuntu, and
+applies exactly the 18 hash-pinned release migrations to an empty journal.
+After a stop or partial provision, cleanup and fresh provisioning replace secret
+or database reuse. The ordinary checkout's hosted Supabase environment and any
+Cloudflare frontend deployment remain outside this infrastructure layer.
+
+Private HTTPS may be added only as one tailnet-only Tailscale Serve handler when
+all existing TCP routes remain unchanged and Funnel remains disabled. Until
+that route and its certificate are verified without bypass flags, the stack is
+not ready for formal product UAT.
+
+**Why:** A minimal, one-shot environment keeps schema attribution exact, makes
+synthetic cleanup complete, and avoids coupling this release proof to Budget
+development, Sandooq, POS, a hosted provider project, or public ingress.
+
+**If changed:** Reusing secrets/data, adding services, enabling automatic
+restart, changing ports/host, using hosted Supabase, or introducing a public
+frontend/domain requires a new isolation, access, recovery, cost, and evidence
+review before deployment or real-data entry.
+
 ## 2026-09-09 — Public beta may precede exact-schema and human UAT
 
 **Decision:** Daniel explicitly authorized proceeding toward a public Cloudflare

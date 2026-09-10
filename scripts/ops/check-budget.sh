@@ -16,6 +16,8 @@ readonly -a CHECK_OPS_SCRIPTS=(
   "${CHECK_SCRIPT_DIR}/apply-live-migrations.sh"
   "${CHECK_SCRIPT_DIR}/verify-budget-db.sh"
   "${CHECK_SCRIPT_DIR}/validate-restore-roles.sh"
+  "${CHECK_SCRIPT_DIR}/budget-uat-18.sh"
+  "${CHECK_REPO_ROOT}/ops/uat/remote-budget-uat-18.sh"
   "${CHECK_SCRIPT_DIR}/check-budget.sh"
 )
 
