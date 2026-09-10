@@ -9,6 +9,7 @@ export interface ApplicationFixtureOptions {
   ambiguousEventOnce?: boolean;
   failCategoriesOnce?: boolean;
   ambiguousCategoryOnce?: boolean;
+  ambiguousSubcategoryOnce?: boolean;
   ambiguousCategorizedEventOnce?: boolean;
   rejectCategoryCreateOnce?: boolean;
 }
@@ -29,6 +30,7 @@ interface VisualCategory {
   kind: 'income' | 'expense';
   name_en: string | null;
   name_ar: string | null;
+  parent_category_id: string | null;
   created_at: string;
   archived_at: string | null;
 }
@@ -36,6 +38,7 @@ interface VisualCategory {
 const protectedMutationNames = new Set([
   'archive_category',
   'create_category',
+  'create_subcategory',
   'create_space',
   'create_wallet',
   'open_loan_outstanding',
@@ -67,14 +70,16 @@ const walletBalances = [
 ];
 
 const salaryCategoryId = '11111111-1111-4111-8111-111111111111';
+const essentialsCategoryId = '44444444-4444-4444-8444-444444444444';
 const groceriesCategoryId = '22222222-2222-4222-8222-222222222222';
 const archivedTravelCategoryId = '33333333-3333-4333-8333-333333333333';
 const generalIncomeEventId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 const categoryRows: VisualCategory[] = [
-  { id: salaryCategoryId, space_id: 'personal-space', kind: 'income', name_en: 'Salary', name_ar: 'راتب', created_at: '2026-01-01T08:00:00Z', archived_at: null },
-  { id: groceriesCategoryId, space_id: 'personal-space', kind: 'expense', name_en: 'Groceries', name_ar: 'بقالة', created_at: '2026-01-02T08:00:00Z', archived_at: null },
-  { id: archivedTravelCategoryId, space_id: 'personal-space', kind: 'income', name_en: 'Archived travel', name_ar: 'سفر مؤرشف', created_at: '2026-01-03T08:00:00Z', archived_at: '2026-08-01T00:00:00Z' },
+  { id: salaryCategoryId, space_id: 'personal-space', kind: 'income', name_en: 'Salary', name_ar: 'راتب', parent_category_id: null, created_at: '2026-01-01T08:00:00Z', archived_at: null },
+  { id: essentialsCategoryId, space_id: 'personal-space', kind: 'expense', name_en: 'Essentials', name_ar: 'الأساسيات', parent_category_id: null, created_at: '2026-01-02T08:00:00Z', archived_at: null },
+  { id: groceriesCategoryId, space_id: 'personal-space', kind: 'expense', name_en: 'Groceries', name_ar: 'بقالة', parent_category_id: essentialsCategoryId, created_at: '2026-01-03T08:00:00Z', archived_at: null },
+  { id: archivedTravelCategoryId, space_id: 'personal-space', kind: 'income', name_en: 'Archived travel', name_ar: 'سفر مؤرشف', parent_category_id: null, created_at: '2026-01-04T08:00:00Z', archived_at: '2026-08-01T00:00:00Z' },
 ];
 
 const eventCategoryRows = [
@@ -164,11 +169,12 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
   const visiblePostings = options.emptyWallets ? [] : cloneRows(postings);
   const visibleCategories = options.emptySpaces ? [] : cloneRows(categoryRows);
   const visibleEventCategories = options.emptyWallets ? [] : cloneRows(eventCategoryRows);
-  const categoryCommandResults = new Map<string, { command_kind: 'create_category' | 'archive_category'; category_id: string; created_at: string }>();
+  const categoryCommandResults = new Map<string, { command_kind: 'create_category' | 'create_subcategory' | 'archive_category'; category_id: string; created_at: string }>();
   let signInAttempts = 0;
   let ambiguousSpaceRemaining = options.ambiguousSpaceOnce ? 1 : 0;
   let ambiguousEventRemaining = options.ambiguousEventOnce ? 1 : 0;
   let ambiguousCategoryRemaining = options.ambiguousCategoryOnce ? 1 : 0;
+  let ambiguousSubcategoryRemaining = options.ambiguousSubcategoryOnce ? 1 : 0;
   let ambiguousCategorizedEventRemaining = options.ambiguousCategorizedEventOnce ? 1 : 0;
   let categoryCreateRejectionsRemaining = options.rejectCategoryCreateOnce ? 1 : 0;
   // StrictMode doubles the initial two-kind read and Supabase retries each 503
@@ -251,10 +257,27 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
         return json(route, { message: 'an active category already uses one of these names' }, 400);
       }
       const id = `c0000000-0000-4000-8000-${String(visibleCategories.length + 1).padStart(12, '0')}`;
-      visibleCategories.push({ id, space_id: body.p_space_id, kind: body.p_kind, name_en: body.p_name_en, name_ar: body.p_name_ar, created_at: '2026-09-08T10:00:00Z', archived_at: null });
+      visibleCategories.push({ id, space_id: body.p_space_id, kind: body.p_kind, name_en: body.p_name_en, name_ar: body.p_name_ar, parent_category_id: null, created_at: '2026-09-08T10:00:00Z', archived_at: null });
       categoryCommandResults.set(body.p_request_id, { command_kind: 'create_category', category_id: id, created_at: '2026-09-08T10:00:00Z' });
       if (ambiguousCategoryRemaining > 0) {
         ambiguousCategoryRemaining -= 1;
+        return json(route, { message: 'upstream timeout' }, 504);
+      }
+      return json(route, [{ id }]);
+    }
+    if (path.endsWith('/rpc/create_subcategory')) {
+      const body = request.postDataJSON() as { p_space_id: string; p_request_id: string; p_parent_category_id: string; p_name_en: string | null; p_name_ar: string | null };
+      const parent = visibleCategories.find((item) => item.id === body.p_parent_category_id
+        && item.space_id === body.p_space_id && item.parent_category_id === null && item.archived_at === null);
+      if (!parent) return json(route, { message: 'the parent category must be an active root in the requested space and kind' }, 400);
+      const id = `c1000000-0000-4000-8000-${String(visibleCategories.length + 1).padStart(12, '0')}`;
+      visibleCategories.push({
+        id, space_id: body.p_space_id, kind: parent.kind, name_en: body.p_name_en, name_ar: body.p_name_ar,
+        parent_category_id: parent.id, created_at: '2026-09-08T10:30:00Z', archived_at: null,
+      });
+      categoryCommandResults.set(body.p_request_id, { command_kind: 'create_subcategory', category_id: id, created_at: '2026-09-08T10:30:00Z' });
+      if (ambiguousSubcategoryRemaining > 0) {
+        ambiguousSubcategoryRemaining -= 1;
         return json(route, { message: 'upstream timeout' }, 504);
       }
       return json(route, [{ id }]);
@@ -263,6 +286,9 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       const body = request.postDataJSON() as { p_request_id: string; p_category_id: string };
       const category = visibleCategories.find((item) => item.id === body.p_category_id);
       if (!category) return json(route, { message: 'the selected category is invalid or unavailable' }, 400);
+      if (category.parent_category_id === null && visibleCategories.some((item) => item.parent_category_id === category.id && item.archived_at === null)) {
+        return json(route, { message: 'archive active subcategories before archiving their parent' }, 400);
+      }
       category.archived_at = '2026-09-08T11:00:00Z';
       categoryCommandResults.set(body.p_request_id, { command_kind: 'archive_category', category_id: category.id, created_at: '2026-09-08T11:00:00Z' });
       return json(route, [{ id: category.id }]);

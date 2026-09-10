@@ -36,9 +36,50 @@ test('desktop category register separates active income and expense labels', asy
   await expect(page.getByRole('heading', { name: 'Income categories' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Expense categories' })).toBeVisible();
   await expect(page.getByText('Salary').locator('xpath=ancestor-or-self::bdi')).toBeVisible();
+  await expect(page.getByText('Essentials').locator('xpath=ancestor-or-self::bdi')).toBeVisible();
   await expect(page.getByText('Groceries').locator('xpath=ancestor-or-self::bdi')).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Subcategories of Essentials' })).toContainText('Groceries');
+  await expect(page.getByRole('button', { name: 'Archive Essentials' })).toHaveCount(0);
+  await expect(page.getByText('Archive subcategories first')).toBeVisible();
   await expect(page.getByText('Archived travel')).toHaveCount(0);
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-category-register.png'), fullPage: true });
+});
+
+test('subcategory create and archive stay beneath the immutable selected root', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop');
+  await openCategories(page);
+  const opener = page.getByRole('button', { name: 'New subcategory for Essentials' });
+  await opener.click();
+  const createDialog = page.getByRole('dialog', { name: 'Create a subcategory' });
+  await expect(createDialog.getByText('Essentials').first()).toBeVisible();
+  await createDialog.getByLabel('English name').fill('Transport');
+  await createDialog.getByLabel('Arabic name').fill('مواصلات');
+  await createDialog.getByRole('button', { name: 'Create subcategory' }).click();
+  await expect(createDialog.getByRole('status')).toContainText('Subcategory created');
+  await createDialog.getByRole('button', { name: 'Done' }).click();
+
+  const children = page.getByRole('list', { name: 'Subcategories of Essentials' });
+  await expect(children.getByText('Transport')).toBeVisible();
+  await page.screenshot({ path: screenshotPath(testInfo, 'desktop-subcategory-register.png'), fullPage: true });
+  await children.getByRole('button', { name: 'Archive Transport' }).click();
+  const archiveDialog = page.getByRole('dialog', { name: 'Archive category' });
+  await archiveDialog.getByRole('checkbox').check();
+  await archiveDialog.getByRole('button', { name: 'Archive category' }).click();
+  await expect(archiveDialog.getByRole('status')).toContainText('Category archived');
+  await archiveDialog.getByRole('button', { name: 'Done' }).click();
+  await expect(children.getByText('Transport')).toHaveCount(0);
+});
+
+test('ambiguous subcategory creation reconciles without a duplicate child', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop');
+  await openCategories(page, { ambiguousSubcategoryOnce: true });
+  await page.getByRole('button', { name: 'New subcategory for Essentials' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Create a subcategory' });
+  await dialog.getByLabel('English name').fill('Utilities');
+  await dialog.getByRole('button', { name: 'Create subcategory' }).click();
+  await expect(dialog.getByRole('status')).toContainText('Subcategory created');
+  await dialog.getByRole('button', { name: 'Done' }).click();
+  await expect(page.getByRole('list', { name: 'Subcategories of Essentials' }).getByText('Utilities')).toHaveCount(1);
 });
 
 test('category create and archive refresh only the active register', async ({ page }, testInfo) => {
@@ -119,6 +160,28 @@ test('categorized and uncategorized income preserve exact history labels', async
   await expect(page.getByText('Uncategorized').first()).toBeVisible();
 });
 
+test('a child category posts its exact identity without changing signed minor units', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop');
+  await openCategories(page);
+  await page.getByRole('button', { name: 'Wallets' }).click();
+  await page.getByRole('button', { name: 'Add transaction' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add a transaction' });
+  await dialog.getByLabel('Type').selectOption('expense');
+  const children = dialog.getByRole('group', { name: 'Subcategories of Essentials' });
+  await children.getByRole('radio', { name: 'Groceries' }).check();
+  await dialog.getByLabel('Effective date').fill('2026-09-10');
+  await dialog.getByLabel('Amount').fill('12.50');
+  await dialog.getByRole('button', { name: 'Review transaction' }).click();
+  await expect(dialog.getByRole('region', { name: 'Wallet effect preview' })).toContainText('Category Groceries');
+  await expect(dialog.getByRole('region', { name: 'Wallet effect preview' })).toContainText('$12.50');
+  await page.screenshot({ path: screenshotPath(testInfo, 'desktop-subcategory-picker.png') });
+  await dialog.getByRole('button', { name: 'Record expense' }).click();
+  await expect(dialog.getByRole('status')).toContainText('Transaction recorded');
+  await dialog.getByRole('button', { name: 'Done' }).click();
+  await expect(page.getByText('Groceries').last()).toBeVisible();
+  await expect(page.getByText('-$12.50')).toBeVisible();
+});
+
 test('archived historical label remains while ambiguity reconciles without duplicate posts', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop');
   await openCategories(page, { ambiguousCategorizedEventOnce: true });
@@ -150,6 +213,7 @@ test('mobile category tabs and dialog remain contained with accessible targets',
   await openCategories(page);
   await expect(page.getByRole('group', { name: 'Category type' })).toBeVisible();
   await page.getByRole('button', { name: 'Expense', exact: true }).click();
+  await expect(page.getByRole('list', { name: 'Subcategories of Essentials' })).toContainText('Groceries');
   await page.getByRole('button', { name: 'New category' }).click();
   const dialog = page.getByRole('dialog', { name: 'Create a category' });
   await expect(dialog).toHaveCSS('min-height', '844px');
@@ -159,6 +223,13 @@ test('mobile category tabs and dialog remain contained with accessible targets',
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'New category' })).toBeFocused();
+  await page.getByRole('button', { name: 'New subcategory for Essentials' }).click();
+  const subcategoryDialog = page.getByRole('dialog', { name: 'Create a subcategory' });
+  await expect(subcategoryDialog).toHaveCSS('min-height', '844px');
+  await expectMinimumControlSize(subcategoryDialog);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: screenshotPath(testInfo, 'mobile-create-subcategory.png') });
+  await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Wallets' }).click();
   await page.getByRole('button', { name: 'Add transaction' }).click();
   const transactionDialog = page.getByRole('dialog', { name: 'Add a transaction' });
@@ -173,6 +244,8 @@ test('Arabic RTL mirrors management and categorized history with isolated names'
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await expect(page.getByRole('heading', { name: 'الفئات' })).toBeVisible();
   await expect(page.getByText('راتب').locator('xpath=ancestor-or-self::bdi')).toBeVisible();
+  await page.getByRole('button', { name: 'المصروف', exact: true }).click();
+  await expect(page.getByRole('list', { name: 'الفئات الفرعية ضمن الأساسيات' })).toContainText('بقالة');
   await page.screenshot({ path: screenshotPath(testInfo, 'mobile-arabic-category-register.png') });
   await page.getByRole('button', { name: 'المحافظ' }).click();
   const historyHeading = page.getByRole('heading', { name: 'سجل المعاملات' });

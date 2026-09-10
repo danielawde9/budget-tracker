@@ -4,9 +4,10 @@ The current application milestone provides a bilingual authenticated shell
 with verified Loans, Wallets, and Categories workspaces. It supports Supabase
 email/password sessions, safe first-space and first-wallet onboarding, switching
 between the spaces visible through RLS, derived wallet balances, immutable
-paginated journal history, active income/expense category management, optional
-categorized income/expense posting, the four approved general transaction
-shapes, and linked corrections. Every financial change still goes through the
+paginated journal history, active one-level income/expense category and
+subcategory management, optional categorized income/expense posting, the four
+approved general transaction shapes, and linked corrections. Every financial
+change still goes through the
 protected PostgreSQL commands documented in
 `docs/financial-command-inventory.md`.
 
@@ -76,15 +77,17 @@ evidence.
 - Wallet creation, general postings, and eligible general corrections use only
   `public.create_wallet`, `public.record_financial_event`, and
   `public.reverse_financial_event`.
-- Category creation and archival use only `public.create_category` and
-  `public.archive_category`; category rows are never renamed, deleted, or
-  unarchived by this application.
+- Root creation, subcategory creation, and archival use only
+  `public.create_category`, `public.create_subcategory`, and
+  `public.archive_category`. The application exposes one immutable child level;
+  category rows are never renamed, reparented, deleted, or unarchived.
 - Optional income/expense categorization uses only
   `public.record_categorized_financial_event`; openings, transfers, loans, and
   reversals never expose category selection.
-- Active category reads are bounded and keyset-paginated; journal category
-  resolution is bounded to each 20-event history page and preserves archived
-  names read-only.
+- Active category reads include immutable parent identity and remain bounded
+  and keyset-paginated. Roots and children are both exact transaction choices;
+  journal category resolution is bounded to each 20-event history page and
+  preserves archived names read-only.
 - Browser reads remain subject to Supabase authentication and RLS.
 - Space and wallet onboarding use only their protected creation commands and
   reconcile visible records after ambiguous transport failures before another
