@@ -11,6 +11,15 @@ const composePath = 'ops/uat/docker-compose.yml';
 const environmentExamplePath = 'ops/uat/budget-uat-18.env.example';
 const manifestPath = 'ops/uat/budget-uat-18-migrations.sha256';
 
+function parseMigrationManifestRow(row: string): readonly [string, string, string] {
+  const fields = row.split('|');
+  if (fields.length !== 3 || fields.some((field) => field.length === 0)) {
+    throw new Error('migration manifest rows require exactly three non-empty fields');
+  }
+
+  return [fields[0]!, fields[1]!, fields[2]!];
+}
+
 function trackedText(path: string): string {
   return readFileSync(path, 'utf8');
 }
@@ -124,20 +133,32 @@ describe('Budget exact-schema UAT static contract', () => {
   it('pins exactly the release candidate migration tree in canonical order', () => {
     const rows = trackedText(manifestPath).trimEnd().split('\n');
     const migrationRows = rows.slice(2);
-    const localMigrationNames = migrationRows.map((row) => row.split('|')[1]);
+    const parsedMigrationRows = migrationRows.map(parseMigrationManifestRow);
+    const localMigrationNames = parsedMigrationRows.map(([, filename]) => filename);
 
     expect(rows[0]).toBe('budget_uat_migration_manifest_version=1');
     expect(rows[1]).toBe(`source_sha=${releaseHead}`);
     expect(migrationRows).toHaveLength(18);
     expect(localMigrationNames).toEqual([...localMigrationNames].sort());
 
-    for (const row of migrationRows) {
-      const [version, filename, expectedHash] = row.split('|');
+    for (const [version, filename, expectedHash] of parsedMigrationRows) {
       const migration = trackedText(join('supabase/migrations', filename));
 
       expect(filename).toBe(`${version}_${basename(filename).split('_').slice(1).join('_')}`);
       expect(createHash('sha256').update(migration).digest('hex')).toBe(expectedHash);
     }
+  });
+
+  it('rejects malformed migration manifest rows before path or hash use', () => {
+    expect(() => parseMigrationManifestRow('20260908100000|migration.sql')).toThrow(
+      'migration manifest rows require exactly three non-empty fields',
+    );
+    expect(() => parseMigrationManifestRow('20260908100000||hash')).toThrow(
+      'migration manifest rows require exactly three non-empty fields',
+    );
+    expect(() => parseMigrationManifestRow('version|migration.sql|hash|extra')).toThrow(
+      'migration manifest rows require exactly three non-empty fields',
+    );
   });
 
   it('generates secrets only on Ubuntu through an exclusive no-follow mode-0600 file', () => {
