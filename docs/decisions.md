@@ -741,3 +741,26 @@ combined gate to fail even though every migration applied successfully.
 namespace as one milestone's private universe will make safe parallel features
 conflict at integration time. A deliberately exclusive release boundary should
 instead use its separate hash manifest and exact release gate.
+
+## 2026-09-10 — Subcategories extend the existing category register
+
+**Decision:** Active subcategories render as a semantic one-level nested list
+beneath their immutable root in the existing income and expense registers.
+Only roots expose child creation. A root with active children directs the user
+to archive those children first instead of submitting a predictably invalid
+root archive. Both roots and children remain exact single-category transaction
+choices, and history continues to display only the category identity stored on
+the event.
+
+**Why:** This makes the database's one-level invariant visible without adding a
+second navigation surface or changing the established Categories lifecycle.
+It also prevents the application from inventing a parent event association or
+double-counting financial history. Root creation, child creation, and archival
+remain separate protected commands with request-stable recovery.
+
+**If changed:** Arbitrary depth needs recursive reads, cycle handling, and
+subtree lifecycle UX. Reparenting needs relationship history. Displaying both
+parent and child as event associations or adding child budget targets requires
+a separately reviewed roll-up/allocation contract. Allowing root archive with
+active children requires an explicit cascade policy; this UI does not infer
+one.
