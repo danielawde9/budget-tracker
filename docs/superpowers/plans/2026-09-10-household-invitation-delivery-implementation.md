@@ -273,7 +273,7 @@ JSON. Route all other requests to `env.ASSETS.fetch(request)`.
 Set `main` to `worker/index.ts`; preserve the current assets directory and SPA
 fallback; name the assets binding `ASSETS`; run the Worker first for `/api/*`;
 declare separate rate-limit namespaces for 20 requests per 60 seconds and three
-requests per 3,600 seconds. Commit no binding values or secrets.
+requests per 60 seconds. Commit no binding values or secrets.
 
 - [ ] **Step 5: Verify focused green state**
 
@@ -318,7 +318,7 @@ server boundary.
 - [ ] **Step 3: Document the handoff and decision**
 
 Append one decision recording Cloudflare Worker runtime, no database change,
-three/hour actor-space and 20/minute IP defaults, 23-hour resend cutoff, and what
+three/minute actor-space and 20/minute IP defaults, 23-hour resend cutoff, and what
 changes if those defaults change. Add a runbook that lists exact secret/binding,
 domain authentication, tracking, synthetic test, bounce/complaint, deployment,
 and Household UI approvals while explicitly forbidding real sends. Update the

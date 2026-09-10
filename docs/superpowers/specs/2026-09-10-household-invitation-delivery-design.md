@@ -135,7 +135,7 @@ The public boundary applies two independent fail-closed limits:
 
 - at most 20 delivery requests per source IP per minute;
 - at most three delivery requests per authenticated subject and household space
-  per hour.
+  per minute.
 
 Rate-limit keys are SHA-256 digests with domain-separated prefixes. Raw IPs,
 JWT subjects, bearer tokens, space IDs, and recipient addresses are not sent to
