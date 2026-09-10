@@ -665,3 +665,60 @@ history repair, destructive reset, or automated CI application requires a new
 review and explicit owner approval. The local `public` snapshot is not an
 encrypted off-site recovery point and does not approve irreplaceable real-data
 entry before the existing restore requirement is satisfied.
+
+## 2026-09-10 — Subcategories use one immutable parent level
+
+**Decision:** A category may have one immutable parent category, and only a
+root category may be a parent. Parent and child share the same space and
+income/expense kind. Active normalized names remain unique across the whole
+space and kind. Transactions keep one category association; reporting rolls a
+child into its parent without duplicating the event. Monthly targets initially
+belong only to roots. A root cannot be archived while it has active children.
+
+**Why:** One bounded level supports household breakdowns such as Essentials →
+Rent/Groceries/Utilities without introducing recursive trees, mutable taxonomy
+history, double-counted budgets, or changes to the immutable journal. Global
+name uniqueness keeps pickers unambiguous and preserves the deployed
+Categories v1 constraint.
+
+**If changed:** Arbitrary nesting requires cycle, depth, recursive read, and
+subtree lifecycle contracts. Reparenting requires append-only relationship
+history and historical reporting semantics. Child-level targets require an
+explicit allocation rule preventing parent/child double counting. Sibling-only
+name uniqueness requires replacing deployed indexes and disambiguating every
+category picker and report.
+
+## 2026-09-10 — Essentials bootstrap is owner-specific production data
+
+**Decision:** Daniel's existing production `Essentials` expense category will
+receive the 22 English-only child names recorded in the Subcategories database
+design, but only through separately approved authenticated commands after the
+schema is implemented and applied. The list is not seeded for other spaces or
+users.
+
+**Why:** These labels reflect one household's requested budgeting structure.
+Keeping them out of migrations preserves the established no-starter-category
+default and prevents product policy or personal preferences from becoming
+global database state.
+
+**If changed:** A reusable suggested pack requires its own locale, duplicate,
+opt-in, versioning, and archive policy. Applying this list to another account
+requires a new exact-target verification and owner-approved data operation.
+
+## 2026-09-10 — Parent validation serializes independent owner writes
+
+**Decision:** The unapplied subcategory migration's parent validation trigger
+uses `FOR UPDATE`, matching the protected child creation command. Two-session
+owner tests cover child-first and archive-first ordering, exact rejection,
+unchanged receipts, and cleanup under bounded database and barrier deadlines.
+
+**Why:** A direct owner archive update takes a `FOR NO KEY UPDATE` row lock,
+which is compatible with the originally specified `FOR KEY SHARE`. Both
+transactions could therefore commit an active child beneath an archived root.
+The table invariant must survive independently of the protected RPC locks.
+The lesson is to test direct-writer lock conflicts as well as command races.
+
+**If changed:** Weakening the trigger lock reopens this proven race. An
+alternative needs a separately reviewed serialization mechanism and both
+owner-order rejection tests. The stronger lock serializes child creation for
+the same parent until each short transaction completes.
