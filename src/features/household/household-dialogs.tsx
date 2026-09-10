@@ -14,7 +14,8 @@ export function HouseholdDialogFrame({ title, closeLabel, pending, onClose, chil
   const returnFocus = useRef<HTMLElement | null>(document.activeElement instanceof HTMLElement ? document.activeElement : null);
 
   useEffect(() => {
-    panel.current?.focus();
+    const initialFocus = panel.current?.querySelector<HTMLElement>('[data-initial-focus]');
+    (initialFocus ?? panel.current)?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !pending) {
         event.preventDefault();
@@ -78,7 +79,7 @@ export function InviteHouseholdDialog(props: InviteDialogProps) {
       : 'This creates a seven-day invitation record. Delivery is not configured.'}</p>
     <form onSubmit={(event) => void submit(event)}>
       <label>{ar ? 'البريد الإلكتروني للعضو' : 'Member email'}
-        <input type="email" required maxLength={254} autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+        <input type="email" required maxLength={254} autoComplete="email" data-initial-focus value={email} onChange={(event) => setEmail(event.target.value)} />
       </label>
       {props.error}
       {props.succeeded ? <p role="status" className="success-notice">{ar

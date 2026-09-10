@@ -40,6 +40,40 @@ bdi, dd, strong { font-variant-numeric: tabular-nums; }
 .loans-workspace { width: min(1180px, 100%); margin-inline: auto; }
 .wallets-workspace { width: min(1180px, 100%); margin-inline: auto; }
 .categories-workspace { width: min(1180px, 100%); margin-inline: auto; }
+.household-workspace { width: min(1180px, 100%); margin-inline: auto; }
+.household-topbar { align-items: end; }
+.household-topbar > button { flex: 0 0 auto; }
+.household-columns { display: grid; grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr); gap: clamp(28px, 5vw, 64px); margin-block-start: 42px; }
+.household-register { min-inline-size: 0; }
+.household-register > h2 { margin: 0; padding-block-end: 14px; border-block-end: 2px solid var(--ink); font-size: clamp(1.45rem, 3vw, 1.9rem); letter-spacing: -.035em; }
+.household-list { list-style: none; margin: 0; padding: 0; }
+.household-row { min-inline-size: 0; display: grid; gap: 13px; padding: 20px 4px; border-block-end: 1px solid #c7cfc7; }
+.household-row bdi { min-inline-size: 0; overflow-wrap: anywhere; }
+.household-identity { min-inline-size: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-weight: 760; }
+.household-self { padding: 3px 8px; border: 1px solid #aab5aa; border-radius: 999px; color: #536158; font-size: .72rem; font-weight: 750; }
+.household-row dl, .household-self-access dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 0; }
+.household-row dl div, .household-self-access dl div { min-inline-size: 0; }
+.household-row dd, .household-self-access dd { white-space: normal; }
+.household-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.household-actions button { flex: 0 1 auto; }
+.invitation-row > div:first-child { min-inline-size: 0; display: grid; gap: 9px; }
+.household-status { border: 1px solid transparent; }
+.status-pending { background: #f3ead4; color: #65501d; }
+.status-accepted { background: #d8eadf; color: #155438; }
+.status-cancelled, .status-expired { background: #e8e9e5; color: #536158; }
+.household-self-access { max-inline-size: 620px; margin-block-start: 42px; }
+.household-self-access dl { padding-block: 22px; border-block-end: 1px solid #c7cfc7; }
+.household-leave { display: flex; justify-content: flex-end; margin-block-start: 48px; padding-block-start: 18px; border-block-start: 1px solid #c7cfc7; }
+.household-dialog { overflow-x: hidden; }
+.household-dialog form > label { margin-block-start: 22px; }
+.household-dialog form input { inline-size: 100%; max-inline-size: 100%; }
+.household-dialog bdi { overflow-wrap: anywhere; }
+.household-workspace .secondary, .household-dialog .secondary { border: 1px solid #aab5aa; background: transparent; color: var(--ink); }
+.household-workspace .secondary:hover, .household-dialog .secondary:hover { background: #e7ebe4; }
+.success-notice { margin: 18px 0 0; padding: 14px 16px; border-inline-start: 4px solid var(--jade); border-radius: 6px; background: #dfeee4; color: #154b33; line-height: 1.5; }
+.danger-button { background: var(--brick); }
+.danger-button:hover { background: #842f23; }
+.danger-text { color: var(--brick); }
 .categories-topbar { align-items: end; }
 .category-kind-tabs { display: none; }
 .category-registers { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(28px, 5vw, 64px); margin-block-start: 42px; }
@@ -217,6 +251,15 @@ dd { margin: 8px 0 0; font-weight: 760; white-space: nowrap; }
   .wallets-topbar { display: grid; }
   .categories-topbar { display: grid; }
   .categories-topbar > button { inline-size: 100%; }
+  .household-topbar { display: grid; }
+  .household-topbar > button { inline-size: 100%; }
+  .household-columns { grid-template-columns: minmax(0, 1fr); gap: 42px; margin-block-start: 30px; }
+  .household-row dl, .household-self-access dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .household-actions { display: grid; grid-template-columns: 1fr; }
+  .household-actions button { inline-size: 100%; }
+  .household-leave button { inline-size: 100%; }
+  .household-dialog .dialog-actions { flex-wrap: wrap; }
+  .household-dialog .dialog-actions button { flex: 1 1 140px; }
   .category-kind-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-block: 24px; padding: 4px; border: 1px solid #bdc7bd; border-radius: 10px; }
   .category-kind-tabs button { background: transparent; color: var(--ink); }
   .category-kind-tabs .category-tab-active { background: var(--pine); color: white; }
