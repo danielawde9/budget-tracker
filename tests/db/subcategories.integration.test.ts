@@ -907,6 +907,48 @@ async function seedUpgradeCategories(client: Client, actorId: string, spaceId: s
   expect(reversed).toBe(true);
 }
 
+async function postCompatibilityEvent(
+  client: Client,
+  actorId: string,
+  input: { spaceId: string; walletId: string; kind: CategoryRow['kind']; categoryId: string | null },
+): Promise<{ id: string; amountMinor: string }> {
+  const amountMinor = input.kind === 'income' ? '2300' : '-1700';
+  return withAuthenticatedTransaction(client, actorId, async () => {
+    const values = [input.spaceId, randomUUID(), input.kind,
+      JSON.stringify([{ walletId: input.walletId, amountMinor }])];
+    const sql = input.categoryId === null
+      ? "select * from public.record_financial_event($1, $2, $3, '2026-09-10', $4) limit 2"
+      : "select * from public.record_categorized_financial_event($1, $2, $3, '2026-09-10', $4, $5) limit 2";
+    const event = await client.query<{ id: string }>(sql,
+      input.categoryId === null ? values : [...values, input.categoryId]);
+    expect(event.rows).toHaveLength(1);
+    return { id: event.rows[0]!.id, amountMinor };
+  });
+}
+
+async function replayLegacyCategoryReceipts(client: Client, actorId: string, spaceId: string) {
+  const receipts = await client.query<{
+    request_id: string; category_id: string; command_kind: string;
+    kind: CategoryRow['kind']; name_en: string | null; name_ar: string | null;
+  }>(
+    `select request.request_id, request.category_id, request.command_kind,
+       category.kind, category.name_en, category.name_ar
+     from public.category_command_requests as request
+     join public.categories as category on category.id = request.category_id
+     where request.space_id = $1 and category.name_en = 'Past salary'
+     order by request.command_kind limit 3`, [spaceId],
+  );
+  expect(receipts.rows.map(({ command_kind }) => command_kind)).toEqual(['archive_category', 'create_category']);
+  for (const receipt of receipts.rows) {
+    const result = receipt.command_kind === 'archive_category'
+      ? await archiveCategory(client, actorId, spaceId, receipt.request_id, receipt.category_id)
+      : await createRootCategory(client, actorId, spaceId, {
+        requestId: receipt.request_id, kind: receipt.kind, nameEn: receipt.name_en, nameAr: receipt.name_ar,
+      });
+    expect(result).toEqual({ id: receipt.category_id });
+  }
+}
+
 async function seedUpgradeDatabase(client: Client) {
   const ownerId = randomUUID();
   const memberId = randomUUID();
@@ -1101,6 +1143,7 @@ describe('subcategories database foundation', () => {
         'public.wallets': 1,
       });
       await replayMigrations(upgrade.client, featureMigrations);
+      await replayLegacyCategoryReceipts(upgrade.client, fixture.memberId, fixture.householdId);
       const afterExistingState = await upgradeSnapshot(upgrade.client, fixture.memberId, fixture.householdId);
       expect(afterExistingState).toEqual(beforeExistingState);
       expect(await scalar(upgrade.client,
@@ -1112,6 +1155,80 @@ describe('subcategories database foundation', () => {
       await disposeDisposableDatabase(upgrade);
     }
   });
+
+  it.each([
+    { kind: 'income', archiveBeforeReversal: false },
+    { kind: 'expense', archiveBeforeReversal: false },
+    { kind: 'income', archiveBeforeReversal: true },
+    { kind: 'expense', archiveBeforeReversal: true },
+  ] as const)('posts and reverses a child $kind event with archived=$archiveBeforeReversal under 19 migrations',
+    async ({ kind, archiveBeforeReversal }) => {
+      const { client, space, parent, input } = await fixture(kind);
+      expect(await migrationVersions(client)).toHaveLength(19);
+      const child = await createSubcategory(client, ownerId, input);
+      const walletId = await seedUpgradeWallet(client, ownerId, space.id);
+      const event = await postCompatibilityEvent(client, ownerId, {
+        spaceId: space.id, walletId, kind, categoryId: child.id,
+      });
+      if (archiveBeforeReversal) {
+        await archiveCategory(client, ownerId, space.id, randomUUID(), child.id);
+      }
+      await withAuthenticatedTransaction(client, ownerId, async () => {
+        const reversal = await client.query<{ id: string }>(
+          "select * from public.reverse_financial_event($1, $2, $3, '2026-09-11') limit 2",
+          [space.id, randomUUID(), event.id],
+        );
+        expect(reversal.rows).toHaveLength(1);
+        const reversalId = reversal.rows[0]!.id;
+        const categories = await client.query(
+          `select event_id, category_id, category_kind, event_kind
+           from public.financial_event_categories where space_id = $1 order by event_kind limit 3`, [space.id],
+        );
+        expect(categories.rows).toEqual([
+          { event_id: event.id, category_id: child.id, category_kind: kind, event_kind: kind },
+          { event_id: reversalId, category_id: child.id, category_kind: kind, event_kind: 'reversal' },
+        ]);
+        const movements = await client.query(
+          `select event_id, wallet_id, amount_minor::text from public.wallet_movements
+           where event_id = any($1::uuid[]) order by event_id limit 3`, [[event.id, reversalId]],
+        );
+        expect(movements.rows).toEqual([
+          { event_id: event.id, wallet_id: walletId, amount_minor: event.amountMinor },
+          { event_id: reversalId, wallet_id: walletId, amount_minor: kind === 'income' ? '-2300' : '1700' },
+        ].sort((left, right) => left.event_id.localeCompare(right.event_id)));
+      });
+      expect(await categoryById(client, ownerId, child.id)).toMatchObject({
+        parent_category_id: parent.id, archived_at: archiveBeforeReversal ? expect.any(Date) : null,
+      });
+    },
+  );
+
+  it.each([
+    { kind: 'income', categorized: true }, { kind: 'expense', categorized: true },
+    { kind: 'income', categorized: false }, { kind: 'expense', categorized: false },
+  ] as const)('retains root/uncategorized posting for $kind with categorized=$categorized under 19 migrations',
+    async ({ kind, categorized }) => {
+      const { client, space, parent } = await fixture(kind);
+      expect(await migrationVersions(client)).toHaveLength(19);
+      const walletId = await seedUpgradeWallet(client, ownerId, space.id);
+      const event = await postCompatibilityEvent(client, ownerId, {
+        spaceId: space.id, walletId, kind, categoryId: categorized ? parent.id : null,
+      });
+      await withAuthenticatedTransaction(client, ownerId, async () => {
+        const categories = await client.query(
+          'select event_id, category_id from public.financial_event_categories where space_id = $1 limit 2',
+          [space.id],
+        );
+        expect(categories.rows).toEqual(categorized ? [{ event_id: event.id, category_id: parent.id }] : []);
+        const movements = await client.query(
+          `select wallet_id, amount_minor::text from public.wallet_movements where event_id = $1 limit 2`,
+          [event.id],
+        );
+        expect(movements.rows).toEqual([{ wallet_id: walletId, amount_minor: event.amountMinor }]);
+      });
+      expect(await categoryById(client, ownerId, parent.id)).toMatchObject({ parent_category_id: null, archived_at: null });
+    },
+  );
 
   it('pins exact parent and request-kind constraint definitions in the live catalog', async () => {
     const { client } = currentDatabase();
