@@ -27,8 +27,10 @@ with no visible space is guided through creating a personal or household space
 with `public.create_space`, then its first USD or LBP wallet with
 `public.create_wallet`. The database now provides six protected Household
 mutations and two bounded owner reads for invitation and membership
-administration. No Household browser gateway, UI, or email delivery exists yet,
-so invitations and member management remain unavailable in the application.
+administration. A server-only, Resend-backed delivery boundary exists with
+injected network-free tests, but no Household browser gateway or UI calls it.
+Invitations and member management therefore remain unavailable in the
+application. No real email is sent by repository verification.
 
 Loans, Wallets, and Categories are active in the application navigation.
 Reports remains a non-interactive preview of a later milestone.
@@ -38,6 +40,7 @@ Reports remains a non-interactive preview of a later milestone.
 ```bash
 pnpm install --frozen-lockfile
 pnpm typecheck
+pnpm test:worker
 pnpm test:ui
 set -a
 source ./.env.test
@@ -63,6 +66,10 @@ Cloudflare build and release boundaries are documented in the
 Use `pnpm build:cloudflare` only after the protected build variables have been
 provided through the approved release environment; a local build is not a
 deployment.
+
+Household invitation server configuration and the approvals required before any
+live send are documented in the
+[invitation delivery runbook](docs/operations/household-invitation-delivery.md).
 
 The [private synthetic UAT rehearsal](docs/operations/private-synthetic-uat-rehearsal.md)
 reproduces the offline browser acceptance matrix without contacting Supabase or
@@ -93,9 +100,10 @@ evidence.
   reconcile visible records after ambiguous transport failures before another
   submission is offered.
 - Wallet and loan balances are derived ledger values and are never editable.
-- Household database administration is limited to its six protected mutations
-  and two bounded owner reads; its browser gateway, UI, and email delivery are
-  not implemented.
+- Household database administration remains limited to its six protected
+  mutations and two bounded owner reads. Its server delivery adapter is not
+  reachable from the current browser application; Household gateway, UI,
+  provider configuration, deployment, and live sending are not implemented.
 - Budgeting, reporting, recurring transactions, interest, fees, reminders,
   installments, forgiveness, imports/offline sync, cross-currency settlement,
   live UAT, deployment, and launch are not part of this milestone.

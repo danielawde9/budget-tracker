@@ -1,8 +1,10 @@
 # Cloudflare deployment runbook
 
-This runbook is the release boundary for the Budget Tracker static single-page
-application. It documents local preparation and operator checks; it does not
-authorize a deployment, custom-domain change, or production-data access.
+This runbook is the release boundary for the Budget Tracker single-page
+application and its server-only Household invitation delivery route. It
+documents local preparation and operator checks; it does not authorize a
+deployment, custom-domain change, email send, hosted secret change, or
+production-data access.
 
 ## Preconditions
 
@@ -34,6 +36,12 @@ must be protected by Supabase Auth, RLS, and the approved PostgreSQL command
 surface; it is not a privileged credential. A Supabase service-role key is
 forbidden in the browser, Vite variables, Cloudflare static assets, and this
 deployment path.
+
+The invitation route's Resend and server configuration must never use `VITE_`
+variables. Its required binding names and separate provider/domain approvals are
+defined in `docs/operations/household-invitation-delivery.md`. A release that
+lacks any required hosted secret must fail rather than deploy a Worker that can
+silently skip delivery controls.
 
 ### Local legacy-name migration
 
@@ -68,6 +76,11 @@ First inspect the generated release without changing Cloudflare:
 ```bash
 pnpm deploy:cloudflare:dry-run
 ```
+
+The dry run packages the Worker module, static assets, and declared bindings but
+does not prove that hosted secrets exist or that rate-limit namespace IDs are
+unique in the target account. Resolve those only in a separately approved
+release operation. Do not run a live invitation during deployment verification.
 
 A successful `pnpm build:cloudflare` and `pnpm deploy:cloudflare:dry-run` are hard prerequisites before deployment. The standalone deploy script repeats both
 checks with `&&` before invoking local Wrangler, so an old `dist/` directory

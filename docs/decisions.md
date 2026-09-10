@@ -764,3 +764,29 @@ parent and child as event associations or adding child budget targets requires
 a separately reviewed roll-up/allocation contract. Allowing root archive with
 active children requires an explicit cascade policy; this UI does not infer
 one.
+
+## 2026-09-10 — Household invitation delivery uses a server-only Worker boundary
+
+**Decision:** The existing protected invitation creation RPC remains the only
+authorization and membership-state writer. A Cloudflare Worker forwards the
+caller's JWT to that command and then submits one English or Arabic transactional
+message through an injected Resend HTTP adapter. It holds provider configuration
+only in required server secrets, applies 20 attempts per source IP per minute and
+three attempts per owner and household per minute, uses the invitation UUID as
+the provider idempotency key, and enforces a 23-hour provider retry cutoff. No
+database migration, service-role credential, browser integration, or real send
+is part of this decision.
+
+**Why:** Keeping delivery outside the database transaction preserves the proven
+membership locks, RLS, and replay behavior while preventing Resend credentials
+from entering Vite. Stable provider idempotency, bounded retries and timeouts,
+fail-closed throttles, fixed redacted audit events, and accessible bilingual
+HTML/text make the transport independently testable without claiming inbox or
+membership success.
+
+**If changed:** A durable queue, delivery-status persistence, different provider,
+longer retry window, different rate limits, or another runtime requires a new
+failure, replay, abuse rate, secret, and operational design. Any direct database
+write or service-role path requires a separate authorization and real-Postgres
+review. Provider setup, DNS, deployment, synthetic sending, bounce handling, and
+the Household acceptance UI each remain separately approved work.
