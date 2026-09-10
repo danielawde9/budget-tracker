@@ -638,3 +638,20 @@ history and historical reporting semantics. Child-level targets require an
 explicit allocation rule preventing parent/child double counting. Sibling-only
 name uniqueness requires replacing deployed indexes and disambiguating every
 category picker and report.
+
+## 2026-09-10 — Essentials bootstrap is owner-specific production data
+
+**Decision:** Daniel's existing production `Essentials` expense category will
+receive the 22 English-only child names recorded in the Subcategories database
+design, but only through separately approved authenticated commands after the
+schema is implemented and applied. The list is not seeded for other spaces or
+users.
+
+**Why:** These labels reflect one household's requested budgeting structure.
+Keeping them out of migrations preserves the established no-starter-category
+default and prevents product policy or personal preferences from becoming
+global database state.
+
+**If changed:** A reusable suggested pack requires its own locale, duplicate,
+opt-in, versioning, and archive policy. Applying this list to another account
+requires a new exact-target verification and owner-approved data operation.

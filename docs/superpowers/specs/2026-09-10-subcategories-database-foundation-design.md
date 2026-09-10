@@ -29,6 +29,47 @@ arbitrary nesting, category deletion, unarchive, rename, category splits,
 post-hoc relabeling, starter packs, automatic categorization, budgets, reports,
 icons, and colors.
 
+## Owner-specific Essentials bootstrap
+
+After this database capability is implemented, reviewed, integrated, and
+separately approved for production application, Daniel wants the existing
+`Essentials` expense category in his production household to receive these 22
+English-only children:
+
+1. Rent / Mortgage
+2. Electricity
+3. Water
+4. Internet
+5. Phone Bills
+6. Fuel / Transportation
+7. Groceries
+8. Household Cleaning Supplies
+9. Personal Care / Toiletries
+10. Medications / Pharmacy
+11. Health Insurance
+12. Car Insurance
+13. Car Maintenance
+14. Home Maintenance
+15. School / Childcare Expenses
+16. Baby Expenses
+17. Pet Expenses
+18. Clothing
+19. Subscriptions
+20. Eating Out
+21. Gifts / Occasions
+22. Parent Support
+
+This list is account-specific data, not a migration seed, suggested pack, or
+onboarding default. The production operation must use the authenticated
+`create_subcategory` command once per child with distinct request IDs, verify a
+unique target account, space, and active `Essentials` expense parent before any
+write, and preflight all 22 normalized names. It must call all 22 commands in
+one explicit transaction and roll back the whole operation if any command
+fails, so a partial bootstrap cannot remain. Ambiguous targets and exact
+normalized-name conflicts must be reported rather than renamed or silently
+skipped. Applying the schema and creating these rows remain two separate
+owner-approved production actions.
+
 ## Approved product semantics
 
 An existing category with no parent is a root category and can become a parent
