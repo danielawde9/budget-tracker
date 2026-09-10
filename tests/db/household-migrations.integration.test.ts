@@ -432,6 +432,7 @@ describe('disposable database cleanup', () => {
 describe('household migration journal', () => {
   it('applies from an empty database', async () => {
     const proof = await verifyHouseholdMigrations(false);
+    const expectedJournalCount = String(migrationFiles().length);
     expect(proof).toEqual({
       activeKeyCount: '1',
       commandCount: '8',
@@ -439,7 +440,7 @@ describe('household migration journal', () => {
       exactCommandAclCount: '8',
       forcedRlsCount: '2',
       indexCount: '8',
-      journalCount: '31',
+      journalCount: expectedJournalCount,
       policyCount: '3',
       triggerCount: '6',
     });
@@ -447,7 +448,7 @@ describe('household migration journal', () => {
 
   it('backfills memberships and preserves seeded financial data', async () => {
     const proof = await verifyHouseholdMigrations(true);
-    expect(proof.journalCount).toBe('31');
+    expect(proof.journalCount).toBe(String(migrationFiles().length));
     expect(proof.commandCount).toBe('8');
     expect(proof.memberships).toHaveLength(3);
     expect(proof.memberships?.every((row) => row.status === 'active')).toBe(true);

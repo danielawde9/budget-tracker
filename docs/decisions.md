@@ -722,3 +722,22 @@ The lesson is to test direct-writer lock conflicts as well as command races.
 alternative needs a separately reviewed serialization mechanism and both
 owner-order rejection tests. The stronger lock serializes child creation for
 the same parent until each short transaction completes.
+
+## 2026-09-10 — Milestone migration proofs compose without owning later migrations
+
+**Decision:** Empty-database tests compare the bounded discovered migration
+journal with the rows actually applied. A milestone upgrade test selects its
+exact baseline and exact migration instead of treating every later timestamp as
+part of that milestone. Function-compatibility checks use an exact protected
+signature allowlist without rejecting additional APIs delivered by another
+reviewed milestone.
+
+**Why:** Merging the independently reviewed Household and Subcategories branches
+produced a valid 32-migration journal, but their standalone tests assumed that
+no later migration or public command could exist. Those assumptions caused the
+combined gate to fail even though every migration applied successfully.
+
+**If changed:** Treating a repository suffix or the entire public-function
+namespace as one milestone's private universe will make safe parallel features
+conflict at integration time. A deliberately exclusive release boundary should
+instead use its separate hash manifest and exact release gate.

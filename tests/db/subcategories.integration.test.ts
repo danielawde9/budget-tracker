@@ -769,13 +769,15 @@ async function existingFunctionCatalog(client: Client) {
          then pg_get_functiondef(procedure.oid) end as unchanged_definition
      from pg_proc as procedure
      join pg_namespace as namespace on namespace.oid = procedure.pronamespace
-     where namespace.nspname = 'public' and procedure.proname <> 'create_subcategory'
+     where namespace.nspname = 'public'
+       and procedure.oid::regprocedure::text = any($1::text[])
        and not exists (
          select 1 from pg_depend as dependency
          where dependency.classid = 'pg_proc'::regclass and dependency.objid = procedure.oid
            and dependency.deptype = 'e' limit 1
        )
      order by signature limit 33`,
+    [existingFunctionSignatures],
   );
   expect(result.rows.map(({ signature }) => signature)).toEqual(existingFunctionSignatures);
   return result.rows;
@@ -1082,7 +1084,7 @@ describe('subcategories database foundation', () => {
     }
   });
 
-  it('replays all 19 migrations before testing the new contract', async () => {
+  it('replays the complete migration journal before testing the new contract', async () => {
     if (!database) {
       throw new Error('disposable database is unavailable');
     }
@@ -1092,7 +1094,6 @@ describe('subcategories database foundation', () => {
        order by version
        limit 100`,
     );
-    expect(migrations).toHaveLength(19);
     expect(journal.rows.map((row) => row.version)).toEqual(
       migrations.map((migration) => migration.version),
     );
@@ -1104,11 +1105,15 @@ describe('subcategories database foundation', () => {
       expect(upgrade.name).not.toBe(currentDatabase().name);
       await bootstrapCompatibilityObjects(upgrade.client);
       const priorMigrations = migrations.filter(({ version }) => version <= '20260908103000');
-      const featureMigrations = migrations.filter(({ version }) => version > '20260908103000');
+      const subcategoryMigrations = migrations.filter(({ version }) => version === '20260910100000');
       expect(priorMigrations).toHaveLength(18);
-      expect(featureMigrations.map(({ version, name }) => ({ version, name }))).toEqual([
+      expect(subcategoryMigrations.map(({ version, name }) => ({ version, name }))).toEqual([
         { version: '20260910100000', name: 'subcategories_foundation' },
       ]);
+      const subcategoryMigration = subcategoryMigrations[0];
+      if (!subcategoryMigration) {
+        throw new Error('the exact subcategories foundation migration is required');
+      }
       await replayMigrations(upgrade.client, priorMigrations);
       expect(await migrationVersions(upgrade.client)).toEqual(priorMigrations.map(({ version }) => version));
       const relationCatalog = await upgrade.client.query<{ relation: string }>(
@@ -1142,7 +1147,7 @@ describe('subcategories database foundation', () => {
         'public.spaces': 1, 'public.wallet_balances': 1, 'public.wallet_movements': 14,
         'public.wallets': 1,
       });
-      await replayMigrations(upgrade.client, featureMigrations);
+      await replayMigrations(upgrade.client, [subcategoryMigration]);
       await replayLegacyCategoryReceipts(upgrade.client, fixture.memberId, fixture.householdId);
       const afterExistingState = await upgradeSnapshot(upgrade.client, fixture.memberId, fixture.householdId);
       expect(afterExistingState).toEqual(beforeExistingState);
@@ -1150,7 +1155,10 @@ describe('subcategories database foundation', () => {
         'select count(*)::int as value from public.categories where parent_category_id is not null',
       )).toBe(0);
       expect(await migrationVersions(upgrade.client)).toHaveLength(19);
-      expect(await migrationVersions(upgrade.client)).toEqual(migrations.map(({ version }) => version));
+      expect(await migrationVersions(upgrade.client)).toEqual([
+        ...priorMigrations.map(({ version }) => version),
+        subcategoryMigration.version,
+      ]);
     } finally {
       await disposeDisposableDatabase(upgrade);
     }
@@ -1161,10 +1169,10 @@ describe('subcategories database foundation', () => {
     { kind: 'expense', archiveBeforeReversal: false },
     { kind: 'income', archiveBeforeReversal: true },
     { kind: 'expense', archiveBeforeReversal: true },
-  ] as const)('posts and reverses a child $kind event with archived=$archiveBeforeReversal under 19 migrations',
+  ] as const)('posts and reverses a child $kind event with archived=$archiveBeforeReversal under the complete journal',
     async ({ kind, archiveBeforeReversal }) => {
       const { client, space, parent, input } = await fixture(kind);
-      expect(await migrationVersions(client)).toHaveLength(19);
+      expect(await migrationVersions(client)).toEqual(migrations.map(({ version }) => version));
       const child = await createSubcategory(client, ownerId, input);
       const walletId = await seedUpgradeWallet(client, ownerId, space.id);
       const event = await postCompatibilityEvent(client, ownerId, {
@@ -1206,10 +1214,10 @@ describe('subcategories database foundation', () => {
   it.each([
     { kind: 'income', categorized: true }, { kind: 'expense', categorized: true },
     { kind: 'income', categorized: false }, { kind: 'expense', categorized: false },
-  ] as const)('retains root/uncategorized posting for $kind with categorized=$categorized under 19 migrations',
+  ] as const)('retains root/uncategorized posting for $kind with categorized=$categorized under the complete journal',
     async ({ kind, categorized }) => {
       const { client, space, parent } = await fixture(kind);
-      expect(await migrationVersions(client)).toHaveLength(19);
+      expect(await migrationVersions(client)).toEqual(migrations.map(({ version }) => version));
       const walletId = await seedUpgradeWallet(client, ownerId, space.id);
       const event = await postCompatibilityEvent(client, ownerId, {
         spaceId: space.id, walletId, kind, categoryId: categorized ? parent.id : null,
