@@ -23,7 +23,11 @@ export type SafeDeliveryErrorCode =
   | 'request_too_large'
   | 'invitation_command_rejected'
   | 'invitation_command_unavailable'
-  | 'upstream_response_invalid';
+  | 'upstream_response_invalid'
+  | 'delivery_failed'
+  | 'delivery_unavailable'
+  | 'delivery_status_ambiguous'
+  | 'audit_unavailable';
 
 export class SafeDeliveryError extends Error {
   readonly code: SafeDeliveryErrorCode;
@@ -99,4 +103,33 @@ export class ProviderError extends Error {
     this.category = category;
     this.retryable = retryable;
   }
+}
+
+export type AuditEventName =
+  | 'invitation_command_accepted'
+  | 'invitation_command_rejected'
+  | 'provider_attempt_started'
+  | 'provider_retry_scheduled'
+  | 'provider_accepted'
+  | 'provider_failed';
+
+export type AuditReason =
+  | SafeDeliveryErrorCode
+  | ProviderErrorCategory
+  | 'idempotency_window_closed';
+
+export interface AuditEvent {
+  readonly at: string;
+  readonly event: AuditEventName;
+  readonly correlationKey: string;
+  readonly attempt?: number;
+  readonly reason?: AuditReason;
+}
+
+export interface AuditSink {
+  record(event: AuditEvent): Promise<void>;
+}
+
+export interface Clock {
+  now(): Date;
 }
