@@ -22,8 +22,35 @@ function fixture(projectsJson = JSON.stringify([{ id: projectRef, name: 'Budget'
     join(realpathSync(tmpdir()), 'budget-live-migrations-'),
   );
   const backupRoot = join(base, 'backups');
+  const gitDirectory = join(base, 'repository.git');
   const log = join(base, 'supabase-args.log');
   const supabase = join(base, 'supabase');
+  const currentHead = spawnSync('git', ['rev-parse', 'HEAD'], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+  });
+  if (currentHead.status !== 0) {
+    throw new Error('failed to resolve the fixture source commit');
+  }
+  const clone = spawnSync(
+    'git',
+    ['clone', '--quiet', '--bare', process.cwd(), gitDirectory],
+    { encoding: 'utf8' },
+  );
+  if (clone.status !== 0) {
+    throw new Error('failed to create the isolated git fixture');
+  }
+  const fixtureHead = currentHead.stdout.trim();
+  for (const args of [
+    ['--git-dir', gitDirectory, 'update-ref', 'refs/heads/main', fixtureHead],
+    ['--git-dir', gitDirectory, 'symbolic-ref', 'HEAD', 'refs/heads/main'],
+    ['--git-dir', gitDirectory, 'read-tree', 'HEAD'],
+  ]) {
+    const result = spawnSync('git', args, { encoding: 'utf8' });
+    if (result.status !== 0) {
+      throw new Error('failed to prepare the isolated main-branch fixture');
+    }
+  }
   mkdirSync(backupRoot, { mode: 0o700 });
   writeFileSync(
     supabase,
@@ -67,6 +94,8 @@ esac
       BUDGET_SUPABASE_BIN: supabase,
       FAKE_PROJECTS_JSON: projectsJson,
       FAKE_SUPABASE_LOG: log,
+      GIT_DIR: gitDirectory,
+      GIT_WORK_TREE: process.cwd(),
       SUPABASE_ACCESS_TOKEN: ['fixture', 'access'].join('-'),
       SUPABASE_DB_PASSWORD: ['fixture', 'password'].join('-'),
       TMPDIR: base,
