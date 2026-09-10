@@ -19,6 +19,9 @@ describe('operations verification entrypoint', () => {
     expect(packageJson.scripts['check:ops']).toBe(
       'bash scripts/ops/check-budget.sh',
     );
+    expect(packageJson.scripts['migrate:live']).toBe(
+      'bash scripts/ops/apply-live-migrations.sh',
+    );
     expect(packageJson.scripts.check).toBe(
       'pnpm check:ops && pnpm typecheck && pnpm test:db && pnpm test:ui && pnpm build',
     );
@@ -32,6 +35,7 @@ describe('operations verification entrypoint', () => {
     expect(check).toContain('git ls-files');
     expect(check).toContain('budget_scan_secrets');
     expect(check).toContain('BUDGET_MAX_SCAN_FILES');
+    expect(check).toContain('apply-live-migrations.sh');
   });
 
   it('scans explicitly supplied bounded artifact and log files', () => {

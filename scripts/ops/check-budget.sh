@@ -13,6 +13,7 @@ readonly -a CHECK_OPS_SCRIPTS=(
   "${CHECK_SCRIPT_DIR}/backup-budget.sh"
   "${CHECK_SCRIPT_DIR}/restore-budget.sh"
   "${CHECK_SCRIPT_DIR}/migrate-budget.sh"
+  "${CHECK_SCRIPT_DIR}/apply-live-migrations.sh"
   "${CHECK_SCRIPT_DIR}/verify-budget-db.sh"
   "${CHECK_SCRIPT_DIR}/validate-restore-roles.sh"
   "${CHECK_SCRIPT_DIR}/check-budget.sh"

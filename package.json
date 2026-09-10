@@ -15,6 +15,7 @@
     "test:uat:offline": "env -u NO_COLOR playwright test e2e/private-uat.spec.ts",
     "typecheck": "tsc --noEmit",
     "check:ops": "bash scripts/ops/check-budget.sh",
+    "migrate:live": "bash scripts/ops/apply-live-migrations.sh",
     "check:cloudflare-env": "node scripts/cloudflare/check-build-environment.mjs",
     "build:cloudflare": "env -u DEBUG pnpm check:cloudflare-env && env -u DEBUG pnpm build",
     "deploy:cloudflare:dry-run": "pnpm exec wrangler deploy --dry-run",

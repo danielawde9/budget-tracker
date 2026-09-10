@@ -592,3 +592,27 @@ until authenticated exact-schema desktop/mobile UAT, a first-time-user browser
 audit, physical-device coverage, an encrypted off-site backup, and a measured
 scratch restore have passed. Approving real data before recovery proof requires
 a separate explicit loss-risk decision.
+
+## 2026-09-10 — Live Supabase migration runner is exact-target and one-time
+
+**Decision:** Daniel explicitly approved applying the reviewed forward-only
+migration journal to Supabase project `bsjqmulybcmlgpmhfrug`. The operator
+runner accepts only that project, the manifest-pinned 18-migration journal, the
+`main` branch, a clean tracked migration boundary, a Supabase personal access
+token, a database password, and an exact typed confirmation. It creates a
+private local snapshot of the pre-migration `public` schema and data, dry-runs
+before applying, excludes reset/repair/seed/role/include-all operations, then
+checks both a second dry run and the exact required schema/history. A service
+role or secret API key is neither consumed nor accepted as migration authority.
+
+**Why:** The hosted application authenticates successfully but the configured
+project lacks `public.spaces`, so its reviewed schema must be installed before
+the application can load a workspace. Exact project and journal gates prevent a
+valid credential or stale local link from widening the approved production
+change.
+
+**If changed:** A different project ref, additional migration, seed, role,
+history repair, destructive reset, or automated CI application requires a new
+review and explicit owner approval. The local `public` snapshot is not an
+encrypted off-site recovery point and does not approve irreplaceable real-data
+entry before the existing restore requirement is satisfied.
