@@ -7,12 +7,13 @@ import type {
   CategoryPage,
   CategorizedEventInput,
   CreateCategoryInput,
+  CreateSubcategoryInput,
   EventCategory,
 } from '../features/categories/types.js';
 
 export const categoryFixtures: readonly Category[] = [
-  { id: 'category-salary', spaceId: 'space-1', kind: 'income', nameEn: 'Salary', nameAr: 'راتب', createdAt: '2026-09-08T10:00:00Z', archivedAt: null },
-  { id: 'category-groceries', spaceId: 'space-1', kind: 'expense', nameEn: 'Groceries', nameAr: 'بقالة', createdAt: '2026-09-08T11:00:00Z', archivedAt: null },
+  { id: 'category-salary', spaceId: 'space-1', kind: 'income', nameEn: 'Salary', nameAr: 'راتب', parentCategoryId: null, createdAt: '2026-09-08T10:00:00Z', archivedAt: null },
+  { id: 'category-groceries', spaceId: 'space-1', kind: 'expense', nameEn: 'Groceries', nameAr: 'بقالة', parentCategoryId: null, createdAt: '2026-09-08T11:00:00Z', archivedAt: null },
 ];
 
 export class InMemoryCategoriesGateway implements CategoriesGateway {
@@ -36,7 +37,21 @@ export class InMemoryCategoriesGateway implements CategoriesGateway {
     this.calls.push({ name: 'createCategory', input });
     this.failIfNeeded();
     const id = `category-${this.categories.length + 1}`;
-    this.categories.push({ id, spaceId: input.spaceId, kind: input.kind, nameEn: input.nameEn, nameAr: input.nameAr, createdAt: `2026-09-08T12:00:0${this.categories.length}Z`, archivedAt: null });
+    this.categories.push({ id, spaceId: input.spaceId, kind: input.kind, nameEn: input.nameEn, nameAr: input.nameAr, parentCategoryId: null, createdAt: `2026-09-08T12:00:0${this.categories.length}Z`, archivedAt: null });
+    return { id };
+  }
+
+  async createSubcategory(input: CreateSubcategoryInput) {
+    this.calls.push({ name: 'createSubcategory', input });
+    this.failIfNeeded();
+    const parent = this.categories.find((category) => category.id === input.parentCategoryId
+      && category.spaceId === input.spaceId && category.parentCategoryId === null && category.archivedAt === null);
+    if (!parent) throw new Error('the parent category must be an active root in the requested space and kind');
+    const id = `category-${this.categories.length + 1}`;
+    this.categories.push({
+      id, spaceId: input.spaceId, kind: parent.kind, nameEn: input.nameEn, nameAr: input.nameAr,
+      parentCategoryId: parent.id, createdAt: `2026-09-08T12:00:0${this.categories.length}Z`, archivedAt: null,
+    });
     return { id };
   }
 

@@ -6,6 +6,7 @@ import type {
   CategoryCommandResult,
   CategoryKind,
   CategorizedEventInput,
+  CreateSubcategoryInput,
   EventCategory,
 } from './types.js';
 
@@ -39,10 +40,10 @@ export interface CategoriesDataClient {
 }
 
 type Row = Record<string, unknown>;
-type MutationName = 'create_category' | 'archive_category' | 'record_categorized_financial_event';
+type MutationName = 'create_category' | 'create_subcategory' | 'archive_category' | 'record_categorized_financial_event';
 
 const categoryKinds = new Set<CategoryKind>(['income', 'expense']);
-const commandKinds = new Set<CategoryCommandKind>(['create_category', 'archive_category']);
+const commandKinds = new Set<CategoryCommandKind>(['create_category', 'create_subcategory', 'archive_category']);
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const timestampPattern = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,6})?(?:Z|[+-](\d{2}):(\d{2}))$/;
 
@@ -69,6 +70,15 @@ function nullableText(value: Row, key: string): string | null {
 function uuidValue(value: Row, key: string): string {
   const result = textValue(value, key);
   if (!uuidPattern.test(result)) throw new Error(`The category row has invalid ${key}.`);
+  return result;
+}
+
+function nullableUuid(value: Row, key: string): string | null {
+  const result = value[key];
+  if (result === null || result === undefined) return null;
+  if (typeof result !== 'string' || !uuidPattern.test(result)) {
+    throw new Error(`The category row has invalid ${key}.`);
+  }
   return result;
 }
 
@@ -160,6 +170,7 @@ function parseCategory(value: Row, spaceId: string, expectedKind?: CategoryKind,
     kind,
     nameEn,
     nameAr,
+    parentCategoryId: nullableUuid(value, 'parent_category_id'),
     createdAt: timestampValue(value, 'created_at'),
     archivedAt,
   };
@@ -187,7 +198,7 @@ export function createSupabaseCategoriesGateway(client: CategoriesDataClient): C
     async listCategories(spaceId, kind, cursor, requestedLimit) {
       const limit = pageSize(requestedLimit);
       let query = client.from('categories')
-        .select('id,space_id,kind,name_en,name_ar,created_at,archived_at')
+        .select('id,space_id,kind,name_en,name_ar,parent_category_id,created_at,archived_at')
         .eq('space_id', spaceId)
         .eq('kind', kind)
         .is('archived_at', null);
@@ -211,6 +222,16 @@ export function createSupabaseCategoriesGateway(client: CategoriesDataClient): C
         p_space_id: input.spaceId,
         p_request_id: input.requestId,
         p_kind: input.kind,
+        p_name_en: trimmedOrNull(input.nameEn),
+        p_name_ar: trimmedOrNull(input.nameAr),
+      });
+    },
+
+    createSubcategory(input: CreateSubcategoryInput) {
+      return runCommand('create_subcategory', {
+        p_space_id: input.spaceId,
+        p_request_id: input.requestId,
+        p_parent_category_id: input.parentCategoryId,
         p_name_en: trimmedOrNull(input.nameEn),
         p_name_ar: trimmedOrNull(input.nameAr),
       });
@@ -296,7 +317,7 @@ export function createSupabaseCategoriesGateway(client: CategoriesDataClient): C
       if (associations.length === 0) return [];
       const categoryIds = [...new Set(associations.map((value) => uuidValue(value, 'category_id')))];
       const categories = await rows(
-        client.from('categories').select('id,space_id,kind,name_en,name_ar,created_at,archived_at')
+        client.from('categories').select('id,space_id,kind,name_en,name_ar,parent_category_id,created_at,archived_at')
           .eq('space_id', spaceId).in('id', categoryIds).limit(MAX_EVENT_PAGE_SIZE + 1),
         'Historical categories',
         MAX_EVENT_PAGE_SIZE,

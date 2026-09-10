@@ -22,11 +22,11 @@ wallet or loan postings. The same gateway reads `public.loan_monthly_plan` and
 
 `public.create_category`, `public.create_subcategory`, and `public.archive_category`
 are protected metadata lifecycle commands, not posting commands. The browser
-entry path for `create_category` and `archive_category` is
-`src/features/categories/supabase-categories-gateway.ts`. `create_subcategory`
-currently has only a database integration client; it derives kind from one
-immutable active root and writes no financial row. It does not change the
-implemented financial-writer list above.
+entry path for all three lifecycle commands is
+`src/features/categories/supabase-categories-gateway.ts`. The Categories
+workspace invokes `create_subcategory` only for an active immutable root; the
+command derives kind from that root and writes no financial row. It does not
+change the implemented financial-writer list above.
 `public.get_category_command_result` is a bounded read-only reconciliation
 function reached through the same gateway. They cannot create a financial event,
 wallet movement, loan posting, or balance effect.

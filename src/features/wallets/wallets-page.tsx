@@ -37,6 +37,7 @@ const generalKinds = new Set<JournalEventKind>(['opening_balance', 'income', 'ex
 const emptyCategoriesGateway: CategoriesGateway = {
   listCategories: async () => ({ categories: [], nextCursor: null }),
   createCategory: async () => ({}),
+  createSubcategory: async () => ({}),
   archiveCategory: async () => ({}),
   getCommandResult: async () => null,
   recordCategorizedEvent: async () => ({}),

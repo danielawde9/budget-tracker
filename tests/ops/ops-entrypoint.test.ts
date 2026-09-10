@@ -23,7 +23,7 @@ describe('operations verification entrypoint', () => {
       'bash scripts/ops/apply-live-migrations.sh',
     );
     expect(packageJson.scripts.check).toBe(
-      'pnpm check:ops && pnpm typecheck && pnpm test:db && pnpm test:ui && pnpm build',
+      'pnpm check:ops && pnpm typecheck && pnpm test:db && pnpm test:worker && pnpm test:ui && pnpm build',
     );
   });
 

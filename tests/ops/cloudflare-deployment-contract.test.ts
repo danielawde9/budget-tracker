@@ -17,19 +17,48 @@ describe('Cloudflare deployment contract', () => {
     expect(JSON.stringify(packageJson)).not.toContain('npx wrangler');
   });
 
-  it('serves only the Vite build with SPA fallback handling', () => {
+  it('serves the Vite SPA and runs only API paths through the Worker first', () => {
     const config = JSON.parse(readFileSync(join(process.cwd(), 'wrangler.jsonc'), 'utf8'));
 
     expect(config).toEqual({
       $schema: './node_modules/wrangler/config-schema.json',
       name: 'budget-tracker',
-      compatibility_date: '2026-09-09',
+      main: './worker/index.ts',
+      compatibility_date: '2026-09-10',
       assets: {
         directory: './dist',
         not_found_handling: 'single-page-application',
+        binding: 'ASSETS',
+        run_worker_first: ['/api/*'],
+      },
+      ratelimits: [
+        {
+          name: 'HOUSEHOLD_INVITATION_IP_LIMITER',
+          namespace_id: '91001',
+          simple: { limit: 20, period: 60 },
+        },
+        {
+          name: 'HOUSEHOLD_INVITATION_ACTOR_LIMITER',
+          namespace_id: '91002',
+          simple: { limit: 3, period: 60 },
+        },
+      ],
+      secrets: {
+        required: [
+          'APP_ORIGIN',
+          'SUPABASE_URL',
+          'SUPABASE_ANON_KEY',
+          'RESEND_API_KEY',
+          'HOUSEHOLD_INVITATION_FROM',
+          'HOUSEHOLD_INVITATION_REPLY_TO',
+        ],
+      },
+      observability: {
+        enabled: true,
+        logs: { enabled: true, head_sampling_rate: 1 },
+        traces: { enabled: true, head_sampling_rate: 0.01 },
       },
     });
-    expect(config).not.toHaveProperty('main');
     expect(config).not.toHaveProperty('routes');
     expect(config).not.toHaveProperty('vars');
   });

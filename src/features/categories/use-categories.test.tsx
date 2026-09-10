@@ -10,6 +10,7 @@ import type {
   CategoryPage,
   CategorizedEventInput,
   CreateCategoryInput,
+  CreateSubcategoryInput,
 } from './types.js';
 import { useCategories } from './use-categories.js';
 
@@ -21,11 +22,11 @@ function deferred<T>() {
 
 const salary: Category = {
   id: 'category-income', spaceId: 'space-1', kind: 'income', nameEn: 'Salary', nameAr: 'راتب',
-  createdAt: '2026-09-08T10:00:00Z', archivedAt: null,
+  parentCategoryId: null, createdAt: '2026-09-08T10:00:00Z', archivedAt: null,
 };
 const groceries: Category = {
   id: 'category-expense', spaceId: 'space-1', kind: 'expense', nameEn: 'Groceries', nameAr: 'بقالة',
-  createdAt: '2026-09-08T11:00:00Z', archivedAt: null,
+  parentCategoryId: null, createdAt: '2026-09-08T11:00:00Z', archivedAt: null,
 };
 
 class FakeCategoriesGateway implements CategoriesGateway {
@@ -44,6 +45,12 @@ class FakeCategoriesGateway implements CategoriesGateway {
     this.calls.push({ name: 'createCategory', input });
     if (this.error) throw this.error;
     return { id: 'created-category' };
+  }
+
+  async createSubcategory(input: CreateSubcategoryInput) {
+    this.calls.push({ name: 'createSubcategory', input });
+    if (this.error) throw this.error;
+    return { id: 'created-subcategory' };
   }
 
   async archiveCategory(input: ArchiveCategoryInput) {
@@ -231,6 +238,88 @@ describe('useCategories', () => {
     await act(async () => { await result.current.retryAmbiguous(); });
     expect(create).toHaveBeenCalledTimes(2);
     expect(create.mock.calls[0]?.[0]).toEqual(create.mock.calls[1]?.[0]);
+  });
+
+  it('creates a subcategory with one request ID and exposes it only after the server refetch', async () => {
+    const gateway = new FakeCategoriesGateway();
+    const child: Category = {
+      ...groceries,
+      id: 'category-food',
+      nameEn: 'Food',
+      nameAr: null,
+      parentCategoryId: groceries.id,
+      createdAt: '2026-09-08T12:00:00Z',
+    };
+    const command = deferred<{ id: string }>();
+    gateway.createSubcategory = vi.fn(async (input) => {
+      const accepted = await command.promise;
+      gateway.categories.push(child);
+      return { id: accepted.id };
+    });
+    const { result } = renderHook(() => useCategories(gateway, 'space-1', undefined, () => 'subcategory-request'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    let pending!: Promise<unknown>;
+    act(() => {
+      pending = result.current.createSubcategory(groceries.id, { nameEn: '  Food  ', nameAr: null });
+    });
+    expect(result.current.expenseCategories).toEqual([groceries]);
+    expect(result.current.pending).toBe(true);
+    command.resolve({ id: child.id });
+    await act(async () => { await pending; });
+
+    expect(gateway.createSubcategory).toHaveBeenCalledWith({
+      spaceId: 'space-1', requestId: 'subcategory-request', parentCategoryId: groceries.id,
+      nameEn: 'Food', nameAr: null,
+    });
+    expect(result.current.expenseCategories).toEqual([groceries, child]);
+  });
+
+  it('reconciles an ambiguous subcategory once through its protected result', async () => {
+    const gateway = new FakeCategoriesGateway();
+    gateway.createSubcategory = vi.fn(async () => { throw new Error('Connection timeout'); });
+    gateway.commandResult = {
+      commandKind: 'create_subcategory', categoryId: 'created-subcategory', createdAt: '2026-09-08T12:00:00Z',
+    };
+    const { result } = renderHook(() => useCategories(gateway, 'space-1', undefined, () => 'subcategory-request'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await expect(result.current.createSubcategory(groceries.id, { nameEn: 'Food', nameAr: null }))
+        .resolves.toEqual({ status: 'success', reconciled: true });
+    });
+    expect(gateway.createSubcategory).toHaveBeenCalledOnce();
+    expect(gateway.calls.filter((call) => call.name === 'getCommandResult')).toHaveLength(1);
+    expect(result.current.ambiguous).toBeNull();
+  });
+
+  it('retries an absent subcategory result only with the identical command', async () => {
+    const gateway = new FakeCategoriesGateway();
+    const create = vi.fn()
+      .mockRejectedValueOnce(new Error('Failed to fetch'))
+      .mockResolvedValueOnce({ id: 'created-subcategory' });
+    gateway.createSubcategory = create;
+    const ids = ['subcategory-request', 'edited-subcategory-request'];
+    const { result } = renderHook(() => useCategories(gateway, 'space-1', undefined, () => ids.shift()!));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await expect(result.current.createSubcategory(groceries.id, { nameEn: 'Food', nameAr: null }))
+        .resolves.toEqual({ status: 'ambiguous', reconciled: false });
+    });
+    expect(result.current.ambiguous).toEqual({ kind: 'create-subcategory', requestId: 'subcategory-request' });
+
+    await act(async () => { await result.current.retryAmbiguous(); });
+    expect(create.mock.calls[0]?.[0]).toEqual(create.mock.calls[1]?.[0]);
+
+    gateway.createSubcategory = vi.fn(async () => ({ id: 'edited-subcategory' }));
+    await act(async () => {
+      result.current.clearAmbiguous();
+      await result.current.createSubcategory(groceries.id, { nameEn: 'Edited food', nameAr: null });
+    });
+    expect(gateway.createSubcategory).toHaveBeenCalledWith(expect.objectContaining({
+      requestId: 'edited-subcategory-request', nameEn: 'Edited food',
+    }));
   });
 
   it('retains the identical archive command when its reconciliation read fails', async () => {

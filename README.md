@@ -4,9 +4,10 @@ The current application milestone provides a bilingual authenticated shell
 with verified Loans, Wallets, and Categories workspaces. It supports Supabase
 email/password sessions, safe first-space and first-wallet onboarding, switching
 between the spaces visible through RLS, derived wallet balances, immutable
-paginated journal history, active income/expense category management, optional
-categorized income/expense posting, the four approved general transaction
-shapes, and linked corrections. Every financial change still goes through the
+paginated journal history, active one-level income/expense category and
+subcategory management, optional categorized income/expense posting, the four
+approved general transaction shapes, and linked corrections. Every financial
+change still goes through the
 protected PostgreSQL commands documented in
 `docs/financial-command-inventory.md`.
 
@@ -26,8 +27,10 @@ with no visible space is guided through creating a personal or household space
 with `public.create_space`, then its first USD or LBP wallet with
 `public.create_wallet`. The database now provides six protected Household
 mutations and two bounded owner reads for invitation and membership
-administration. No Household browser gateway, UI, or email delivery exists yet,
-so invitations and member management remain unavailable in the application.
+administration. A server-only, Resend-backed delivery boundary exists with
+injected network-free tests, but no Household browser gateway or UI calls it.
+Invitations and member management therefore remain unavailable in the
+application. No real email is sent by repository verification.
 
 Loans, Wallets, and Categories are active in the application navigation.
 Reports remains a non-interactive preview of a later milestone.
@@ -37,6 +40,7 @@ Reports remains a non-interactive preview of a later milestone.
 ```bash
 pnpm install --frozen-lockfile
 pnpm typecheck
+pnpm test:worker
 pnpm test:ui
 set -a
 source ./.env.test
@@ -63,6 +67,10 @@ Use `pnpm build:cloudflare` only after the protected build variables have been
 provided through the approved release environment; a local build is not a
 deployment.
 
+Household invitation server configuration and the approvals required before any
+live send are documented in the
+[invitation delivery runbook](docs/operations/household-invitation-delivery.md).
+
 The [private synthetic UAT rehearsal](docs/operations/private-synthetic-uat-rehearsal.md)
 reproduces the offline browser acceptance matrix without contacting Supabase or
 any remote host. Its injected session and in-memory HTTP fixtures are explicitly
@@ -76,23 +84,26 @@ evidence.
 - Wallet creation, general postings, and eligible general corrections use only
   `public.create_wallet`, `public.record_financial_event`, and
   `public.reverse_financial_event`.
-- Category creation and archival use only `public.create_category` and
-  `public.archive_category`; category rows are never renamed, deleted, or
-  unarchived by this application.
+- Root creation, subcategory creation, and archival use only
+  `public.create_category`, `public.create_subcategory`, and
+  `public.archive_category`. The application exposes one immutable child level;
+  category rows are never renamed, reparented, deleted, or unarchived.
 - Optional income/expense categorization uses only
   `public.record_categorized_financial_event`; openings, transfers, loans, and
   reversals never expose category selection.
-- Active category reads are bounded and keyset-paginated; journal category
-  resolution is bounded to each 20-event history page and preserves archived
-  names read-only.
+- Active category reads include immutable parent identity and remain bounded
+  and keyset-paginated. Roots and children are both exact transaction choices;
+  journal category resolution is bounded to each 20-event history page and
+  preserves archived names read-only.
 - Browser reads remain subject to Supabase authentication and RLS.
 - Space and wallet onboarding use only their protected creation commands and
   reconcile visible records after ambiguous transport failures before another
   submission is offered.
 - Wallet and loan balances are derived ledger values and are never editable.
-- Household database administration is limited to its six protected mutations
-  and two bounded owner reads; its browser gateway, UI, and email delivery are
-  not implemented.
+- Household database administration remains limited to its six protected
+  mutations and two bounded owner reads. Its server delivery adapter is not
+  reachable from the current browser application; Household gateway, UI,
+  provider configuration, deployment, and live sending are not implemented.
 - Budgeting, reporting, recurring transactions, interest, fees, reminders,
   installments, forgiveness, imports/offline sync, cross-currency settlement,
   live UAT, deployment, and launch are not part of this milestone.

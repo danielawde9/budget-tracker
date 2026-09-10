@@ -253,6 +253,7 @@ describe('WalletsPage', () => {
       kind: 'income' as const,
       nameEn: `Income ${String(index + 1).padStart(2, '0')}`,
       nameAr: null,
+      parentCategoryId: null,
       createdAt: `2026-09-08T10:${String(index).padStart(2, '0')}:00Z`,
       archivedAt: null,
     }));
@@ -283,7 +284,7 @@ describe('WalletsPage', () => {
       if (!cursor) return {
         categories: [{
           id: 'category-income', spaceId: 'personal-space', kind: 'income' as const, nameEn: 'Salary', nameAr: 'راتب',
-          createdAt: '2026-09-08T10:00:00Z', archivedAt: null,
+          parentCategoryId: null, createdAt: '2026-09-08T10:00:00Z', archivedAt: null,
         }],
         nextCursor: 'income-page-2',
       };
@@ -291,7 +292,7 @@ describe('WalletsPage', () => {
       return {
         categories: [{
           id: 'category-bonus', spaceId: 'personal-space', kind: 'income' as const, nameEn: 'Bonus', nameAr: 'مكافأة',
-          createdAt: '2026-09-08T11:00:00Z', archivedAt: null,
+          parentCategoryId: null, createdAt: '2026-09-08T11:00:00Z', archivedAt: null,
         }],
         nextCursor: null,
       };

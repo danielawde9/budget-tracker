@@ -1,5 +1,5 @@
 export type CategoryKind = 'income' | 'expense';
-export type CategoryCommandKind = 'create_category' | 'archive_category';
+export type CategoryCommandKind = 'create_category' | 'create_subcategory' | 'archive_category';
 
 export interface Category {
   id: string;
@@ -7,6 +7,7 @@ export interface Category {
   kind: CategoryKind;
   nameEn: string | null;
   nameAr: string | null;
+  parentCategoryId: string | null;
   createdAt: string;
   archivedAt: string | null;
 }
@@ -45,6 +46,14 @@ export interface ArchiveCategoryInput {
   categoryId: string;
 }
 
+export interface CreateSubcategoryInput {
+  spaceId: string;
+  requestId: string;
+  parentCategoryId: string;
+  nameEn: string | null;
+  nameAr: string | null;
+}
+
 export interface CategorizedEventInput {
   spaceId: string;
   requestId: string;
@@ -67,6 +76,7 @@ export interface CategorizedEventResult {
 export interface CategoriesGateway {
   listCategories(spaceId: string, kind: CategoryKind, cursor?: string, limit?: number): Promise<CategoryPage>;
   createCategory(input: CreateCategoryInput): Promise<{ id?: string }>;
+  createSubcategory(input: CreateSubcategoryInput): Promise<{ id?: string }>;
   archiveCategory(input: ArchiveCategoryInput): Promise<{ id?: string }>;
   getCommandResult(spaceId: string, requestId: string): Promise<CategoryCommandResult | null>;
   recordCategorizedEvent(input: CategorizedEventInput): Promise<{ eventId?: string }>;

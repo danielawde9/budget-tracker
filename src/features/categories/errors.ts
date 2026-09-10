@@ -4,6 +4,9 @@ export type CategoryErrorCode =
   | 'invalid_category'
   | 'request_collision'
   | 'already_archived'
+  | 'invalid_parent'
+  | 'depth_limit'
+  | 'active_children'
   | 'unknown';
 
 export interface CategoryErrorView {
@@ -67,6 +70,27 @@ export function classifyCategoryError(cause: unknown): CategoryErrorView {
       recovery: 'Refresh the category register to see the current active list.',
     };
   }
+  if (/parent category must be an active root/i.test(message)) {
+    return {
+      code: 'invalid_parent',
+      message: 'That parent category is no longer available.',
+      recovery: 'Refresh the register and choose an active root category.',
+    };
+  }
+  if (/subcategory depth is limited to one level/i.test(message)) {
+    return {
+      code: 'depth_limit',
+      message: 'A subcategory cannot contain another subcategory.',
+      recovery: 'Choose an active root category as the parent.',
+    };
+  }
+  if (/archive active subcategories before archiving their parent/i.test(message)) {
+    return {
+      code: 'active_children',
+      message: 'This category still has active subcategories.',
+      recovery: 'Archive its active subcategories before archiving the parent.',
+    };
+  }
   return {
     code: 'unknown',
     message: 'The category request was not accepted.',
@@ -94,6 +118,18 @@ const arabicCopy: Record<CategoryErrorCode, Pick<CategoryErrorView, 'message' | 
   already_archived: {
     message: 'هذه الفئة مؤرشفة بالفعل.',
     recovery: 'حدّث سجل الفئات لعرض القائمة الفعالة الحالية.',
+  },
+  invalid_parent: {
+    message: 'لم تعد الفئة الرئيسية المحددة متاحة.',
+    recovery: 'حدّث السجل واختر فئة رئيسية فعالة.',
+  },
+  depth_limit: {
+    message: 'لا يمكن أن تحتوي الفئة الفرعية على فئة فرعية أخرى.',
+    recovery: 'اختر فئة رئيسية فعالة كفئة أصلية.',
+  },
+  active_children: {
+    message: 'لا تزال لهذه الفئة فئات فرعية فعالة.',
+    recovery: 'أرشف فئاتها الفرعية الفعالة قبل أرشفة الفئة الرئيسية.',
   },
   unknown: {
     message: 'لم يتم قبول طلب الفئة.',

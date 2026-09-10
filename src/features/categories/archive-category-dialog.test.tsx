@@ -7,7 +7,7 @@ import { ArchiveCategoryDialog } from './archive-category-dialog.js';
 
 const category: Category = {
   id: 'category-1', spaceId: 'space-1', kind: 'expense', nameEn: 'Groceries', nameAr: 'بقالة',
-  createdAt: '2026-09-08T10:00:00Z', archivedAt: null,
+  parentCategoryId: null, createdAt: '2026-09-08T10:00:00Z', archivedAt: null,
 };
 
 describe('ArchiveCategoryDialog', () => {
