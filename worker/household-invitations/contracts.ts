@@ -58,3 +58,45 @@ export type FetchLike = (
   input: RequestInfo | URL,
   init?: RequestInit,
 ) => Promise<Response>;
+
+export interface SendInvitationEmailInput {
+  readonly from: string;
+  readonly replyTo: string;
+  readonly to: string;
+  readonly subject: string;
+  readonly html: string;
+  readonly text: string;
+  readonly locale: InvitationLocale;
+  readonly idempotencyKey: string;
+}
+
+export interface SentInvitationEmail {
+  readonly providerMessageId: string;
+}
+
+export interface InvitationEmailProvider {
+  send(input: SendInvitationEmailInput): Promise<SentInvitationEmail>;
+}
+
+export type ProviderErrorCategory =
+  | 'invalid_request'
+  | 'unauthorized'
+  | 'forbidden'
+  | 'idempotency_conflict'
+  | 'rate_limited'
+  | 'server_error'
+  | 'network'
+  | 'invalid_response'
+  | 'unexpected';
+
+export class ProviderError extends Error {
+  readonly category: ProviderErrorCategory;
+  readonly retryable: boolean;
+
+  constructor(category: ProviderErrorCategory, retryable: boolean) {
+    super(`resend:${category}`);
+    this.name = 'ProviderError';
+    this.category = category;
+    this.retryable = retryable;
+  }
+}
