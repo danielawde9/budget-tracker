@@ -56,6 +56,7 @@ export function TransactionDialog(props: TransactionDialogProps) {
   const eligibleCategories = (kind === 'income' || kind === 'expense')
     ? (props.categories ?? []).filter((category) => category.kind === kind && category.archivedAt === null)
     : [];
+  const rootCategories = eligibleCategories.filter((category) => category.parentCategoryId === null);
   const category = eligibleCategories.find((item) => item.id === categoryId) ?? null;
   const categoryLabel = category
     ? (props.locale === 'ar' ? category.nameAr ?? category.nameEn : category.nameEn ?? category.nameAr)
@@ -177,10 +178,17 @@ export function TransactionDialog(props: TransactionDialogProps) {
       </div>
       {(kind === 'income' || kind === 'expense') && <fieldset className="category-picker">
         <legend>{t(props.locale, 'Category', 'الفئة')}</legend>
-        <label><input type="radio" name="transaction-category" checked={categoryId === null} disabled={mutationLocked} onChange={() => edit(() => setCategoryId(null))} /><span>{t(props.locale, 'Uncategorized', 'غير مصنّف')}</span></label>
-        {eligibleCategories.map((item) => {
-          const label = props.locale === 'ar' ? item.nameAr ?? item.nameEn : item.nameEn ?? item.nameAr;
-          return <label key={item.id}><input type="radio" name="transaction-category" checked={categoryId === item.id} disabled={mutationLocked} onChange={() => edit(() => setCategoryId(item.id))} /><bdi>{label}</bdi></label>;
+        <label className="category-picker-uncategorized"><input type="radio" name="transaction-category" checked={categoryId === null} disabled={mutationLocked} onChange={() => edit(() => setCategoryId(null))} /><span>{t(props.locale, 'Uncategorized', 'غير مصنّف')}</span></label>
+        {rootCategories.map((root) => {
+          const rootLabel = props.locale === 'ar' ? root.nameAr ?? root.nameEn : root.nameEn ?? root.nameAr;
+          const children = eligibleCategories.filter((item) => item.parentCategoryId === root.id);
+          return <div className="category-picker-branch" key={root.id}>
+            <label className="category-picker-root"><input type="radio" name="transaction-category" checked={categoryId === root.id} disabled={mutationLocked} onChange={() => edit(() => setCategoryId(root.id))} /><bdi>{rootLabel}</bdi></label>
+            {children.length > 0 && <div className="category-picker-children" role="group" aria-label={t(props.locale, `Subcategories of ${rootLabel}`, `الفئات الفرعية ضمن ${rootLabel}`)}>{children.map((child) => {
+              const childLabel = props.locale === 'ar' ? child.nameAr ?? child.nameEn : child.nameEn ?? child.nameAr;
+              return <label key={child.id}><input type="radio" name="transaction-category" checked={categoryId === child.id} disabled={mutationLocked} onChange={() => edit(() => setCategoryId(child.id))} /><bdi>{childLabel}</bdi></label>;
+            })}</div>}
+          </div>;
         })}
         {props.categoryNextCursors?.[kind] && <button type="button" className="button-secondary category-picker-more" disabled={mutationLocked || props.categoryLoadingMore === kind} onClick={() => void props.onLoadMoreCategories?.(kind)}>{props.categoryLoadingMore === kind ? t(props.locale, 'Loading categories…', 'جارٍ تحميل الفئات…') : t(props.locale, `Load more ${kind} categories`, `تحميل المزيد من فئات ${kind === 'income' ? 'الدخل' : 'المصروف'}`)}</button>}
         {props.categoryPaginationError?.kind === kind && <div className="error-notice category-picker-error" role="alert"><span>{props.categoryPaginationError.error.message} {props.categoryPaginationError.error.recovery}</span><button type="button" className="button-secondary retry-command" disabled={mutationLocked || props.categoryLoadingMore === kind} onClick={() => void props.onLoadMoreCategories?.(kind)}>{t(props.locale, `Retry loading ${kind} categories`, `إعادة محاولة تحميل فئات ${kind === 'income' ? 'الدخل' : 'المصروف'}`)}</button></div>}

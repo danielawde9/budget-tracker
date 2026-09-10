@@ -108,6 +108,10 @@ bdi, dd, strong { font-variant-numeric: tabular-nums; }
 .category-picker legend { padding-inline: 5px; font-weight: 750; }
 .category-picker label { display: inline-flex; align-items: center; gap: 7px; min-block-size: 38px; padding: 7px 11px; border: 1px solid #c7cfc7; border-radius: 999px; background: #fcfdf9; cursor: pointer; }
 .category-picker label:has(input:checked) { border-color: var(--jade); background: #e4ebe1; }
+.category-picker-uncategorized { align-self: flex-start; }
+.category-picker-branch { display: grid; gap: 7px; align-content: start; }
+.category-picker-children { display: flex; flex-wrap: wrap; gap: 7px; margin-inline-start: 13px; padding-inline-start: 11px; border-inline-start: 2px solid #9eb5a8; }
+.category-picker-children label { background: #f7f8f2; }
 .category-picker-more { flex-basis: 100%; }
 .category-picker-error { flex-basis: 100%; }
 .retry-command { margin-block-start: 12px; }
