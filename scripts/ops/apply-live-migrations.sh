@@ -9,7 +9,7 @@ readonly LIVE_REPO_ROOT="$(cd "${LIVE_SCRIPT_DIR}/../.." && pwd -P)"
 source "${LIVE_SCRIPT_DIR}/budget-common.sh"
 
 readonly LIVE_PROJECT_REF='bsjqmulybcmlgpmhfrug'
-readonly LIVE_MANIFEST_SOURCE_SHA='00f4bf829bc0f2b16c07a2b3428c1dba45d50fe8'
+readonly LIVE_MANIFEST_SOURCE_SHA='41399f6ca54f8d207474313b159af1c9c723ea84'
 readonly LIVE_CONFIRMATION="APPLY LIVE MIGRATIONS TO ${LIVE_PROJECT_REF}"
 readonly LIVE_MAX_PROJECT_LIST_BYTES=1048576
 readonly LIVE_SUPABASE_BIN="${BUDGET_SUPABASE_BIN:-$(command -v supabase || true)}"
@@ -22,13 +22,18 @@ readonly LIVE_VERIFY_SQL="select case when
   and to_regclass('public.financial_events') is not null
   and to_regclass('public.loans') is not null
   and to_regclass('public.categories') is not null
+  and to_regclass('public.household_invitations') is not null
+  and to_regclass('public.subcategories') is not null
   and (select array_agg(version order by version) from supabase_migrations.schema_migrations)
     = array[
       '20260907100000','20260907110000','20260907120000','20260907130000',
       '20260907140000','20260907141000','20260907142000','20260907143000',
       '20260907144000','20260907145000','20260907146000','20260907147000',
       '20260907148000','20260907149000','20260908100000','20260908101000',
-      '20260908102000','20260908103000'
+      '20260908102000','20260908103000','20260908170000','20260908171000',
+      '20260908171100','20260908172000','20260908173000','20260908173100',
+      '20260908174000','20260908175000','20260908176000','20260908177000',
+      '20260908178000','20260908179000','20260908180000','20260910100000'
     ]::text[]
   then 'budget_schema_ready'
   else 'budget_schema_incomplete'
