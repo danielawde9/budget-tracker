@@ -72,6 +72,30 @@ function safeError(error: unknown): SafeDeliveryError {
   return new SafeDeliveryError('delivery_unavailable', 500);
 }
 
+async function recordRejectedRequest(
+  request: Request,
+  path: string,
+  error: SafeDeliveryError,
+  dependencies: HandlerDependencies,
+): Promise<void> {
+  if (error.code === 'rate_limited' || error.code === 'audit_unavailable') return;
+  const correlationKey = await hashRateLimitKey('request-rejected', [
+    path,
+    request.method,
+    request.headers.get('cf-connecting-ip') ?? 'unknown',
+  ]);
+  try {
+    await dependencies.audit.record({
+      at: dependencies.clock.now().toISOString(),
+      event: 'request_rejected',
+      correlationKey,
+      reason: error.code,
+    });
+  } catch {
+    throw new SafeDeliveryError('audit_unavailable', 503);
+  }
+}
+
 function extractJwtSubject(token: string): string {
   if (new TextEncoder().encode(token).byteLength > TOKEN_MAX_BYTES) {
     throw new SafeDeliveryError('invalid_authorization', 401);
@@ -219,7 +243,12 @@ export function createWorkerHandler(dependencies: HandlerDependencies): WorkerHa
       try {
         return await handleDelivery(request, environment, dependencies);
       } catch (error) {
-        const safe = safeError(error);
+        let safe = safeError(error);
+        try {
+          await recordRejectedRequest(request, path, safe, dependencies);
+        } catch (auditError) {
+          safe = safeError(auditError);
+        }
         return jsonResponse(
           { error: safe.code },
           safe.status,

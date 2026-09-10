@@ -223,6 +223,30 @@ describe('invitation delivery Worker handler', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it('audits a rejected request using only fixed and hashed fields', async () => {
+    const environment = createEnvironment();
+    const { handler, fetch, events } = harness();
+
+    const response = await handler.fetch(
+      apiRequest({ contentType: 'text/plain', body: 'person@example.com raw-token' }),
+      environment,
+    );
+
+    expect(response.status).toBe(415);
+    expect(events).toEqual([
+      {
+        at: '2026-09-10T12:00:00.000Z',
+        event: 'request_rejected',
+        correlationKey: expect.stringMatching(/^[a-f0-9]{64}$/),
+        reason: 'content_type_rejected',
+      },
+    ]);
+    const evidence = JSON.stringify(events);
+    expect(evidence).not.toContain('person@example.com');
+    expect(evidence).not.toContain('raw-token');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it('delegates every non-API request to the static assets binding', async () => {
     const environment = createEnvironment();
     const { handler, fetch } = harness();
