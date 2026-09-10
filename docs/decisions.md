@@ -3,6 +3,29 @@
 Append-only project decisions and assumptions. Each entry records what would
 change if the decision changes.
 
+## 2026-09-08 — Household authorization is a protected stateful database lifecycle
+
+**Decision:** Household invitations store only versioned keyed recipient digests
+and raw-token digests; current membership state remains on the existing
+membership row, and every accepted mutation appends a non-PII immutable event
+that also serves as its actor-scoped idempotency receipt. Six narrow mutation
+commands and two bounded owner reads are the only application-facing household
+administration surface. Revoked and left memberships remain as inactive history,
+while deferred database invariants preserve one active owner per household and
+exactly one active owner membership in every personal space.
+
+**Why:** Keeping cancellation, one-time acceptance, replay, last-owner checks,
+and RLS authorization in one PostgreSQL transaction prevents browser writes,
+personal-space crossover, reusable secrets at rest, and partial membership/audit
+state. A dedicated non-login command owner and layered grants, RLS, constraints,
+and immutable triggers keep accidental privilege changes fail-closed.
+
+**If changed:** Stateless/provider-owned invitations, owner invitations, member
+identity projection, configurable expiry, hard deletion, or another role require
+new token, privacy, capability, retention, concurrency, migration, and rejection
+designs. Email delivery and UI remain separate milestones and cannot compensate
+for a weakened database invariant.
+
 ## 2026-09-08 — Move the Budget development stack to Le Labo Ubuntu
 
 **Decision:** Move the isolated Budget Supabase development stack to

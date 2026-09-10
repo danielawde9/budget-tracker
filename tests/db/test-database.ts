@@ -85,8 +85,54 @@ function databaseUrl(): string {
 const pool = new Pool({
   connectionString: databaseUrl(),
   connectionTimeoutMillis: 10_000,
-  max: 2,
+  max: 8,
 });
+
+export async function databaseQuery<Row extends Record<string, unknown> = Record<string, unknown>>(
+  text: string,
+  values: unknown[] = [],
+): Promise<Row[]> {
+  const result = await pool.query<Row>(text, values);
+  return result.rows;
+}
+
+export async function ensureAuthUser(
+  userId: string,
+  email: string,
+  confirmed = true,
+): Promise<void> {
+  await pool.query(
+    `insert into auth.users (
+       id, aud, role, email, email_confirmed_at,
+       raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+     )
+     values ($1, 'authenticated', 'authenticated', $2, case when $3 then now() else null end,
+       '{}', '{}', now(), now())
+     on conflict (id) do update
+     set email = excluded.email,
+         email_confirmed_at = excluded.email_confirmed_at,
+         updated_at = now()`,
+    [userId, email, confirmed],
+  );
+}
+
+export async function withAdminTransaction<T>(
+  action: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await pool.connect();
+
+  try {
+    await client.query('begin');
+    const result = await action(client);
+    await client.query('commit');
+    return result;
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
 
 export async function grantFinancialHistoryWritesForTest(): Promise<void> {
   await pool.query(
@@ -214,14 +260,6 @@ export async function withUserSession<T>(
   }
 }
 
-export async function databaseQuery<T extends Record<string, unknown> = Record<string, unknown>>(
-  text: string,
-  values: unknown[] = [],
-): Promise<T[]> {
-  const result = await pool.query<T>(text, values);
-  return result.rows;
-}
-
 export async function queryAsUser<T extends Record<string, unknown> = Record<string, unknown>>(
   userId: string,
   text: string,
@@ -274,6 +312,101 @@ export async function queryAsRoleWithActor<T extends Record<string, unknown> = R
     throw error;
   } finally {
     client.release();
+  }
+}
+
+export async function withAnonymousSession<T>(
+  action: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await pool.connect();
+
+  try {
+    await client.query('begin');
+    await client.query('set local role anon');
+    const result = await action(client);
+    await client.query('commit');
+    return result;
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function withServiceRoleSession<T>(
+  action: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await pool.connect();
+
+  try {
+    await client.query('begin');
+    await client.query('set local role service_role');
+    const result = await action(client);
+    await client.query('commit');
+    return result;
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function runConcurrentUserActions<T>(
+  actions: Array<{ userId: string; action: (client: PoolClient) => Promise<T> }>,
+): Promise<PromiseSettledResult<T>[]> {
+  if (actions.length < 2 || actions.length > 6) {
+    throw new Error('concurrent database actions require between two and six participants');
+  }
+
+  const clients = await Promise.all(actions.map(() => pool.connect()));
+  let waiting = 0;
+  let releaseBarrier: (() => void) | undefined;
+  const barrier = new Promise<void>((resolve) => {
+    releaseBarrier = resolve;
+  });
+
+  try {
+    await Promise.all(
+      clients.map(async (client, index) => {
+        const participant = actions[index];
+        if (!participant) throw new Error('missing concurrency participant');
+        await pool.query(
+          `insert into auth.users (
+             id, aud, role, email, email_confirmed_at,
+             raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+           ) values ($1, 'authenticated', 'authenticated', $2, now(), '{}', '{}', now(), now())
+           on conflict (id) do nothing`,
+          [participant.userId, `concurrent-${participant.userId}@budget.invalid`],
+        );
+        await client.query('begin');
+        await client.query("select set_config('request.jwt.claim.sub', $1, true)", [
+          participant.userId,
+        ]);
+        await client.query('set local role authenticated');
+      }),
+    );
+
+    return await Promise.allSettled(
+      clients.map(async (client, index) => {
+        const participant = actions[index];
+        if (!participant) throw new Error('missing concurrency participant');
+        waiting += 1;
+        if (waiting === actions.length) releaseBarrier?.();
+        await barrier;
+        try {
+          const result = await participant.action(client);
+          await client.query('commit');
+          return result;
+        } catch (error) {
+          await client.query('rollback');
+          throw error;
+        }
+      }),
+    );
+  } finally {
+    clients.forEach((client) => client.release());
   }
 }
 

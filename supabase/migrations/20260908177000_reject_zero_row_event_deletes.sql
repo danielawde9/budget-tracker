@@ -1,0 +1,3 @@
+create trigger household_membership_events_reject_delete_statement
+before delete on public.household_membership_events
+for each statement execute function private.reject_household_membership_event_mutation();
