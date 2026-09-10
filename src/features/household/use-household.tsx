@@ -126,6 +126,15 @@ export function useHousehold({
     });
   }, [gateway, key, pageSize, spaceId]);
 
+  const handleActionFailure = useCallback((cause: unknown) => {
+    const error = classifyHouseholdError(cause);
+    setActionError(error);
+    if (error.kind === 'access-lost') {
+      setSnapshot((current) => current.key !== key ? current : { ...emptySnapshot(key), status: 'error', error });
+      unavailable.current();
+    }
+  }, [key]);
+
   const runMutation = useCallback(async (
     intentKey: string,
     label: string,
@@ -147,14 +156,12 @@ export function useHousehold({
       setActionSuccess(label);
       return true;
     } catch (cause) {
-      const error = classifyHouseholdError(cause);
-      setActionError(error);
-      if (error.kind === 'access-lost') unavailable.current();
+      handleActionFailure(cause);
       return false;
     } finally {
       setActionPending(null);
     }
-  }, [actionPending, requestId]);
+  }, [actionPending, handleActionFailure, requestId]);
 
   const loadMoreMembers = useCallback(async () => {
     if (visible.status !== 'owner-ready' || !visible.membersHasMore || actionPending) return;
@@ -170,11 +177,11 @@ export function useHousehold({
         membersHasMore: next.length === pageSize,
       });
     } catch (cause) {
-      setActionError(classifyHouseholdError(cause));
+      handleActionFailure(cause);
     } finally {
       setActionPending(null);
     }
-  }, [actionPending, gateway, key, pageSize, spaceId, visible]);
+  }, [actionPending, gateway, handleActionFailure, key, pageSize, spaceId, visible]);
 
   const loadMoreInvitations = useCallback(async () => {
     if (visible.status !== 'owner-ready' || !visible.invitationsHasMore || actionPending) return;
@@ -190,11 +197,11 @@ export function useHousehold({
         invitationsHasMore: next.length === pageSize,
       });
     } catch (cause) {
-      setActionError(classifyHouseholdError(cause));
+      handleActionFailure(cause);
     } finally {
       setActionPending(null);
     }
-  }, [actionPending, gateway, key, pageSize, spaceId, visible]);
+  }, [actionPending, gateway, handleActionFailure, key, pageSize, spaceId, visible]);
 
   return useMemo(() => ({
     ...visible,

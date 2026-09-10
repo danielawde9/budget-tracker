@@ -51,6 +51,30 @@ describe('useHousehold', () => {
     expect(gateway.calls.findLast((call) => call.name === 'listInvitations')?.input).toMatchObject({ cursor: expect.objectContaining({ invitationId: expect.any(String) }), limit: 1 });
   });
 
+  it.each(['members', 'invitations'] as const)('clears owner data when %s pagination loses access', async (projection) => {
+    const gateway = new InMemoryHouseholdGateway();
+    gateway.pageSize = 1;
+    const unavailable = vi.fn();
+    const { result } = renderHook(() => useHousehold({
+      gateway,
+      spaceId: householdSpaceId,
+      userId: householdOwnerId,
+      onSpaceUnavailable: unavailable,
+      pageSize: 1,
+    }));
+    await waitFor(() => expect(result.current.status).toBe('owner-ready'));
+    gateway.failOnce = Object.assign(new Error('not_authorized'), { code: '42501' });
+
+    await act(() => projection === 'members'
+      ? result.current.loadMoreMembers()
+      : result.current.loadMoreInvitations());
+
+    expect(unavailable).toHaveBeenCalledOnce();
+    expect(result.current.status).toBe('error');
+    expect(result.current.members).toEqual([]);
+    expect(result.current.invitations).toEqual([]);
+  });
+
   it('reuses a failed action request ID and creates a new ID after success', async () => {
     const gateway = new InMemoryHouseholdGateway();
     const firstId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
