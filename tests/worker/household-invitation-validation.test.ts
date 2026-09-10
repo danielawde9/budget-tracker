@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   hashRateLimitKey,
@@ -23,6 +23,10 @@ const validConfiguration = {
   invitationFrom: 'Budget <invitations@updates.example.com>',
   invitationReplyTo: 'support@example.com',
 };
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe('household invitation request validation', () => {
   it('accepts the exact bounded request contract', () => {
@@ -94,6 +98,31 @@ describe('bounded HTTP input', () => {
     });
 
     await expect(readBoundedBody(request, 4096)).rejects.toThrow('body');
+  });
+
+  it('cancels a body stream that does not complete before the deadline', async () => {
+    vi.useFakeTimers();
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull: () => new Promise<void>(() => undefined),
+      cancel: () => {
+        cancelled = true;
+      },
+    });
+    const request = new Request('https://budget.example.com/api', {
+      method: 'POST',
+      body,
+      duplex: 'half',
+    } as RequestInit);
+
+    const result = expect(readBoundedBody(request, 4096, 25)).rejects.toMatchObject({
+      code: 'request_timeout',
+      status: 408,
+    });
+    await vi.advanceTimersByTimeAsync(25);
+
+    await result;
+    expect(cancelled).toBe(true);
   });
 });
 

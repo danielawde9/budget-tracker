@@ -21,6 +21,7 @@ export type SafeDeliveryErrorCode =
   | 'invalid_authorization'
   | 'invalid_configuration'
   | 'request_too_large'
+  | 'request_timeout'
   | 'invitation_command_rejected'
   | 'invitation_command_unavailable'
   | 'upstream_response_invalid'

@@ -18,6 +18,7 @@ import {
 
 const DELIVERY_PATH = '/api/household-invitations/deliver';
 const BODY_MAX_BYTES = 4_096;
+const BODY_READ_TIMEOUT_MS = 5_000;
 const TOKEN_MAX_BYTES = 4_096;
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -191,7 +192,9 @@ async function handleDelivery(
 
   let parsedBody: unknown;
   try {
-    parsedBody = JSON.parse(await readBoundedBody(request, BODY_MAX_BYTES));
+    parsedBody = JSON.parse(
+      await readBoundedBody(request, BODY_MAX_BYTES, BODY_READ_TIMEOUT_MS),
+    );
   } catch (error) {
     if (error instanceof SafeDeliveryError) throw error;
     throw new SafeDeliveryError('invalid_request', 400, 'body');

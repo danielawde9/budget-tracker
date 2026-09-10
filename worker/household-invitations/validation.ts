@@ -82,7 +82,11 @@ export function parseBearerToken(value: string | null): string {
   return match[1];
 }
 
-export async function readBoundedBody(request: Request, maxBytes: number): Promise<string> {
+export async function readBoundedBody(
+  request: Request,
+  maxBytes: number,
+  timeoutMs = 5_000,
+): Promise<string> {
   const declaredLength = request.headers.get('content-length');
   if (declaredLength !== null) {
     const parsedLength = Number(declaredLength);
@@ -95,10 +99,19 @@ export async function readBoundedBody(request: Request, maxBytes: number): Promi
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
   let totalBytes = 0;
+  const bodyReadTimedOut = Symbol('body-read-timed-out');
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<typeof bodyReadTimedOut>((resolve) => {
+    timeout = setTimeout(() => resolve(bodyReadTimedOut), timeoutMs);
+  });
 
   try {
     for (let chunkIndex = 0; chunkIndex < MAX_BODY_CHUNKS; chunkIndex += 1) {
-      const result = await reader.read();
+      const result = await Promise.race([reader.read(), deadline]);
+      if (result === bodyReadTimedOut) {
+        await reader.cancel().catch(() => undefined);
+        throw new SafeDeliveryError('request_timeout', 408, 'body');
+      }
       if (result.done) {
         const body = new Uint8Array(totalBytes);
         let offset = 0;
@@ -123,6 +136,7 @@ export async function readBoundedBody(request: Request, maxBytes: number): Promi
     await reader.cancel();
     throw new SafeDeliveryError('request_too_large', 400, 'body');
   } finally {
+    clearTimeout(timeout);
     reader.releaseLock();
   }
 }
