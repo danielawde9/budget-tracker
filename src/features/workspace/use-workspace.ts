@@ -27,7 +27,7 @@ export function useWorkspace(gateway: WorkspaceGateway, userId: string) {
 
   const storageKey = `budget:selected-space:${userId}`;
 
-  const load = useCallback(async (resetSelection: boolean) => {
+  const load = useCallback(async (resetSelection: boolean, preferredSpaceId = '') => {
     const requestId = ++request.current;
     setStatus('loading');
     setError(null);
@@ -49,7 +49,8 @@ export function useWorkspace(gateway: WorkspaceGateway, userId: string) {
       }
       const stored = localStorage.getItem(storageKey) ?? '';
       const current = resetSelection ? '' : selectedRef.current;
-      const selected = visibleSpaces.find((space) => space.id === current)?.id
+      const selected = visibleSpaces.find((space) => space.id === preferredSpaceId)?.id
+        ?? visibleSpaces.find((space) => space.id === current)?.id
         ?? visibleSpaces.find((space) => space.id === stored)?.id
         ?? visibleSpaces[0]?.id
         ?? '';
@@ -125,7 +126,7 @@ export function useWorkspace(gateway: WorkspaceGateway, userId: string) {
     selectedSpace: spaces.find((space) => space.id === selectedSpaceId) ?? null,
     error,
     selectSpace,
-    refresh: () => load(false),
+    refresh: (preferredSpaceId?: string) => load(false, preferredSpaceId),
     createFirstSpace,
     createFirstWallet,
   };

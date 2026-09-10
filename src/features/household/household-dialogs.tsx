@@ -122,3 +122,33 @@ export function HouseholdConfirmDialog(props: ConfirmDialogProps) {
     </div>
   </HouseholdDialogFrame>;
 }
+
+interface AcceptDialogProps {
+  readonly locale: 'en' | 'ar';
+  readonly pending: boolean;
+  readonly terminal: boolean;
+  readonly error: ReactNode;
+  readonly onAccept: () => Promise<void>;
+  readonly onDismiss: () => void;
+}
+
+export function AcceptHouseholdInvitationDialog(props: AcceptDialogProps) {
+  const ar = props.locale === 'ar';
+  return <HouseholdDialogFrame
+    title={ar ? 'قبول دعوة منزلية' : 'Accept household invitation'}
+    closeLabel={ar ? 'تجاهل الدعوة' : 'Dismiss invitation'}
+    pending={props.pending}
+    onClose={props.onDismiss}
+  >
+    <p className="dialog-intro">{ar
+      ? 'اقبل الدعوة لإضافة هذه المساحة المنزلية إلى مساحاتك المتاحة.'
+      : 'Accept to add this household to your visible spaces.'}</p>
+    {props.error}
+    <div className="dialog-actions">
+      <button type="button" className="secondary" disabled={props.pending} onClick={props.onDismiss}>{ar ? 'تجاهل' : 'Dismiss'}</button>
+      {!props.terminal ? <button type="button" disabled={props.pending} onClick={() => void props.onAccept()}>{props.pending
+        ? (ar ? 'جارٍ القبول…' : 'Accepting…')
+        : (ar ? 'قبول الدعوة' : 'Accept invitation')}</button> : null}
+    </div>
+  </HouseholdDialogFrame>;
+}

@@ -83,6 +83,19 @@ describe('useWorkspace', () => {
     expect(localStorage.getItem('budget:selected-space:user-1')).toBe(personalSpace.id);
   });
 
+  it('prefers a newly accepted household during the authoritative refresh', async () => {
+    const gateway = new FakeWorkspaceGateway();
+    gateway.spaces = [personalSpace];
+    const { result } = renderHook(() => useWorkspace(gateway, 'user-1'));
+    await waitFor(() => expect(result.current.selectedSpaceId).toBe(personalSpace.id));
+
+    gateway.spaces = [personalSpace, householdSpace];
+    await act(async () => result.current.refresh(householdSpace.id));
+
+    expect(result.current.selectedSpaceId).toBe(householdSpace.id);
+    expect(localStorage.getItem('budget:selected-space:user-1')).toBe(householdSpace.id);
+  });
+
   it('reconciles an ambiguous space failure before returning a deliberate retry error', async () => {
     const gateway = new FakeWorkspaceGateway();
     gateway.spaces = [];

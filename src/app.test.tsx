@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { App } from './app.js';
@@ -8,7 +8,7 @@ import { InMemoryLoansGateway } from './test/in-memory-loans-gateway.js';
 import type { WorkspaceGateway } from './features/workspace/types.js';
 import { householdSpace, personalSpace } from './test/in-memory-loans-gateway.js';
 import { InMemoryWalletsGateway } from './test/in-memory-wallets-gateway.js';
-import { householdOwnerId, InMemoryHouseholdGateway } from './test/in-memory-household-gateway.js';
+import { householdMemberId, householdOwnerId, InMemoryHouseholdGateway } from './test/in-memory-household-gateway.js';
 
 function authGateway(initial: AuthUser | null, session?: Promise<AuthUser | null>): AuthGateway {
   return {
@@ -92,5 +92,60 @@ describe('App', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Current space' }), personalSpace.id);
     expect(await screen.findByRole('heading', { name: 'Loans' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Household' })).not.toBeInTheDocument();
+  });
+
+  it('accepts a fragment invitation before no-space onboarding and selects the new household', async () => {
+    const user = userEvent.setup();
+    let accepted = false;
+    const householdGateway = new InMemoryHouseholdGateway();
+    const originalAccept = householdGateway.acceptInvitation.bind(householdGateway);
+    householdGateway.acceptInvitation = vi.fn(async (input) => {
+      const result = await originalAccept(input);
+      accepted = true;
+      return result;
+    });
+    const workspace: WorkspaceGateway = {
+      ...workspaceGateway([]),
+      listSpaces: vi.fn(async () => accepted ? [householdSpace] : []),
+    };
+    const token = 'A'.repeat(43);
+    render(<App
+      initialHouseholdInvitationToken={token}
+      authGateway={authGateway({ id: householdMemberId, email: 'member@example.com' })}
+      workspaceGateway={workspace}
+      householdGateway={householdGateway}
+      loansGateway={new InMemoryLoansGateway()}
+      walletsGateway={new InMemoryWalletsGateway()}
+      categoriesGateway={new InMemoryCategoriesGateway()}
+    />);
+
+    const dialog = await screen.findByRole('dialog', { name: 'Accept household invitation' });
+    expect(document.body).not.toHaveTextContent(token);
+    expect(screen.queryByRole('dialog', { name: 'Create your first space' })).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Accept invitation' }));
+    expect(await screen.findByRole('combobox', { name: 'Current space' })).toHaveValue(householdSpace.id);
+    expect(screen.getAllByText('Home budget').some((element) => element.closest('bdi') !== null)).toBe(true);
+  });
+
+  it('shows one generic transport failure and retries with the same request ID', async () => {
+    const user = userEvent.setup();
+    const householdGateway = new InMemoryHouseholdGateway();
+    householdGateway.failOnce = new Error('Failed to fetch');
+    render(<App
+      initialHouseholdInvitationToken={'B'.repeat(43)}
+      authGateway={authGateway({ id: householdMemberId, email: 'member@example.com' })}
+      workspaceGateway={workspaceGateway([])}
+      householdGateway={householdGateway}
+      loansGateway={new InMemoryLoansGateway()}
+      walletsGateway={new InMemoryWalletsGateway()}
+      categoriesGateway={new InMemoryCategoriesGateway()}
+    />);
+    const dialog = await screen.findByRole('dialog', { name: 'Accept household invitation' });
+    await user.click(within(dialog).getByRole('button', { name: 'Accept invitation' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('household request was not accepted');
+    await user.click(within(dialog).getByRole('button', { name: 'Accept invitation' }));
+    const requests = householdGateway.calls.filter((call) => call.name === 'acceptInvitation').map((call) => (call.input as { requestId: string }).requestId);
+    expect(requests).toHaveLength(2);
+    expect(new Set(requests).size).toBe(1);
   });
 });

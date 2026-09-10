@@ -19,6 +19,8 @@ import { createBrowserDataClient } from './lib/supabase.js';
 import { HouseholdPage } from './features/household/household-page.js';
 import { createSupabaseHouseholdGateway } from './features/household/supabase-household-gateway.js';
 import type { HouseholdGateway } from './features/household/types.js';
+import { AcceptHouseholdInvitationDialog } from './features/household/household-dialogs.js';
+import { classifyHouseholdError, localizeHouseholdError, type HouseholdErrorView } from './features/household/errors.js';
 
 const WalletsPage = lazy(async () => {
   const module = await import('./features/wallets/wallets-page.js');
@@ -31,6 +33,7 @@ const CategoriesPage = lazy(async () => {
 });
 
 interface AppProps {
+  initialHouseholdInvitationToken?: string | null;
   authGateway?: AuthGateway;
   categoriesGateway?: CategoriesGateway;
   householdGateway?: HouseholdGateway;
@@ -46,21 +49,63 @@ interface AuthenticatedWorkspaceProps {
   workspaceGateway: WorkspaceGateway;
   categoriesGateway: CategoriesGateway;
   householdGateway: HouseholdGateway;
+  householdInvitationToken: string | null;
   loansGateway: LoansGateway;
   walletsGateway: WalletsGateway;
   onLocaleChange(): void;
+  onHouseholdInvitationConsumed(): void;
   onSignOut(): void;
 }
 
 function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
   const workspace = useWorkspace(props.workspaceGateway, props.userId);
   const [activeDestination, setActiveDestination] = useState<ApplicationDestination>('loans');
+  const [acceptPending, setAcceptPending] = useState(false);
+  const [acceptError, setAcceptError] = useState<HouseholdErrorView | null>(null);
+  const [terminalAcceptance, setTerminalAcceptance] = useState(false);
+  const acceptRequestId = useState(() => crypto.randomUUID())[0];
 
   useEffect(() => {
     if (activeDestination === 'household' && workspace.selectedSpace?.kind !== 'household') {
       setActiveDestination('loans');
     }
   }, [activeDestination, workspace.selectedSpace?.kind]);
+
+  const showAcceptance = props.householdInvitationToken !== null || terminalAcceptance;
+  if (showAcceptance) {
+    const localized = acceptError ? localizeHouseholdError(acceptError, props.locale) : null;
+    return <AcceptHouseholdInvitationDialog
+      locale={props.locale}
+      pending={acceptPending}
+      terminal={terminalAcceptance}
+      error={localized ? <div className="error-notice" role="alert"><strong>{localized.message}</strong><p>{localized.recovery}</p></div> : null}
+      onDismiss={() => {
+        props.onHouseholdInvitationConsumed();
+        setTerminalAcceptance(false);
+        setAcceptError(null);
+      }}
+      onAccept={async () => {
+        const token = props.householdInvitationToken;
+        if (!token || acceptPending) return;
+        setAcceptPending(true);
+        setAcceptError(null);
+        try {
+          const result = await props.householdGateway.acceptInvitation({ requestId: acceptRequestId, token });
+          props.onHouseholdInvitationConsumed();
+          await workspace.refresh(result.spaceId);
+        } catch (cause) {
+          const error = classifyHouseholdError(cause);
+          setAcceptError(error);
+          if (error.kind === 'invitation-unavailable' || error.kind === 'access-lost' || error.kind === 'invalid-input') {
+            props.onHouseholdInvitationConsumed();
+            setTerminalAcceptance(true);
+          }
+        } finally {
+          setAcceptPending(false);
+        }
+      }}
+    />;
+  }
 
   if (workspace.status === 'loading') {
     return <main className="workspace-state-page"><div role="status">Loading your spaces…</div></main>;
@@ -115,9 +160,14 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
   </ApplicationShell>;
 }
 
-function ConfiguredApp({ authGateway, categoriesGateway, householdGateway, loansGateway, walletsGateway, workspaceGateway }: Required<AppProps>) {
+interface ConfiguredAppProps extends Omit<Required<AppProps>, 'initialHouseholdInvitationToken'> {
+  readonly initialHouseholdInvitationToken: string | null;
+}
+
+function ConfiguredApp({ authGateway, categoriesGateway, householdGateway, initialHouseholdInvitationToken, loansGateway, walletsGateway, workspaceGateway }: ConfiguredAppProps) {
   const auth = useAuthSession(authGateway);
   const [locale, setLocale] = useState<Locale>('en');
+  const [householdInvitationToken, setHouseholdInvitationToken] = useState(initialHouseholdInvitationToken);
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -149,14 +199,16 @@ function ConfiguredApp({ authGateway, categoriesGateway, householdGateway, loans
     workspaceGateway={workspaceGateway}
     categoriesGateway={categoriesGateway}
     householdGateway={householdGateway}
+    householdInvitationToken={householdInvitationToken}
     loansGateway={loansGateway}
     walletsGateway={walletsGateway}
     onLocaleChange={() => setLocale((current) => current === 'en' ? 'ar' : 'en')}
+    onHouseholdInvitationConsumed={() => setHouseholdInvitationToken(null)}
     onSignOut={() => void auth.signOut()}
   />;
 }
 
-export function App({ authGateway, categoriesGateway, householdGateway, loansGateway, walletsGateway, workspaceGateway }: AppProps = {}) {
+export function App({ initialHouseholdInvitationToken = null, authGateway, categoriesGateway, householdGateway, loansGateway, walletsGateway, workspaceGateway }: AppProps = {}) {
   const client = useMemo(() => createBrowserDataClient(), []);
   const activeAuthGateway = useMemo(() => authGateway ?? (client ? createSupabaseAuthGateway(client) : null), [authGateway, client]);
   const activeCategoriesGateway = useMemo(() => categoriesGateway ?? (client ? createSupabaseCategoriesGateway(client) : null), [categoriesGateway, client]);
@@ -169,5 +221,5 @@ export function App({ authGateway, categoriesGateway, householdGateway, loansGat
     return <main className="configuration-page"><section><span className="brand">Budget ledger</span><h1>Configuration needed</h1><p>Connect this browser to the dedicated Budget development stack before continuing.</p></section></main>;
   }
 
-  return <ConfiguredApp authGateway={activeAuthGateway} categoriesGateway={activeCategoriesGateway} householdGateway={activeHouseholdGateway} loansGateway={activeLoansGateway} walletsGateway={activeWalletsGateway} workspaceGateway={activeWorkspaceGateway} />;
+  return <ConfiguredApp initialHouseholdInvitationToken={initialHouseholdInvitationToken} authGateway={activeAuthGateway} categoriesGateway={activeCategoriesGateway} householdGateway={activeHouseholdGateway} loansGateway={activeLoansGateway} walletsGateway={activeWalletsGateway} workspaceGateway={activeWorkspaceGateway} />;
 }
