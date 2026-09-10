@@ -56,6 +56,53 @@ function readMigration(name: string): string {
   }
 }
 
+function publicFunctions(sql: string): { name: string; body: string }[] {
+  if (Buffer.byteLength(sql, 'utf8') > maximumMigrationBytes) {
+    throw new Error('source ratchet SQL exceeds its 1 MiB parsing cap');
+  }
+  // Scan declaration prefixes independently so unsupported identifiers or bodies
+  // cannot disappear merely because the complete-definition parser skipped them.
+  const declarations = [...sql.matchAll(
+    /\bcreate\s+(?:or\s+replace\s+)?function\s+(?:public|"public")\s*\./gi,
+  )];
+  const definitions = [...sql.matchAll(
+    /\bcreate\s+(?:or\s+replace\s+)?function\s+(?:public|"public")\s*\.\s*([a-z_][a-z0-9_$]*)\s*\([\s\S]*?\bas\s+(\$(?:[a-z_][a-z0-9_]*)?\$)([\s\S]*?)\2\s*;/gi,
+  )];
+  if (declarations.length !== definitions.length
+    || declarations.some((declaration, index) => declaration.index !== definitions[index]?.index)) {
+    throw new Error('source ratchet could not classify a public function');
+  }
+  const functions: { name: string; body: string }[] = [];
+  for (const match of definitions) {
+    const name = match[1];
+    const body = match[3];
+    if (!name || body === undefined) {
+      throw new Error('source ratchet could not classify a public function');
+    }
+    functions.push({ name: name.toLowerCase(), body });
+  }
+  return functions;
+}
+
+function categoryWriters(sql: string): string[] {
+  return publicFunctions(sql).filter(({ body }) =>
+    /\b(?:insert\s+into|update|delete\s+from|merge\s+into|truncate(?:\s+table)?)\s+public\.categories\b/i.test(body),
+  ).map(({ name }) => name);
+}
+
+function requireOneSubcategoryDefinition(sql: string): void {
+  const count = publicFunctions(sql).filter(({ name }) => name === 'create_subcategory').length;
+  if (count !== 1) {
+    throw new Error('source ratchet requires exactly one create_subcategory definition');
+  }
+}
+
+function writerControl(name: string): string {
+  return `create function public.${name}() returns void language plpgsql as $$
+    begin insert into public.categories (name_en) values ('Control'); end;
+  $$;`;
+}
+
 const migrations = migrationNames().map((name) => ({ name, sql: readMigration(name) }));
 const subcategoryMigration = migrations.find(({ name }) => name === subcategoryFilename)?.sql;
 if (!subcategoryMigration) {
@@ -64,22 +111,39 @@ if (!subcategoryMigration) {
 const compactMigration = subcategoryMigration.replace(/\s+/g, ' ').trim();
 
 describe('subcategory source boundaries', () => {
+  it.each(['create_extra_category', 'create_category_v2', 'create_category_$2'])(
+    'detects the ordinary public writer identifier %s', (name) => {
+      expect(categoryWriters(writerControl(name))).toEqual([name]);
+    },
+  );
+
+  it.each([
+    'create function public."unsupported-name"() returns integer language sql as $$ select 1; $$;',
+    "create function public.unsupported_body() returns integer language sql as 'select 1;';",
+  ])('rejects an unclassified public function declaration: %s', (sql) => {
+    expect(() => publicFunctions(sql)).toThrow('source ratchet could not classify a public function');
+  });
+
+  it.each(['create or replace function', 'CREATE OR REPLACE FUNCTION'])(
+    'rejects a second subcategory definition declared with %s', (declaration) => {
+      const creation = writerControl('create_subcategory');
+      const replacement = creation.replace('create function', declaration);
+      expect(() => requireOneSubcategoryDefinition(`${creation}\n${replacement}`)).toThrow(
+        'source ratchet requires exactly one create_subcategory definition',
+      );
+    },
+  );
+
+  it('recognizes a single mixed-case replacement definition', () => {
+    const replacement = writerControl('CREATE_SUBCATEGORY').replace('create function', 'CrEaTe Or RePlAcE FuNcTiOn');
+    expect(() => requireOneSubcategoryDefinition(replacement)).not.toThrow();
+  });
+
   it('allows only the three classified public category writers across the bounded journal', () => {
     const writers = new Set<string>();
     for (const { sql } of migrations) {
-      const functions = sql.matchAll(
-        /create\s+(?:or\s+replace\s+)?function\s+public\.([a-z_]+)\s*\([\s\S]*?\bas\s+(\$(?:[a-z_][a-z0-9_]*)?\$)([\s\S]*?)\2\s*;/gi,
-      );
-      // Each match consumes source text, bounded by the 1 MiB per-file cap.
-      for (const match of functions) {
-        const name = match[1];
-        const body = match[3];
-        if (!name || body === undefined) {
-          throw new Error('source ratchet could not classify a public function');
-        }
-        if (/\b(?:insert\s+into|update|delete\s+from|merge\s+into|truncate(?:\s+table)?)\s+public\.categories\b/i.test(body)) {
-          writers.add(name);
-        }
+      for (const name of categoryWriters(sql)) {
+        writers.add(name);
       }
     }
     const publicCategoryWriters = [...writers].sort();
@@ -91,7 +155,7 @@ describe('subcategory source boundaries', () => {
   });
 
   it('defines one creation command and forbids recursive hierarchy or financial backfills', () => {
-    expect(subcategoryMigration.match(/create function public\.create_subcategory/g)).toHaveLength(1);
+    requireOneSubcategoryDefinition(subcategoryMigration);
     expect(subcategoryMigration).not.toMatch(/with\s+recursive|\bpath\b|\bdepth\b\s+(integer|bigint)/i);
     expect(subcategoryMigration).not.toMatch(/update\s+public\.financial_events|update\s+public\.financial_event_categories/i);
   });
