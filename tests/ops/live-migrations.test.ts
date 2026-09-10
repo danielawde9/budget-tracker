@@ -16,40 +16,31 @@ import { describe, expect, it } from 'vitest';
 
 const script = join(process.cwd(), 'scripts/ops/apply-live-migrations.sh');
 const projectRef = 'bsjqmulybcmlgpmhfrug';
+const liveRunnerCommit = 'b5042865dd88fb4409894e39127b080f766c82df';
 
 function fixture(projectsJson = JSON.stringify([{ id: projectRef, name: 'Budget' }])) {
   const base = mkdtempSync(
     join(realpathSync(tmpdir()), 'budget-live-migrations-'),
   );
   const backupRoot = join(base, 'backups');
-  const gitDirectory = join(base, 'repository.git');
+  const releaseRoot = join(base, 'release');
   const log = join(base, 'supabase-args.log');
   const supabase = join(base, 'supabase');
-  const currentHead = spawnSync('git', ['rev-parse', 'HEAD'], {
-    cwd: process.cwd(),
-    encoding: 'utf8',
-  });
-  if (currentHead.status !== 0) {
-    throw new Error('failed to resolve the fixture source commit');
-  }
   const clone = spawnSync(
     'git',
-    ['clone', '--quiet', '--bare', process.cwd(), gitDirectory],
+    ['clone', '--quiet', '--no-hardlinks', process.cwd(), releaseRoot],
     { encoding: 'utf8' },
   );
   if (clone.status !== 0) {
-    throw new Error('failed to create the isolated git fixture');
+    throw new Error('failed to create the live-release fixture');
   }
-  const fixtureHead = currentHead.stdout.trim();
-  for (const args of [
-    ['--git-dir', gitDirectory, 'update-ref', 'refs/heads/main', fixtureHead],
-    ['--git-dir', gitDirectory, 'symbolic-ref', 'HEAD', 'refs/heads/main'],
-    ['--git-dir', gitDirectory, 'read-tree', 'HEAD'],
-  ]) {
-    const result = spawnSync('git', args, { encoding: 'utf8' });
-    if (result.status !== 0) {
-      throw new Error('failed to prepare the isolated main-branch fixture');
-    }
+  const checkout = spawnSync(
+    'git',
+    ['-C', releaseRoot, 'checkout', '--quiet', '-B', 'main', liveRunnerCommit],
+    { encoding: 'utf8' },
+  );
+  if (checkout.status !== 0) {
+    throw new Error('failed to checkout the live-release fixture');
   }
   mkdirSync(backupRoot, { mode: 0o700 });
   writeFileSync(
@@ -94,18 +85,21 @@ esac
       BUDGET_SUPABASE_BIN: supabase,
       FAKE_PROJECTS_JSON: projectsJson,
       FAKE_SUPABASE_LOG: log,
-      GIT_DIR: gitDirectory,
-      GIT_WORK_TREE: process.cwd(),
       SUPABASE_ACCESS_TOKEN: ['fixture', 'access'].join('-'),
       SUPABASE_DB_PASSWORD: ['fixture', 'password'].join('-'),
       TMPDIR: base,
     },
     log,
+    script: join(releaseRoot, 'scripts/ops/apply-live-migrations.sh'),
   };
 }
 
-function run(env: NodeJS.ProcessEnv, confirmation: string) {
-  return spawnSync('bash', [script], {
+function run(
+  runnerScript: string,
+  env: NodeJS.ProcessEnv,
+  confirmation: string,
+) {
+  return spawnSync('bash', [runnerScript], {
     cwd: process.cwd(),
     encoding: 'utf8',
     env,
@@ -124,8 +118,12 @@ describe('one-time live Supabase migration runner', () => {
   });
 
   it('refuses an account that cannot see the exact project before database contact', () => {
-    const { env, log } = fixture(JSON.stringify([{ id: 'wrongprojectref00000' }]));
-    const result = run(env, `APPLY LIVE MIGRATIONS TO ${projectRef}`);
+    const { base, env, log, script: fixtureScript } = fixture(
+      JSON.stringify([{ id: 'wrongprojectref00000' }]),
+    );
+    expect(fixtureScript.startsWith(`${base}/`)).toBe(true);
+    expect(realpathSync(fixtureScript)).not.toBe(realpathSync(script));
+    const result = run(fixtureScript, env, `APPLY LIVE MIGRATIONS TO ${projectRef}`);
 
     expect(result.status).toBe(78);
     expect(result.stderr).toContain('authenticated account cannot access the exact project');
@@ -135,8 +133,10 @@ describe('one-time live Supabase migration runner', () => {
   });
 
   it('takes private schema and public-data dumps but refuses a wrong confirmation', () => {
-    const { backupRoot, base, env, log } = fixture();
-    const result = run(env, 'APPLY SOMEWHERE ELSE');
+    const { backupRoot, base, env, log, script: fixtureScript } = fixture();
+    expect(fixtureScript.startsWith(`${base}/`)).toBe(true);
+    expect(realpathSync(fixtureScript)).not.toBe(realpathSync(script));
+    const result = run(fixtureScript, env, 'APPLY SOMEWHERE ELSE');
 
     expect(result.status).toBe(78);
     expect(result.stderr).toContain('confirmation did not match');
@@ -160,8 +160,10 @@ describe('one-time live Supabase migration runner', () => {
   });
 
   it('applies once after exact confirmation and verifies the resulting schema', () => {
-    const { backupRoot, env, log } = fixture();
-    const result = run(env, `APPLY LIVE MIGRATIONS TO ${projectRef}`);
+    const { backupRoot, base, env, log, script: fixtureScript } = fixture();
+    expect(fixtureScript.startsWith(`${base}/`)).toBe(true);
+    expect(realpathSync(fixtureScript)).not.toBe(realpathSync(script));
+    const result = run(fixtureScript, env, `APPLY LIVE MIGRATIONS TO ${projectRef}`);
 
     expect(result.status, `${result.stderr}\n${result.stdout}`).toBe(0);
     expect(result.stdout).toContain(`Live Budget migrations verified on ${projectRef}`);
