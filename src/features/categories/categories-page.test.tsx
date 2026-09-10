@@ -36,7 +36,42 @@ describe('CategoriesPage', () => {
     expect(screen.getByRole('heading', { name: 'Expense categories' })).toBeInTheDocument();
     expect(screen.getAllByText('Salary').every((element) => element.closest('bdi') !== null)).toBe(true);
     expect(screen.getAllByText('بقالة').every((element) => element.closest('bdi') !== null)).toBe(true);
-    expect(screen.queryByRole('button', { name: /rename|delete|unarchive|subcategory|icon|color/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /rename|delete|unarchive|icon|color/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'New subcategory for Salary' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'New subcategory for Groceries' })).toBeInTheDocument();
+  });
+
+  it('nests active children under roots and requires child archival before parent archival', async () => {
+    const gateway = new InMemoryCategoriesGateway();
+    gateway.categories.push({
+      id: 'category-food', spaceId: 'space-1', kind: 'expense', nameEn: 'Food', nameAr: 'طعام',
+      parentCategoryId: 'category-groceries', createdAt: '2026-09-08T12:00:00Z', archivedAt: null,
+    });
+    await renderPage(gateway);
+
+    const children = screen.getByRole('list', { name: 'Subcategories of Groceries' });
+    expect(within(children).getByText('Food').closest('bdi')).not.toBeNull();
+    expect(within(children).getByRole('button', { name: 'Archive Food' })).toBeInTheDocument();
+    expect(within(children).queryByRole('button', { name: 'New subcategory for Food' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Archive Groceries' })).not.toBeInTheDocument();
+    expect(screen.getByText('Archive subcategories first')).toBeInTheDocument();
+  });
+
+  it('creates a child for the immutable selected root and restores opener focus', async () => {
+    const { gateway, user } = await renderPage();
+    const opener = screen.getByRole('button', { name: 'New subcategory for Groceries' });
+    await user.click(opener);
+    const dialog = screen.getByRole('dialog', { name: 'Create a subcategory' });
+    await user.type(within(dialog).getByLabelText('English name'), 'Transport');
+    await user.click(within(dialog).getByRole('button', { name: 'Create subcategory' }));
+    expect(await within(dialog).findByRole('status')).toHaveTextContent('Subcategory created');
+    expect(gateway.calls).toContainEqual({
+      name: 'createSubcategory',
+      input: expect.objectContaining({ parentCategoryId: 'category-groceries', nameEn: 'Transport' }),
+    });
+    await user.keyboard('{Escape}');
+    expect(opener).toHaveFocus();
+    expect(screen.getByRole('list', { name: 'Subcategories of Groceries' })).toHaveTextContent('Transport');
   });
 
   it('creates and archives through server-refetched active rows', async () => {
@@ -120,6 +155,7 @@ describe('CategoriesPage', () => {
     const { user } = await renderPage(new InMemoryCategoriesGateway(), 'ar');
     expect(screen.getByRole('heading', { name: 'الفئات' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'فئات الدخل' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'فئة فرعية جديدة ضمن راتب' })).toBeInTheDocument();
     const opener = screen.getByRole('button', { name: 'فئة جديدة' });
     await user.click(opener);
     const dialog = screen.getByRole('dialog', { name: 'إنشاء فئة' });
