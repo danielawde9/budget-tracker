@@ -89,6 +89,7 @@ declare
   v_fingerprint bytea;
   v_existing_kind text;
   v_existing_fingerprint bytea;
+  v_existing_category_id uuid;
   v_category_id uuid;
   v_parent_kind public.category_kind;
   v_parent_archived_at timestamptz;
@@ -131,16 +132,20 @@ begin
     'sha256'
   );
 
-  select request.command_kind, request.request_fingerprint, request.category_id
-  into v_existing_kind, v_existing_fingerprint, v_category_id
+  select request.command_kind, request.request_fingerprint, request.category_id, category.id
+  into v_existing_kind, v_existing_fingerprint, v_existing_category_id, v_category_id
   from public.category_command_requests as request
+  left join public.categories as category
+    on category.id = request.category_id
+   and category.space_id = request.space_id
   where request.space_id = p_space_id
     and request.request_id = p_request_id
   limit 1;
 
   if found then
     if v_existing_kind is distinct from 'create_subcategory'
-      or v_existing_fingerprint is distinct from v_fingerprint then
+      or v_existing_fingerprint is distinct from v_fingerprint
+      or v_existing_category_id is distinct from v_category_id then
       raise exception using errcode = 'P0001', message = 'request ID was already used with different data';
     end if;
 
