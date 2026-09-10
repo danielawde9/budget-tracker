@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "types:worker": "wrangler types",
+    "check:worker-types": "wrangler types --check",
     "test:db": "vitest run tests/db --pool=forks --no-file-parallelism",
     "test:db:watch": "vitest tests/db --pool=forks --no-file-parallelism",
     "test:ui": "vitest run --config vitest.ui.config.ts",
@@ -15,7 +17,7 @@
     "test:e2e": "env -u NO_COLOR playwright test",
     "test:uat:offline": "env -u NO_COLOR playwright test e2e/private-uat.spec.ts",
     "check:uat:infra": "pnpm exec vitest run tests/ops/budget-uat-18.test.ts --pool=forks --no-file-parallelism",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "pnpm check:worker-types && tsc --noEmit && tsc -p tsconfig.worker.json",
     "check:ops": "bash scripts/ops/check-budget.sh",
     "migrate:live": "bash scripts/ops/apply-live-migrations.sh",
     "check:cloudflare-env": "node scripts/cloudflare/check-build-environment.mjs",

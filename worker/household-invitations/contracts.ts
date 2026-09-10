@@ -27,7 +27,13 @@ export type SafeDeliveryErrorCode =
   | 'delivery_failed'
   | 'delivery_unavailable'
   | 'delivery_status_ambiguous'
-  | 'audit_unavailable';
+  | 'audit_unavailable'
+  | 'method_not_allowed'
+  | 'not_found'
+  | 'origin_rejected'
+  | 'content_type_rejected'
+  | 'rate_limited'
+  | 'rate_limit_unavailable';
 
 export class SafeDeliveryError extends Error {
   readonly code: SafeDeliveryErrorCode;
@@ -106,6 +112,8 @@ export class ProviderError extends Error {
 }
 
 export type AuditEventName =
+  | 'request_rejected'
+  | 'request_rate_limited'
   | 'invitation_command_accepted'
   | 'invitation_command_rejected'
   | 'provider_attempt_started'
@@ -116,7 +124,9 @@ export type AuditEventName =
 export type AuditReason =
   | SafeDeliveryErrorCode
   | ProviderErrorCategory
-  | 'idempotency_window_closed';
+  | 'idempotency_window_closed'
+  | 'ip'
+  | 'actor_space';
 
 export interface AuditEvent {
   readonly at: string;
