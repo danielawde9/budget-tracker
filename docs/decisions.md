@@ -616,3 +616,25 @@ history repair, destructive reset, or automated CI application requires a new
 review and explicit owner approval. The local `public` snapshot is not an
 encrypted off-site recovery point and does not approve irreplaceable real-data
 entry before the existing restore requirement is satisfied.
+
+## 2026-09-10 — Subcategories use one immutable parent level
+
+**Decision:** A category may have one immutable parent category, and only a
+root category may be a parent. Parent and child share the same space and
+income/expense kind. Active normalized names remain unique across the whole
+space and kind. Transactions keep one category association; reporting rolls a
+child into its parent without duplicating the event. Monthly targets initially
+belong only to roots. A root cannot be archived while it has active children.
+
+**Why:** One bounded level supports household breakdowns such as Essentials →
+Rent/Groceries/Utilities without introducing recursive trees, mutable taxonomy
+history, double-counted budgets, or changes to the immutable journal. Global
+name uniqueness keeps pickers unambiguous and preserves the deployed
+Categories v1 constraint.
+
+**If changed:** Arbitrary nesting requires cycle, depth, recursive read, and
+subtree lifecycle contracts. Reparenting requires append-only relationship
+history and historical reporting semantics. Child-level targets require an
+explicit allocation rule preventing parent/child double counting. Sibling-only
+name uniqueness requires replacing deployed indexes and disambiguating every
+category picker and report.
