@@ -741,3 +741,27 @@ combined gate to fail even though every migration applied successfully.
 namespace as one milestone's private universe will make safe parallel features
 conflict at integration time. A deliberately exclusive release boundary should
 instead use its separate hash manifest and exact release gate.
+
+## 2026-09-10 — Household UI records invitations without claiming delivery
+
+**Decision:** Household administration is a selected-household application
+destination backed only by the six protected mutation commands, two bounded
+owner projections, and the current user's existing RLS-visible membership row.
+Invitation links use `#household-invitation=<token>`; the client removes the
+fragment before application initialization and never persists or renders the
+token. Until an email provider is separately approved, invitation creation
+discards the returned token at the gateway boundary and reports only that the
+database record exists and delivery is not configured. Member identities remain
+opaque user IDs because no approved profile or email projection exists.
+
+**Why:** This exposes the merged Household lifecycle without introducing direct
+table writes, widening identity reads, leaking reusable secrets, or pretending
+that an invitation was delivered. Scoping administration to the selected
+household also prevents personal-space controls or stale cross-space data from
+appearing.
+
+**If changed:** Usable external delivery requires a separately reviewed trusted
+delivery boundary that consumes the returned token without exposing it to UI or
+logs. Display names or email addresses require an explicit identity projection
+and privacy design. A routed settings area would require a navigation and URL
+state milestone rather than an incidental Household UI change.
