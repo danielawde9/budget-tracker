@@ -85,9 +85,21 @@ function publicFunctions(sql: string): { name: string; body: string }[] {
 }
 
 function categoryWriters(sql: string): string[] {
-  return publicFunctions(sql).filter(({ body }) =>
-    /\b(?:insert\s+into|update|delete\s+from|merge\s+into|truncate(?:\s+table)?)\s+public\.categories\b/i.test(body),
-  ).map(({ name }) => name);
+  return publicFunctions(sql).filter(({ body }) => {
+    let writesCategories = false;
+    // Inspect mutation candidates independently of the supported relation parser.
+    // Ambiguous category mentions fail closed, including comments, parenthesized
+    // ONLY targets, and multi-relation TRUNCATE. Unqualified targets are writers.
+    const candidates = body.matchAll(/\b(?:insert|update|delete|merge|truncate)\b[^;]*/gi);
+    for (const [candidate] of candidates) {
+      if (!/\bcategories\b/i.test(candidate)) continue;
+      if (!/^(?:insert\s+into|update|delete\s+from|merge\s+into|truncate(?:\s+table)?)\s+(?:only\s+)?(?:(?:public|"public")\s*\.\s*)?(?:categories|"categories")(?=\s|[(*]|$)/i.test(candidate)) {
+        throw new Error('source ratchet could not classify a category relation mutation');
+      }
+      writesCategories = true;
+    }
+    return writesCategories;
+  }).map(({ name }) => name);
 }
 
 function requireOneSubcategoryDefinition(sql: string): void {
@@ -97,9 +109,9 @@ function requireOneSubcategoryDefinition(sql: string): void {
   }
 }
 
-function writerControl(name: string): string {
+function writerControl(name: string, mutation = "insert into public.categories (name_en) values ('Control')"): string {
   return `create function public.${name}() returns void language plpgsql as $$
-    begin insert into public.categories (name_en) values ('Control'); end;
+    begin ${mutation}; end;
   $$;`;
 }
 
@@ -111,6 +123,36 @@ if (!subcategoryMigration) {
 const compactMigration = subcategoryMigration.replace(/\s+/g, ' ').trim();
 
 describe('subcategory source boundaries', () => {
+  it.each([
+    'INSERT INTO public."categories"',
+    'INSERT INTO "public"."categories"',
+    'UPDATE ONLY public.categories',
+    'INSERT INTO categories',
+    'INSERT INTO "categories"',
+    'UPDATE ONLY "public" . "categories"',
+    'DELETE FROM public."categories"',
+    'DELETE FROM "public"."categories"',
+    'DELETE FROM ONLY public.categories',
+    'DELETE FROM ONLY "public" . categories',
+    'DELETE FROM categories',
+    'DELETE FROM ONLY "categories"',
+    'TRUNCATE TABLE ONLY public.categories',
+    'MERGE INTO "public".categories',
+  ])('classifies category relation mutation syntax: %s', (mutation) => {
+    expect(categoryWriters(writerControl('extra_writer', mutation))).toEqual(['extra_writer']);
+  });
+
+  it.each([
+    'INSERT INTO public./* relation separator */categories',
+    'UPDATE ONLY (public.categories)',
+    'DELETE FROM ONLY ("public"."categories")',
+    'TRUNCATE TABLE public.spaces, public.categories',
+  ])('fails closed on unsupported category mutation syntax: %s', (mutation) => {
+    expect(() => categoryWriters(writerControl('extra_writer', mutation))).toThrow(
+      'source ratchet could not classify a category relation mutation',
+    );
+  });
+
   it.each(['create_extra_category', 'create_category_v2', 'create_category_$2'])(
     'detects the ordinary public writer identifier %s', (name) => {
       expect(categoryWriters(writerControl(name))).toEqual([name]);
