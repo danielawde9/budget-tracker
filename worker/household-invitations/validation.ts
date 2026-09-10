@@ -109,7 +109,7 @@ export async function readBoundedBody(
     for (let chunkIndex = 0; chunkIndex < MAX_BODY_CHUNKS; chunkIndex += 1) {
       const result = await Promise.race([reader.read(), deadline]);
       if (result === bodyReadTimedOut) {
-        await reader.cancel().catch(() => undefined);
+        void reader.cancel().catch(() => undefined);
         throw new SafeDeliveryError('request_timeout', 408, 'body');
       }
       if (result.done) {

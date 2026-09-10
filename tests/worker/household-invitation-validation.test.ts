@@ -100,13 +100,14 @@ describe('bounded HTTP input', () => {
     await expect(readBoundedBody(request, 4096)).rejects.toThrow('body');
   });
 
-  it('cancels a body stream that does not complete before the deadline', async () => {
+  it('rejects on deadline even when body-stream cancellation never settles', async () => {
     vi.useFakeTimers();
     let cancelled = false;
     const body = new ReadableStream<Uint8Array>({
       pull: () => new Promise<void>(() => undefined),
       cancel: () => {
         cancelled = true;
+        return new Promise<void>(() => undefined);
       },
     });
     const request = new Request('https://budget.example.com/api', {
@@ -115,14 +116,15 @@ describe('bounded HTTP input', () => {
       duplex: 'half',
     } as RequestInit);
 
-    const result = expect(readBoundedBody(request, 4096, 25)).rejects.toMatchObject({
-      code: 'request_timeout',
-      status: 408,
+    let rejection: unknown;
+    const result = readBoundedBody(request, 4096, 25).catch((error: unknown) => {
+      rejection = error;
     });
     await vi.advanceTimersByTimeAsync(25);
 
-    await result;
+    expect(rejection).toMatchObject({ code: 'request_timeout', status: 408 });
     expect(cancelled).toBe(true);
+    await result;
   });
 });
 
