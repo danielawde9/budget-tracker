@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest';
 const script = join(process.cwd(), 'scripts/ops/apply-live-migrations.sh');
 const projectRef = 'bsjqmulybcmlgpmhfrug';
 const releaseHead = '41399f6ca54f8d207474313b159af1c9c723ea84';
-const liveRunnerCommit = 'b5042865dd88fb4409894e39127b080f766c82df';
+const liveRunnerCommit = '18355dd61b2c71fd1571a991879dd6c4c7af2629';
 const subprocessTimeoutMillis = 10_000;
 const defaultProjects = JSON.stringify([{ id: projectRef, name: 'Budget' }]);
 
