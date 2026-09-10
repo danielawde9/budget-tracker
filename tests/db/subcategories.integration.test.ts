@@ -365,11 +365,15 @@ async function withAuthenticatedTransaction<T>(
   });
 }
 
-async function createSpace(client: Client, ownerId: string): Promise<{ id: string }> {
+async function createSpace(
+  client: Client,
+  ownerId: string,
+  kind: 'personal' | 'household' = 'household',
+): Promise<{ id: string }> {
   return withAuthenticatedTransaction(client, ownerId, async () => {
     const result = await client.query<{ id: string }>(
       'select * from public.create_space($1, $2)',
-      [`Subcategories ${randomUUID()}`, 'household'],
+      [`Subcategories ${randomUUID()}`, kind],
     );
     const space = result.rows[0];
     if (!space) {
@@ -574,6 +578,307 @@ async function categoryById(
   });
 }
 
+const existingRelations = [
+  'auth.users',
+  'public.categories',
+  'public.category_command_requests',
+  'public.financial_event_categories',
+  'public.financial_events',
+  'public.loan_balances',
+  'public.loan_monthly_target_revisions',
+  'public.loan_postings',
+  'public.loans',
+  'public.space_memberships',
+  'public.spaces',
+  'public.wallet_balances',
+  'public.wallet_movements',
+  'public.wallets',
+] as const;
+type ExistingRelation = typeof existingRelations[number];
+
+const existingFunctionSignatures = [
+  'archive_category(uuid,uuid,uuid)',
+  'create_category(uuid,uuid,category_kind,text,text)',
+  'create_space(text,space_kind)',
+  'create_wallet(uuid,text,currency_code)',
+  'get_category_command_result(uuid,uuid)',
+  'loan_monthly_currency_summary(uuid,date)',
+  'loan_monthly_plan(uuid,date)',
+  'open_loan_outstanding(uuid,uuid,loan_direction,text,currency_code,text,date,date,text)',
+  'record_cash_loan(uuid,uuid,loan_direction,text,currency_code,uuid,text,date,date,text)',
+  'record_categorized_financial_event(uuid,uuid,financial_event_kind,date,jsonb,uuid)',
+  'record_financial_event(uuid,uuid,financial_event_kind,date,jsonb)',
+  'record_loan_repayment(uuid,uuid,uuid,uuid,text,date)',
+  'reverse_financial_event(uuid,uuid,uuid,date)',
+  'set_loan_monthly_target(uuid,uuid,uuid,date,text)',
+] as const;
+
+const upgradeCategoryInputs = [
+  { kind: 'income', nameEn: 'Salary', nameAr: null, archive: false },
+  { kind: 'income', nameEn: 'Past salary', nameAr: null, archive: true },
+  { kind: 'income', nameEn: null, nameAr: 'دخل', archive: false },
+  { kind: 'income', nameEn: null, nameAr: 'دخل سابق', archive: true },
+  { kind: 'income', nameEn: 'Bonus', nameAr: 'مكافأة', archive: false },
+  { kind: 'income', nameEn: 'Past bonus', nameAr: 'مكافأة سابقة', archive: true },
+  { kind: 'expense', nameEn: 'Rent', nameAr: null, archive: false },
+  { kind: 'expense', nameEn: 'Past rent', nameAr: null, archive: true },
+  { kind: 'expense', nameEn: null, nameAr: 'طعام', archive: false },
+  { kind: 'expense', nameEn: null, nameAr: 'طعام سابق', archive: true },
+  { kind: 'expense', nameEn: 'Travel', nameAr: 'سفر', archive: false },
+  { kind: 'expense', nameEn: 'Past travel', nameAr: 'سفر سابق', archive: true },
+] as const;
+
+async function migrationVersions(client: Client): Promise<string[]> {
+  const result = await client.query<{ version: string }>(
+    `select version from supabase_migrations.schema_migrations order by version limit 101`,
+  );
+  expect(result.rows.length).toBeLessThanOrEqual(maximumMigrationCount);
+  return result.rows.map((row) => row.version);
+}
+
+async function scalar(client: Client, sql: string): Promise<number> {
+  const result = await client.query<{ value: number }>(sql);
+  expect(result.rows).toHaveLength(1);
+  const value = result.rows[0]?.value;
+  if (typeof value !== 'number') {
+    throw new Error('the bounded scalar assertion did not return a number');
+  }
+  return value;
+}
+
+async function snapshotRelations(client: Client, relations: readonly ExistingRelation[]) {
+  const snapshot: Partial<Record<ExistingRelation, string[]>> = {};
+  for (const relation of relations) {
+    if (!existingRelations.includes(relation)) {
+      throw new Error('snapshot relation is outside the exact allowlist');
+    }
+    // JSON text preserves every pre-existing column, timestamp, bytea fingerprint,
+    // and bigint without converting amounts through JavaScript numbers.
+    const result = await client.query<{ row: string }>(
+      `select (to_jsonb(source) ${relation === 'public.categories' ? "- 'parent_category_id'" : ''})::text as row
+       from ${relation} as source order by row limit 101`,
+    );
+    expect(result.rows.length, `${relation} must fit completely in the snapshot`).toBeLessThanOrEqual(100);
+    snapshot[relation] = result.rows.map(({ row }) => row);
+  }
+  return snapshot;
+}
+
+async function existingColumnCatalog(client: Client) {
+  const result = await client.query<Record<string, unknown>>(
+    `select namespace.nspname as schema, relation.relname as relation, attribute.attname as column,
+       format_type(attribute.atttypid, attribute.atttypmod) as type,
+       attribute.attnum, attribute.attnotnull, attribute.attgenerated,
+       pg_get_expr(defaults.adbin, defaults.adrelid) as default_expression
+     from pg_attribute as attribute
+     join pg_class as relation on relation.oid = attribute.attrelid
+     join pg_namespace as namespace on namespace.oid = relation.relnamespace
+     left join pg_attrdef as defaults
+       on defaults.adrelid = attribute.attrelid and defaults.adnum = attribute.attnum
+     where attribute.attnum > 0 and not attribute.attisdropped
+       and namespace.nspname || '.' || relation.relname = any($1::text[])
+       and not (relation.oid = 'public.categories'::regclass and attribute.attname = 'parent_category_id')
+     order by namespace.nspname, relation.relname, attribute.attnum limit 257`,
+    [existingRelations],
+  );
+  expect(result.rows.length).toBeLessThanOrEqual(256);
+  return result.rows;
+}
+
+async function existingFunctionCatalog(client: Client) {
+  const result = await client.query<{ signature: string; [key: string]: unknown }>(
+    `select procedure.oid::regprocedure::text as signature,
+       pg_get_function_arguments(procedure.oid) as arguments,
+       pg_get_function_result(procedure.oid) as result,
+       procedure.prosecdef, procedure.provolatile, procedure.proconfig, procedure.proacl::text,
+       has_function_privilege('public', procedure.oid, 'execute') as public_exec,
+       has_function_privilege('anon', procedure.oid, 'execute') as anon_exec,
+       has_function_privilege('authenticated', procedure.oid, 'execute') as authenticated_exec,
+       has_function_privilege('service_role', procedure.oid, 'execute') as service_exec,
+       case when procedure.proname <> 'archive_category'
+         then pg_get_functiondef(procedure.oid) end as unchanged_definition
+     from pg_proc as procedure
+     join pg_namespace as namespace on namespace.oid = procedure.pronamespace
+     where namespace.nspname = 'public' and procedure.proname <> 'create_subcategory'
+       and not exists (
+         select 1 from pg_depend as dependency
+         where dependency.classid = 'pg_proc'::regclass and dependency.objid = procedure.oid
+           and dependency.deptype = 'e' limit 1
+       )
+     order by signature limit 33`,
+  );
+  expect(result.rows.map(({ signature }) => signature)).toEqual(existingFunctionSignatures);
+  return result.rows;
+}
+
+async function categorySecurityCatalog(client: Client) {
+  const tables = await client.query<Record<string, unknown>>(
+    `select relname, relrowsecurity from pg_class
+     where oid = any(array['public.categories'::regclass, 'public.category_command_requests'::regclass])
+     order by relname limit 3`,
+  );
+  const policies = await client.query<Record<string, unknown>>(
+    `select tablename, policyname, permissive, roles::text[], cmd, qual, with_check
+     from pg_policies where schemaname = 'public'
+       and tablename = any(array['categories', 'category_command_requests'])
+     order by tablename, policyname limit 17`,
+  );
+  const grants = await client.query<Record<string, unknown>>(
+    `select role_name, table_name,
+       has_table_privilege(role_name, 'public.' || table_name, 'insert') as insert,
+       has_table_privilege(role_name, 'public.' || table_name, 'update') as update,
+       has_table_privilege(role_name, 'public.' || table_name, 'delete') as delete,
+       has_table_privilege(role_name, 'public.' || table_name, 'truncate') as truncate,
+       has_any_column_privilege(role_name, 'public.' || table_name, 'insert') as column_insert,
+       has_any_column_privilege(role_name, 'public.' || table_name, 'update') as column_update
+     from unnest(array['public', 'anon', 'authenticated', 'service_role']) as role_name
+     cross join unnest(array['categories', 'category_command_requests']) as table_name
+     order by role_name, table_name limit 9`,
+  );
+  return { tables: tables.rows, policies: policies.rows, grants: grants.rows };
+}
+
+async function normalizerPermissions(client: Client) {
+  const result = await client.query<Record<string, unknown>>(
+    `select proname, proacl::text,
+       has_function_privilege('authenticated', oid, 'execute') as authenticated_exec
+     from pg_proc where pronamespace = 'private'::regnamespace
+       and proname = any(array['arabic_category_key', 'canonical_category_name', 'english_category_key'])
+     order by proname limit 4`,
+  );
+  expect(result.rows).toHaveLength(3);
+  return result.rows;
+}
+
+async function memberSnapshot(client: Client, memberId: string, householdId: string) {
+  const requests = await client.query<{ request_id: string }>(
+    `select request_id from public.category_command_requests
+     where space_id = $1 order by request_id limit 101`, [householdId],
+  );
+  expect(requests.rows).toHaveLength(18);
+  return withAuthenticatedTransaction(client, memberId, async () => {
+    const relations = await snapshotRelations(client, existingRelations.filter(
+      (relation) => relation !== 'auth.users' && relation !== 'public.category_command_requests',
+    ));
+    const receipts: string[] = [];
+    for (const { request_id } of requests.rows) {
+      const result = await client.query<{ row: string }>(
+        `select to_jsonb(receipt)::text as row
+         from public.get_category_command_result($1, $2) as receipt limit 2`,
+        [householdId, request_id],
+      );
+      expect(result.rows).toHaveLength(1);
+      receipts.push(...result.rows.map(({ row }) => row));
+    }
+    return { relations, receipts };
+  });
+}
+
+async function upgradeSnapshot(client: Client, memberId: string, householdId: string) {
+  const totals = await client.query<{
+    wallet_id: string; movement_count: number; amount_minor: string;
+  }>(
+    `select wallet_id, count(*)::int as movement_count, sum(amount_minor)::text as amount_minor
+     from public.wallet_movements group by wallet_id order by wallet_id limit 101`,
+  );
+  expect(totals.rows).toHaveLength(2);
+  return {
+    columns: await existingColumnCatalog(client),
+    relations: await snapshotRelations(client, existingRelations),
+    functions: await existingFunctionCatalog(client),
+    security: await categorySecurityCatalog(client),
+    totals: totals.rows,
+    member: await memberSnapshot(client, memberId, householdId),
+  };
+}
+
+async function seedUpgradeWallet(client: Client, actorId: string, spaceId: string) {
+  return withAuthenticatedTransaction(client, actorId, async () => {
+    const wallet = await client.query<{ id: string }>(
+      "select * from public.create_wallet($1, 'Upgrade wallet', 'USD') limit 2", [spaceId],
+    );
+    expect(wallet.rows).toHaveLength(1);
+    const walletId = wallet.rows[0]!.id;
+    const opening = await client.query(
+      `select * from public.record_financial_event($1, $2, 'opening_balance', '2026-09-01', $3) limit 2`,
+      [spaceId, randomUUID(), JSON.stringify([{ walletId, amountMinor: '100000' }])],
+    );
+    expect(opening.rows).toHaveLength(1);
+    return walletId;
+  });
+}
+
+async function seedUpgradeCategories(client: Client, actorId: string, spaceId: string) {
+  const walletId = await seedUpgradeWallet(client, actorId, spaceId);
+  let reversed = false;
+  for (const input of upgradeCategoryInputs) {
+    const category = await createRootCategory(client, actorId, spaceId, input);
+    await withAuthenticatedTransaction(client, actorId, async () => {
+      const event = await client.query<{ id: string }>(
+        `select * from public.record_categorized_financial_event($1, $2, $3, '2026-09-02', $4, $5) limit 2`,
+        [spaceId, randomUUID(), input.kind, JSON.stringify([
+          { walletId, amountMinor: input.kind === 'income' ? '10000' : '-1200' },
+        ]), category.id],
+      );
+      expect(event.rows).toHaveLength(1);
+      if (!reversed && input.kind === 'expense') {
+        const reversal = await client.query(
+          "select * from public.reverse_financial_event($1, $2, $3, '2026-09-03') limit 2",
+          [spaceId, randomUUID(), event.rows[0]!.id],
+        );
+        expect(reversal.rows).toHaveLength(1);
+        reversed = true;
+      }
+    });
+    if (input.archive) {
+      await archiveCategory(client, actorId, spaceId, randomUUID(), category.id);
+    }
+  }
+  expect(reversed).toBe(true);
+}
+
+async function seedUpgradeDatabase(client: Client) {
+  const ownerId = randomUUID();
+  const memberId = randomUUID();
+  await client.query(
+    `insert into auth.users (id, email, email_confirmed_at)
+     select user_id, 'upgrade-' || user_id::text || '@budget.invalid', now()
+     from unnest($1::uuid[]) as user_id limit 2`, [[ownerId, memberId]],
+  );
+  const personal = await createSpace(client, ownerId, 'personal');
+  const household = await createSpace(client, ownerId, 'household');
+  await client.query(
+    "insert into public.space_memberships (space_id, user_id, role) values ($1, $2, 'member')",
+    [household.id, memberId],
+  );
+  await seedUpgradeCategories(client, ownerId, personal.id);
+  await seedUpgradeCategories(client, memberId, household.id);
+  return { memberId, householdId: household.id };
+}
+
+async function withRollback<T>(client: Client, action: () => Promise<T>): Promise<T> {
+  await client.query('begin');
+  try {
+    return await action();
+  } finally {
+    await client.query('rollback');
+  }
+}
+
+async function expectSavepointRejection(
+  client: Client,
+  action: () => Promise<unknown>,
+  error: { code: string; message?: string; constraint?: string },
+): Promise<void> {
+  await client.query('savepoint rejection_probe');
+  try {
+    await expect(action()).rejects.toMatchObject(error);
+  } finally {
+    await client.query('rollback to savepoint rejection_probe');
+    await client.query('release savepoint rejection_probe');
+  }
+}
+
 describe('subcategories database foundation', () => {
   let database: DisposableDatabase | undefined;
   let migrations: MigrationFile[] = [];
@@ -620,6 +925,9 @@ describe('subcategories database foundation', () => {
       await bootstrapCompatibilityObjects(database.client);
       migrations = migrationFiles();
       await replayMigrations(database.client, migrations);
+      expect(await scalar(database.client, 'select count(*)::int as value from public.categories')).toBe(0);
+      expect(await scalar(database.client, 'select count(*)::int as value from public.category_command_requests')).toBe(0);
+      expect(await scalar(database.client, 'select count(*)::int as value from public.financial_events')).toBe(0);
 
       ownerId = randomUUID();
       memberId = randomUUID();
@@ -653,7 +961,13 @@ describe('subcategories database foundation', () => {
     }
     const completedDatabase = database;
     database = undefined;
-    await disposeDisposableDatabase(completedDatabase);
+    try {
+      expect(await migrationVersions(completedDatabase.client)).toEqual(
+        migrations.map(({ version }) => version),
+      );
+    } finally {
+      await disposeDisposableDatabase(completedDatabase);
+    }
   });
 
   it('replays all 19 migrations before testing the new contract', async () => {
@@ -671,6 +985,296 @@ describe('subcategories database foundation', () => {
       migrations.map((migration) => migration.version),
     );
   });
+
+  it('preserves complete seeded state and command compatibility when upgrading 18 to 19 migrations', async () => {
+    const upgrade = await createDisposableDatabase();
+    try {
+      expect(upgrade.name).not.toBe(currentDatabase().name);
+      await bootstrapCompatibilityObjects(upgrade.client);
+      const priorMigrations = migrations.filter(({ version }) => version <= '20260908103000');
+      const featureMigrations = migrations.filter(({ version }) => version > '20260908103000');
+      expect(priorMigrations).toHaveLength(18);
+      expect(featureMigrations.map(({ version, name }) => ({ version, name }))).toEqual([
+        { version: '20260910100000', name: 'subcategories_foundation' },
+      ]);
+      await replayMigrations(upgrade.client, priorMigrations);
+      expect(await migrationVersions(upgrade.client)).toEqual(priorMigrations.map(({ version }) => version));
+      const relationCatalog = await upgrade.client.query<{ relation: string }>(
+        `select 'public.' || relname as relation from pg_class
+         where relnamespace = 'public'::regnamespace and relkind in ('r', 'v')
+         order by relation limit 33`,
+      );
+      expect(relationCatalog.rows.map(({ relation }) => relation)).toEqual(existingRelations.slice(1));
+      const fixture = await seedUpgradeDatabase(upgrade.client);
+      const beforeExistingState = await upgradeSnapshot(upgrade.client, fixture.memberId, fixture.householdId);
+      expect(Object.fromEntries(Object.entries(beforeExistingState.relations).map(
+        ([relation, rows]) => [relation, rows.length],
+      ))).toEqual({
+        'auth.users': 2, 'public.categories': 24, 'public.category_command_requests': 36,
+        'public.financial_event_categories': 26, 'public.financial_events': 28,
+        'public.loan_balances': 0, 'public.loan_monthly_target_revisions': 0,
+        'public.loan_postings': 0, 'public.loans': 0, 'public.space_memberships': 3,
+        'public.spaces': 2, 'public.wallet_balances': 2, 'public.wallet_movements': 28,
+        'public.wallets': 2,
+      });
+      expect(beforeExistingState.totals).toEqual([
+        { wallet_id: expect.any(String), movement_count: 14, amount_minor: '154000' },
+        { wallet_id: expect.any(String), movement_count: 14, amount_minor: '154000' },
+      ]);
+      expect(Object.fromEntries(Object.entries(beforeExistingState.member.relations).map(
+        ([relation, rows]) => [relation, rows.length],
+      ))).toEqual({
+        'public.categories': 12, 'public.financial_event_categories': 13, 'public.financial_events': 14,
+        'public.loan_balances': 0, 'public.loan_monthly_target_revisions': 0,
+        'public.loan_postings': 0, 'public.loans': 0, 'public.space_memberships': 1,
+        'public.spaces': 1, 'public.wallet_balances': 1, 'public.wallet_movements': 14,
+        'public.wallets': 1,
+      });
+      await replayMigrations(upgrade.client, featureMigrations);
+      const afterExistingState = await upgradeSnapshot(upgrade.client, fixture.memberId, fixture.householdId);
+      expect(afterExistingState).toEqual(beforeExistingState);
+      expect(await scalar(upgrade.client,
+        'select count(*)::int as value from public.categories where parent_category_id is not null',
+      )).toBe(0);
+      expect(await migrationVersions(upgrade.client)).toHaveLength(19);
+      expect(await migrationVersions(upgrade.client)).toEqual(migrations.map(({ version }) => version));
+    } finally {
+      await disposeDisposableDatabase(upgrade);
+    }
+  });
+
+  it('pins exact parent and request-kind constraint definitions in the live catalog', async () => {
+    const { client } = currentDatabase();
+    const constraints = await client.query<Record<string, unknown>>(
+      `select conname, contype, convalidated, condeferrable, pg_get_constraintdef(oid) as definition
+       from pg_constraint
+       where (conrelid = 'public.categories'::regclass
+         and conname = any(array['categories_parent_not_self_check', 'categories_parent_space_kind_fkey']))
+         or (conrelid = 'public.category_command_requests'::regclass
+           and conname = 'category_command_requests_command_kind_check')
+       order by conname limit 4`,
+    );
+    expect(constraints.rows).toEqual([
+      {
+        conname: 'categories_parent_not_self_check', contype: 'c', convalidated: true, condeferrable: false,
+        definition: 'CHECK (((parent_category_id IS NULL) OR (parent_category_id <> id)))',
+      },
+      {
+        conname: 'categories_parent_space_kind_fkey', contype: 'f', convalidated: true, condeferrable: false,
+        definition: 'FOREIGN KEY (parent_category_id, space_id, kind) REFERENCES categories(id, space_id, kind) ON DELETE RESTRICT',
+      },
+      {
+        conname: 'category_command_requests_command_kind_check', contype: 'c', convalidated: true, condeferrable: false,
+        definition: "CHECK ((command_kind = ANY (ARRAY['create_category'::text, 'create_subcategory'::text, 'archive_category'::text])))",
+      },
+    ]);
+  });
+
+  it('pins the exact hierarchy index columns and predicates in the live catalog', async () => {
+    const { client } = currentDatabase();
+    const indexes = await client.query<Record<string, unknown>>(
+      `select indexname, indexdef from pg_indexes where schemaname = 'public' and tablename = 'categories'
+         and indexname = any(array['categories_parent_fk_idx', 'categories_active_hierarchy_idx'])
+       order by indexname limit 3`,
+    );
+    expect(indexes.rows).toEqual([
+      {
+        indexname: 'categories_active_hierarchy_idx',
+        indexdef: 'CREATE INDEX categories_active_hierarchy_idx ON public.categories USING btree (space_id, kind, parent_category_id, created_at, id) WHERE (archived_at IS NULL)',
+      },
+      {
+        indexname: 'categories_parent_fk_idx',
+        indexdef: 'CREATE INDEX categories_parent_fk_idx ON public.categories USING btree (parent_category_id, space_id, kind) WHERE (parent_category_id IS NOT NULL)',
+      },
+    ]);
+  });
+
+  it('pins the enabled parent, owner-write, and archive trigger definitions in the live catalog', async () => {
+    const { client } = currentDatabase();
+    const triggers = await client.query<Record<string, unknown>>(
+      `select tgname, tgenabled, pg_get_triggerdef(oid) as definition from pg_trigger
+       where tgrelid = 'public.categories'::regclass and not tgisinternal
+         and tgname = any(array['categories_guard_archive_update', 'categories_require_owner_insert', 'categories_validate_parent_insert'])
+       order by tgname limit 4`,
+    );
+    expect(triggers.rows).toEqual([
+      {
+        tgname: 'categories_guard_archive_update', tgenabled: 'O',
+        definition: 'CREATE TRIGGER categories_guard_archive_update BEFORE UPDATE ON public.categories FOR EACH ROW EXECUTE FUNCTION private.guard_category_archive_transition()',
+      },
+      {
+        tgname: 'categories_require_owner_insert', tgenabled: 'O',
+        definition: 'CREATE TRIGGER categories_require_owner_insert BEFORE INSERT ON public.categories FOR EACH ROW EXECUTE FUNCTION private.require_table_owner_write()',
+      },
+      {
+        tgname: 'categories_validate_parent_insert', tgenabled: 'O',
+        definition: 'CREATE TRIGGER categories_validate_parent_insert BEFORE INSERT ON public.categories FOR EACH ROW EXECUTE FUNCTION private.validate_category_parent()',
+      },
+    ]);
+  });
+
+  it('pins exact command signatures, fixed search paths, and effective execution grants', async () => {
+    const { client } = currentDatabase();
+    const functions = await client.query<Record<string, unknown>>(
+      `select namespace.nspname as schema, procedure.proname as name,
+         procedure.oid::regprocedure::text as signature, pg_get_function_result(procedure.oid) as result,
+         procedure.prosecdef, procedure.proconfig,
+         has_function_privilege('public', procedure.oid, 'execute') as public_exec,
+         has_function_privilege('anon', procedure.oid, 'execute') as anon_exec,
+         has_function_privilege('authenticated', procedure.oid, 'execute') as authenticated_exec,
+         has_function_privilege('service_role', procedure.oid, 'execute') as service_exec
+       from pg_proc as procedure join pg_namespace as namespace on namespace.oid = procedure.pronamespace
+       where (namespace.nspname = 'public' and procedure.proname = 'create_subcategory')
+         or (namespace.nspname = 'private' and procedure.proname = 'validate_category_parent')
+       order by namespace.nspname, procedure.proname limit 3`,
+    );
+    expect(functions.rows).toEqual([
+      {
+        schema: 'private', name: 'validate_category_parent', signature: 'private.validate_category_parent()',
+        result: 'trigger', prosecdef: true, proconfig: ['search_path=pg_catalog'],
+        public_exec: false, anon_exec: false, authenticated_exec: false, service_exec: false,
+      },
+      {
+        schema: 'public', name: 'create_subcategory', signature: 'create_subcategory(uuid,uuid,uuid,text,text)',
+        result: 'TABLE(id uuid)', prosecdef: true, proconfig: ['search_path=pg_catalog, extensions'],
+        public_exec: false, anon_exec: false, authenticated_exec: true, service_exec: false,
+      },
+    ]);
+    const existing = await existingFunctionCatalog(client);
+    for (const command of existing.filter(({ signature }) =>
+      !['create_space(text,space_kind)', 'create_wallet(uuid,text,currency_code)'].includes(signature))) {
+      expect(command).toMatchObject({
+        public_exec: false, anon_exec: false, authenticated_exec: true, service_exec: false,
+      });
+    }
+  });
+
+  it('keeps categories and receipts behind exact RLS policies and zero raw write privileges', async () => {
+    const catalog = await categorySecurityCatalog(currentDatabase().client);
+    expect(catalog.tables).toEqual([
+      { relname: 'categories', relrowsecurity: true },
+      { relname: 'category_command_requests', relrowsecurity: true },
+    ]);
+    expect(catalog.policies).toEqual([
+      {
+        tablename: 'categories', policyname: 'categories_read_for_members', permissive: 'PERMISSIVE',
+        roles: ['authenticated'], cmd: 'SELECT',
+        qual: '( SELECT private.is_active_member(categories.space_id) AS is_active_member)', with_check: null,
+      },
+    ]);
+    expect(catalog.grants).toEqual(
+      ['anon', 'authenticated', 'public', 'service_role'].flatMap((role_name) =>
+        ['categories', 'category_command_requests'].map((table_name) => ({
+          role_name, table_name, insert: false, update: false, delete: false, truncate: false,
+          column_insert: false, column_update: false,
+        }))),
+    );
+  });
+
+  it('keeps owner and archive guards effective after raw grants and matching policies are added', async () => {
+    const { client, space, parent, input } = await fixture();
+    await createSubcategory(client, ownerId, input);
+    const securityBefore = await categorySecurityCatalog(client);
+    const normalizersBefore = await normalizerPermissions(client);
+    expect(normalizersBefore.map(({ authenticated_exec }) => authenticated_exec)).toEqual([false, false, false]);
+    const idsBefore = await categoryIds(client, space.id);
+    await withRollback(client, async () => {
+      await client.query('grant insert, update on public.categories to authenticated');
+      await client.query(`create policy subcategories_test_insert on public.categories
+        for insert to authenticated with check ((select private.is_active_member(space_id)))`);
+      await client.query(`create policy subcategories_test_update on public.categories
+        for update to authenticated using ((select private.is_active_member(space_id)))
+        with check ((select private.is_active_member(space_id)))`);
+      await client.query("select set_config('request.jwt.claim.sub', $1, true)", [ownerId]);
+      await client.query('set local role authenticated');
+      const ownerError = { code: '42501', message: 'protected rows may be written only by their owning command' };
+      await expectSavepointRejection(client, () => client.query(
+        `insert into public.categories (space_id, kind, name_en, parent_category_id, created_by)
+         values ($1, 'expense', 'Raw child', $2, $3)`, [space.id, parent.id, ownerId],
+      ), ownerError);
+      await expectSavepointRejection(client, () => client.query(
+        'update public.categories set archived_at = now(), archived_by = $1 where id = $2',
+        [ownerId, parent.id],
+      ), { code: '42501', message: 'permission denied for function english_category_key' });
+      // UPDATE also checks generated-column normalizers. Temporarily pass this
+      // independent ACL layer so the probe must reach the archive trigger itself.
+      await client.query('reset role');
+      await client.query(`grant execute on function private.canonical_category_name(text),
+        private.english_category_key(text), private.arabic_category_key(text) to authenticated`);
+      await client.query('set local role authenticated');
+      await expectSavepointRejection(client, () => client.query(
+        'update public.categories set archived_at = now(), archived_by = $1 where id = $2',
+        [ownerId, parent.id],
+      ), ownerError);
+      // The owning role passes the first guard, exposing the independent active-child check.
+      await client.query('reset role');
+      await expectSavepointRejection(client, () => client.query(
+        'update public.categories set archived_at = now(), archived_by = $1 where id = $2',
+        [ownerId, parent.id],
+      ), archiveChildrenError);
+    });
+    expect(await categorySecurityCatalog(client)).toEqual(securityBefore);
+    expect(await normalizerPermissions(client)).toEqual(normalizersBefore);
+    expect(await categoryIds(client, space.id)).toEqual(idsBefore);
+    expect(await categoryById(client, ownerId, parent.id)).toMatchObject({ archived_at: null });
+  });
+
+  it.each(['missing', 'other-space', 'other-kind', 'archived', 'child'] as const)(
+    'rejects an owner insert with a %s parent through parent validation', async (invalidParent) => {
+      const { client, space, parent, input } = await fixture();
+      let parentId = parent.id;
+      if (invalidParent === 'missing') {
+        parentId = randomUUID();
+      } else if (invalidParent === 'other-space') {
+        parentId = (await fixture()).parent.id;
+      } else if (invalidParent === 'other-kind') {
+        parentId = (await createRootCategory(client, ownerId, space.id, { kind: 'income' })).id;
+      } else if (invalidParent === 'archived') {
+        await archiveCategory(client, ownerId, space.id, randomUUID(), parent.id);
+      } else {
+        parentId = (await createSubcategory(client, ownerId, input)).id;
+      }
+      const idsBefore = await categoryIds(client, space.id);
+      await expect(withRollback(client, () => client.query(
+        `insert into public.categories (space_id, kind, name_en, parent_category_id, created_by)
+         values ($1, 'expense', 'Invalid owner child', $2, $3)`, [space.id, parentId, ownerId],
+      ))).rejects.toMatchObject(invalidParent === 'child'
+        ? { code: 'P0001', message: 'subcategory depth is limited to one level' } : parentError);
+      expect(await categoryIds(client, space.id)).toEqual(idsBefore);
+    },
+  );
+
+  it.each(['self', 'missing', 'other-space', 'other-kind'] as const)(
+    'keeps the %s parent constraint effective with the validation trigger disabled', async (invalidParent) => {
+      const { client, space, parent } = await fixture();
+      const id = randomUUID();
+      let parentId: string = id;
+      if (invalidParent === 'missing') {
+        parentId = randomUUID();
+      } else if (invalidParent === 'other-space') {
+        parentId = (await fixture()).parent.id;
+      } else if (invalidParent === 'other-kind') {
+        parentId = (await createRootCategory(client, ownerId, space.id, { kind: 'income' })).id;
+      }
+      const idsBefore = await categoryIds(client, space.id);
+      await expect(withRollback(client, async () => {
+        await client.query('alter table public.categories disable trigger categories_validate_parent_insert');
+        await client.query(
+          `insert into public.categories (id, space_id, kind, name_en, parent_category_id, created_by)
+           values ($1, $2, 'expense', 'Constraint probe', $3, $4)`, [id, space.id, parentId, ownerId],
+        );
+      })).rejects.toMatchObject(invalidParent === 'self'
+        ? { code: '23514', constraint: 'categories_parent_not_self_check' }
+        : { code: '23503', constraint: 'categories_parent_space_kind_fkey' });
+      const trigger = await client.query(
+        `select tgenabled from pg_trigger where tgrelid = 'public.categories'::regclass
+         and tgname = 'categories_validate_parent_insert' limit 2`,
+      );
+      expect(trigger.rows).toEqual([{ tgenabled: 'O' }]);
+      expect(await categoryIds(client, space.id)).toEqual(idsBefore);
+      expect(await categoryById(client, ownerId, parent.id)).toMatchObject({ archived_at: null });
+    },
+  );
 
   it('adds the immutable parent category identity to categories', async () => {
     if (!database) {
