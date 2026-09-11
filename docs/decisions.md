@@ -814,3 +814,23 @@ delivery boundary that consumes the returned token without exposing it to UI or
 logs. Display names or email addresses require an explicit identity projection
 and privacy design. A routed settings area would require a navigation and URL
 state milestone rather than an incidental Household UI change.
+
+## 2026-09-11 — Deleted live project is replaced by a fresh exact target
+
+**Decision:** The deleted Supabase project `bsjqmulybcmlgpmhfrug` is no longer a
+valid Budget release target. The replacement project is the active
+`Budget Production` project `hqblhzqitrbvpyoxtmew` in `ap-south-1`. The live
+migration runner is retargeted to that exact ref while retaining the same
+hash-pinned 32-migration journal, backup, dry-run, confirmation, and post-apply
+verification boundaries. The unrelated `bsszbeohjxehcxwssjlc` project is not a
+Budget target.
+
+**Why:** The old hosted project was deleted and cannot receive or preserve the
+release. The authenticated Supabase account currently exposes one healthy
+project named `Budget Production`; using its exact ref prevents a stale local
+link from selecting another database. Retargeting does not authorize applying
+SQL and does not alter any forward-only migration.
+
+**If changed:** Any other project ref, restored source database, imported data,
+or expanded journal requires a new read-only identity and journal inspection,
+runner review, green release gate, and exact owner approval before application.

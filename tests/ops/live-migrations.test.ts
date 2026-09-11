@@ -17,11 +17,12 @@ import { basename, dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const script = join(process.cwd(), 'scripts/ops/apply-live-migrations.sh');
-const projectRef = 'bsjqmulybcmlgpmhfrug';
+const projectRef = 'hqblhzqitrbvpyoxtmew';
+const fixtureProjectRef = 'bsjqmulybcmlgpmhfrug';
 const releaseHead = '41399f6ca54f8d207474313b159af1c9c723ea84';
 const liveRunnerCommit = '18355dd61b2c71fd1571a991879dd6c4c7af2629';
 const subprocessTimeoutMillis = 10_000;
-const defaultProjects = JSON.stringify([{ id: projectRef, name: 'Budget' }]);
+const defaultProjects = JSON.stringify([{ id: fixtureProjectRef, name: 'Budget' }]);
 
 function disposeFixture(base: string): void {
   if (dirname(base) !== realpathSync(tmpdir())
@@ -204,7 +205,7 @@ describe('one-time live Supabase migration runner', () => {
     withFixture(({ base, env, log, script: fixtureScript }) => {
       expect(fixtureScript.startsWith(`${base}/`)).toBe(true);
       expect(realpathSync(fixtureScript)).not.toBe(realpathSync(script));
-      const result = run(fixtureScript, env, `APPLY LIVE MIGRATIONS TO ${projectRef}`);
+      const result = run(fixtureScript, env, `APPLY LIVE MIGRATIONS TO ${fixtureProjectRef}`);
 
       expect(result.status).toBe(78);
       expect(result.stderr).toContain('authenticated account cannot access the exact project');
@@ -223,7 +224,7 @@ describe('one-time live Supabase migration runner', () => {
       expect(result.status).toBe(78);
       expect(result.stderr).toContain('confirmation did not match');
       const commandLog = readFileSync(log, 'utf8');
-      expect(commandLog).toContain(`link --project-ref ${projectRef}`);
+      expect(commandLog).toContain(`link --project-ref ${fixtureProjectRef}`);
       expect(commandLog).toContain('db dump --linked --schema public --file');
       expect(commandLog).toContain(
         'db dump --linked --schema public --data-only --use-copy --file',
@@ -246,10 +247,10 @@ describe('one-time live Supabase migration runner', () => {
     withFixture(({ backupRoot, base, env, log, script: fixtureScript }) => {
       expect(fixtureScript.startsWith(`${base}/`)).toBe(true);
       expect(realpathSync(fixtureScript)).not.toBe(realpathSync(script));
-      const result = run(fixtureScript, env, `APPLY LIVE MIGRATIONS TO ${projectRef}`);
+      const result = run(fixtureScript, env, `APPLY LIVE MIGRATIONS TO ${fixtureProjectRef}`);
 
       expect(result.status, `${result.stderr}\n${result.stdout}`).toBe(0);
-      expect(result.stdout).toContain(`Live Budget migrations verified on ${projectRef}`);
+      expect(result.stdout).toContain(`Live Budget migrations verified on ${fixtureProjectRef}`);
       const commandLog = readFileSync(log, 'utf8');
       expect(commandLog.match(/^db push --linked --dry-run$/gm)).toHaveLength(2);
       expect(commandLog.match(/^db push --linked --yes$/gm)).toHaveLength(1);

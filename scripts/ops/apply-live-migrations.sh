@@ -8,7 +8,7 @@ readonly LIVE_REPO_ROOT="$(cd "${LIVE_SCRIPT_DIR}/../.." && pwd -P)"
 # shellcheck source=./budget-common.sh
 source "${LIVE_SCRIPT_DIR}/budget-common.sh"
 
-readonly LIVE_PROJECT_REF='bsjqmulybcmlgpmhfrug'
+readonly LIVE_PROJECT_REF='hqblhzqitrbvpyoxtmew'
 readonly LIVE_MANIFEST_SOURCE_SHA='41399f6ca54f8d207474313b159af1c9c723ea84'
 readonly LIVE_CONFIRMATION="APPLY LIVE MIGRATIONS TO ${LIVE_PROJECT_REF}"
 readonly LIVE_MAX_PROJECT_LIST_BYTES=1048576
