@@ -341,6 +341,93 @@ async function archiveInOpenTransaction(client: Client, spaceId: string, walletI
   return client.query('select * from public.archive_wallet($1, $2, $3) limit 2', [spaceId, randomUUID(), walletId]);
 }
 
+const upgradeRelations = [
+  'public.categories',
+  'public.category_command_requests',
+  'public.financial_event_categories',
+  'public.financial_events',
+  'public.loan_balances',
+  'public.loan_postings',
+  'public.loans',
+  'public.space_memberships',
+  'public.spaces',
+  'public.wallet_balances',
+  'public.wallet_movements',
+  'public.wallets',
+] as const;
+
+const existingCommandSignatures = [
+  'archive_category(uuid,uuid,uuid)',
+  'create_category(uuid,uuid,category_kind,text,text)',
+  'create_space(text,space_kind)',
+  'create_subcategory(uuid,uuid,uuid,text,text)',
+  'create_wallet(uuid,text,currency_code)',
+  'get_category_command_result(uuid,uuid)',
+  'loan_monthly_currency_summary(uuid,date)',
+  'loan_monthly_plan(uuid,date)',
+  'open_loan_outstanding(uuid,uuid,loan_direction,text,currency_code,text,date,date,text)',
+  'record_cash_loan(uuid,uuid,loan_direction,text,currency_code,uuid,text,date,date,text)',
+  'record_categorized_financial_event(uuid,uuid,financial_event_kind,date,jsonb,uuid)',
+  'record_financial_event(uuid,uuid,financial_event_kind,date,jsonb)',
+  'record_loan_repayment(uuid,uuid,uuid,uuid,text,date)',
+  'reverse_financial_event(uuid,uuid,uuid,date)',
+  'set_loan_monthly_target(uuid,uuid,uuid,date,text)',
+] as const;
+
+async function relationSnapshot(client: Client): Promise<Record<string, string[]>> {
+  const snapshot: Record<string, string[]> = {};
+  for (const relation of upgradeRelations) {
+    // Relation names come only from the fixed allowlist above.
+    const result = await client.query<{ row: string }>(
+      `select to_jsonb(source)::text as row from ${relation} as source order by row limit 101`,
+    );
+    expect(result.rows.length, `${relation} must fit in the snapshot`).toBeLessThanOrEqual(100);
+    snapshot[relation] = result.rows.map(({ row }) => row);
+  }
+  return snapshot;
+}
+
+async function existingCommandSnapshot(client: Client) {
+  const result = await client.query<{ signature: string; definition: string; acl: string | null }>(
+    `select procedure.oid::regprocedure::text as signature,
+       pg_get_functiondef(procedure.oid) as definition,
+       procedure.proacl::text as acl
+     from pg_proc as procedure
+     join pg_namespace as namespace on namespace.oid = procedure.pronamespace
+     where namespace.nspname = 'public'
+       and procedure.oid::regprocedure::text = any($1::text[])
+     order by procedure.oid::regprocedure::text collate "C"
+     limit 20`,
+    [existingCommandSignatures],
+  );
+  expect(result.rows.map(({ signature }) => signature)).toEqual([...existingCommandSignatures]);
+  return result.rows;
+}
+
+async function seedUpgradeDatabase(client: Client) {
+  const seedOwnerId = randomUUID();
+  const seedMemberId = randomUUID();
+  await insertUsers(client, [seedOwnerId, seedMemberId]);
+  const seedPersonalId = await createSpace(client, seedOwnerId, 'personal');
+  const seedHouseholdId = await createSpace(client, seedOwnerId, 'household');
+  await addHouseholdMember(client, seedHouseholdId, seedMemberId);
+  const dailyId = await createWallet(client, seedOwnerId, seedPersonalId, 'Daily USD');
+  const reserveId = await createWallet(client, seedOwnerId, seedPersonalId, 'Reserve USD');
+  const unusedId = await createWallet(client, seedMemberId, seedHouseholdId, 'Unused LBP', 'LBP');
+  await postEvent(client, seedOwnerId, seedPersonalId, 'opening_balance', [{ walletId: dailyId, amountMinor: '100000' }]);
+  const incomeId = await postEvent(client, seedOwnerId, seedPersonalId, 'income', [{ walletId: dailyId, amountMinor: '2500' }]);
+  await postEvent(client, seedOwnerId, seedPersonalId, 'transfer', [
+    { walletId: dailyId, amountMinor: '-1000' },
+    { walletId: reserveId, amountMinor: '1000' },
+  ]);
+  await reverseEvent(client, seedOwnerId, seedPersonalId, incomeId);
+  const categoryId = await createExpenseCategory(client, seedOwnerId, seedPersonalId);
+  await postCategorizedExpense(client, seedOwnerId, seedPersonalId, dailyId, categoryId, '-700');
+  const loanId = await recordCashLoan(client, seedOwnerId, seedPersonalId, dailyId, '5000');
+  await repayLoan(client, seedOwnerId, seedPersonalId, loanId, dailyId, '1000');
+  return { seedOwnerId, seedMemberId, seedPersonalId, seedHouseholdId, dailyId, unusedId };
+}
+
 describe('wallet lifecycle database contract', () => {
   let database: DisposableDatabase | undefined;
   let migrations: MigrationFile[] = [];
@@ -1182,4 +1269,44 @@ describe('wallet lifecycle database contract', () => {
     expect(await walletBalance(database.client, walletId)).toBe('500');
     expect(await logRows(database.client, walletId)).toEqual([]);
   });
+
+  it('preserves seeded data and existing commands when upgrading 32 to 33 migrations', async () => {
+    const prior = migrations.filter(({ version }) => version < lifecycleVersion);
+    const lifecycle = migrations.filter(({ version }) => version === lifecycleVersion);
+    expect(prior).toHaveLength(32);
+    expect(lifecycle.map(({ name }) => name)).toEqual(['wallet_lifecycle_commands']);
+
+    const upgrade = await createDisposableDatabase('budget_walletupgrade');
+    try {
+      await bootstrapCompatibilityObjects(upgrade.client);
+      await replayMigrations(upgrade.client, prior);
+      const seed = await seedUpgradeDatabase(upgrade.client);
+      const relationsBefore = await relationSnapshot(upgrade.client);
+      const commandsBefore = await existingCommandSnapshot(upgrade.client);
+
+      await replayMigrations(upgrade.client, lifecycle);
+
+      expect(await relationSnapshot(upgrade.client)).toEqual(relationsBefore);
+      expect(await existingCommandSnapshot(upgrade.client)).toEqual(commandsBefore);
+      const expenseId = await postEvent(upgrade.client, seed.seedOwnerId, seed.seedPersonalId, 'expense', [
+        { walletId: seed.dailyId, amountMinor: '-300' },
+      ]);
+      await reverseEvent(upgrade.client, seed.seedOwnerId, seed.seedPersonalId, expenseId);
+      await createWallet(upgrade.client, seed.seedMemberId, seed.seedHouseholdId, 'Post-upgrade LBP', 'LBP');
+      await renameWallet(upgrade.client, seed.seedOwnerId, {
+        spaceId: seed.seedPersonalId, requestId: randomUUID(), walletId: seed.dailyId, name: 'Upgraded daily',
+      });
+      await walletLifecycleCommand(upgrade.client, seed.seedMemberId, 'archive_wallet', {
+        spaceId: seed.seedHouseholdId, requestId: randomUUID(), walletId: seed.unusedId,
+      });
+      expect(await walletRow(upgrade.client, seed.dailyId)).toMatchObject({ name: 'Upgraded daily', archived_at: null });
+      expect((await walletRow(upgrade.client, seed.unusedId)).archived_at).toBeInstanceOf(Date);
+      const journal = await upgrade.client.query<{ count: number }>(
+        'select count(*)::int as count from supabase_migrations.schema_migrations',
+      );
+      expect(journal.rows).toEqual([{ count: 33 }]);
+    } finally {
+      await disposeDisposableDatabase(upgrade);
+    }
+  }, 180_000);
 });
