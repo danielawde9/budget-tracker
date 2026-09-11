@@ -34,6 +34,7 @@ interface WalletsView {
   status: WalletsStatus;
   wallets: readonly WalletProjection[];
   archivedWallets: readonly WalletProjection[];
+  initialEvents: readonly JournalEvent[];
   events: readonly JournalEvent[];
   nextCursor: string | null;
   error: string | null;
@@ -50,6 +51,7 @@ const emptyView = (spaceId: string): WalletsView => ({
   status: 'loading',
   wallets: [],
   archivedWallets: [],
+  initialEvents: [],
   events: [],
   nextCursor: null,
   error: null,
@@ -150,6 +152,7 @@ export function useWallets(
       status: 'ready',
       wallets: snapshot.wallets,
       archivedWallets: snapshot.archivedWallets,
+      initialEvents: snapshot.history.events,
       events: snapshot.history.events,
       nextCursor: snapshot.history.nextCursor,
       error: null,
@@ -410,6 +413,7 @@ export function useWallets(
     status: visible ? view.status : 'loading' as const,
     wallets: visible ? view.wallets : [],
     archivedWallets: visible ? view.archivedWallets : [],
+    initialEvents: visible ? view.initialEvents : [],
     events: visible ? view.events : [],
     nextCursor: visible ? view.nextCursor : null,
     error: visible ? view.error : null,

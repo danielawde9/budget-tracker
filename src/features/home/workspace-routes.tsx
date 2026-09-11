@@ -8,6 +8,8 @@ import type { WalletsGateway } from '../wallets/types.js';
 import { useWallets } from '../wallets/use-wallets.js';
 import { HomePage } from './home-page.js';
 
+const t = (locale: Locale, en: string, ar: string) => locale === 'ar' ? ar : en;
+
 const WalletsPage = lazy(async () => {
   const module = await import('../wallets/wallets-page.js');
   return { default: module.WalletsPage };
@@ -49,10 +51,12 @@ interface WorkspaceRoutesProps {
 
 export function WorkspaceRoutes(props: WorkspaceRoutesProps) {
   const walletState = useWallets(props.walletsGateway, props.spaceId, props.onSpaceUnavailable, undefined, props.categoriesGateway);
+  if (props.activeDestination === 'home' && walletState.status === 'loading') return <div className="state-panel" role="status" aria-label={t(props.locale, 'Loading financial overview', 'جارٍ تحميل النظرة المالية')}>{t(props.locale, 'Loading your financial overview…', 'جارٍ تحميل نظرتك المالية…')}</div>;
+  if (props.activeDestination === 'home' && walletState.status === 'error') return <section className="state-panel error-notice" role="alert"><strong>{t(props.locale, 'Wallets are unavailable', 'المحافظ غير متاحة')}</strong><p>{walletState.error}</p><button type="button" onClick={() => void walletState.refresh()}>{t(props.locale, 'Try again', 'المحاولة مجددًا')}</button></section>;
   if (props.activeDestination === 'home') return <HomePage
     locale={props.locale}
     wallets={walletState.wallets}
-    recentEvents={walletState.events}
+    recentEvents={walletState.initialEvents}
     onOpenWallets={() => props.onDestinationChange('wallets')}
     onRecordTransaction={() => {
       props.onDestinationChange('wallets');

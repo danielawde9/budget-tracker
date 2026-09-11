@@ -8,7 +8,7 @@ import { InMemoryCategoriesGateway } from './test/in-memory-categories-gateway.j
 import { InMemoryLoansGateway } from './test/in-memory-loans-gateway.js';
 import type { WorkspaceGateway } from './features/workspace/types.js';
 import { householdSpace, personalSpace } from './test/in-memory-loans-gateway.js';
-import { InMemoryWalletsGateway } from './test/in-memory-wallets-gateway.js';
+import { InMemoryWalletsGateway, journalFixtures } from './test/in-memory-wallets-gateway.js';
 import { householdMemberId, householdOwnerId, InMemoryHouseholdGateway } from './test/in-memory-household-gateway.js';
 import { createHouseholdInvitationBootstrap } from './features/household/invitation-fragment.js';
 
@@ -30,6 +30,12 @@ function workspaceGateway(spaces = [personalSpace]): WorkspaceGateway {
     createSpace: vi.fn(async () => ({ id: 'new-space' })),
     createWallet: vi.fn(async () => ({ id: 'new-wallet' })),
   };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
 }
 
 describe('App', () => {
@@ -89,6 +95,52 @@ describe('App', () => {
 
     expect(await screen.findByRole('dialog', { name: 'Add a transaction' })).toBeInTheDocument();
     expect(walletsGateway.calls.some((call) => call.name === 'recordEvent')).toBe(false);
+    expect(walletsGateway.calls.filter((call) => call.name === 'loadSnapshot')).toHaveLength(1);
+  });
+
+  it('shows a Home loading state instead of the first-wallet empty state while wallet data is pending', async () => {
+    const snapshot = deferred<Awaited<ReturnType<InMemoryWalletsGateway['loadSnapshot']>>>();
+    const walletsGateway = new InMemoryWalletsGateway();
+    walletsGateway.loadSnapshot = vi.fn(() => snapshot.promise);
+    render(<App authGateway={authGateway({ id: 'user-1', email: 'owner@example.com' })} workspaceGateway={workspaceGateway()} householdGateway={new InMemoryHouseholdGateway()} loansGateway={new InMemoryLoansGateway()} walletsGateway={walletsGateway} categoriesGateway={new InMemoryCategoriesGateway()} />);
+
+    expect(await screen.findByRole('status', { name: 'Loading financial overview' })).toHaveTextContent('Loading your financial overview');
+    expect(screen.queryByText('Create your first wallet to start tracking this space.')).not.toBeInTheDocument();
+  });
+
+  it('shows a Home retry state when the wallet read is rejected', async () => {
+    const walletsGateway = new InMemoryWalletsGateway();
+    walletsGateway.error = new Error('Network unavailable');
+    render(<App authGateway={authGateway({ id: 'user-1', email: 'owner@example.com' })} workspaceGateway={workspaceGateway()} householdGateway={new InMemoryHouseholdGateway()} loansGateway={new InMemoryLoansGateway()} walletsGateway={walletsGateway} categoriesGateway={new InMemoryCategoriesGateway()} />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Wallets are unavailable');
+    walletsGateway.error = null;
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
+  });
+
+  it('keeps Home recent activity bounded to the initial journal page after pagination', async () => {
+    const user = userEvent.setup();
+    const walletsGateway = new InMemoryWalletsGateway();
+    const initialEvent = journalFixtures[0]!;
+    const olderEvent = { ...journalFixtures[1]!, id: 'older-event', requestId: 'older-request', effectiveDate: '2026-09-01' };
+    walletsGateway.loadSnapshot = vi.fn(async (spaceId) => ({
+      wallets: walletsGateway.wallets.filter((wallet) => wallet.spaceId === spaceId),
+      archivedWallets: [],
+      history: { events: [initialEvent], nextCursor: 'older-page' },
+    }));
+    walletsGateway.loadHistoryPage = vi.fn(async () => ({ events: [olderEvent], nextCursor: null }));
+    render(<App authGateway={authGateway({ id: 'user-1', email: 'owner@example.com' })} workspaceGateway={workspaceGateway()} householdGateway={new InMemoryHouseholdGateway()} loansGateway={new InMemoryLoansGateway()} walletsGateway={walletsGateway} categoriesGateway={new InMemoryCategoriesGateway()} />);
+    await screen.findByRole('heading', { name: 'Welcome back' });
+
+    await user.click(screen.getByRole('button', { name: 'Wallets' }));
+    await user.click(await screen.findByRole('button', { name: 'Load older entries' }));
+    expect(await screen.findByText('2026-09-01')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Home' }));
+
+    expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
+    expect(screen.getByText('2026-09-07')).toBeInTheDocument();
+    expect(screen.queryByText('2026-09-01')).not.toBeInTheDocument();
   });
 
   it('lets a signed-in owner add another space from the shell and selects it', async () => {

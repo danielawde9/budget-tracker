@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AuthScreen } from './features/auth/auth-screen.js';
 import { createSupabaseAuthGateway } from './features/auth/supabase-auth-gateway.js';
 import type { AuthGateway } from './features/auth/types.js';
@@ -56,6 +56,7 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
   const [acceptError, setAcceptError] = useState<HouseholdErrorView | null>(null);
   const [terminalAcceptance, setTerminalAcceptance] = useState(false);
   const acceptRequestId = useState(() => crypto.randomUUID())[0];
+  const onSpaceUnavailable = useCallback(() => { void workspace.refresh(); }, [workspace.refresh]);
 
   useEffect(() => {
     if (activeDestination === 'household' && workspace.selectedSpace?.kind !== 'household') {
@@ -147,7 +148,7 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
       openTransaction={openTransaction}
       onDestinationChange={setActiveDestination}
       onSpaceChange={workspace.selectSpace}
-      onSpaceUnavailable={() => void workspace.refresh()}
+      onSpaceUnavailable={onSpaceUnavailable}
       onRecordTransaction={() => setOpenTransaction(true)}
       onTransactionDialogOpened={() => setOpenTransaction(false)}
     />

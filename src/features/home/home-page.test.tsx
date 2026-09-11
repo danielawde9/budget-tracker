@@ -52,4 +52,12 @@ describe('HomePage', () => {
     expect(screen.getByText('Create an active wallet before recording a transaction.')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Active balances' })).not.toBeInTheDocument();
   });
+
+  it('keeps active balances visible when there are wallets but no events', () => {
+    render(<HomePage locale="en" wallets={wallets} recentEvents={[]} onOpenWallets={vi.fn()} onRecordTransaction={vi.fn()} />);
+
+    expect(screen.getByRole('heading', { name: 'Active balances' })).toBeInTheDocument();
+    expect(screen.getByText('No transactions yet')).toBeInTheDocument();
+    expect(screen.queryByText('Create your first wallet to start tracking this space.')).not.toBeInTheDocument();
+  });
 });
