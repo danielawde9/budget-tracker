@@ -987,10 +987,54 @@ platform roles need measured production evidence. A real-data restore on the
 shared Ubuntu host needs the host isolation audit. Encryption, off-site storage,
 key custody, and scheduling remain owner decisions.
 
+## 2026-09-11 — Secret scan is bounded by bytes and time, not a near-full file count
+
+**Decision:** The tracked-text secret scan behind `pnpm check:ops` accepts up to
+4,096 files (was 256) and keeps the 10 MiB per-file read bound. It adds a 64 MiB
+total bound, summed from `lstat` sizes before any content is read, and a
+180-second monotonic deadline checked before each file is opened. Every bound
+fails closed: scan-bound failures exit `64`, secret findings still exit `69`. A
+passing scan now reports its byte total alongside its file count.
+
+**Why:** The 256-file cap sat just above the tree. Commit `08a6e01` measured 235
+scanned files and the Supabase scratch-restore tooling reported 246, so about ten
+unrelated files would have broken `check:ops`. From 2026-09-07 to 2026-09-11 the
+scanned set grew from 59 files and 0.33 MiB to 235 files and 2.89 MiB, about 40
+files and 0.9 MiB a day, so even 1,024 files would trip within about three weeks.
+Time is the resource that matters. Measured on the development Mac, each file
+costs about 8 ms of process overhead and repository text scans at about 0.46 s
+per MiB; the current tree takes 3.3 s. A real scan at both caps (4,096 files
+totalling exactly 64 MiB) passed in 53 s, so the deterministic count and byte
+bounds trip well before the machine-dependent deadline. Checking the deadline
+inside the per-line loop would cost a process per check, so it is checked
+between files. One pathological
+10 MiB file measured 28 s (806k assignment-shaped lines) and 144 s (5.2M one-byte
+lines), so the worst-case wall time is the deadline plus one such file. The byte
+total is measured before reading so an oversized plan fails fast and
+deterministically. A file that grows after measurement is still held to the
+per-file read bound and the deadline.
+
+**If changed:** When a bound is exceeded again, raise it only in its own reviewed
+commit, never folded into the unrelated change that tripped it. First re-measure
+the file count and byte total (both printed by a passing scan) and the wall time
+of `BUDGET_OPS_STATIC_ONLY=1 bash scripts/ops/check-budget.sh`. Then either narrow
+the scanned set (for example, a generated file such as `worker-configuration.d.ts`
+that has its own `check:worker-types` provenance check), or raise
+`BUDGET_MAX_SCAN_FILES` / `BUDGET_MAX_SCAN_TOTAL_BYTES` and update this entry, the
+runbook, and `tests/ops/secret-scan-bounds.test.ts`. Keep the measured time at
+both caps under half of `BUDGET_SCAN_DEADLINE_SECONDS`. If the deadline trips on
+an unchanged tree, the host is slower than the one measured here: re-measure on
+that host before raising the deadline. The direct `budget-common.sh scan-secrets`
+entrypoint passes paths as argv (macOS `ARG_MAX` is 1 MiB), so a much larger file
+cap must keep scanning in-process as `check-budget.sh` does. A hard deadline
+inside a single file would need line-loop checkpoints or a faster matcher, each
+with its own rejection test.
+
 ## 2026-09-11 — The Testcontainers suite reaches the Le Labo Docker host through a tracked bridge
 
 **Decision:** `scripts/ops/docker-ssh-bridge.sh run -- COMMAND` replaces the
-hand-built bridge described in the entry above. It runs one command with
+hand-built bridge described in the Supabase scratch-restore procedure entry
+above. It runs one command with
 `DOCKER_HOST` pointing at a private local unix socket and
 `TESTCONTAINERS_RYUK_DISABLED=true`; each accepted connection runs
 `ssh lelabo@100.76.160.91 docker system dial-stdio` over one multiplexed SSH
@@ -1062,50 +1106,7 @@ or the SSH server caps sessions lower, re-measure and move the bound with its
 test. Once the suite asserts its runtime endpoint, the `tc.host` refusal and
 bridge-exit check remain as defense in depth. Running the suite in CI needs a
 Docker endpoint there; this helper is operator-Mac tooling. The helper adds two
-files to the tracked secret scan (248 of 256 on this branch).
-
-## 2026-09-11 — Secret scan is bounded by bytes and time, not a near-full file count
-
-**Decision:** The tracked-text secret scan behind `pnpm check:ops` accepts up to
-4,096 files (was 256) and keeps the 10 MiB per-file read bound. It adds a 64 MiB
-total bound, summed from `lstat` sizes before any content is read, and a
-180-second monotonic deadline checked before each file is opened. Every bound
-fails closed: scan-bound failures exit `64`, secret findings still exit `69`. A
-passing scan now reports its byte total alongside its file count.
-
-**Why:** The 256-file cap sat just above the tree. Commit `08a6e01` measured 235
-scanned files and the Supabase scratch-restore tooling reported 246, so about ten
-unrelated files would have broken `check:ops`. From 2026-09-07 to 2026-09-11 the
-scanned set grew from 59 files and 0.33 MiB to 235 files and 2.89 MiB, about 40
-files and 0.9 MiB a day, so even 1,024 files would trip within about three weeks.
-Time is the resource that matters. Measured on the development Mac, each file
-costs about 8 ms of process overhead and repository text scans at about 0.46 s
-per MiB; the current tree takes 3.3 s. A real scan at both caps (4,096 files
-totalling exactly 64 MiB) passed in 53 s, so the deterministic count and byte
-bounds trip well before the machine-dependent deadline. Checking the deadline
-inside the per-line loop would cost a process per check, so it is checked
-between files. One pathological
-10 MiB file measured 28 s (806k assignment-shaped lines) and 144 s (5.2M one-byte
-lines), so the worst-case wall time is the deadline plus one such file. The byte
-total is measured before reading so an oversized plan fails fast and
-deterministically. A file that grows after measurement is still held to the
-per-file read bound and the deadline.
-
-**If changed:** When a bound is exceeded again, raise it only in its own reviewed
-commit, never folded into the unrelated change that tripped it. First re-measure
-the file count and byte total (both printed by a passing scan) and the wall time
-of `BUDGET_OPS_STATIC_ONLY=1 bash scripts/ops/check-budget.sh`. Then either narrow
-the scanned set (for example, a generated file such as `worker-configuration.d.ts`
-that has its own `check:worker-types` provenance check), or raise
-`BUDGET_MAX_SCAN_FILES` / `BUDGET_MAX_SCAN_TOTAL_BYTES` and update this entry, the
-runbook, and `tests/ops/secret-scan-bounds.test.ts`. Keep the measured time at
-both caps under half of `BUDGET_SCAN_DEADLINE_SECONDS`. If the deadline trips on
-an unchanged tree, the host is slower than the one measured here: re-measure on
-that host before raising the deadline. The direct `budget-common.sh scan-secrets`
-entrypoint passes paths as argv (macOS `ARG_MAX` is 1 MiB), so a much larger file
-cap must keep scanning in-process as `check-budget.sh` does. A hard deadline
-inside a single file would need line-loop checkpoints or a faster matcher, each
-with its own rejection test.
+files to the tracked secret scan.
 
 ## 2026-09-11 — The scratch-restore suite fails unless Testcontainers dials `DOCKER_HOST`
 
