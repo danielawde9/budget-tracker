@@ -6,9 +6,10 @@ import { createSupabaseWalletsGateway } from './supabase-wallets-gateway.js';
 import type { JournalEvent, WalletsGateway, WalletsSnapshot } from './types.js';
 import { useWallets } from './use-wallets.js';
 
-const emptySnapshot: WalletsSnapshot = { wallets: [], history: { events: [], nextCursor: null } };
+const emptySnapshot: WalletsSnapshot = { wallets: [], archivedWallets: [], history: { events: [], nextCursor: null } };
 const walletSnapshot: WalletsSnapshot = {
   wallets: [{ id: 'wallet-1', spaceId: 'space-1', name: 'Daily', currency: 'USD', archivedAt: null, balanceMinor: '1000' }],
+  archivedWallets: [],
   history: { events: [], nextCursor: null },
 };
 
@@ -23,6 +24,10 @@ function gateway(overrides: Partial<WalletsGateway> = {}): WalletsGateway {
     loadSnapshot: vi.fn(async () => emptySnapshot),
     loadHistoryPage: vi.fn(async () => ({ events: [], nextCursor: null })),
     createWallet: vi.fn(async () => ({ id: 'wallet-new' })),
+    renameWallet: vi.fn(async () => ({ id: 'wallet-1' })),
+    archiveWallet: vi.fn(async () => ({ id: 'wallet-1' })),
+    restoreWallet: vi.fn(async () => ({ id: 'wallet-1' })),
+    getWalletCommandResult: vi.fn(async () => null),
     recordEvent: vi.fn(async () => ({ eventId: 'event-new' })),
     reverseEvent: vi.fn(async () => ({ eventId: 'reversal-new' })),
     findEventByRequestId: vi.fn(async () => null),
@@ -53,7 +58,7 @@ describe('useWallets', () => {
     rerender({ spaceId: 'space-2' });
     expect(result.current.status).toBe('loading');
     expect(result.current.wallets).toEqual([]);
-    second.resolve({ wallets: [{ ...walletSnapshot.wallets[0]!, id: 'wallet-2', spaceId: 'space-2', name: 'Home' }], history: { events: [], nextCursor: null } });
+    second.resolve({ wallets: [{ ...walletSnapshot.wallets[0]!, id: 'wallet-2', spaceId: 'space-2', name: 'Home' }], archivedWallets: [], history: { events: [], nextCursor: null } });
     await waitFor(() => expect(result.current.wallets[0]?.name).toBe('Home'));
     first.resolve(walletSnapshot);
     await act(async () => { await Promise.resolve(); });
@@ -496,6 +501,7 @@ describe('useWallets', () => {
     const wallets = gateway({
       loadSnapshot: vi.fn(async () => ({
         wallets: walletSnapshot.wallets,
+        archivedWallets: [],
         history: { events: [currentEvent], nextCursor: 'older-page' },
       })),
       loadHistoryPage,
@@ -549,7 +555,7 @@ describe('useWallets', () => {
       movements: [],
     } satisfies JournalEvent;
     const wallets = gateway({
-      loadSnapshot: vi.fn(async () => ({ wallets: [], history: { events: [event], nextCursor: null } })),
+      loadSnapshot: vi.fn(async () => ({ wallets: [], archivedWallets: [], history: { events: [event], nextCursor: null } })),
     });
     const categories = categoriesGateway({
       resolveEventCategories: vi.fn(async () => [{

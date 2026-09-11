@@ -421,6 +421,7 @@ describe('WalletsPage', () => {
     };
     walletGateway.loadSnapshot = vi.fn(async () => ({
       wallets: walletGateway.wallets,
+      archivedWallets: walletGateway.archivedWallets,
       history: { events: [currentEvent], nextCursor: 'older-page' },
     }));
     walletGateway.loadHistoryPage = vi.fn(async () => ({ events: [olderEvent], nextCursor: null }));
