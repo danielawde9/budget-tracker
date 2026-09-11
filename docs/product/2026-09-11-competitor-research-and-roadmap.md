@@ -47,6 +47,14 @@ often — treat them as a September 2026 snapshot.
   bank-synced apps have. The one AI idea worth a prototype is bilingual quick
   entry that drafts an entry for a person to confirm.
 
+**Suggested next five milestones, in order** (codes refer to section 8):
+
+1. N1 — Monthly budget, from the existing spec.
+2. X1 — Note and payee on entries.
+3. X2 — USD↔LBP exchange event.
+4. N2 — Reports v1, after exchange exists.
+5. X3 — Quick entry and payee memory.
+
 ## 1. Where Budget stands
 
 ### Built and in the application
