@@ -69,17 +69,17 @@ test('same-currency transfer records equal and opposite effects', async ({ page 
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-transfer.png'), fullPage: true });
 });
 
-test('general-event correction creates a linked reversal', async ({ page }, testInfo) => {
+test('undoing a general event creates a linked reversal', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop');
   await openWallets(page);
-  await page.getByRole('button', { name: 'Correct income' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Correct this transaction' });
+  await page.getByRole('button', { name: 'Undo income' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Undo this transaction' });
   await dialog.getByRole('checkbox').check();
-  await dialog.getByRole('button', { name: 'Add linked reversal' }).click();
-  await expect(dialog.getByRole('status')).toContainText('Correction recorded');
+  await dialog.getByRole('button', { name: 'Undo transaction' }).click();
+  await expect(dialog.getByRole('status')).toContainText('Transaction undone');
   await dialog.getByRole('button', { name: 'Done' }).click();
-  await expect(page.getByText('Reversed')).toBeVisible();
-  await expect(page.getByText('Linked reversal', { exact: true })).toBeVisible();
+  await expect(page.getByText('Undone', { exact: true })).toBeVisible();
+  await expect(page.getByText('Undoes an earlier entry', { exact: true })).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-linked-correction.png'), fullPage: true });
 });
 

@@ -85,11 +85,11 @@ test('desktop English rehearsal exercises every protected financial mutation and
   await finishWalletTransaction(page, 'expense', '3');
   await finishWalletTransaction(page, 'transfer', '2');
 
-  await page.getByRole('button', { name: 'Correct income' }).first().click();
-  dialog = page.getByRole('dialog', { name: 'Correct this transaction' });
+  await page.getByRole('button', { name: 'Undo income' }).first().click();
+  dialog = page.getByRole('dialog', { name: 'Undo this transaction' });
   await dialog.getByRole('checkbox').check();
-  await dialog.getByRole('button', { name: 'Add linked reversal' }).click();
-  await expect(dialog.getByRole('status')).toContainText('Correction recorded');
+  await dialog.getByRole('button', { name: 'Undo transaction' }).click();
+  await expect(dialog.getByRole('status')).toContainText('Transaction undone');
   await dialog.getByRole('button', { name: 'Done' }).click();
 
   await page.getByRole('button', { name: 'Categories' }).click();

@@ -941,3 +941,27 @@ the costly mistake (an inflated balance) should need a deliberate one.
 only changes the dialog's initial state and the tests that assert an untouched
 Type records an expense. Remembering per-user or per-space choices would add
 client state that must be cleared on space switch.
+
+## 2026-09-11 — Wallet journal corrections are presented as Undo on the original date
+
+**Decision:** The Wallets journal presents the existing linked-reversal
+correction as **Undo** in English and Arabic ("Undo income", "Undo this
+transaction", "Undone", "Undoes an earlier entry"), and the undo date defaults
+to the original event's effective date instead of today. The command
+(`public.reverse_financial_event`), eligibility (general, not loan-linked, not
+already reversed), confirmation checkbox, and request-stable retry are
+unchanged. The owner was offered real deletion and chose Undo: the journal stays
+append-only and the original stays visible, marked as undone.
+
+**Why:** The owner looked for "delete" to remove a mistaken income and did not
+recognise "Correct income / Add linked reversal" as that action. Dating the
+reversal like the original makes it cancel in the same period as the mistake, so
+future month- or date-bounded reports net it to zero; a manager can still pick a
+later date for a genuine refund.
+
+**If changed:** Real deletion needs a new protected command that deliberately
+bypasses the append-only journal guards, a command-inventory entry,
+real-Postgres rejection tests, and an audit story — a separate reviewed
+milestone. Hiding undone pairs from history is UI-only but must keep bounded
+pagination honest, since a filtered page can look short. Loans corrections still
+say "Correct … / Add reversal"; aligning that wording is a separate change.

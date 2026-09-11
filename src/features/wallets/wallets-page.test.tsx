@@ -45,8 +45,8 @@ describe('WalletsPage', () => {
     expect(screen.getByRole('heading', { name: 'Transaction history' })).toBeInTheDocument();
     expect(screen.getByText('Loan payment')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /archive|delete/i })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Correct income' })).toHaveLength(1);
-    expect(screen.queryByRole('button', { name: 'Correct loan payment' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Undo income' })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Undo loan payment' })).not.toBeInTheDocument();
   });
 
   it('keeps wallet form values after a database rejection', async () => {
@@ -591,7 +591,7 @@ describe('WalletsPage', () => {
 
     await renderPage(walletGateway, 'en', categoriesGateway);
 
-    const reversal = screen.getByText('Linked reversal').closest('li');
+    const reversal = screen.getByText('Undoes an earlier entry').closest('li');
     expect(reversal).not.toBeNull();
     expect(within(reversal!).getByText('Salary').closest('bdi')).not.toBeNull();
     expect(within(reversal!).queryByRole('button', { name: /category/i })).not.toBeInTheDocument();
@@ -612,25 +612,50 @@ describe('WalletsPage', () => {
     expect(gateway.calls.some((call) => call.name === 'recordEvent')).toBe(false);
   });
 
-  it('requires a valid correction date and deliberate linked-reversal confirmation', async () => {
+  it('undoes a transaction on its own effective date unless another date is chosen', async () => {
     const { gateway, user } = await renderPage();
-    await user.click(screen.getByRole('button', { name: 'Correct income' }));
-    const dialog = screen.getByRole('dialog', { name: 'Correct this transaction' });
-    await user.clear(within(dialog).getByLabelText('Correction date'));
+    await user.click(screen.getByRole('button', { name: 'Undo income' }));
+    const dialog = screen.getByRole('dialog', { name: 'Undo this transaction' });
+    expect(within(dialog).getByLabelText('Undo date')).toHaveValue('2026-09-07');
     await user.click(within(dialog).getByRole('checkbox'));
-    await user.click(within(dialog).getByRole('button', { name: 'Add linked reversal' }));
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Enter a valid correction date');
+    await user.click(within(dialog).getByRole('button', { name: 'Undo transaction' }));
+
+    expect(await within(dialog).findByRole('status')).toHaveTextContent('Transaction undone');
+    expect(gateway.calls.filter((call) => call.name === 'reverseEvent').map((call) => call.input)).toEqual([
+      { spaceId: 'personal-space', requestId: expect.any(String), eventId: 'event-income', effectiveDate: '2026-09-07' },
+    ]);
+  });
+
+  it('offers the undo in Arabic on the original transaction date', async () => {
+    const { gateway, user } = await renderPage(new InMemoryWalletsGateway(), 'ar');
+    await user.click(screen.getByRole('button', { name: 'تراجع عن دخل' }));
+    const dialog = screen.getByRole('dialog', { name: 'التراجع عن هذه المعاملة' });
+    expect(within(dialog).getByLabelText('تاريخ التراجع')).toHaveValue('2026-09-07');
+    await user.click(within(dialog).getByRole('button', { name: 'التراجع عن المعاملة' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('حدّد المربع لتأكيد التراجع');
     expect(gateway.calls.some((call) => call.name === 'reverseEvent')).toBe(false);
   });
 
-  it('renders an already-reversed event without another correction action', async () => {
+  it('requires a valid undo date and deliberate confirmation', async () => {
+    const { gateway, user } = await renderPage();
+    await user.click(screen.getByRole('button', { name: 'Undo income' }));
+    const dialog = screen.getByRole('dialog', { name: 'Undo this transaction' });
+    await user.clear(within(dialog).getByLabelText('Undo date'));
+    await user.click(within(dialog).getByRole('checkbox'));
+    await user.click(within(dialog).getByRole('button', { name: 'Undo transaction' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Enter a valid undo date');
+    expect(gateway.calls.some((call) => call.name === 'reverseEvent')).toBe(false);
+  });
+
+  it('marks an undone event and offers no second undo', async () => {
     const gateway = new InMemoryWalletsGateway();
     gateway.events = gateway.events.map((event) => event.id === 'event-income'
       ? { ...event, reversedBy: 'reversal-income' }
       : event);
     await renderPage(gateway);
-    expect(screen.getByText('Reversed')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Correct income' })).not.toBeInTheDocument();
+    expect(screen.getByText('Undone')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Undo income' })).not.toBeInTheDocument();
   });
 
   it('offers a manager-friendly load retry and recovers from a network error', async () => {
