@@ -307,12 +307,92 @@ order. It never applies, replays, rolls back, or auto-retries a migration.
 | Live identity | Approved marker, project, ports, system ID, operator | **BLOCKED — no live provisioning authorized** |
 | Off-site | Approved provider/location, immutability, cost, verified adapter | **BLOCKED — owner decision required** |
 | Key custody | Real recipient, recovery record, tested private identity | **BLOCKED — no real key authorized** |
-| Backup | Named local/off-site ciphertexts, matching hashes/sizes, receipt | **BLOCKED — no actual backup performed** |
-| Restore | Named fetch, decrypt, restore, full comparison, cleanup | **BLOCKED — fixtures are not a measured restore** |
-| RPO/RTO | Backup age at most 24h; verified restore below four hours | **BLOCKED — measured drill required** |
-| Migration | Release SHA, manifest/applied rows, empty/upgrade DB proof | **PARTIAL — offline integrity only** |
+| Backup | Named local/off-site ciphertexts, matching hashes/sizes, receipt | **BLOCKED — no encrypted backup performed** (2026-09-11 drill used a plaintext local dump only) |
+| Restore | Named fetch, decrypt, restore, full comparison, cleanup | **PARTIAL — 2026-09-11 drill restored a plaintext CLI dump into exact-version scratch and passed full comparison; no encrypted off-site fetch or decrypt yet** |
+| RPO/RTO | Backup age at most 24h; verified restore below four hours | **PARTIAL — 2026-09-11 drill: dumps 162 s, restore and verification under 5 s at current volume; no scheduled backup exists, so RPO is unmeasured** |
+| Migration | Release SHA, manifest/applied rows, empty/upgrade DB proof | **PARTIAL — offline integrity; 2026-09-11 drill restored the 32-row live journal exactly** |
 | Isolation | Before/after Budget and Sandooq/POS identities unchanged | **BLOCKED — host audit not authorized** |
 | Approval | Named operator and Daniel's real-data authorization | **BLOCKED** |
 
 Fixture tests and dry-runs are repository proof only, never a substitute for an
 actual encrypted off-site backup, measured scratch restore, or launch approval.
+
+## Hosted Supabase scratch-restore drill — 2026-09-11
+
+This is **measured drill evidence**, not the encrypted off-site recovery point
+this runbook requires, and it does not change the real-data gate above. The
+tooling above targets a self-hosted `budget-live` PostgreSQL; live Budget runs on
+hosted Supabase project `hqblhzqitrbvpyoxtmew` (`ap-south-1`, image
+`17.6.1.166`), which those scripts do not cover. The drill used Supabase CLI
+`2.109.1` directly plus throwaway scripts that are not committed.
+
+### Boundary
+
+- Production contact was read-only: dump dry-runs, six `supabase db dump
+  --linked` runs, one `auth.schema_migrations` read, and catalog metadata and
+  fingerprint queries. No migration, write, reset, or hosted configuration
+  change. The database password was supplied by environment reference so the
+  CLI did not mint a temporary login role on production.
+- The dump was plaintext on the operator Mac in a mode-`0700` session
+  directory, neither encrypted nor off-site. It includes the Auth user row
+  (password hash) and the Household invitation key, and it is retained only
+  until owner-approved cleanup.
+- Live session-credential tables (`auth.sessions`, `auth.refresh_tokens`,
+  `auth.mfa_amr_claims`, `auth.one_time_tokens`, `auth.flow_state`) were
+  excluded from the data dump; a real recovery invalidates sessions anyway.
+- The target was a loopback-only Docker container from the exact production
+  image `supabase/postgres:17.6.1.166`, restored in one `psql`
+  single-transaction as `supabase_admin`.
+
+### Result (run 3, fresh container)
+
+| Check | Result |
+| --- | --- |
+| Production drift | None: pre- and post-dump fingerprints identical; a later fingerprint showed the same row and sequence state |
+| Catalog and data fingerprint (969 objects) | 936/936 application objects match; the excluded session tables differ as designed; 26/27 platform objects match (the image's `postgres` role attributes differ from hosted) |
+| Foreign keys (data loaded with triggers disabled) | 52 constraints, 0 orphan rows |
+| RLS row visibility | Owner JWT sees 1 space, 1 wallet, 23 categories, 1 membership; an unrelated JWT sees 0 |
+| Privilege boundary | `authenticated` denied on `private.household_invitation_keys` and on a direct `public.spaces` insert; `anon` denied on `public.spaces` and `public.categories` |
+| Timing | Dumps 162 s (six CLI runs, mostly container start-up); container ready about 2 s with the image cached; restore, fingerprint, FK, and smoke steps each under 1 s |
+
+The dataset is tiny (one user, one space, 23 categories), so timings bound
+procedure overhead, not large-volume restore time.
+
+### Defects found and the restore steps that fixed them
+
+1. **Missing platform role.** The CLI role dump comments out reserved-role
+   `CREATE`, `ALTER`, and membership statements but not
+   `GRANT SET ON PARAMETER "log_min_messages" TO "supabase_realtime_admin"`.
+   The bare image lacks that Realtime-provisioned role, so run 1 failed and
+   rolled back. Create the role in the target first (all attributes false;
+   member of `anon`, `authenticated`, `service_role`, recovered from the
+   production fingerprint). The backup artifact stays unmodified.
+2. **Silent privilege widening (security).** Supabase databases, production
+   included, carry per-schema default privileges in `public` for `postgres` and
+   `supabase_admin` that grant `anon`, `authenticated`, and `service_role`
+   everything when an object is created. The schema dump restates ACLs only
+   relative to built-in defaults: it emitted `GRANT`s and no
+   `REVOKE ... FROM "anon"`. Run 2 therefore restored "successfully", with
+   row-visibility smoke checks passing, while `anon` could `SELECT`
+   `public.spaces` and `EXECUTE` the `SECURITY DEFINER`
+   `leave_household_space`, both denied in production. Inside the restore
+   transaction, revoke every item from the `public` default-privilege rows of
+   both roles (a per-schema row disappears only when empty), assert none remain,
+   restore, then re-grant the original items. Verify ACL parity by catalog
+   comparison, and expect `permission denied` rather than merely zero rows.
+
+Restore order that passed: drop the image's placeholder `auth` schema, create
+the platform role, neutralize `public` default privileges, then roles, `auth`
+schema, `supabase_migrations` schema, application schema, data (empty `storage`
+blocks removed because scratch runs no storage service), migration history,
+`auth.schema_migrations` versions, and finally reinstate the default privileges.
+
+### CLI hazards measured with 2.109.1
+
+- `db dump --dry-run` prints the database password in clear text; never run it
+  where output is logged.
+- In schema mode, `--schema a,b` renders an unquoted `a|b` that the generated
+  shell script treats as a pipe; dump one schema per invocation.
+- The default schema dump excludes `auth`, `storage`, and `supabase_migrations`;
+  the default data dump includes `auth` rows but excludes `supabase_migrations`
+  and `auth.schema_migrations`.

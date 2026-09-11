@@ -874,3 +874,54 @@ invitation milestone starts.
 **If changed:** Enabling invitation delivery must flip this deploy command back
 to `pnpm deploy:cloudflare` in the same change that configures the six hosted
 secrets, so Workers Builds and the manual release procedure stay consistent.
+
+## 2026-09-11 — Hosted restore drill proves logical restore, not recovery readiness
+
+**Decision:** The first Budget Production recovery drill restored read-only
+Supabase CLI dumps into a loopback-only scratch container built from the exact
+production image and compared catalog, data, foreign-key, RLS, and privilege
+evidence against production. The data dump deliberately excluded live
+session-credential tables (`auth.sessions`, `auth.refresh_tokens`,
+`auth.mfa_amr_claims`, `auth.one_time_tokens`, `auth.flow_state`), narrowing the
+approved "including Auth data" scope. The plaintext dump stays in a private
+session directory until Daniel approves cleanup, and the drill scripts are
+throwaway and not committed. The real-data gate is unchanged: an encrypted
+off-site backup and a restore fetched from that copy are still required.
+
+**Why:** Refresh tokens are bearer credentials that a real recovery would
+invalidate anyway, and they change constantly, so excluding them reduces
+exposure without weakening the Auth-user, foreign-key, or privilege proof. A
+plaintext local dump proves the logical restore procedure and exposed two
+restore defects cheaply, but it is not an encrypted, retained, off-site recovery
+point.
+
+**If changed:** Including session tables requires encrypted-at-rest handling for
+the dump and a churn-tolerant comparison. Treating a drill as recovery evidence
+requires a named encrypted off-site copy, key custody, retention, and a restore
+fetched from that copy. Promoting the drill scripts into repository tooling is a
+separate reviewed milestone with rejection tests.
+
+## 2026-09-11 — Supabase restores neutralize target default privileges
+
+**Decision:** Every restore of a Budget schema dump into a Supabase-shaped
+database must, inside the restore transaction, create platform roles the role
+dump references but the target lacks, revoke every item of the target's
+`public` per-schema default privileges for `postgres` and `supabase_admin`,
+assert none remain, restore, and then reinstate those defaults exactly. A restore
+counts as verified only when object ACLs, policies, functions, and default
+privileges match production by catalog comparison and a privilege smoke test
+observes `permission denied` for `anon` and for direct writes.
+
+**Why:** Measured on 2026-09-11: without this step the dump restored cleanly and
+row-visibility checks passed, yet `anon` gained `SELECT` on `public.spaces` and
+`EXECUTE` on the `SECURITY DEFINER` `leave_household_space`, both denied in
+production. The schema dump emitted grants relative to built-in defaults and no
+revokes, while the target's default privileges added broad grants at object
+creation. Production carries the identical 24 default-privilege entries, so a new
+hosted project is expected to widen the same way; that remains to be measured on
+such a target.
+
+**If changed:** A target without Supabase default privileges may skip the
+neutralization but still needs the ACL comparison. A different backup format or
+an explicit ACL-reset step needs its own rejection test proving `anon` is denied
+after restore.
