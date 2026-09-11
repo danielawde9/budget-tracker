@@ -78,7 +78,7 @@ test('desktop English rehearsal exercises every protected financial mutation and
   await dialog.getByRole('button', { name: 'Create wallet' }).click();
   await expect(dialog.getByRole('status')).toContainText('Wallet created');
   await dialog.getByRole('button', { name: 'Done' }).click();
-  await expect(page.getByText('Synthetic UAT wallet')).toBeVisible();
+  await expect(page.getByText('Synthetic UAT wallet').first()).toBeVisible();
 
   await finishWalletTransaction(page, 'opening_balance', '20');
   await finishWalletTransaction(page, 'income', '7');
@@ -169,7 +169,7 @@ test('desktop English rehearsal exercises every protected financial mutation and
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Loans' })).toBeVisible();
   await page.getByRole('button', { name: 'Wallets' }).click();
-  await expect(page.getByText('Synthetic UAT wallet')).toBeVisible();
+  await expect(page.getByText('Synthetic UAT wallet').first()).toBeVisible();
   const archivedSyntheticEvent = page.getByRole('listitem').filter({ hasText: 'Synthetic transport' }).first();
   await expect(archivedSyntheticEvent).toContainText('Archived');
   await page.screenshot({ path: testInfo.outputPath('desktop-en-reload-retention.png'), fullPage: true });
@@ -193,7 +193,7 @@ test('mobile Arabic rehearsal keeps the empty state, RTL, recovery notice, and s
   await page.reload();
   await page.getByRole('button', { name: 'العربية' }).click();
   await page.getByRole('button', { name: 'المحافظ' }).click();
-  await expect(page.getByText('محفظة تجريبية')).toBeVisible();
+  await expect(page.getByText('محفظة تجريبية').first()).toBeVisible();
   await page.getByText('الحساب').click();
   const backupReadiness = page.getByRole('note', { name: 'جاهزية النسخ الاحتياطي' });
   await expect(backupReadiness).toContainText('لا تُدخل بيانات مالية حقيقية');
