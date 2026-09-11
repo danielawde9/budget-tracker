@@ -20,8 +20,13 @@ describe('OnboardingDialog', () => {
     await user.type(screen.getByLabelText('Wallet name'), 'Daily USD');
     await user.click(screen.getByRole('button', { name: 'Create USD wallet' }));
     expect(createWallet).toHaveBeenCalledWith({ spaceId: 'space-new', name: 'Daily USD', currency: 'USD' });
-    expect(complete).toHaveBeenCalledOnce();
+    expect(complete).toHaveBeenCalledWith('space-new');
     expect(screen.queryByRole('button', { name: /invite/i })).not.toBeInTheDocument();
+  });
+
+  it('labels the space step for adding an additional space instead of the first one', () => {
+    render(<OnboardingDialog locale="en" mode="additional" createSpace={vi.fn()} createWallet={vi.fn()} onComplete={vi.fn()} />);
+    expect(screen.getByRole('dialog', { name: 'Add another space' })).toBeInTheDocument();
   });
 
   it('supports household and LBP choices and explains the unavailable member flow', async () => {

@@ -10,7 +10,8 @@ describe('ApplicationShell', () => {
     const changeSpace = vi.fn();
     const signOut = vi.fn();
     const changeDestination = vi.fn();
-    render(<ApplicationShell locale="en" userEmail="owner@example.com" spaces={[personalSpace, householdSpace]} selectedSpace={householdSpace} activeDestination="loans" onDestinationChange={changeDestination} onSpaceChange={changeSpace} onLocaleChange={vi.fn()} onSignOut={signOut}><div>Loans workspace</div></ApplicationShell>);
+    const addSpace = vi.fn();
+    render(<ApplicationShell locale="en" userEmail="owner@example.com" spaces={[personalSpace, householdSpace]} selectedSpace={householdSpace} activeDestination="loans" onDestinationChange={changeDestination} onSpaceChange={changeSpace} onAddSpace={addSpace} onLocaleChange={vi.fn()} onSignOut={signOut}><div>Loans workspace</div></ApplicationShell>);
 
     expect(screen.getByText('Budget ledger')).toBeInTheDocument();
     const space = screen.getByRole('combobox', { name: 'Current space' });
@@ -31,6 +32,8 @@ describe('ApplicationShell', () => {
 
     await user.selectOptions(space, personalSpace.id);
     expect(changeSpace).toHaveBeenCalledWith(personalSpace.id);
+    await user.click(screen.getByRole('button', { name: 'Add another space' }));
+    expect(addSpace).toHaveBeenCalledOnce();
     await user.click(screen.getByText('Account'));
     expect(screen.getByText('owner@example.com').closest('bdi')).not.toBeNull();
     expect(screen.getByRole('note', { name: 'Backup readiness' })).toHaveTextContent(
@@ -47,7 +50,7 @@ describe('ApplicationShell', () => {
   });
 
   it('provides equivalent Arabic labels and keeps sourced names isolated', () => {
-    render(<ApplicationShell locale="ar" userEmail="owner@example.com" spaces={[householdSpace]} selectedSpace={householdSpace} activeDestination="wallets" onDestinationChange={vi.fn()} onSpaceChange={vi.fn()} onLocaleChange={vi.fn()} onSignOut={vi.fn()}><div>مساحة المحافظ</div></ApplicationShell>);
+    render(<ApplicationShell locale="ar" userEmail="owner@example.com" spaces={[householdSpace]} selectedSpace={householdSpace} activeDestination="wallets" onDestinationChange={vi.fn()} onSpaceChange={vi.fn()} onAddSpace={vi.fn()} onLocaleChange={vi.fn()} onSignOut={vi.fn()}><div>مساحة المحافظ</div></ApplicationShell>);
     expect(screen.getByRole('combobox', { name: 'المساحة الحالية' })).toBeInTheDocument();
     expect(screen.getByText('مساحة منزلية')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'المحافظ' })).toHaveAttribute('aria-current', 'page');
@@ -63,13 +66,13 @@ describe('ApplicationShell', () => {
   it('exposes Household navigation only for a selected household space', async () => {
     const user = userEvent.setup();
     const changeDestination = vi.fn();
-    const { rerender } = render(<ApplicationShell locale="en" userEmail="owner@example.com" spaces={[personalSpace, householdSpace]} selectedSpace={householdSpace} activeDestination="household" onDestinationChange={changeDestination} onSpaceChange={vi.fn()} onLocaleChange={vi.fn()} onSignOut={vi.fn()}><div>Household workspace</div></ApplicationShell>);
+    const { rerender } = render(<ApplicationShell locale="en" userEmail="owner@example.com" spaces={[personalSpace, householdSpace]} selectedSpace={householdSpace} activeDestination="household" onDestinationChange={changeDestination} onSpaceChange={vi.fn()} onAddSpace={vi.fn()} onLocaleChange={vi.fn()} onSignOut={vi.fn()}><div>Household workspace</div></ApplicationShell>);
     const household = screen.getByRole('button', { name: 'Household' });
     expect(household).toHaveAttribute('aria-current', 'page');
     await user.click(household);
     expect(changeDestination).toHaveBeenCalledWith('household');
 
-    rerender(<ApplicationShell locale="en" userEmail="owner@example.com" spaces={[personalSpace, householdSpace]} selectedSpace={personalSpace} activeDestination="loans" onDestinationChange={changeDestination} onSpaceChange={vi.fn()} onLocaleChange={vi.fn()} onSignOut={vi.fn()}><div>Loans workspace</div></ApplicationShell>);
+    rerender(<ApplicationShell locale="en" userEmail="owner@example.com" spaces={[personalSpace, householdSpace]} selectedSpace={personalSpace} activeDestination="loans" onDestinationChange={changeDestination} onSpaceChange={vi.fn()} onAddSpace={vi.fn()} onLocaleChange={vi.fn()} onSignOut={vi.fn()}><div>Loans workspace</div></ApplicationShell>);
     expect(screen.queryByRole('button', { name: 'Household' })).not.toBeInTheDocument();
   });
 });

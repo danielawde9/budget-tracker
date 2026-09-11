@@ -11,6 +11,7 @@ interface ApplicationShellProps {
   activeDestination?: ApplicationDestination;
   onDestinationChange?(destination: ApplicationDestination): void;
   onSpaceChange(spaceId: string): void;
+  onAddSpace(): void;
   onLocaleChange(): void;
   onSignOut(): void;
   children: ReactNode;
@@ -18,7 +19,7 @@ interface ApplicationShellProps {
 
 const copy = {
   en: {
-    product: 'Budget ledger', currentSpace: 'Current space', personal: 'Personal space', household: 'Household space',
+    product: 'Budget ledger', currentSpace: 'Current space', addSpace: 'Add another space', personal: 'Personal space', household: 'Household space',
     loans: 'Loans', wallets: 'Wallets', categories: 'Categories', householdNav: 'Household', reports: 'Reports — coming later', language: 'العربية',
     account: 'Account', signOut: 'Sign out', navigation: 'Primary navigation', workspace: 'Workspace',
     backupReadiness: 'Backup readiness',
@@ -26,7 +27,7 @@ const copy = {
     backupRunbookReference: 'Operator repository reference',
   },
   ar: {
-    product: 'دفتر الميزانية', currentSpace: 'المساحة الحالية', personal: 'مساحة شخصية', household: 'مساحة منزلية',
+    product: 'دفتر الميزانية', currentSpace: 'المساحة الحالية', addSpace: 'إضافة مساحة أخرى', personal: 'مساحة شخصية', household: 'مساحة منزلية',
     loans: 'القروض', wallets: 'المحافظ', categories: 'الفئات', householdNav: 'المنزل', reports: 'التقارير — قريبًا', language: 'English',
     account: 'الحساب', signOut: 'تسجيل الخروج', navigation: 'التنقل الرئيسي', workspace: 'مساحة العمل',
     backupReadiness: 'جاهزية النسخ الاحتياطي',
@@ -44,6 +45,7 @@ export function ApplicationShell(props: ApplicationShellProps) {
       <div className="rail-space">
         <label>{text.currentSpace}<select value={props.selectedSpace.id} onChange={(event) => props.onSpaceChange(event.target.value)}>{props.spaces.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}</select></label>
         <div className="space-current-name"><bdi>{props.selectedSpace.name}</bdi><span>{props.selectedSpace.kind === 'personal' ? text.personal : text.household}</span></div>
+        <button type="button" className="text-button" onClick={props.onAddSpace}>{text.addSpace}</button>
       </div>
       <nav className="primary-nav" aria-label={text.navigation}>
         <button type="button" className={activeDestination === 'loans' ? 'nav-active' : ''} aria-current={activeDestination === 'loans' ? 'page' : undefined} onClick={() => props.onDestinationChange?.('loans')}><span aria-hidden="true">◒</span>{text.loans}</button>

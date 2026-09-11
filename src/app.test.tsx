@@ -3,6 +3,7 @@ import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { App } from './app.js';
 import type { AuthGateway, AuthUser } from './features/auth/types.js';
+import type { Space } from './features/loans/types.js';
 import { InMemoryCategoriesGateway } from './test/in-memory-categories-gateway.js';
 import { InMemoryLoansGateway } from './test/in-memory-loans-gateway.js';
 import type { WorkspaceGateway } from './features/workspace/types.js';
@@ -77,6 +78,34 @@ describe('App', () => {
     expect(await screen.findByText('Salary')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Loans' }));
     expect(await screen.findByRole('heading', { name: 'Loans' })).toBeInTheDocument();
+  });
+
+  it('lets a signed-in owner add another space from the shell and selects it', async () => {
+    const user = userEvent.setup();
+    const spaces: Space[] = [personalSpace];
+    const gateway: WorkspaceGateway = {
+      listSpaces: vi.fn(async () => spaces),
+      listWallets: vi.fn(async () => []),
+      createSpace: vi.fn(async (input) => {
+        spaces.push({ id: 'household-space', name: input.name, kind: input.kind });
+        return { id: 'household-space' };
+      }),
+      createWallet: vi.fn(async () => ({ id: 'new-wallet' })),
+    };
+    render(<App authGateway={authGateway({ id: 'user-1', email: 'owner@example.com' })} workspaceGateway={gateway} householdGateway={new InMemoryHouseholdGateway()} loansGateway={new InMemoryLoansGateway()} walletsGateway={new InMemoryWalletsGateway()} categoriesGateway={new InMemoryCategoriesGateway()} />);
+    expect(await screen.findByRole('heading', { name: 'Loans' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Add another space' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add another space' });
+    await user.click(within(dialog).getByRole('radio', { name: 'Household space' }));
+    await user.type(within(dialog).getByLabelText('Space name'), 'Our home');
+    await user.click(within(dialog).getByRole('button', { name: 'Create household space' }));
+    await user.type(screen.getByLabelText('Wallet name'), 'Home cash');
+    await user.click(screen.getByRole('button', { name: 'Create USD wallet' }));
+
+    expect(gateway.createSpace).toHaveBeenCalledWith({ name: 'Our home', kind: 'household' });
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add another space' })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Current space' })).toHaveValue('household-space'));
   });
 
   it('shows onboarding instead of a Loans membership error when no spaces are visible', async () => {

@@ -4,14 +4,16 @@ import type { CreateSpaceInput, CreateWalletInput, CreatedRecord } from './types
 
 interface OnboardingDialogProps {
   locale: Locale;
+  mode?: 'first' | 'additional';
   createSpace(input: CreateSpaceInput): Promise<CreatedRecord>;
   createWallet(input: CreateWalletInput): Promise<CreatedRecord>;
-  onComplete(): void;
+  onComplete(spaceId: string): void;
 }
 
 const copy = {
   en: {
-    spaceTitle: 'Create your first space', spaceIntro: 'A space keeps one set of wallets and loans together.',
+    spaceTitle: 'Create your first space', spaceTitleAdditional: 'Add another space',
+    spaceIntro: 'A space keeps one set of wallets and loans together.',
     personal: 'Personal space', household: 'Household space', spaceName: 'Space name',
     personalAction: 'Create personal space', householdAction: 'Create household space',
     walletTitle: 'Add your first wallet', walletIntro: 'Choose the currency you use first. You can add more wallets in a later milestone.',
@@ -20,7 +22,8 @@ const copy = {
     required: 'Enter a name between 1 and 120 characters.', working: 'Checking your setup…',
   },
   ar: {
-    spaceTitle: 'إنشاء مساحتك الأولى', spaceIntro: 'تجمع المساحة مجموعة واحدة من المحافظ والقروض.',
+    spaceTitle: 'إنشاء مساحتك الأولى', spaceTitleAdditional: 'إضافة مساحة أخرى',
+    spaceIntro: 'تجمع المساحة مجموعة واحدة من المحافظ والقروض.',
     personal: 'مساحة شخصية', household: 'مساحة منزلية', spaceName: 'اسم المساحة',
     personalAction: 'إنشاء مساحة شخصية', householdAction: 'إنشاء مساحة منزلية',
     walletTitle: 'أضف محفظتك الأولى', walletIntro: 'اختر العملة التي تستخدمها أولًا. يمكنك إضافة محافظ أخرى في مرحلة لاحقة.',
@@ -34,7 +37,7 @@ function focusable(container: HTMLElement): HTMLElement[] {
   return [...container.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled])')];
 }
 
-export function OnboardingDialog({ locale, createSpace, createWallet, onComplete }: OnboardingDialogProps) {
+export function OnboardingDialog({ locale, mode = 'first', createSpace, createWallet, onComplete }: OnboardingDialogProps) {
   const text = copy[locale];
   const [step, setStep] = useState<'space' | 'wallet'>('space');
   const [kind, setKind] = useState<SpaceKind>('personal');
@@ -102,7 +105,7 @@ export function OnboardingDialog({ locale, createSpace, createWallet, onComplete
     setError(null);
     try {
       await createWallet({ spaceId, name, currency });
-      onComplete();
+      onComplete(spaceId);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : text.required);
     } finally {
@@ -110,14 +113,15 @@ export function OnboardingDialog({ locale, createSpace, createWallet, onComplete
     }
   };
 
-  const title = step === 'space' ? text.spaceTitle : text.walletTitle;
+  const spaceTitle = mode === 'additional' ? text.spaceTitleAdditional : text.spaceTitle;
+  const title = step === 'space' ? spaceTitle : text.walletTitle;
   return <div className="overlay onboarding-overlay">
     <section ref={dialogRef} className="dialog onboarding-dialog" role="dialog" aria-modal="true" aria-labelledby="onboarding-title" onKeyDown={trapFocus}>
       <header className="dialog-header"><div><span className="brand">Budget ledger</span><h1 id="onboarding-title">{title}</h1></div></header>
       {step === 'space' ? <form onSubmit={(event) => void submitSpace(event)}>
         <p className="dialog-intro">{text.spaceIntro}</p>
         <fieldset className="segmented">
-          <legend>{text.spaceTitle}</legend>
+          <legend>{spaceTitle}</legend>
           <label><input type="radio" name="space-kind" checked={kind === 'personal'} onChange={() => setKind('personal')} />{text.personal}</label>
           <label><input type="radio" name="space-kind" checked={kind === 'household'} onChange={() => setKind('household')} />{text.household}</label>
         </fieldset>

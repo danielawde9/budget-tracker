@@ -69,6 +69,7 @@ interface AuthenticatedWorkspaceProps {
 function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
   const workspace = useWorkspace(props.workspaceGateway, props.userId);
   const [activeDestination, setActiveDestination] = useState<ApplicationDestination>('loans');
+  const [addingSpace, setAddingSpace] = useState(false);
   const [acceptPending, setAcceptPending] = useState(false);
   const [acceptError, setAcceptError] = useState<HouseholdErrorView | null>(null);
   const [terminalAcceptance, setTerminalAcceptance] = useState(false);
@@ -127,17 +128,29 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
   }
   if (!workspace.selectedSpace) return null;
 
-  return <ApplicationShell
-    locale={props.locale}
-    userEmail={props.userEmail}
-    spaces={workspace.spaces}
-    selectedSpace={workspace.selectedSpace}
-    activeDestination={activeDestination}
-    onDestinationChange={setActiveDestination}
-    onSpaceChange={workspace.selectSpace}
-    onLocaleChange={props.onLocaleChange}
-    onSignOut={props.onSignOut}
-  >
+  return <>
+    {addingSpace ? <OnboardingDialog
+      locale={props.locale}
+      mode="additional"
+      createSpace={workspace.createFirstSpace}
+      createWallet={workspace.createFirstWallet}
+      onComplete={(spaceId) => {
+        setAddingSpace(false);
+        void workspace.refresh(spaceId);
+      }}
+    /> : null}
+    <ApplicationShell
+      locale={props.locale}
+      userEmail={props.userEmail}
+      spaces={workspace.spaces}
+      selectedSpace={workspace.selectedSpace}
+      activeDestination={activeDestination}
+      onDestinationChange={setActiveDestination}
+      onSpaceChange={workspace.selectSpace}
+      onAddSpace={() => setAddingSpace(true)}
+      onLocaleChange={props.onLocaleChange}
+      onSignOut={props.onSignOut}
+    >
     {activeDestination === 'loans' ? <Suspense fallback={<div className="state-panel" role="status">{props.locale === 'ar' ? 'جارٍ تحميل القروض…' : 'Loading Loans…'}</div>}><LoansPage
       embedded
       gateway={props.loansGateway}
@@ -166,7 +179,8 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
       userId={props.userId}
       onSpaceUnavailable={() => void workspace.refresh()}
     /></Suspense>}
-  </ApplicationShell>;
+    </ApplicationShell>
+  </>;
 }
 
 interface ConfiguredAppProps extends Omit<Required<AppProps>, 'householdInvitationBootstrap'> {
