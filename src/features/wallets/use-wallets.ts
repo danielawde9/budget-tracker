@@ -6,7 +6,10 @@ import type {
   CreateWalletInput,
   JournalEvent,
   RecordEventInput,
+  RenameWalletInput,
   ReverseEventInput,
+  WalletCommandRecord,
+  WalletLifecycleInput,
   WalletProjection,
   WalletsGateway,
   WalletsSnapshot,
@@ -17,14 +20,20 @@ export interface CommandOutcome { status: 'success' | 'ambiguous' | 'refresh-req
 
 type RecordDraft = Omit<RecordEventInput, 'spaceId' | 'requestId'> & { categoryId?: string | null };
 type ReverseDraft = Omit<ReverseEventInput, 'spaceId' | 'requestId'>;
+type RenameDraft = Omit<RenameWalletInput, 'spaceId' | 'requestId'>;
+type LifecycleDraft = Omit<WalletLifecycleInput, 'spaceId' | 'requestId'>;
 type RetryCommand =
   | { kind: 'record'; requestId: string; input: RecordEventInput; categoryId: string | null }
-  | { kind: 'reverse'; requestId: string; input: ReverseEventInput };
+  | { kind: 'reverse'; requestId: string; input: ReverseEventInput }
+  | { kind: 'rename'; requestId: string; input: RenameWalletInput }
+  | { kind: 'archive'; requestId: string; input: WalletLifecycleInput }
+  | { kind: 'restore'; requestId: string; input: WalletLifecycleInput };
 
 interface WalletsView {
   loadedSpaceId: string;
   status: WalletsStatus;
   wallets: readonly WalletProjection[];
+  archivedWallets: readonly WalletProjection[];
   events: readonly JournalEvent[];
   nextCursor: string | null;
   error: string | null;
@@ -40,6 +49,7 @@ const emptyView = (spaceId: string): WalletsView => ({
   loadedSpaceId: spaceId,
   status: 'loading',
   wallets: [],
+  archivedWallets: [],
   events: [],
   nextCursor: null,
   error: null,
@@ -139,6 +149,7 @@ export function useWallets(
       loadedSpaceId: targetSpaceId,
       status: 'ready',
       wallets: snapshot.wallets,
+      archivedWallets: snapshot.archivedWallets,
       events: snapshot.history.events,
       nextCursor: snapshot.history.nextCursor,
       error: null,
@@ -241,10 +252,37 @@ export function useWallets(
     }
   }), [applySnapshot, enrichEvents, gateway, refreshAfterCommand, spaceId, view.loadedSpaceId, view.wallets, withPending]);
 
+  const walletLifecycleKind = (kind: 'rename' | 'archive' | 'restore') =>
+    kind === 'rename' ? 'rename_wallet' as const : kind === 'archive' ? 'archive_wallet' as const : 'restore_wallet' as const;
+
   const reconcileCommand = useCallback(async (
     command: RetryCommand,
   ): Promise<CommandOutcome> => {
     const categorized = command.kind === 'record' && command.categoryId !== null;
+    if (command.kind === 'rename' || command.kind === 'archive' || command.kind === 'restore') {
+      try {
+        if (command.kind === 'rename') await gateway.renameWallet(command.input);
+        else if (command.kind === 'archive') await gateway.archiveWallet(command.input);
+        else await gateway.restoreWallet(command.input);
+        const refreshed = await refreshAfterCommand(false);
+        return { status: refreshed ? 'success' : 'refresh-required', reconciled: false };
+      } catch (cause) {
+        if (!isAmbiguousTransportFailure(cause)) throw cause;
+        let record: WalletCommandRecord | null;
+        try {
+          record = await gateway.getWalletCommandResult(command.input.spaceId, command.requestId);
+        } catch (reconciliationCause) {
+          if (currentSpace.current === command.input.spaceId) setRetry(command);
+          throw reconciliationCause;
+        }
+        if (record && record.commandKind === walletLifecycleKind(command.kind) && record.walletId === command.input.walletId) {
+          const refreshed = await refreshAfterCommand(false);
+          return { status: refreshed ? 'success' : 'refresh-required', reconciled: true };
+        }
+        setRetry(command);
+        return { status: 'ambiguous', reconciled: false };
+      }
+    }
     try {
       if (command.kind === 'reverse') {
         await gateway.reverseEvent(command.input);
@@ -311,6 +349,27 @@ export function useWallets(
     return withPending(() => reconcileCommand(command));
   }, [createRequestId, reconcileCommand, spaceId, withPending]);
 
+  const renameWallet = useCallback(async (input: RenameDraft): Promise<CommandOutcome> => {
+    const requestId = createRequestId();
+    const command: RetryCommand = { kind: 'rename', requestId, input: { ...input, spaceId, requestId } };
+    setRetry(null);
+    return withPending(() => reconcileCommand(command));
+  }, [createRequestId, reconcileCommand, spaceId, withPending]);
+
+  const archiveWallet = useCallback(async (input: LifecycleDraft): Promise<CommandOutcome> => {
+    const requestId = createRequestId();
+    const command: RetryCommand = { kind: 'archive', requestId, input: { ...input, spaceId, requestId } };
+    setRetry(null);
+    return withPending(() => reconcileCommand(command));
+  }, [createRequestId, reconcileCommand, spaceId, withPending]);
+
+  const restoreWallet = useCallback(async (input: LifecycleDraft): Promise<CommandOutcome> => {
+    const requestId = createRequestId();
+    const command: RetryCommand = { kind: 'restore', requestId, input: { ...input, spaceId, requestId } };
+    setRetry(null);
+    return withPending(() => reconcileCommand(command));
+  }, [createRequestId, reconcileCommand, spaceId, withPending]);
+
   const retryAmbiguous = useCallback(async (): Promise<CommandOutcome> => {
     if (!retry) throw new Error('There is no unchanged command to retry.');
     return withPending(() => reconcileCommand(retry));
@@ -350,6 +409,7 @@ export function useWallets(
   return {
     status: visible ? view.status : 'loading' as const,
     wallets: visible ? view.wallets : [],
+    archivedWallets: visible ? view.archivedWallets : [],
     events: visible ? view.events : [],
     nextCursor: visible ? view.nextCursor : null,
     error: visible ? view.error : null,
@@ -364,6 +424,9 @@ export function useWallets(
     createWallet,
     recordEvent,
     reverseEvent,
+    renameWallet,
+    archiveWallet,
+    restoreWallet,
     retryAmbiguous,
     clearAmbiguous: () => setRetry(null),
   };

@@ -589,4 +589,79 @@ describe('useWallets', () => {
     expect(unavailable).toHaveBeenCalledOnce();
     expect(result.current.wallets).toEqual([]);
   });
+
+  it.each(['renameWallet', 'archiveWallet', 'restoreWallet'] as const)('posts %s with a fresh request ID and refreshes on success', async (method) => {
+    const service = gateway();
+    const { result } = renderHook(() => useWallets(service, 'space-1', undefined, () => 'request-fixed'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    const draft = method === 'renameWallet' ? { walletId: 'wallet-1', name: 'Travel cash' } : { walletId: 'wallet-1' };
+    await act(async () => {
+      await expect(result.current[method](draft as never)).resolves.toEqual({ status: 'success', reconciled: false });
+    });
+
+    const spy = service[method] as ReturnType<typeof vi.fn>;
+    expect(spy).toHaveBeenCalledWith({ ...draft, spaceId: 'space-1', requestId: 'request-fixed' });
+    expect(service.loadSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it('reconciles an ambiguous rename via the wallet command result before offering retry', async () => {
+    const renameWallet = vi.fn(async () => { throw new Error('Connection timeout'); });
+    const getWalletCommandResult = vi.fn(async () => ({ commandKind: 'rename_wallet' as const, walletId: 'wallet-1' }));
+    const service = gateway({ renameWallet, getWalletCommandResult });
+    const { result } = renderHook(() => useWallets(service, 'space-1', undefined, () => 'request-fixed'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await expect(result.current.renameWallet({ walletId: 'wallet-1', name: 'Travel cash' }))
+        .resolves.toEqual({ status: 'success', reconciled: true });
+    });
+
+    expect(getWalletCommandResult).toHaveBeenCalledWith('space-1', 'request-fixed');
+    expect(result.current.ambiguous).toBeNull();
+    expect(renameWallet).toHaveBeenCalledOnce();
+  });
+
+  it('offers an explicit identical retry when the wallet command result does not match', async () => {
+    const archiveWallet = vi.fn().mockRejectedValueOnce(new Error('Failed to fetch')).mockResolvedValueOnce({ id: 'wallet-1' });
+    const getWalletCommandResult = vi.fn(async () => null);
+    const service = gateway({ archiveWallet, getWalletCommandResult });
+    const { result } = renderHook(() => useWallets(service, 'space-1', undefined, () => 'request-fixed'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await expect(result.current.archiveWallet({ walletId: 'wallet-1' })).resolves.toEqual({ status: 'ambiguous', reconciled: false });
+    });
+    expect(result.current.ambiguous).toEqual({ kind: 'archive', requestId: 'request-fixed' });
+
+    await act(async () => { await result.current.retryAmbiguous(); });
+    expect(archiveWallet).toHaveBeenCalledTimes(2);
+    expect(archiveWallet.mock.calls[0]?.[0]).toEqual(archiveWallet.mock.calls[1]?.[0]);
+  });
+
+  it('retains the identical restore command when its reconciliation read itself fails', async () => {
+    const restoreWallet = vi.fn(async () => { throw new Error('Connection timeout'); });
+    const getWalletCommandResult = vi.fn(async () => { throw new Error('Reconciliation read failed'); });
+    const service = gateway({ restoreWallet, getWalletCommandResult });
+    const { result } = renderHook(() => useWallets(service, 'space-1', undefined, () => 'request-fixed'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await expect(result.current.restoreWallet({ walletId: 'wallet-1' })).rejects.toThrow('Reconciliation read failed');
+    });
+    expect(result.current.ambiguous).toEqual({ kind: 'restore', requestId: 'request-fixed' });
+
+    await act(async () => {
+      await expect(result.current.retryAmbiguous()).rejects.toThrow('Reconciliation read failed');
+    });
+    expect(restoreWallet).toHaveBeenCalledTimes(2);
+  });
+
+  it('passes archived wallets through from the loaded snapshot', async () => {
+    const archived = { id: 'wallet-old', spaceId: 'space-1', name: 'Old envelope', currency: 'USD' as const, archivedAt: '2026-09-10T00:00:00Z', balanceMinor: '0' };
+    const service = gateway({ loadSnapshot: vi.fn(async () => ({ ...emptySnapshot, archivedWallets: [archived] })) });
+    const { result } = renderHook(() => useWallets(service, 'space-1'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(result.current.archivedWallets).toEqual([archived]);
+  });
 });
