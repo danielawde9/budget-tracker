@@ -166,7 +166,7 @@ export function TransactionDialog(props: TransactionDialogProps) {
   </DialogShell>;
 
   return <DialogShell title={t(props.locale, 'Add a transaction', 'إضافة معاملة')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} pending={props.pending || refreshing} wide>
-    <form onSubmit={review}>
+    <form className="transaction-form" onSubmit={review}>
       <p className="dialog-intro">{t(props.locale, 'Record one immutable wallet event. Review the signed wallet effects before confirmation.', 'سجّل حدث محفظة واحدًا غير قابل للتعديل. راجع تأثيرات المحافظ الموقّعة قبل التأكيد.')}</p>
       {error && <div className="error-notice" role="alert">{error}{refreshRequired ? <div><button type="button" className="button-secondary retry-command" disabled={refreshing} onClick={() => void refreshAcceptedCommand()}>{refreshing ? t(props.locale, 'Refreshing…', 'جارٍ التحديث…') : t(props.locale, 'Refresh wallets', 'تحديث المحافظ')}</button></div> : props.ambiguous && <div><button type="button" className="button-secondary retry-command" disabled={props.pending} onClick={() => void retry()}>{t(props.locale, 'Retry unchanged transaction', 'إعادة المعاملة دون تغيير')}</button></div>}</div>}
       <div className="form-grid">

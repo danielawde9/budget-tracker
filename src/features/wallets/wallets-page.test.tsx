@@ -11,9 +11,9 @@ import { WalletsPage } from './wallets-page.js';
 
 const onSpaceUnavailable = vi.fn();
 
-function WalletsPageHarness({ gateway, categoriesGateway, locale = 'en' }: { gateway: InMemoryWalletsGateway; categoriesGateway?: CategoriesGateway; locale?: 'en' | 'ar' }) {
+function WalletsPageHarness({ gateway, categoriesGateway, initialDialog, locale = 'en' }: { gateway: InMemoryWalletsGateway; categoriesGateway?: CategoriesGateway; initialDialog?: 'transaction' | null; locale?: 'en' | 'ar' }) {
   const walletState = useWallets(gateway, 'personal-space', undefined, undefined, categoriesGateway);
-  return <WalletsPage {...(categoriesGateway ? { categoriesGateway } : {})} spaceId="personal-space" locale={locale} walletState={walletState} onSpaceUnavailable={onSpaceUnavailable} onOpenLoans={vi.fn()} openTransaction={false} onTransactionDialogOpened={vi.fn()} />;
+  return <WalletsPage {...(categoriesGateway ? { categoriesGateway } : {})} {...(initialDialog === undefined ? {} : { initialDialog })} spaceId="personal-space" locale={locale} walletState={walletState} onSpaceUnavailable={onSpaceUnavailable} onOpenLoans={vi.fn()} openTransaction={false} onTransactionDialogOpened={vi.fn()} />;
 }
 
 function rejectable<T>() {
@@ -45,6 +45,35 @@ async function openArabicCategorizedIncome(user: ReturnType<typeof userEvent.set
 }
 
 describe('WalletsPage', () => {
+  it('presents one primary transaction action, compact active balances, and a labelled journal in row order', async () => {
+    await renderPage();
+
+    expect(screen.getAllByRole('button', { name: 'Add transaction' })).toHaveLength(1);
+    expect(screen.getByRole('heading', { name: 'Active balances' }).closest('.wallet-context')).not.toBeNull();
+    const journal = screen.getByRole('region', { name: 'Transaction history' });
+    expect(within(journal).getAllByText('Date').at(0)).toBeInTheDocument();
+    expect(within(journal).getAllByText('Event').at(0)).toBeInTheDocument();
+    expect(within(journal).getAllByText('Wallet').at(0)).toBeInTheDocument();
+    expect(within(journal).getAllByText('Category').at(0)).toBeInTheDocument();
+    expect(within(journal).getAllByText('Amount').at(0)).toBeInTheDocument();
+  });
+
+  it('opens the requested transaction dialog once without dispatching a wallet mutation', async () => {
+    const gateway = new InMemoryWalletsGateway();
+    render(<WalletsPageHarness gateway={gateway} initialDialog="transaction" />);
+
+    expect(await screen.findByRole('dialog', { name: 'Add a transaction' })).toBeInTheDocument();
+    expect(gateway.calls.filter((call) => ['createWallet', 'recordEvent', 'renameWallet', 'archiveWallet', 'restoreWallet', 'reverseEvent'].includes(call.name))).toHaveLength(0);
+  });
+
+  it('keeps a visible localized empty journal state', async () => {
+    const gateway = new InMemoryWalletsGateway();
+    gateway.events = [];
+    await renderPage(gateway, 'ar');
+
+    expect(screen.getByText('لا توجد معاملات بعد')).toBeVisible();
+  });
+
   it('renders active wallet balances and immutable history with sourced names isolated', async () => {
     await renderPage();
     expect(screen.getAllByText('Daily USD').every((element) => element.closest('bdi') !== null)).toBe(true);
