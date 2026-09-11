@@ -1302,7 +1302,7 @@ describe('wallet lifecycle database contract', () => {
       expect(await walletRow(upgrade.client, seed.dailyId)).toMatchObject({ name: 'Upgraded daily', archived_at: null });
       expect((await walletRow(upgrade.client, seed.unusedId)).archived_at).toBeInstanceOf(Date);
       const journal = await upgrade.client.query<{ count: number }>(
-        'select count(*)::int as count from supabase_migrations.schema_migrations',
+        'select count(*)::int as count from supabase_migrations.schema_migrations limit 1',
       );
       expect(journal.rows).toEqual([{ count: 33 }]);
     } finally {
