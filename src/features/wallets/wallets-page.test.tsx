@@ -61,8 +61,12 @@ describe('WalletsPage', () => {
     expect(within(table).getAllByRole('columnheader').map((header) => header.textContent)).toEqual(['Date', 'Event', 'Wallet', 'Category', 'Amount']);
     const firstDataRow = within(table).getAllByRole('row').at(1);
     expect(firstDataRow).toBeDefined();
-    expect(within(firstDataRow!).getAllByRole('cell').map((cell) => cell.getAttribute('aria-label'))).toEqual(['Date', 'Event', 'Wallet', 'Category', 'Amount']);
-    expect(within(firstDataRow!).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['2026-09-07', 'Income', 'Daily USD', '', '$250.50']);
+    expect(within(firstDataRow!).getByRole('cell', { name: 'Date: 2026-09-07' })).toBeInTheDocument();
+    expect(within(firstDataRow!).getByRole('cell', { name: 'Event: Income' })).toBeInTheDocument();
+    expect(within(firstDataRow!).getByRole('cell', { name: 'Wallet: Daily USD' })).toBeInTheDocument();
+    expect(within(firstDataRow!).getByRole('cell', { name: 'Category: —' })).toBeInTheDocument();
+    expect(within(firstDataRow!).getByRole('cell', { name: 'Amount: $250.50' })).toBeInTheDocument();
+    expect(within(firstDataRow!).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['2026-09-07', 'Income', 'Daily USD', '—', '$250.50']);
   });
 
   it('opens the requested transaction dialog once without dispatching a wallet mutation after close and rerender', async () => {

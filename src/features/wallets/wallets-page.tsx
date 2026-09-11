@@ -104,13 +104,22 @@ export function WalletsPage({ categoriesGateway, spaceId, walletState, locale = 
             const categoryColumnLabel = t(locale, 'Category', 'الفئة');
             const amountLabel = t(locale, 'Amount', 'المبلغ');
             return <li key={event.id} role="presentation" className={`journal-row ${event.kind === 'reversal' ? 'journal-reversal' : ''}`}>
-              {(event.movements.length === 0 ? [null] : event.movements).map((movement, index) => <div className="journal-movement" role="row" key={movement ? `${event.id}-${movement.walletId}` : event.id}>
-                <time role="cell" aria-label={dateLabel} data-label={dateLabel} dateTime={event.effectiveDate}>{index === 0 ? event.effectiveDate : ''}</time>
-                <strong role="cell" aria-label={eventColumnLabel} data-label={eventColumnLabel}>{index === 0 ? label : ''}</strong>
-                <bdi role="cell" aria-label={walletLabel} data-label={walletLabel}>{movement?.walletName ?? ''}</bdi>
-                <span role="cell" aria-label={categoryColumnLabel} data-label={categoryColumnLabel} className="journal-category journal-category-cell">{index === 0 && showCategory ? <><bdi>{categoryLabel}</bdi>{event.category?.archivedAt && <small>{t(locale, 'Archived', 'مؤرشفة')}</small>}</> : ''}</span>
-                <bdi role="cell" aria-label={amountLabel} data-label={amountLabel} className={movement && BigInt(movement.amountMinor) < 0n ? 'amount-negative' : 'amount-positive'}>{movement ? formatMinorAmount(movement.amountMinor, movement.currency, locale) : ''}</bdi>
-              </div>)}
+              {(event.movements.length === 0 ? [null] : event.movements).map((movement, index) => {
+                const dateValue = index === 0 ? event.effectiveDate : '—';
+                const eventValue = index === 0 ? label : '—';
+                const walletValue = movement?.walletName ?? '—';
+                const categoryValue = index === 0 && showCategory ? categoryLabel : '—';
+                const archivedCategory = index === 0 && Boolean(event.category?.archivedAt);
+                const categoryAccessibleValue = archivedCategory ? `${categoryValue} ${t(locale, 'Archived', 'مؤرشفة')}` : categoryValue;
+                const amountValue = movement ? formatMinorAmount(movement.amountMinor, movement.currency, locale) : '—';
+                return <div className="journal-movement" role="row" key={movement ? `${event.id}-${movement.walletId}` : event.id}>
+                  <time role="cell" aria-label={`${dateLabel}: ${dateValue}`} data-label={dateLabel} dateTime={event.effectiveDate}>{dateValue}</time>
+                  <strong role="cell" aria-label={`${eventColumnLabel}: ${eventValue}`} data-label={eventColumnLabel}>{eventValue}</strong>
+                  <bdi role="cell" aria-label={`${walletLabel}: ${walletValue}`} data-label={walletLabel}>{walletValue}</bdi>
+                  <span role="cell" aria-label={`${categoryColumnLabel}: ${categoryAccessibleValue}`} data-label={categoryColumnLabel} className="journal-category journal-category-cell">{categoryValue === '—' ? '—' : <><bdi>{categoryValue}</bdi>{archivedCategory && <small>{t(locale, 'Archived', 'مؤرشفة')}</small>}</>}</span>
+                  <bdi role="cell" aria-label={`${amountLabel}: ${amountValue}`} data-label={amountLabel} className={movement && BigInt(movement.amountMinor) < 0n ? 'amount-negative' : 'amount-positive'}>{amountValue}</bdi>
+                </div>;
+              })}
               <footer>{(event.reversedBy || event.reversalOf || event.loanLinked) && <div className="journal-state">{event.reversedBy && <span>{t(locale, 'Undone', 'تم التراجع عنه')}</span>}{event.reversalOf && <span>{t(locale, 'Undoes an earlier entry', 'تراجع عن قيد سابق')}</span>}{event.loanLinked && <span>{t(locale, 'Loan-linked', 'مرتبط بقرض')}</span>}</div>}{canCorrect && (archivedMovementWallet(event) ? <span className="undo-gated">{t(locale, 'Restore', 'استعد')} <bdi>{archivedMovementWallet(event)}</bdi> {t(locale, 'to undo this', 'للتراجع عن هذا')}</span> : <button type="button" className="text-button" onClick={() => setDialog({ correction: event })}>{t(locale, `Undo ${label.toLowerCase()}`, `تراجع عن ${label}`)}</button>)}{event.loanLinked && <button type="button" className="text-button" onClick={onOpenLoans}>{t(locale, 'Manage in Loans', 'الإدارة في القروض')}</button>}</footer>
             </li>;
           })}</ol>
