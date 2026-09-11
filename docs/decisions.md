@@ -1280,3 +1280,42 @@ an old transaction on an archived wallet.
 **If changed:** Archiving non-zero wallets needs a visible archived-balance
 projection or a closing-transfer design. Dropping restore makes archive permanent,
 as it is for categories, and leaves old entries on archived wallets uncorrectable.
+
+## 2026-09-11 — Subcategories and household-migration tests consolidate onto the shared disposable-database harness
+
+**Decision:** `tests/db/subcategories.integration.test.ts` now imports its
+disposable-database create/bootstrap/replay/dispose/transaction helpers from
+`tests/db/disposable-database.ts` instead of carrying its own copy (removed
+~290 duplicated lines: `createDisposableDatabase`, `disposeDisposableDatabase`,
+`bootstrapCompatibilityObjects`, `migrationFiles`, `replayMigrations`,
+`withAuthenticatedTransaction`, `withRollback`, `expectSavepointRejection`,
+`inTransaction`, `databaseClient`, and their name-validation/drop plumbing).
+Its disposable-database naming is unchanged (`budget_subcategories_<hex>`),
+verified by keeping the exact prefix passed to the shared
+`createDisposableDatabase`. `tests/db/household-migrations.integration.test.ts`
+consolidates only the pieces that were byte-for-byte equivalent — the
+`auth`/`extensions`/`supabase_migrations` bootstrap SQL and the migration-file
+listing/replay loop — onto `bootstrapCompatibilityObjects` and
+`migrationFiles`/`replayMigrations` from the same shared module. Its own
+database creation, naming (`budget_household_migration_<hex>`), and
+`cleanupDisposableDatabase` (which retries the drop after terminating blocking
+backends, unlike the shared harness's single-attempt drop) are kept as-is.
+
+**Why:** `tests/db/disposable-database.ts` (added on the merged
+`claude/wallet-lifecycle-database` branch) is the same create/replay/dispose
+logic subcategories had already copied verbatim and household-migrations had
+reimplemented with small variations; two more copies is pure upkeep cost with
+no behavioral value. `cleanupDisposableDatabase`'s retry-after-terminate
+sequencing is a real, independently tested behavior difference from the shared
+harness's `dropDisposableDatabase` (optimistic drop first, retry only on
+failure, vs. terminate-then-drop-once) — merging it into the shared module
+would change drop behavior for every consumer (subcategories,
+household-migrations, wallet-lifecycle) as a side effect of a dedup pass, so
+it was left alone rather than folded in unreviewed.
+
+**If changed:** Adopting the shared harness's drop strategy for
+household-migrations means either enhancing `dropDisposableDatabase` in
+`disposable-database.ts` with the retry-on-failure behavior (verified against
+all three consumers) and moving `cleanupDisposableDatabase`'s two dedicated
+unit tests to target the shared function, or accepting the loss of that retry
+path. Either call should happen as its own reviewed change, not silently.
