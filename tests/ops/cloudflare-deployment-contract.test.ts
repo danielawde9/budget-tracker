@@ -90,10 +90,17 @@ describe('Cloudflare deployment contract', () => {
 
   it('approves only the reviewed native deployment dependency', () => {
     const workspace = readFileSync(join(process.cwd(), 'pnpm-workspace.yaml'), 'utf8');
+    const buildPolicy =
+      workspace.match(/^allowBuilds:\n((?: {2}[^\n]+\n)+)(?=minimumReleaseAgeExclude:)/)?.[1] ?? '';
+    const entries = [...buildPolicy.matchAll(/^ {2}([@a-z0-9./_-]+): (true|false)$/gm)];
 
-    expect(workspace).toMatch(
-      /^allowBuilds:\n  esbuild: true\n  workerd: true\n(?=minimumReleaseAgeExclude:)/,
-    );
+    // pnpm refuses a frozen install while a dependency build script is
+    // unreviewed, so explicit denials are allowed; approvals stay pinned.
+    expect(entries.map((entry) => `  ${entry[1]}: ${entry[2]}\n`).join('')).toBe(buildPolicy);
+    expect(entries.filter((entry) => entry[2] === 'true').map((entry) => entry[1])).toEqual([
+      'esbuild',
+      'workerd',
+    ]);
     expect(workspace).not.toContain('dangerouslyAllowAllBuilds');
   });
 
