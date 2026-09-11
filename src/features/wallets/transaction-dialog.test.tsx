@@ -34,6 +34,21 @@ function renderDialog(locale: 'en' | 'ar' = 'en') {
   return { onSubmit, user };
 }
 
+describe('TransactionDialog defaults', () => {
+  it('records an untouched type as an expense that takes money out of the wallet', async () => {
+    const { onSubmit, user } = renderDialog();
+    const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+    await user.type(within(dialog).getByLabelText('Amount'), '12.50');
+    await user.click(within(dialog).getByRole('button', { name: 'Review transaction' }));
+    await user.click(within(dialog).getByRole('button', { name: /^Record / }));
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'expense',
+      movements: [{ walletId: 'wallet-1', amountMinor: '-1250' }],
+    }));
+  });
+});
+
 describe('TransactionDialog category hierarchy', () => {
   it('groups children beneath their root and submits the exact child with exact minor units', async () => {
     const { onSubmit, user } = renderDialog();

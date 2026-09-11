@@ -925,3 +925,19 @@ such a target.
 neutralization but still needs the ACL comparison. A different backup format or
 an explicit ACL-reset step needs its own rejection test proving `anon` is denied
 after restore.
+
+## 2026-09-11 — New wallet transactions start as an expense
+
+**Decision:** The Wallets "Add a transaction" dialog preselects **Expense**
+instead of Income. Opening balance, income, and transfer stay one choice away in
+the same Type control; nothing else about posting changes.
+
+**Why:** The owner asked for it after recording an income by mistake: an
+untouched Type control silently posted money *into* a wallet. Day-to-day entries
+are overwhelmingly expenses, so the common path should need no extra choice and
+the costly mistake (an inflated balance) should need a deliberate one.
+
+**If changed:** Restoring an income default, or remembering the last-used type,
+only changes the dialog's initial state and the tests that assert an untouched
+Type records an expense. Remembering per-user or per-space choices would add
+client state that must be cleared on space switch.

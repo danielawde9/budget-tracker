@@ -29,6 +29,7 @@ async function renderPage(
 async function openArabicCategorizedIncome(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: 'إضافة معاملة' }));
   const dialog = screen.getByRole('dialog', { name: 'إضافة معاملة' });
+  await user.selectOptions(within(dialog).getByLabelText('النوع'), 'income');
   await user.click(within(dialog).getByRole('radio', { name: 'راتب' }));
   await user.type(within(dialog).getByLabelText('المبلغ'), '12.50');
   await user.click(within(dialog).getByRole('button', { name: 'مراجعة المعاملة' }));
@@ -162,6 +163,7 @@ describe('WalletsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add transaction' }));
     dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+    await user.selectOptions(within(dialog).getByLabelText('Type'), 'income');
     await user.type(within(dialog).getByLabelText('Amount'), '12.50');
     await user.click(within(dialog).getByRole('button', { name: 'Review transaction' }));
     expect(within(dialog).getByRole('region', { name: 'Wallet effect preview' })).toHaveTextContent('Daily USD receives $12.50');
@@ -221,6 +223,7 @@ describe('WalletsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add transaction' }));
     const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+    await user.selectOptions(within(dialog).getByLabelText('Type'), 'income');
     const picker = within(dialog).getByRole('group', { name: 'Category' });
     expect(within(picker).getByText('Salary').closest('bdi')).not.toBeNull();
     expect(within(picker).getByRole('radio', { name: 'Uncategorized' })).toBeChecked();
@@ -269,6 +272,7 @@ describe('WalletsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add transaction' }));
     const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+    await user.selectOptions(within(dialog).getByLabelText('Type'), 'income');
     expect(within(dialog).queryByRole('radio', { name: 'Income 51' })).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Load more income categories' }));
 
@@ -300,6 +304,7 @@ describe('WalletsPage', () => {
     const { user } = await renderPage(new InMemoryWalletsGateway(), 'en', categoriesGateway);
     await user.click(screen.getByRole('button', { name: 'Add transaction' }));
     const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+    await user.selectOptions(within(dialog).getByLabelText('Type'), 'income');
 
     await user.click(within(dialog).getByRole('button', { name: 'Load more income categories' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('category request was not accepted');
@@ -318,6 +323,7 @@ describe('WalletsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add transaction' }));
     const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+    await user.selectOptions(within(dialog).getByLabelText('Type'), 'income');
     await user.click(within(dialog).getByRole('radio', { name: 'Salary' }));
     await user.selectOptions(within(dialog).getByLabelText('Type'), 'opening_balance');
     expect(within(dialog).queryByRole('group', { name: 'Category' })).not.toBeInTheDocument();
@@ -363,6 +369,7 @@ describe('WalletsPage', () => {
     const { user } = await renderPage(walletGateway, 'en', categoriesGateway);
     await user.click(screen.getByRole('button', { name: 'Add transaction' }));
     const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+    await user.selectOptions(within(dialog).getByLabelText('Type'), 'income');
     await user.click(within(dialog).getByRole('radio', { name: 'Salary' }));
     await user.type(within(dialog).getByLabelText('Amount'), '12.50');
     await user.click(within(dialog).getByRole('button', { name: 'Review transaction' }));
@@ -496,6 +503,7 @@ describe('WalletsPage', () => {
     await user.click(screen.getByRole('button', { name: 'Add transaction' }));
     const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
     const type = within(dialog).getByLabelText('Type');
+    await user.selectOptions(type, 'income');
     const salary = within(dialog).getByRole('radio', { name: 'Salary' });
     await user.click(salary);
     await user.type(within(dialog).getByLabelText('Amount'), '12.50');
@@ -562,6 +570,8 @@ describe('WalletsPage', () => {
     expect(label.closest('bdi')).not.toBeNull();
     expect(label.closest('.journal-category')).toHaveTextContent('Archived');
     await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    await user.selectOptions(within(screen.getByRole('dialog')).getByLabelText('Type'), 'income');
+    expect(within(screen.getByRole('dialog')).getByRole('radio', { name: 'Salary' })).toBeInTheDocument();
     expect(within(screen.getByRole('dialog')).queryByRole('radio', { name: 'Former salary' })).not.toBeInTheDocument();
   });
 
