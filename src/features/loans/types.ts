@@ -130,6 +130,7 @@ export type LoanErrorCode =
   | 'missing_membership'
   | 'dependent_repayment'
   | 'target_above_outstanding'
+  | 'archived_wallet'
   | 'database_rejection';
 
 export interface LoanErrorView {

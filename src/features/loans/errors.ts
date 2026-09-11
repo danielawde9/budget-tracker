@@ -20,6 +20,15 @@ export function classifyLoanError(error: unknown): LoanErrorView {
     };
   }
 
+  if (message.includes('every wallet movement must use an active wallet')) {
+    return {
+      code: 'archived_wallet',
+      title: "This entry's wallet is archived",
+      message,
+      recovery: 'Restore it in Wallets first.',
+    };
+  }
+
   if (message.includes('repayment exceeds')) {
     return {
       code: 'overpayment',

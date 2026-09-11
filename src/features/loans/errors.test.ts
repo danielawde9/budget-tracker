@@ -9,6 +9,7 @@ describe('classifyLoanError', () => {
     ['an active space membership is required', 'missing_membership'],
     ['the correction would invalidate dependent repayments', 'dependent_repayment'],
     ['the monthly target cannot exceed outstanding principal', 'target_above_outstanding'],
+    ['every wallet movement must use an active wallet', 'archived_wallet'],
   ] as const)('classifies %s as %s', (message, code) => {
     expect(classifyLoanError({ message })).toMatchObject({ code });
   });
@@ -16,6 +17,12 @@ describe('classifyLoanError', () => {
   it('explains the dependent-repayment recovery order', () => {
     expect(classifyLoanError({ message: 'the correction would invalidate dependent repayments' }).recovery).toBe(
       'Reverse the later repayments first, then retry this correction.',
+    );
+  });
+
+  it('explains the archived-wallet recovery', () => {
+    expect(classifyLoanError({ message: 'every wallet movement must use an active wallet' }).recovery).toBe(
+      'Restore it in Wallets first.',
     );
   });
 

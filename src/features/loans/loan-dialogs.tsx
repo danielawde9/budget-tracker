@@ -45,10 +45,11 @@ function ErrorNotice({ error, locale }: { error: LoanErrorView; locale: Locale }
     missing_membership: ['لم يعد لديك وصول إلى هذه المساحة', 'انتقل إلى مساحة أخرى أو اطلب من مدير المنزل إعادة عضويتك.'],
     dependent_repayment: ['تعتمد دفعات لاحقة على هذا القيد', 'اعكس الدفعات اللاحقة أولًا، ثم أعد محاولة هذا التصحيح.'],
     target_above_outstanding: ['الهدف أكبر من القرض المتبقي', 'أدخل هدفًا شهريًا لا يتجاوز أصل الدين المتبقي.'],
+    archived_wallet: ['محفظة هذا القيد مؤرشفة', 'استعد المحفظة من صفحة المحافظ أولًا.'],
     database_rejection: ['لم يتم تسجيل التغيير', 'راجع التفاصيل وحدّث السجل ثم حاول مجددًا.'],
   } as const;
   const translated = arabic[error.code];
-  return <div className="error-notice" role="alert"><strong>{locale === 'ar' ? translated[0] : error.title}</strong><p><bdi>{error.message}</bdi></p><p>{locale === 'ar' ? translated[1] : error.recovery}</p></div>;
+  return <div className="error-notice" role="alert"><strong>{locale === 'ar' ? translated[0] : error.title}</strong>{locale === 'ar' ? null : <p><bdi>{error.message}</bdi></p>}<p>{locale === 'ar' ? translated[1] : error.recovery}</p></div>;
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
