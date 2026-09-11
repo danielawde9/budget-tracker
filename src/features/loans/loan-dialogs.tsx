@@ -29,7 +29,7 @@ function Modal({ title, locale, onClose, children, wide = false }: ModalProps) {
   }, [onClose]);
   return (
     <div className="overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <div className={`dialog ${wide ? 'dialog-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={panel}>
+      <div className={`dialog loan-dialog ${wide ? 'dialog-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={panel}>
         <header className="dialog-header"><h2>{title}</h2><button type="button" className="icon-button" onClick={onClose} aria-label={localized(locale, 'Close', 'إغلاق')}>×</button></header>
         {children}
       </div>
@@ -84,8 +84,8 @@ export function CreateLoanDialog({ spaceId, wallets, locale, onClose, onSave }: 
   }
 
   return <Modal title={localized(locale, 'Add a loan', 'إضافة قرض')} locale={locale} onClose={onClose} wide>
-    <p className="dialog-intro">{mode === 'opening' ? localized(locale, 'Record what is already outstanding. No wallet money moves.', 'سجّل المبلغ القائم حاليًا. لن تتحرك أموال أي محفظة.') : direction === 'they_owe_me' ? localized(locale, 'Record money leaving a wallet and becoming owed to you.', 'سجّل مالًا خرج من محفظة وأصبح دينًا مستحقًا لك.') : localized(locale, 'Record money entering a wallet and becoming owed by you.', 'سجّل مالًا دخل إلى محفظة وأصبح دينًا مستحقًا عليك.')}</p>
-    <form onSubmit={(event) => void submit(event)}>
+    <p className="dialog-intro dialog-consequence">{mode === 'opening' ? localized(locale, 'Record what is already outstanding. No wallet money moves.', 'سجّل المبلغ القائم حاليًا. لن تتحرك أموال أي محفظة.') : direction === 'they_owe_me' ? localized(locale, 'Record money leaving a wallet and becoming owed to you.', 'سجّل مالًا خرج من محفظة وأصبح دينًا مستحقًا لك.') : localized(locale, 'Record money entering a wallet and becoming owed by you.', 'سجّل مالًا دخل إلى محفظة وأصبح دينًا مستحقًا عليك.')}</p>
+    <form className="dialog-form" onSubmit={(event) => void submit(event)}>
       <fieldset className="choice-grid"><legend>{localized(locale, 'What happened?', 'ماذا حدث؟')}</legend>
         <label><input type="radio" name="mode" checked={mode === 'opening'} onChange={() => setMode('opening')} /> {localized(locale, 'Opening outstanding', 'رصيد قائم عند البدء')}</label>
         <label><input type="radio" name="mode" checked={mode === 'cash' && direction === 'they_owe_me'} onChange={() => { setMode('cash'); setDirection('they_owe_me'); }} /> {localized(locale, 'I lent money', 'أقرضت مالًا')}</label>

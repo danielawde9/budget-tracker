@@ -90,6 +90,19 @@ describe('LoansPage', () => {
     expect(screen.queryByText(/grand total/i)).not.toBeInTheDocument();
   });
 
+  it('uses the workspace page hierarchy and mobile-safe rows while keeping recovery and dialog actions clear', async () => {
+    const { user } = await renderPage();
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Loans' }).closest('.page-header')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Add loan' })).toHaveClass('page-header-action');
+    expect(screen.getByRole('button', { name: 'Open Maya loan' })).toHaveClass('mobile-safe-row');
+
+    await user.click(screen.getByRole('button', { name: 'Open Maya loan' }));
+    await user.click(screen.getByRole('button', { name: 'Correct lending entry from Jul 1, 2026' }));
+    const actions = within(screen.getByRole('dialog', { name: 'Correct this ledger entry' })).getAllByRole('button');
+    expect(actions.findIndex((button) => button.textContent === 'Cancel')).toBeLessThan(actions.findIndex((button) => button.textContent === 'Add reversal'));
+  });
+
   it('switches the complete workspace to Arabic RTL', async () => {
     const { user } = await renderPage();
     await user.click(screen.getByRole('button', { name: 'العربية' }));

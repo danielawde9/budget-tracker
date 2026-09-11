@@ -38,15 +38,15 @@ export function LoansPage({ gateway, locale: controlledLocale, spaces: controlle
   }, [locale]);
 
   return <Root className={embedded ? 'loans-workspace' : 'app-shell'}>
-    <header className="topbar">
+    <header className="topbar page-header loans-page-header">
       <div>{embedded ? null : <span className="brand">Budget ledger</span>}<h1>{translate(locale, 'loans')}</h1><p>{translate(locale, 'subtitle')}</p></div>
       {embedded ? null : <button type="button" className="locale-button" onClick={() => onLocaleChange ? onLocaleChange() : setInternalLocale(locale === 'en' ? 'ar' : 'en')}>{locale === 'en' ? translate(locale, 'arabic') : translate(locale, 'english')}</button>}
     </header>
 
-    <section className="controls" aria-label="Loans controls">
+    <section className="controls workspace-toolbar" aria-label="Loans controls">
       {embedded ? null : <label>{translate(locale, 'space')}<select value={state.spaceId} onChange={(event) => onSpaceChange ? onSpaceChange(event.target.value) : state.setSpaceId(event.target.value)}>{spaces.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}</select></label>}
       <label>{translate(locale, 'month')}<input type="month" value={state.month.slice(0, 7)} onChange={(event) => state.setMonth(event.target.value)} /></label>
-      <button type="button" onClick={() => setCreating(true)} disabled={!state.dashboard}>{translate(locale, 'addLoan')}</button>
+      <button type="button" className="page-header-action" onClick={() => setCreating(true)} disabled={!state.dashboard}>{translate(locale, 'addLoan')}</button>
       {!embedded && state.dashboard ? <span className="space-kind">{translate(locale, state.dashboard.space.kind)}</span> : null}
     </section>
 

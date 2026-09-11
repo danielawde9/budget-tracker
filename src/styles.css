@@ -78,9 +78,10 @@ bdi, dd, strong { font-variant-numeric: tabular-nums; }
 .categories-topbar { align-items: end; }
 .category-kind-tabs { display: none; }
 .category-registers { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(28px, 5vw, 64px); margin-block-start: 42px; }
-.category-register > header { display: flex; align-items: end; justify-content: space-between; gap: 20px; padding-block-end: 14px; border-block-end: 2px solid var(--ink); }
+.register-section > header { display: flex; align-items: end; justify-content: space-between; gap: var(--space-3); padding-block-end: var(--space-3); border-block-end: 2px solid var(--ink); }
+.category-register > header { display: flex; align-items: end; justify-content: space-between; gap: var(--space-3); padding-block-end: var(--space-3); border-block-end: 2px solid var(--ink); }
 .category-register > header h2 { margin: 0; font-size: clamp(1.45rem, 3vw, 1.9rem); letter-spacing: -.035em; }
-.category-register > header > span { min-inline-size: 34px; padding: 5px 10px; border: 1px solid #aab5aa; border-radius: 999px; text-align: center; }
+.count-badge { min-inline-size: 34px; padding: 5px 10px; border: 1px solid #aab5aa; border-radius: 999px; text-align: center; }
 .category-list { list-style: none; margin: 0; padding: 0; }
 .category-list > li { border-block-end: 1px solid #c7cfc7; }
 .category-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 18px; min-block-size: 76px; padding-block: 14px; }
@@ -184,13 +185,14 @@ bdi, dd, strong { font-variant-numeric: tabular-nums; }
 .onboarding-boundary { padding: 14px 16px; border-inline-start: 4px solid var(--saffron); background: #f3ead4; color: #65501d; line-height: 1.5; }
 .auth-page .auth-language { color: white; border-color: #789486; }
 .auth-page .auth-language:hover { background: #234b39; }
-.topbar { display: flex; align-items: start; justify-content: space-between; gap: 24px; padding-bottom: 28px; border-bottom: 2px solid #17231d; }
+.topbar, .page-header { display: flex; align-items: start; justify-content: space-between; gap: var(--space-4); padding-bottom: 28px; border-bottom: 2px solid var(--ink); }
 .brand { display: block; color: #5c695f; font-weight: 650; margin-bottom: 18px; }
 h1 { font-size: clamp(2.7rem, 7vw, 5.8rem); line-height: .9; margin: 0; letter-spacing: -.065em; font-weight: 780; }
 .topbar p { max-width: 620px; color: #546158; font-size: 1.05rem; line-height: 1.5; margin: 20px 0 0; }
+.page-header-action { flex: 0 0 auto; }
 .locale-button, .button-secondary { background: transparent; color: #17231d; border: 1px solid #aab5aa; }
 .locale-button:hover, .button-secondary:hover { background: #e7ebe4; }
-.controls { display: flex; align-items: end; gap: 16px; padding: 20px 0; border-bottom: 1px solid #bdc7bd; }
+.controls, .workspace-toolbar { display: flex; align-items: end; gap: var(--space-3); padding: 20px 0; border-bottom: 1px solid #bdc7bd; }
 .controls label, form label { display: grid; gap: 7px; font-weight: 650; color: #415047; }
 .controls select, .controls input, form select, form input, form textarea { border: 1px solid #aab5aa; border-radius: 7px; background: #fff; color: #17231d; padding: .65rem .75rem; }
 .controls button { margin-inline-start: auto; }
@@ -205,7 +207,7 @@ dd { margin: 8px 0 0; font-weight: 760; white-space: nowrap; }
 .loan-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 38px; }
 .loan-group > header { display: flex; align-items: center; gap: 10px; border-bottom: 2px solid #17231d; padding-bottom: 12px; }
 .loan-group h2 { margin: 0; font-size: 1.65rem; letter-spacing: -.03em; }
-.loan-group header span { border: 1px solid #aab5aa; border-radius: 999px; min-width: 28px; text-align: center; padding: 3px 8px; }
+.loan-group header .count-badge { min-inline-size: 28px; padding: 3px 8px; }
 .loan-group ul { list-style: none; padding: 0; margin: 0; }
 .loan-row { border-bottom: 1px solid #c7cfc7; }
 .loan-row-button { width: 100%; display: grid; grid-template-columns: minmax(130px, 1fr) auto minmax(110px, auto); gap: 12px; align-items: center; text-align: start; background: transparent; color: #17231d; border-radius: 0; padding: 18px 4px; }
@@ -225,6 +227,8 @@ dd { margin: 8px 0 0; font-weight: 760; white-space: nowrap; }
 .dialog-header h2 { margin: 0; font-size: clamp(1.7rem, 4vw, 2.5rem); letter-spacing: -.04em; }
 .icon-button { min-width: 44px; background: transparent; color: #17231d; font-size: 1.6rem; padding: 0; }
 .dialog-intro { color: #536158; line-height: 1.55; max-width: 65ch; }
+.dialog-consequence { padding-inline-start: var(--space-3); border-inline-start: 3px solid var(--saffron); }
+.dialog-form { min-inline-size: 0; }
 .choice-grid, .segmented { border: 0; padding: 0; margin: 24px 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .choice-grid legend, .segmented legend { font-weight: 760; margin-bottom: 10px; }
 .choice-grid label, .segmented label { display: flex; align-items: center; gap: 8px; padding: 12px; border: 1px solid #aab5aa; border-radius: 8px; background: white; }
@@ -319,6 +323,11 @@ dd { margin: 8px 0 0; font-weight: 760; white-space: nowrap; }
   .summary-row { grid-template-columns: 64px 1fr; }
   .summary-row dl { grid-template-columns: repeat(7, 125px); }
   .loan-columns { grid-template-columns: 1fr; gap: 42px; }
+  .mobile-safe-row { grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2) var(--space-3); padding-block: var(--space-3); }
+  .mobile-safe-row .loan-person { min-inline-size: 0; }
+  .mobile-safe-row .loan-person small, .mobile-safe-row .loan-person bdi { overflow-wrap: anywhere; }
+  .mobile-safe-row .loan-amount, .mobile-safe-row .loan-due, .mobile-safe-row .loan-plan { grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; }
+  .mobile-safe-row .loan-amount strong, .mobile-safe-row .loan-due > bdi, .mobile-safe-row .loan-plan > bdi { text-align: end; }
   .overlay { padding: 0; place-items: stretch; }
   .dialog, .dialog-wide { width: 100%; max-height: 100vh; min-height: 100dvh; border-radius: 0; padding: 20px; }
   .transaction-form .dialog-actions { position: sticky; inset-block-end: -20px; margin-inline: -20px; padding: 16px 20px max(16px, env(safe-area-inset-bottom)); background: var(--surface-raised); }

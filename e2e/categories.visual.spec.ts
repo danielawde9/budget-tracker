@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route, type TestInfo } from '@playwright/test';
 
 import { installCategoriesApiFixture, type CategoriesFixtureOptions } from './fixtures/categories.js';
 
@@ -8,10 +8,16 @@ function screenshotPath(testInfo: TestInfo, name: string) {
     : testInfo.outputPath(name);
 }
 
-async function openCategories(page: Page, options: CategoriesFixtureOptions = {}) {
+async function openSettledHome(page: Page, options: CategoriesFixtureOptions = {}) {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await installCategoriesApiFixture(page, options);
   await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Categories' })).toBeVisible();
+  await expect(page.getByRole('status', { name: 'Loading financial overview' })).toHaveCount(0);
+}
+
+async function openCategories(page: Page, options: CategoriesFixtureOptions = {}) {
+  await openSettledHome(page, options);
   await page.getByRole('button', { name: 'Categories' }).click();
   await expect(page.getByRole('heading', { name: 'Categories', exact: true })).toBeVisible();
   if (!options.failCategoriesOnce) {
@@ -204,9 +210,18 @@ test('archived historical label remains while ambiguity reconciles without dupli
 
 test('category load failure offers a deterministic manager retry', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop');
-  await openCategories(page, { failCategoriesOnce: true });
+  await openSettledHome(page);
+  const categoryPath = 'http://127.0.0.1:55432/rest/v1/categories**';
+  const failCategories = async (route: Route) => route.fulfill({
+    status: 503,
+    headers: { 'access-control-allow-origin': '*', 'content-type': 'application/json' },
+    body: JSON.stringify({ message: 'category register temporarily unavailable' }),
+  });
+  await page.route(categoryPath, failCategories);
+  await page.getByRole('button', { name: 'Categories' }).click();
   const error = page.getByRole('alert');
   await expect(error).toContainText('Categories are unavailable', { timeout: 15_000 });
+  await page.unroute(categoryPath, failCategories);
   await error.getByRole('button', { name: 'Try again' }).click();
   await expect(page.getByText('Salary')).toBeVisible();
 });
