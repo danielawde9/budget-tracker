@@ -587,6 +587,17 @@ the full `pnpm check:ops` passed 249 tests in 13 files through the helper in
 under four minutes, refused no connection, and left no labelled container on
 the host.
 
+The helper cannot see which endpoint Testcontainers finally dials, so the suite
+checks it before starting any container. When `DOCKER_HOST` is set,
+`tests/ops/testcontainers-endpoint.ts` fails the suite unless the dockerode modem
+of the Testcontainers client dials exactly that `unix:///absolute/path` socket.
+That catches a `tc.host` override and a fallback from a dead bridge socket to
+`/var/run/docker.sock` or another local socket. A `DOCKER_HOST` that is empty,
+`tcp://`, or `ssh://` is refused before anything is dialed. With `DOCKER_HOST`
+unset, as in a local Docker Desktop run, the check is skipped. The suite probes
+the check in fresh Node processes against fake local Docker APIs, so those probes
+need neither Docker nor a remote host.
+
 The suite stops its own containers; each carries the label
 `budget.restore-test=supabase-scratch-restore` for manual cleanup after an
 interrupted run.

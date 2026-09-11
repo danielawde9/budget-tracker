@@ -1,5 +1,6 @@
-import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
+import { execFile, spawnSync, type SpawnSyncReturns } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { once } from 'node:events';
 import {
   appendFileSync,
   chmodSync,
@@ -9,11 +10,14 @@ import {
   realpathSync,
   writeFileSync,
 } from 'node:fs';
+import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+
+import { assertTestcontainersDialsDockerHost } from './testcontainers-endpoint.js';
 
 // public.ecr.aws and Docker Hub publish supabase/postgres:17.6.1.166 under the
 // same index digest; it is the exact image Budget Production runs.
@@ -202,6 +206,158 @@ async function anonymousAccess(container: StartedTestContainer) {
   return { spacesSelect, leaveExecute };
 }
 
+const endpointAssertion = join(process.cwd(), 'tests/ops/testcontainers-endpoint.ts');
+// Testcontainers caches the first client it resolves for the life of the
+// process, so every probe runs in a fresh Node process with a minimal env.
+const endpointProbe =
+  'const { assertTestcontainersDialsDockerHost } = await import(process.argv[1]);' +
+  ' await assertTestcontainersDialsDockerHost(process.env.DOCKER_HOST);';
+const fakeDockerApis: Server[] = [];
+
+async function closeFakeDockerApis(): Promise<void> {
+  await Promise.all(
+    fakeDockerApis.splice(0).map((server) => {
+      server.closeAllConnections();
+      return new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }),
+  );
+}
+
+// Answers GET /info like a Docker daemon, which is all Testcontainers needs to
+// accept an endpoint, and records every request it receives.
+async function startFakeDockerApi(
+  listen: (server: Server) => void,
+): Promise<{ server: Server; requests: string[] }> {
+  const requests: string[] = [];
+  const server = createServer((request, response) => {
+    requests.push(`${request.method ?? ''} ${request.url ?? ''}`);
+    if (request.method !== 'GET' || request.url !== '/info') {
+      response.writeHead(404).end();
+      return;
+    }
+    response.writeHead(200, { 'Content-Type': 'application/json' }).end(
+      JSON.stringify({ OperatingSystem: 'fake', OSType: 'linux', Architecture: 'x86_64' }),
+    );
+  });
+  fakeDockerApis.push(server);
+  listen(server);
+  await once(server, 'listening');
+  return { server, requests };
+}
+
+function startFakeDockerSocket(socketPath: string) {
+  return startFakeDockerApi((server) => server.listen(socketPath));
+}
+
+async function startFakeDockerLoopback(): Promise<{ port: number; requests: string[] }> {
+  const { server, requests } = await startFakeDockerApi((listener) =>
+    listener.listen(0, '127.0.0.1'),
+  );
+  const address = server.address();
+  if (address === null || typeof address === 'string') {
+    throw new Error('fake Docker API is not listening on TCP');
+  }
+  return { port: address.port, requests };
+}
+
+function runEndpointProbe(
+  env: Record<string, string>,
+): Promise<{ status: number | string | null; stderr: string }> {
+  return new Promise((resolve) => {
+    execFile(
+      process.execPath,
+      ['--input-type=module', '--eval', endpointProbe, endpointAssertion],
+      { env, encoding: 'utf8', timeout: 20_000 },
+      (error, _stdout, stderr) => {
+        resolve({ status: error === null ? 0 : (error.code ?? error.signal ?? null), stderr });
+      },
+    );
+  });
+}
+
+describe('Testcontainers Docker endpoint assertion', () => {
+  afterEach(closeFakeDockerApis);
+
+  it('passes when Testcontainers dials the DOCKER_HOST socket', async () => {
+    const home = privateDirectory('budget-tc-');
+    const socket = join(home, 'docker.sock');
+    const api = await startFakeDockerSocket(socket);
+
+    const probe = await runEndpointProbe({ HOME: home, DOCKER_HOST: `unix://${socket}` });
+
+    expect(probe.status, probe.stderr).toBe(0);
+    expect(api.requests).toContain('GET /info');
+  });
+
+  it('fails instead of letting Testcontainers fall back from a dead DOCKER_HOST socket', async () => {
+    const home = privateDirectory('budget-tc-');
+    const dead = join(home, 'dead.sock');
+    // XDG_RUNTIME_DIR/docker.sock is a later Testcontainers fallback; a live
+    // /var/run/docker.sock would be chosen before it, and must fail the same way.
+    await startFakeDockerSocket(join(home, 'docker.sock'));
+
+    const probe = await runEndpointProbe({
+      HOME: home,
+      XDG_RUNTIME_DIR: home,
+      DOCKER_HOST: `unix://${dead}`,
+    });
+
+    expect(probe.status).not.toBe(0);
+    expect(probe.stderr).toContain('Testcontainers dials "unix://');
+    expect(probe.stderr).toContain(`", not DOCKER_HOST "unix://${dead}"`);
+  });
+
+  it('fails when tc.host in ~/.testcontainers.properties takes precedence over DOCKER_HOST', async () => {
+    const home = privateDirectory('budget-tc-');
+    const socket = join(home, 'docker.sock');
+    const socketApi = await startFakeDockerSocket(socket);
+    const loopback = await startFakeDockerLoopback();
+    writeFileSync(
+      join(home, '.testcontainers.properties'),
+      `tc.host=tcp://127.0.0.1:${loopback.port}\n`,
+      { mode: 0o600 },
+    );
+
+    const probe = await runEndpointProbe({ HOME: home, DOCKER_HOST: `unix://${socket}` });
+
+    expect(probe.status).not.toBe(0);
+    expect(probe.stderr).toContain(
+      `Testcontainers dials "http://127.0.0.1:${loopback.port}", not DOCKER_HOST "unix://${socket}"`,
+    );
+    expect(loopback.requests).toContain('GET /info');
+    expect(socketApi.requests).toEqual([]);
+  });
+
+  it('refuses a DOCKER_HOST that is not a unix socket before Testcontainers dials it', async () => {
+    const loopback = await startFakeDockerLoopback();
+    const dockerHost = `tcp://127.0.0.1:${loopback.port}`;
+
+    const probe = await runEndpointProbe({
+      HOME: privateDirectory('budget-tc-'),
+      DOCKER_HOST: dockerHost,
+    });
+
+    expect(probe.status).not.toBe(0);
+    expect(probe.stderr).toContain(`cannot verify DOCKER_HOST "${dockerHost}"`);
+    expect(loopback.requests).toEqual([]);
+  });
+
+  it('refuses an empty DOCKER_HOST, which Testcontainers treats as unset', async () => {
+    const probe = await runEndpointProbe({ HOME: privateDirectory('budget-tc-'), DOCKER_HOST: '' });
+
+    expect(probe.status).not.toBe(0);
+    expect(probe.stderr).toContain('cannot verify DOCKER_HOST ""');
+  });
+
+  it('leaves endpoint selection to Testcontainers when DOCKER_HOST is unset', async () => {
+    const probe = await runEndpointProbe({ HOME: privateDirectory('budget-tc-') });
+
+    expect(probe.status, probe.stderr).toBe(0);
+  });
+});
+
 describe('Supabase scratch restore preflight', () => {
   it('renders the reviewed restore order and drops only empty storage COPY blocks', () => {
     const plain = runRestoreScript(['render', minimalBundle()]);
@@ -310,6 +466,9 @@ describe('Supabase scratch restore on supabase/postgres 17.6.1.166', () => {
   let productionFingerprint = '';
 
   beforeAll(async () => {
+    // Before any container: the restore script's docker CLI uses DOCKER_HOST, so
+    // Testcontainers must not have fallen back to another daemon.
+    await assertTestcontainersDialsDockerHost(process.env.DOCKER_HOST);
     const source = await startSupabasePostgres({ 'budget.restore-fixture': 'synthetic-source' });
     await source.copyContentToContainer([
       { content: readFileSync(join(fixtures, 'source.sql')), target: '/tmp/budget-source.sql' },

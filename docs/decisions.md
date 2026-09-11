@@ -1023,8 +1023,9 @@ host. Defaults taken in the owner's absence:
   before `DOCKER_HOST` and falls back to `/var/run/docker.sock` when an endpoint
   fails (read from the pinned source). The helper refuses a `tc.host` setting and
   exits `66` when the bridge exits before the command does. It cannot see which
-  endpoint a client finally used; asserting that belongs to the suite and is not
-  yet done.
+  endpoint a client finally used; the suite asserts that before starting any
+  container (see "The scratch-restore suite fails unless Testcontainers dials
+  `DOCKER_HOST`" below).
 - Interrupts during cleanup are ignored because cleanup is bounded, so a second
   Ctrl-C cannot orphan the bridge. SSH sessions run in their own session so a
   terminal Ctrl-C reaches the helper first, and the bridge stops itself within a
@@ -1105,3 +1106,66 @@ entrypoint passes paths as argv (macOS `ARG_MAX` is 1 MiB), so a much larger fil
 cap must keep scanning in-process as `check-budget.sh` does. A hard deadline
 inside a single file would need line-loop checkpoints or a faster matcher, each
 with its own rejection test.
+
+## 2026-09-11 — The scratch-restore suite fails unless Testcontainers dials `DOCKER_HOST`
+
+**Decision:** The container `beforeAll` in
+`tests/ops/supabase-scratch-restore.test.ts` first calls
+`assertTestcontainersDialsDockerHost` from `tests/ops/testcontainers-endpoint.ts`.
+When `DOCKER_HOST` is set, it resolves the Testcontainers runtime client and fails
+the suite unless that client dials exactly `DOCKER_HOST`, so a `tc.host` override
+or a fallback from a dead bridge socket stops the run before any container starts.
+Defaults taken in the owner's absence:
+
+- The dialed endpoint is read from `client.container.dockerode.modem`. In the
+  pinned 12.1.0 source, `ContainerRuntimeClient.info` records no endpoint and the
+  chosen strategy's `uri` is discarded. `clients/client.js` creates the only
+  dockerode instance, and every `GenericContainer` call reuses the client it
+  caches for the process, so one check before the first container covers the
+  run. The modem is also more faithful than the strategy URI: docker-modem 5.0.7
+  fills options the strategy leaves out from `process.env.DOCKER_HOST`.
+  `@types/docker-modem` 3.0.6 declares no connection fields, so they are read as
+  `unknown` and narrowed.
+- The comparison is exact: `unix://` plus the dialed socket path must equal
+  `DOCKER_HOST` byte for byte, so a path that Testcontainers' URL parsing rewrites
+  fails as well.
+- A set `DOCKER_HOST` that is not `unix:///absolute/path` (empty, `tcp://`, or
+  `ssh://`) is refused before the client is resolved, so nothing is dialed. The
+  bridge only produces unix sockets and the restore script refuses `tcp://`; an
+  `ssh://` endpoint would be dialed during resolution. Testcontainers treats an
+  empty `DOCKER_HOST` as unset and would silently pick a local socket.
+- With `DOCKER_HOST` unset the check is skipped: a local Docker Desktop run
+  chooses its own endpoint on purpose.
+- The bridge helper's `tc.host` refusal and bridge-exit check stay as defense in
+  depth. The probes below run without the helper, and the helper's fixture tests
+  run without the suite.
+- Probes run the helper in a fresh Node process each (the client cache is
+  per-process) with a minimal environment, against fake local Docker APIs that
+  answer only `GET /info`. They import the `.ts` file directly, measured working
+  on the pinned Node 22.22.0. A matching socket passes; a dead socket with a fake
+  fallback at `XDG_RUNTIME_DIR/docker.sock` fails; a `tc.host` override fails
+  without the `DOCKER_HOST` socket being contacted; `tcp://` is refused without
+  being dialed; empty is refused; unset passes. When `/var/run/docker.sock` is
+  live, the dead-socket probe falls back to it instead, sends it one `GET /info`,
+  and must still fail (read from the source; Docker Desktop was stopped when this
+  was measured).
+
+**Why:** Testcontainers logs a failing endpoint at debug level and moves on. A
+dead bridge socket could therefore run the suite's containers on another daemon
+while the restore script's `docker` CLI still used `DOCKER_HOST`, and the tests
+that only use `container.exec` would pass there. Measured 2026-09-11 with no
+Docker daemon and no remote host: with `DOCKER_HOST` on a dead socket and a fake
+daemon at `XDG_RUNTIME_DIR/docker.sock`, the suite before this change sent that
+fake `GET /info`, `GET /images/public.ecr.aws/supabase/postgres:17.6.1.166/json`,
+and `POST /images/create`. After it, the fake saw only `GET /info` and vitest
+exited `1`. A resolve-only stub let the fallback, `tc.host`, and `tcp://` probes
+exit `0`.
+
+**If changed:** Supporting `ssh://` means comparing the modem's protocol,
+username, host, and port with `DOCKER_HOST`, with probes that still dial no
+remote host. Pinning every run means failing when `DOCKER_HOST` is unset and
+changing the unset probe. A Testcontainers upgrade must re-read where the client
+keeps its dockerode instance and whether it still caches one client per process;
+if the client starts recording its endpoint, compare against that and keep the
+probes. The helper adds one file to the tracked secret scan (252 on this branch,
+under the 4,096-file bound and still under the earlier 256).
