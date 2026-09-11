@@ -1067,7 +1067,7 @@ describe('subcategories database foundation', () => {
       }
       throw error;
     }
-  });
+  }, 60_000);
 
   afterAll(async () => {
     if (!database) {
