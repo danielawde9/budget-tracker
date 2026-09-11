@@ -27,6 +27,7 @@ async function confirm(user: ReturnType<typeof userEvent.setup>, actionName: str
 describe('HouseholdPage', () => {
   it('renders the bounded owner roster and invitation lifecycle using isolated database values', async () => {
     await renderPage();
+    expect(screen.getByRole('heading', { name: 'Household access' }).closest('.page-header')).not.toBeNull();
     expect(screen.getByRole('heading', { name: 'Household access' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Members' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Invitations' })).toBeInTheDocument();
@@ -71,6 +72,18 @@ describe('HouseholdPage', () => {
     await user.click(screen.getByRole('button', { name: `Remove ${householdMemberId}` }));
     await confirm(user, 'Remove access');
     await waitFor(() => expect(gateway.calls.some((call) => call.name === 'removeMember')).toBe(true));
+  });
+
+  it.each([
+    { locale: 'en', invite: 'Invite member', leave: 'Leave household', acknowledgement: 'I understand this changes household access.' },
+    { locale: 'ar', invite: 'دعوة عضو', leave: 'مغادرة المنزل', acknowledgement: 'أفهم أن هذا الإجراء يغيّر صلاحيات المنزل.' },
+  ] as const)('keeps $locale household page actions behind an acknowledgement gate', async ({ locale, invite, leave, acknowledgement }) => {
+    const { user } = await renderPage(new InMemoryHouseholdGateway(), locale);
+    expect(screen.getByRole('button', { name: invite })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: leave }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('checkbox', { name: acknowledgement })).not.toBeChecked();
+    expect(within(dialog).getByRole('button', { name: leave })).toBeDisabled();
   });
 
   it('cancels pending invitations through a confirmation dialog', async () => {

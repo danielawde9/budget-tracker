@@ -1340,3 +1340,20 @@ to the verified ledger behavior.
 does not alter the shared visual system. Adding charts, budgets, search,
 notifications, or reporting requires a separate product and data-contract
 decision; they are not cosmetic additions to this redesign.
+
+## 2026-09-11 — Account, household, onboarding, and auth share the workspace presentation language
+
+**Decision:** Household headers, required onboarding, authentication, loading,
+and configuration states use the same calm paper/surface and dialog treatments
+as the authenticated workspace. Authentication remains a clear bounded surface,
+not a separate full-screen promotional card. Backup readiness stays available in
+the Account menu but is collapsed as operator-only detail by default.
+
+**Why:** These states are part of one financial product and should not interrupt
+the working model with a different visual system. The backup warning is
+important but does not belong in the normal task hierarchy for every user.
+
+**If changed:** Restoring a distinct auth treatment is presentation-only as
+long as email/password autocomplete, confirmation/resend, and session-state
+contracts are unchanged. Promoting backup readiness into primary navigation
+requires a product decision about user-facing operational status and ownership.

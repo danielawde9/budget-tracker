@@ -171,7 +171,7 @@ function ConfiguredApp({ authGateway, categoriesGateway, householdGateway, house
   }, [locale]);
 
   if (auth.status === 'loading') {
-    return <main className="auth-page"><div className="auth-loading" role="status">Checking your session…</div></main>;
+    return <main className="workspace-state-page auth-page"><div className="state-panel auth-loading" role="status">Checking your session…</div></main>;
   }
 
   if (auth.status !== 'authenticated' || !auth.user) {
@@ -216,7 +216,7 @@ export function App({ householdInvitationBootstrap = null, authGateway, categori
   const activeWorkspaceGateway = useMemo(() => workspaceGateway ?? (client ? createSupabaseWorkspaceGateway(client) : null), [workspaceGateway, client]);
 
   if (!activeAuthGateway || !activeCategoriesGateway || !activeHouseholdGateway || !activeLoansGateway || !activeWalletsGateway || !activeWorkspaceGateway) {
-    return <main className="configuration-page"><section><span className="brand">Budget ledger</span><h1>Configuration needed</h1><p>Connect this browser to the dedicated Budget development stack before continuing.</p></section></main>;
+    return <main className="workspace-state-page configuration-page"><section className="state-panel"><span className="brand">Budget ledger</span><h1>Configuration needed</h1><p>This installation needs its data service before the financial workspace can open.</p><details className="configuration-detail"><summary>Operator setup details</summary><p>Connect this browser to the dedicated Budget development stack before continuing.</p></details></section></main>;
   }
 
   return <ConfiguredApp householdInvitationBootstrap={householdInvitationBootstrap} authGateway={activeAuthGateway} categoriesGateway={activeCategoriesGateway} householdGateway={activeHouseholdGateway} loansGateway={activeLoansGateway} walletsGateway={activeWalletsGateway} workspaceGateway={activeWorkspaceGateway} />;

@@ -116,7 +116,7 @@ export function OnboardingDialog({ locale, mode = 'first', createSpace, createWa
   const spaceTitle = mode === 'additional' ? text.spaceTitleAdditional : text.spaceTitle;
   const title = step === 'space' ? spaceTitle : text.walletTitle;
   return <div className="overlay onboarding-overlay">
-    <section ref={dialogRef} className="dialog onboarding-dialog" role="dialog" aria-modal="true" aria-labelledby="onboarding-title" onKeyDown={trapFocus}>
+    <section ref={dialogRef} className="dialog dialog-setup onboarding-dialog" role="dialog" aria-modal="true" aria-labelledby="onboarding-title" onKeyDown={trapFocus}>
       <header className="dialog-header"><div><span className="brand">Budget ledger</span><h1 id="onboarding-title">{title}</h1></div></header>
       {step === 'space' ? <form onSubmit={(event) => void submitSpace(event)}>
         <p className="dialog-intro">{text.spaceIntro}</p>

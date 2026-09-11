@@ -44,6 +44,9 @@ describe('ApplicationShell', () => {
     expect(addSpace).toHaveBeenCalledOnce();
     await user.click(screen.getByText('Account'));
     expect(screen.getByText('owner@example.com').closest('bdi')).not.toBeNull();
+    const backupDetails = document.querySelector<HTMLDetailsElement>('details.backup-details');
+    expect(backupDetails).not.toBeNull();
+    expect(backupDetails).not.toHaveAttribute('open');
     expect(screen.getByRole('note', { name: 'Backup readiness' })).toHaveTextContent(
       'Do not enter real financial data',
     );

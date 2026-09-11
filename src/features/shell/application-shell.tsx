@@ -61,12 +61,14 @@ export function ApplicationShell(props: ApplicationShellProps) {
           <summary><CircleUserRound aria-hidden="true" />{text.account}</summary>
           <div className="account-popover">
             <bdi>{props.userEmail ?? ''}</bdi>
-            <aside className="backup-readiness" role="note" aria-label={text.backupReadiness}>
-              <strong>{text.backupReadiness}</strong>
-              <p>{text.backupWarning}</p>
-              <span>{text.backupRunbookReference}</span>
-              <bdi>docs/operations/backup-restore-runbook.md</bdi>
-            </aside>
+            <details className="backup-details">
+              <summary>{text.backupReadiness}</summary>
+              <aside className="backup-readiness" role="note" aria-label={text.backupReadiness}>
+                <p>{text.backupWarning}</p>
+                <span>{text.backupRunbookReference}</span>
+                <bdi>docs/operations/backup-restore-runbook.md</bdi>
+              </aside>
+            </details>
             <button type="button" onClick={props.onSignOut}>{text.signOut}</button>
           </div>
         </details>

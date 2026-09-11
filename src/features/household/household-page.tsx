@@ -99,8 +99,8 @@ export function HouseholdPage(props: HouseholdPageProps) {
   }
 
   const confirmationText = confirmationCopy();
-  return <section className="household-workspace">
-    <header className="topbar household-topbar">
+  return <section className="household-workspace workspace-page">
+    <header className="page-header household-topbar">
       <div><h1>{household.status === 'owner-ready' ? text.title : text.memberTitle}</h1><p>{text.intro} <bdi>{props.spaceName}</bdi></p></div>
       {household.status === 'owner-ready' ? <button type="button" onClick={() => { household.clearActionState(); setInviteOpen(true); }}>{text.invite}</button> : null}
     </header>

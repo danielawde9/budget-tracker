@@ -54,6 +54,7 @@ describe('App', () => {
   it('never exposes financial content while the initial session is loading', () => {
     render(<App authGateway={authGateway(null, new Promise(() => undefined))} workspaceGateway={workspaceGateway()} householdGateway={new InMemoryHouseholdGateway()} loansGateway={new InMemoryLoansGateway()} walletsGateway={new InMemoryWalletsGateway()} categoriesGateway={new InMemoryCategoriesGateway()} />);
     expect(screen.getByRole('status')).toHaveTextContent('Checking your session');
+    expect(screen.getByRole('main')).toHaveClass('workspace-state-page');
     expect(screen.queryByRole('heading', { name: 'Loans' })).not.toBeInTheDocument();
     expect(screen.queryByText('Maya')).not.toBeInTheDocument();
   });
