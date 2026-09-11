@@ -7,7 +7,10 @@ import type {
   JournalMovement,
   JournalPage,
   RecordEventInput,
+  RenameWalletInput,
   ReverseEventInput,
+  WalletCommandRecord,
+  WalletLifecycleInput,
   WalletProjection,
   WalletsGateway,
 } from './types.js';
@@ -42,7 +45,7 @@ export interface WalletsDataClient {
 }
 
 type Row = Record<string, unknown>;
-type MutationName = 'create_wallet' | 'record_financial_event' | 'reverse_financial_event';
+type MutationName = 'create_wallet' | 'rename_wallet' | 'archive_wallet' | 'restore_wallet' | 'record_financial_event' | 'reverse_financial_event';
 
 const currencies = new Set<Currency>(['USD', 'LBP']);
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -115,7 +118,9 @@ async function rows(resultPromise: Promise<DataResult>, label: string, maximum: 
 function commandResult(data: unknown[] | null, name: MutationName): CommandResult {
   if (data?.length !== 1) throw new Error('The wallet command must return exactly one result.');
   const id = uuidValue(asRow(data[0]), 'id');
-  return name === 'create_wallet' ? { id } : { eventId: id };
+  return name === 'create_wallet' || name === 'rename_wallet' || name === 'archive_wallet' || name === 'restore_wallet'
+    ? { id }
+    : { eventId: id };
 }
 
 function parseCursor(cursor: string): number {
@@ -195,6 +200,7 @@ export function createSupabaseWalletsGateway(client: WalletsDataClient): Wallets
         walletName: wallet.name,
         currency: wallet.currency,
         amountMinor: minorValue(value, 'amount_minor'),
+        walletArchived: wallet.archivedAt !== null,
       };
       movements.set(eventId, [...(movements.get(eventId) ?? []), movement]);
     }
@@ -265,8 +271,12 @@ export function createSupabaseWalletsGateway(client: WalletsDataClient): Wallets
         }
         walletById.set(wallet.id, { ...wallet, balanceMinor: minorValue(value, 'amount_minor') });
       }
+      const allWallets = [...walletById.values()];
       return {
-        wallets: [...walletById.values()].filter((wallet) => wallet.archivedAt === null),
+        wallets: allWallets.filter((wallet) => wallet.archivedAt === null),
+        archivedWallets: allWallets
+          .filter((wallet) => wallet.archivedAt !== null)
+          .sort((left, right) => (right.archivedAt ?? '').localeCompare(left.archivedAt ?? '')),
         history: await loadPage(spaceId, 0, walletById),
       };
     },
@@ -282,6 +292,45 @@ export function createSupabaseWalletsGateway(client: WalletsDataClient): Wallets
         p_name: input.name.trim(),
         p_currency: input.currency,
       });
+    },
+
+    renameWallet(input: RenameWalletInput) {
+      return runCommand('rename_wallet', {
+        p_space_id: input.spaceId,
+        p_request_id: input.requestId,
+        p_wallet_id: input.walletId,
+        p_name: input.name.trim(),
+      });
+    },
+
+    archiveWallet(input: WalletLifecycleInput) {
+      return runCommand('archive_wallet', {
+        p_space_id: input.spaceId,
+        p_request_id: input.requestId,
+        p_wallet_id: input.walletId,
+      });
+    },
+
+    restoreWallet(input: WalletLifecycleInput) {
+      return runCommand('restore_wallet', {
+        p_space_id: input.spaceId,
+        p_request_id: input.requestId,
+        p_wallet_id: input.walletId,
+      });
+    },
+
+    async getWalletCommandResult(spaceId, requestId): Promise<WalletCommandRecord | null> {
+      const result = await client.rpc('get_wallet_command_result', { p_space_id: spaceId, p_request_id: requestId });
+      if (result.error) throw result.error;
+      const values = result.data ?? [];
+      if (values.length > 1) throw new Error('Wallet command reconciliation must return at most one result.');
+      if (values.length === 0) return null;
+      const row = asRow(values[0]);
+      const commandKind = textValue(row, 'command_kind');
+      if (commandKind !== 'rename_wallet' && commandKind !== 'archive_wallet' && commandKind !== 'restore_wallet') {
+        throw new Error('The database returned an unsupported wallet command kind.');
+      }
+      return { commandKind, walletId: textValue(row, 'wallet_id') };
     },
 
     recordEvent(input: RecordEventInput) {

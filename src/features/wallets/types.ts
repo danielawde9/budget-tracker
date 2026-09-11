@@ -24,6 +24,7 @@ export interface JournalMovement {
   walletName: string;
   currency: Currency;
   amountMinor: string;
+  walletArchived: boolean;
 }
 
 export interface JournalCategoryLabel {
@@ -55,6 +56,7 @@ export interface JournalPage {
 
 export interface WalletsSnapshot {
   wallets: readonly WalletProjection[];
+  archivedWallets: readonly WalletProjection[];
   history: JournalPage;
 }
 
@@ -62,6 +64,26 @@ export interface CreateWalletInput {
   spaceId: string;
   name: string;
   currency: Currency;
+}
+
+export interface RenameWalletInput {
+  spaceId: string;
+  requestId: string;
+  walletId: string;
+  name: string;
+}
+
+export interface WalletLifecycleInput {
+  spaceId: string;
+  requestId: string;
+  walletId: string;
+}
+
+export type WalletCommandKind = 'rename_wallet' | 'archive_wallet' | 'restore_wallet';
+
+export interface WalletCommandRecord {
+  commandKind: WalletCommandKind;
+  walletId: string;
 }
 
 export interface MovementInput {
@@ -93,6 +115,10 @@ export interface WalletsGateway {
   loadSnapshot(spaceId: string): Promise<WalletsSnapshot>;
   loadHistoryPage(spaceId: string, cursor: string): Promise<JournalPage>;
   createWallet(input: CreateWalletInput): Promise<CommandResult>;
+  renameWallet(input: RenameWalletInput): Promise<CommandResult>;
+  archiveWallet(input: WalletLifecycleInput): Promise<CommandResult>;
+  restoreWallet(input: WalletLifecycleInput): Promise<CommandResult>;
+  getWalletCommandResult(spaceId: string, requestId: string): Promise<WalletCommandRecord | null>;
   recordEvent(input: RecordEventInput): Promise<CommandResult>;
   reverseEvent(input: ReverseEventInput): Promise<CommandResult>;
   findEventByRequestId(spaceId: string, requestId: string): Promise<JournalEvent | null>;
