@@ -132,7 +132,8 @@ async function walletBalance(client: Client, walletId: string): Promise<string> 
   const result = await client.query<{ amount_minor: string }>(
     `select coalesce(sum(amount_minor), 0)::text as amount_minor
      from public.wallet_movements
-     where wallet_id = $1`,
+     where wallet_id = $1
+     limit 1`,
     [walletId],
   );
   return result.rows[0]?.amount_minor ?? '0';
