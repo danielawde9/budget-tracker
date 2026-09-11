@@ -86,6 +86,8 @@ git commit -m "feat(ui): establish financial workspace shell"
 - Modify: `src/app.tsx`
 - Modify: `src/features/wallets/use-wallets.ts`
 - Modify: `src/features/wallets/types.ts`
+- Modify: `src/features/wallets/wallets-page.tsx`
+- Modify: `src/features/wallets/wallets-page.test.tsx`
 - Modify: `src/app.test.tsx`
 
 **Interfaces:**
@@ -111,14 +113,14 @@ Set `activeDestination` initial state to `'home'`. Render Home only when workspa
 
 - [ ] **Step 4: Run focused app and Home tests**
 
-Run: `pnpm test:ui -- src/features/home/home-page.test.tsx src/app.test.tsx`
+Run: `pnpm test:ui -- src/features/home/home-page.test.tsx src/features/wallets/wallets-page.test.tsx src/app.test.tsx`
 
 Expected: PASS; previous authenticated default-destination expectations update from Loans to Home.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/features/home src/app.tsx src/app.test.tsx src/features/wallets/use-wallets.ts src/features/wallets/types.ts
+git add src/features/home src/app.tsx src/app.test.tsx src/features/wallets/use-wallets.ts src/features/wallets/types.ts src/features/wallets/wallets-page.tsx src/features/wallets/wallets-page.test.tsx
 git commit -m "feat(home): add bounded financial overview"
 ```
 
