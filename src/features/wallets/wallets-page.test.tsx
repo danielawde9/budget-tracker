@@ -1,4 +1,5 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { useState } from 'react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -14,6 +15,12 @@ const onSpaceUnavailable = vi.fn();
 function WalletsPageHarness({ gateway, categoriesGateway, initialDialog, locale = 'en' }: { gateway: InMemoryWalletsGateway; categoriesGateway?: CategoriesGateway; initialDialog?: 'transaction' | null; locale?: 'en' | 'ar' }) {
   const walletState = useWallets(gateway, 'personal-space', undefined, undefined, categoriesGateway);
   return <WalletsPage {...(categoriesGateway ? { categoriesGateway } : {})} {...(initialDialog === undefined ? {} : { initialDialog })} spaceId="personal-space" locale={locale} walletState={walletState} onSpaceUnavailable={onSpaceUnavailable} onOpenLoans={vi.fn()} openTransaction={false} onTransactionDialogOpened={vi.fn()} />;
+}
+
+function InitialTransactionHarness({ gateway }: { gateway: InMemoryWalletsGateway }) {
+  const [renderVersion, setRenderVersion] = useState(0);
+  const walletState = useWallets(gateway, 'personal-space');
+  return <><button type="button" onClick={() => setRenderVersion((version) => version + 1)}>Rerender wallet page {renderVersion}</button><WalletsPage initialDialog="transaction" spaceId="personal-space" locale="en" walletState={walletState} onSpaceUnavailable={onSpaceUnavailable} onOpenLoans={vi.fn()} /></>;
 }
 
 function rejectable<T>() {
@@ -50,19 +57,24 @@ describe('WalletsPage', () => {
 
     expect(screen.getAllByRole('button', { name: 'Add transaction' })).toHaveLength(1);
     expect(screen.getByRole('heading', { name: 'Active balances' }).closest('.wallet-context')).not.toBeNull();
-    const journal = screen.getByRole('region', { name: 'Transaction history' });
-    expect(within(journal).getAllByText('Date').at(0)).toBeInTheDocument();
-    expect(within(journal).getAllByText('Event').at(0)).toBeInTheDocument();
-    expect(within(journal).getAllByText('Wallet').at(0)).toBeInTheDocument();
-    expect(within(journal).getAllByText('Category').at(0)).toBeInTheDocument();
-    expect(within(journal).getAllByText('Amount').at(0)).toBeInTheDocument();
+    const table = screen.getByRole('table', { name: 'Transaction history entries' });
+    expect(within(table).getAllByRole('columnheader').map((header) => header.textContent)).toEqual(['Date', 'Event', 'Wallet', 'Category', 'Amount']);
+    const firstDataRow = within(table).getAllByRole('row').at(1);
+    expect(firstDataRow).toBeDefined();
+    expect(within(firstDataRow!).getAllByRole('cell').map((cell) => cell.getAttribute('aria-label'))).toEqual(['Date', 'Event', 'Wallet', 'Category', 'Amount']);
+    expect(within(firstDataRow!).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['2026-09-07', 'Income', 'Daily USD', '', '$250.50']);
   });
 
-  it('opens the requested transaction dialog once without dispatching a wallet mutation', async () => {
+  it('opens the requested transaction dialog once without dispatching a wallet mutation after close and rerender', async () => {
     const gateway = new InMemoryWalletsGateway();
-    render(<WalletsPageHarness gateway={gateway} initialDialog="transaction" />);
+    const user = userEvent.setup();
+    render(<InitialTransactionHarness gateway={gateway} />);
 
     expect(await screen.findByRole('dialog', { name: 'Add a transaction' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('dialog', { name: 'Add a transaction' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Rerender wallet page/ }));
+    expect(screen.queryByRole('dialog', { name: 'Add a transaction' })).not.toBeInTheDocument();
     expect(gateway.calls.filter((call) => ['createWallet', 'recordEvent', 'renameWallet', 'archiveWallet', 'restoreWallet', 'reverseEvent'].includes(call.name))).toHaveLength(0);
   });
 

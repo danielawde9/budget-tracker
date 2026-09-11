@@ -301,6 +301,8 @@ dd { margin: 8px 0 0; font-weight: 760; white-space: nowrap; }
   .journal-movement > bdi:first-of-type { grid-column: 1; grid-row: 3; }
   .journal-category-cell { grid-column: 1; grid-row: 4; }
   .journal-movement > bdi:last-child { grid-column: 2; grid-row: 1 / span 4; }
+  .journal-movement [role="cell"]::before { content: attr(data-label); display: block; color: #68756c; font-size: .7rem; font-weight: 760; letter-spacing: .06em; text-transform: uppercase; }
+  .journal-movement > bdi:last-child::before { text-align: end; }
   .journal-state { justify-content: flex-start; }
   .auth-page, .configuration-page, .workspace-state-page { padding: 14px; }
   .auth-panel { grid-template-columns: 1fr; }
