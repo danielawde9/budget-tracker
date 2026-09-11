@@ -127,6 +127,11 @@ bdi, dd, strong { font-variant-numeric: tabular-nums; }
 .amount-positive { color: var(--jade); }
 .amount-negative { color: var(--brick); }
 .journal-list footer { display: flex; justify-content: flex-end; margin-block-start: 8px; }
+.wallet-list li > footer { grid-column: 1 / -1; display: flex; gap: 4px; margin-block-start: 4px; }
+.archived-wallets { margin-block-start: 20px; }
+.archived-wallets > summary { cursor: pointer; font-weight: 700; padding-block: 10px; list-style: none; }
+.archived-wallets > summary::-webkit-details-marker { display: none; }
+.undo-gated { color: #68756c; font-size: .82rem; }
 .journal-reversal { background: linear-gradient(90deg, rgba(215, 154, 38, .08), transparent 70%); }
 .load-more { margin-block-start: 20px; }
 .wallet-dialog form > label { margin-block-start: 20px; }

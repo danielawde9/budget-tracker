@@ -41,10 +41,10 @@ describe('WalletsPage', () => {
     await renderPage();
     expect(screen.getAllByText('Daily USD').every((element) => element.closest('bdi') !== null)).toBe(true);
     expect(screen.getByText('$1,250.50').closest('bdi')).not.toBeNull();
-    expect(screen.getByText('Daily LBP').closest('bdi')).not.toBeNull();
+    expect(screen.getAllByText('Daily LBP').every((element) => element.closest('bdi') !== null)).toBe(true);
     expect(screen.getByRole('heading', { name: 'Transaction history' })).toBeInTheDocument();
     expect(screen.getByText('Loan payment')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /archive|delete/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /delete/i })).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Undo income' })).toHaveLength(1);
     expect(screen.queryByRole('button', { name: 'Undo loan payment' })).not.toBeInTheDocument();
   });
@@ -108,10 +108,12 @@ describe('WalletsPage', () => {
     };
     const initialSnapshot = {
       wallets: walletGateway.wallets,
+      archivedWallets: walletGateway.archivedWallets,
       history: { events: walletGateway.events, nextCursor: null },
     };
     const reconciledSnapshot = {
       wallets: [...walletGateway.wallets, createdWallet],
+      archivedWallets: walletGateway.archivedWallets,
       history: { events: walletGateway.events, nextCursor: null },
     };
     walletGateway.loadSnapshot = vi.fn()
@@ -681,5 +683,69 @@ describe('WalletsPage', () => {
     await user.keyboard('{Escape}');
     expect(dialog).not.toBeInTheDocument();
     expect(opener).toHaveFocus();
+  });
+
+  it('renames a wallet from its row action and shows the new name everywhere it appears', async () => {
+    const { gateway, user } = await renderPage();
+    await user.click(screen.getByRole('button', { name: 'Rename Daily USD' }));
+    const dialog = screen.getByRole('dialog', { name: 'Rename wallet' });
+    const input = within(dialog).getByLabelText('Wallet name');
+    await user.clear(input);
+    await user.type(input, 'Everyday USD');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await within(dialog).findByText('Wallet renamed');
+    await user.click(within(dialog).getByRole('button', { name: 'Done' }));
+
+    expect(screen.getAllByText('Everyday USD').every((element) => element.closest('bdi') !== null)).toBe(true);
+    expect(gateway.calls.filter((call) => call.name === 'renameWallet')).toHaveLength(1);
+  });
+
+  it('archives a zero-balance wallet into the collapsed archived section and restores it', async () => {
+    const gateway = new InMemoryWalletsGateway();
+    gateway.wallets = gateway.wallets.map((wallet) => wallet.id === 'wallet-lbp-1' ? { ...wallet, balanceMinor: '0' } : wallet);
+    const { user } = await renderPage(gateway);
+
+    expect(screen.queryByText(/Archived wallets/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Archive Daily LBP' }));
+    const archiveDialog = screen.getByRole('dialog', { name: 'Archive wallet' });
+    await user.click(within(archiveDialog).getByRole('checkbox'));
+    await user.click(within(archiveDialog).getByRole('button', { name: 'Archive wallet' }));
+    await within(archiveDialog).findByText('Wallet archived');
+    await user.click(within(archiveDialog).getByRole('button', { name: 'Done' }));
+
+    expect(screen.queryByRole('button', { name: 'Archive Daily LBP' })).not.toBeInTheDocument();
+    await user.click(screen.getByText('Archived wallets (1)'));
+    expect(screen.getAllByText('Daily LBP').every((element) => element.closest('bdi') !== null)).toBe(true);
+
+    await user.click(screen.getByRole('button', { name: 'Restore Daily LBP' }));
+    const restoreDialog = screen.getByRole('dialog', { name: 'Restore wallet' });
+    await user.click(within(restoreDialog).getByRole('button', { name: 'Restore' }));
+    await within(restoreDialog).findByText('Wallet restored');
+    await user.click(within(restoreDialog).getByRole('button', { name: 'Done' }));
+
+    expect(screen.getByRole('button', { name: 'Archive Daily LBP' })).toBeInTheDocument();
+    expect(screen.queryByText(/Archived wallets/)).not.toBeInTheDocument();
+  });
+
+  it('a non-zero-balance wallet offers no archive action', async () => {
+    const { user } = await renderPage();
+    await user.click(screen.getByRole('button', { name: 'Archive Daily USD' }));
+    const dialog = screen.getByRole('dialog', { name: 'Archive wallet' });
+    expect(within(dialog).queryByRole('button', { name: 'Archive wallet' })).not.toBeInTheDocument();
+  });
+
+  it('gates undo behind a restore message when a movement touches an archived wallet', async () => {
+    const gateway = new InMemoryWalletsGateway();
+    const archivedWallet = { id: 'wallet-usd-1', spaceId: 'personal-space', name: 'Daily USD', currency: 'USD' as const, archivedAt: '2026-09-08T00:00:00Z', balanceMinor: '0' };
+    gateway.wallets = gateway.wallets.filter((wallet) => wallet.id !== 'wallet-usd-1');
+    gateway.archivedWallets = [archivedWallet];
+    gateway.events = gateway.events.map((event) => event.id === 'event-income'
+      ? { ...event, movements: event.movements.map((movement) => ({ ...movement, walletArchived: true })) }
+      : event);
+    await renderPage(gateway);
+
+    expect(screen.queryByRole('button', { name: 'Undo income' })).not.toBeInTheDocument();
+    const gated = screen.getByText((_content, element) => element?.textContent === 'Restore Daily USD to undo this', { selector: '.undo-gated' });
+    expect(gated.querySelector('bdi')).not.toBeNull();
   });
 });
