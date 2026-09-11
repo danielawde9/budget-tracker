@@ -1020,3 +1020,18 @@ and no owner-only policy was requested.
 `private.require_wallet_command_actor`, non-owner rejection tests, and UI that
 hides the actions from members. Showing the name a wallet had when an entry was
 posted needs a name-at-time projection built from the command log.
+
+## 2026-09-11 — Wallets archive only at zero balance and can be restored
+
+**Decision:** `archive_wallet` refuses unless the wallet's derived balance (the sum
+of its movements) is exactly zero; `restore_wallet` returns an archived wallet to
+active use at any time. Both are request-idempotent: an exact replay returns the
+original wallet without re-applying, even if the wallet's state changed since.
+
+**Why:** Archiving a wallet that still holds money would hide real balances from
+every total. Restore makes an archive mistake recoverable and is the way to undo
+an old transaction on an archived wallet.
+
+**If changed:** Archiving non-zero wallets needs a visible archived-balance
+projection or a closing-transfer design. Dropping restore makes archive permanent,
+as it is for categories, and leaves old entries on archived wallets uncorrectable.

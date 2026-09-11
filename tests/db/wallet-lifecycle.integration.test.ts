@@ -63,6 +63,9 @@ const foreignWalletError = { code: 'P0001', message: 'the wallet does not belong
 const archivedWalletError = { code: 'P0001', message: 'the wallet is archived' };
 const nameLengthError = { code: 'P0001', message: 'the wallet name must be 1 to 120 characters' };
 const sameNameError = { code: 'P0001', message: 'the wallet already has this name' };
+const alreadyArchivedError = { code: 'P0001', message: 'the wallet is already archived' };
+const nonZeroBalanceError = { code: 'P0001', message: 'the wallet balance must be zero to archive' };
+const notArchivedError = { code: 'P0001', message: 'the wallet is not archived' };
 
 interface WalletCommand {
   spaceId: string | null;
@@ -307,6 +310,22 @@ async function commandResult(
       [spaceId, requestId],
     );
     return result.rows;
+  });
+}
+
+async function walletLifecycleCommand(
+  client: Client,
+  actorId: string,
+  command: 'archive_wallet' | 'restore_wallet',
+  input: WalletCommand,
+): Promise<string> {
+  return withAuthenticatedTransaction(client, actorId, async () => {
+    const result = await client.query<{ id: string }>(
+      `select * from public.${command}($1, $2, $3) limit 2`,
+      [input.spaceId, input.requestId, input.walletId],
+    );
+    expect(result.rows).toHaveLength(1);
+    return result.rows[0]!.id;
   });
 }
 
@@ -895,6 +914,221 @@ describe('wallet lifecycle database contract', () => {
         signature: 'rename_wallet(uuid,uuid,uuid,text)', result: 'TABLE(id uuid)',
         prosecdef: true, provolatile: 'v', proconfig: ['search_path=pg_catalog, extensions'], ...command,
       },
+    ]);
+  });
+
+  it('archives a zero-balance wallet and keeps its movement history', async () => {
+    const { client } = currentDatabase();
+    const walletId = await createWallet(client, ownerId, personalId, 'Emptied USD');
+    await postEvent(client, ownerId, personalId, 'income', [{ walletId, amountMinor: '900' }]);
+    await postEvent(client, ownerId, personalId, 'expense', [{ walletId, amountMinor: '-900' }]);
+    const requestId = randomUUID();
+
+    expect(await walletLifecycleCommand(client, ownerId, 'archive_wallet', {
+      spaceId: personalId, requestId, walletId,
+    })).toBe(walletId);
+    const archived = await walletRow(client, walletId);
+    expect(archived.archived_at).toBeInstanceOf(Date);
+    expect(archived.name).toBe('Emptied USD');
+    const movements = await client.query(
+      'select id from public.wallet_movements where wallet_id = $1 limit 3', [walletId],
+    );
+    expect(movements.rows).toHaveLength(2);
+    expect(await logRows(client, walletId)).toEqual([{
+      request_id: requestId, command_kind: 'archive_wallet', wallet_id: walletId, actor_id: ownerId,
+      previous_name: null, name: null,
+    }]);
+    expect(await commandResult(client, ownerId, personalId, requestId)).toEqual([
+      { command_kind: 'archive_wallet', wallet_id: walletId },
+    ]);
+  });
+
+  it('archives a wallet that never had a movement', async () => {
+    const { client } = currentDatabase();
+    const walletId = await createWallet(client, ownerId, personalId, 'Unused USD');
+    await walletLifecycleCommand(client, ownerId, 'archive_wallet', {
+      spaceId: personalId, requestId: randomUUID(), walletId,
+    });
+    expect((await walletRow(client, walletId)).archived_at).toBeInstanceOf(Date);
+  });
+
+  it.each([
+    ['positive', 'income', '1250'],
+    ['negative', 'expense', '-1250'],
+  ] as const)('refuses to archive a wallet with a %s balance', async (_label, kind, amountMinor) => {
+    const { client } = currentDatabase();
+    const walletId = await createWallet(client, ownerId, personalId, `Funded ${amountMinor}`);
+    await postEvent(client, ownerId, personalId, kind, [{ walletId, amountMinor }]);
+
+    await expect(walletLifecycleCommand(client, ownerId, 'archive_wallet', {
+      spaceId: personalId, requestId: randomUUID(), walletId,
+    })).rejects.toMatchObject(nonZeroBalanceError);
+    expect(await walletRow(client, walletId)).toMatchObject({ archived_at: null });
+    expect(await walletBalance(client, walletId)).toBe(amountMinor);
+    expect(await logRows(client, walletId)).toEqual([]);
+  });
+
+  it('replays an exact archive without rewriting its timestamp or touching another wallet', async () => {
+    const { client } = currentDatabase();
+    const walletId = await createWallet(client, ownerId, personalId, 'Replay archive USD');
+    const otherWalletId = await createWallet(client, ownerId, personalId, 'Other archive USD');
+    const command: WalletCommand = { spaceId: personalId, requestId: randomUUID(), walletId };
+    await walletLifecycleCommand(client, ownerId, 'archive_wallet', command);
+    const archivedAt = (await walletRow(client, walletId)).archived_at;
+
+    expect(await walletLifecycleCommand(client, ownerId, 'archive_wallet', command)).toBe(walletId);
+    expect((await walletRow(client, walletId)).archived_at).toEqual(archivedAt);
+    await expect(walletLifecycleCommand(client, ownerId, 'archive_wallet', { ...command, walletId: otherWalletId }))
+      .rejects.toMatchObject(replayError);
+    await expect(walletLifecycleCommand(client, ownerId, 'restore_wallet', command))
+      .rejects.toMatchObject(replayError);
+    expect(await walletRow(client, otherWalletId)).toMatchObject({ archived_at: null });
+    expect(await logRows(client, walletId)).toHaveLength(1);
+  });
+
+  it('rejects archiving an archived wallet and restoring an active wallet', async () => {
+    const { client } = currentDatabase();
+    const archivedId = await createWallet(client, ownerId, personalId, 'Twice archived USD');
+    const activeId = await createWallet(client, ownerId, personalId, 'Never archived USD');
+    await walletLifecycleCommand(client, ownerId, 'archive_wallet', {
+      spaceId: personalId, requestId: randomUUID(), walletId: archivedId,
+    });
+
+    await expect(walletLifecycleCommand(client, ownerId, 'archive_wallet', {
+      spaceId: personalId, requestId: randomUUID(), walletId: archivedId,
+    })).rejects.toMatchObject(alreadyArchivedError);
+    await expect(walletLifecycleCommand(client, ownerId, 'restore_wallet', {
+      spaceId: personalId, requestId: randomUUID(), walletId: activeId,
+    })).rejects.toMatchObject(notArchivedError);
+    expect(await logRows(client, archivedId)).toHaveLength(1);
+    expect(await logRows(client, activeId)).toEqual([]);
+  });
+
+  it('restores an archived wallet so it accepts postings and renames again', async () => {
+    const { client } = currentDatabase();
+    const walletId = await createWallet(client, ownerId, personalId, 'Restored USD');
+    await walletLifecycleCommand(client, ownerId, 'archive_wallet', {
+      spaceId: personalId, requestId: randomUUID(), walletId,
+    });
+    const restoreRequestId = randomUUID();
+
+    expect(await walletLifecycleCommand(client, ownerId, 'restore_wallet', {
+      spaceId: personalId, requestId: restoreRequestId, walletId,
+    })).toBe(walletId);
+    expect(await walletRow(client, walletId)).toMatchObject({ archived_at: null });
+    await postEvent(client, ownerId, personalId, 'income', [{ walletId, amountMinor: '300' }]);
+    await renameWallet(client, ownerId, { spaceId: personalId, requestId: randomUUID(), walletId, name: 'Back USD' });
+    expect(await walletBalance(client, walletId)).toBe('300');
+    expect((await logRows(client, walletId)).map(({ command_kind }) => command_kind))
+      .toEqual(['archive_wallet', 'restore_wallet', 'rename_wallet']);
+    expect(await commandResult(client, ownerId, personalId, restoreRequestId)).toEqual([
+      { command_kind: 'restore_wallet', wallet_id: walletId },
+    ]);
+  });
+
+  it('replays an exact restore without re-applying it after a later archive', async () => {
+    const { client } = currentDatabase();
+    const walletId = await createWallet(client, ownerId, personalId, 'Replay restore USD');
+    const restore: WalletCommand = { spaceId: personalId, requestId: randomUUID(), walletId };
+    await walletLifecycleCommand(client, ownerId, 'archive_wallet', {
+      spaceId: personalId, requestId: randomUUID(), walletId,
+    });
+    await walletLifecycleCommand(client, ownerId, 'restore_wallet', restore);
+    await walletLifecycleCommand(client, ownerId, 'archive_wallet', {
+      spaceId: personalId, requestId: randomUUID(), walletId,
+    });
+
+    expect(await walletLifecycleCommand(client, ownerId, 'restore_wallet', restore)).toBe(walletId);
+    expect((await walletRow(client, walletId)).archived_at).toBeInstanceOf(Date);
+    expect(await logRows(client, walletId)).toHaveLength(3);
+  });
+
+  it('lets an active non-owner household member archive and restore a household wallet', async () => {
+    const { client } = currentDatabase();
+    const walletId = await createWallet(client, ownerId, householdId, 'Envelope LBP', 'LBP');
+    await walletLifecycleCommand(client, memberId, 'archive_wallet', {
+      spaceId: householdId, requestId: randomUUID(), walletId,
+    });
+    await walletLifecycleCommand(client, memberId, 'restore_wallet', {
+      spaceId: householdId, requestId: randomUUID(), walletId,
+    });
+    expect(await walletRow(client, walletId)).toMatchObject({ archived_at: null });
+    expect((await logRows(client, walletId)).map(({ actor_id }) => actor_id)).toEqual([memberId, memberId]);
+  });
+
+  it.each([
+    ['archive_wallet', 'outsider'], ['archive_wallet', 'null space'], ['archive_wallet', 'null request'],
+    ['archive_wallet', 'null wallet'], ['archive_wallet', 'foreign wallet'],
+    ['restore_wallet', 'outsider'], ['restore_wallet', 'null space'], ['restore_wallet', 'null request'],
+    ['restore_wallet', 'null wallet'], ['restore_wallet', 'foreign wallet'],
+  ] as const)('rejects %s with %s without partial state', async (commandName, scenario) => {
+    const { client } = currentDatabase();
+    const walletId = await createWallet(client, ownerId, personalId, 'Guarded USD');
+    const householdWalletId = await createWallet(client, ownerId, householdId, 'Guarded household USD');
+    if (commandName === 'restore_wallet') {
+      await archiveWalletDirectly(client, walletId);
+      await archiveWalletDirectly(client, householdWalletId);
+    }
+    const before = await walletRow(client, walletId);
+    const householdBefore = await walletRow(client, householdWalletId);
+    const input: WalletCommand = { spaceId: personalId, requestId: randomUUID(), walletId };
+    let actorId = ownerId;
+    let expected: { code: string; message: string } = membershipError;
+    switch (scenario) {
+      case 'outsider':
+        actorId = outsiderId;
+        break;
+      case 'null space':
+        input.spaceId = null;
+        break;
+      case 'null request':
+        input.requestId = null;
+        expected = missingIdsError;
+        break;
+      case 'null wallet':
+        input.walletId = null;
+        expected = missingIdsError;
+        break;
+      case 'foreign wallet':
+        input.walletId = householdWalletId;
+        expected = foreignWalletError;
+        break;
+    }
+
+    await expect(walletLifecycleCommand(client, actorId, commandName, input)).rejects.toMatchObject(expected);
+    expect(await walletRow(client, walletId)).toEqual(before);
+    expect(await walletRow(client, householdWalletId)).toEqual(householdBefore);
+    expect(await logRows(client, walletId)).toEqual([]);
+    expect(await logRows(client, householdWalletId)).toEqual([]);
+  });
+
+  it.each(['anon', 'service_role'] as const)('denies the %s role archive and restore', async (role) => {
+    const { client } = currentDatabase();
+    const walletId = await createWallet(client, ownerId, personalId, 'Role archive USD');
+    await withRollback(client, async () => {
+      await client.query("select set_config('request.jwt.claim.sub', $1, true)", [ownerId]);
+      await client.query(`set local role ${role}`);
+      for (const command of ['archive_wallet', 'restore_wallet'] as const) {
+        await expectSavepointRejection(client, () => client.query(
+          `select * from public.${command}($1, $2, $3)`, [personalId, randomUUID(), walletId],
+        ), { code: '42501' });
+      }
+    });
+    expect(await walletRow(client, walletId)).toMatchObject({ archived_at: null });
+  });
+
+  it('pins archive and restore signatures, search paths, and execute grants', async () => {
+    const { client } = currentDatabase();
+    const command = {
+      result: 'TABLE(id uuid)', prosecdef: true, provolatile: 'v', proconfig: ['search_path=pg_catalog, extensions'],
+      public_exec: false, anon_exec: false, authenticated_exec: true, service_exec: false,
+    };
+    expect(await functionCatalog(client, [
+      'public.archive_wallet(uuid,uuid,uuid)',
+      'public.restore_wallet(uuid,uuid,uuid)',
+    ])).toEqual([
+      { signature: 'archive_wallet(uuid,uuid,uuid)', ...command },
+      { signature: 'restore_wallet(uuid,uuid,uuid)', ...command },
     ]);
   });
 });

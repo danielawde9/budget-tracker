@@ -351,3 +351,112 @@ revoke all on function public.get_wallet_command_result(uuid, uuid) from public,
 
 grant execute on function public.rename_wallet(uuid, uuid, uuid, text) to authenticated;
 grant execute on function public.get_wallet_command_result(uuid, uuid) to authenticated;
+
+-- 4. Archive at zero balance and restore.
+
+create function public.archive_wallet(
+  p_space_id uuid,
+  p_request_id uuid,
+  p_wallet_id uuid
+)
+returns table (id uuid)
+language plpgsql
+security definer
+set search_path = pg_catalog, extensions
+as $$
+declare
+  v_actor_id uuid;
+  v_fingerprint bytea;
+  v_wallet public.wallets;
+  v_balance_minor numeric;
+begin
+  v_actor_id := private.require_wallet_command_actor(p_space_id, p_request_id, p_wallet_id);
+  v_fingerprint := extensions.digest(
+    pg_catalog.jsonb_build_object('version', 1, 'command', 'archive_wallet', 'walletId', p_wallet_id)::text,
+    'sha256'
+  );
+
+  if private.replay_wallet_command(p_space_id, p_request_id, 'archive_wallet', v_fingerprint, p_wallet_id) then
+    return query select p_wallet_id;
+    return;
+  end if;
+
+  v_wallet := private.lock_space_wallet(p_space_id, p_wallet_id);
+
+  if v_wallet.archived_at is not null then
+    raise exception using errcode = 'P0001', message = 'the wallet is already archived';
+  end if;
+
+  select coalesce(sum(movement.amount_minor), 0)
+  into v_balance_minor
+  from public.wallet_movements as movement
+  where movement.wallet_id = p_wallet_id
+    and movement.space_id = p_space_id;
+
+  if v_balance_minor <> 0 then
+    raise exception using errcode = 'P0001', message = 'the wallet balance must be zero to archive';
+  end if;
+
+  update public.wallets as wallet
+  set archived_at = pg_catalog.now()
+  where wallet.id = p_wallet_id;
+
+  insert into public.wallet_command_requests (
+    space_id, request_id, command_kind, request_fingerprint, wallet_id, actor_id
+  )
+  values (p_space_id, p_request_id, 'archive_wallet', v_fingerprint, p_wallet_id, v_actor_id);
+
+  return query select p_wallet_id;
+end;
+$$;
+
+create function public.restore_wallet(
+  p_space_id uuid,
+  p_request_id uuid,
+  p_wallet_id uuid
+)
+returns table (id uuid)
+language plpgsql
+security definer
+set search_path = pg_catalog, extensions
+as $$
+declare
+  v_actor_id uuid;
+  v_fingerprint bytea;
+  v_wallet public.wallets;
+begin
+  v_actor_id := private.require_wallet_command_actor(p_space_id, p_request_id, p_wallet_id);
+  v_fingerprint := extensions.digest(
+    pg_catalog.jsonb_build_object('version', 1, 'command', 'restore_wallet', 'walletId', p_wallet_id)::text,
+    'sha256'
+  );
+
+  if private.replay_wallet_command(p_space_id, p_request_id, 'restore_wallet', v_fingerprint, p_wallet_id) then
+    return query select p_wallet_id;
+    return;
+  end if;
+
+  v_wallet := private.lock_space_wallet(p_space_id, p_wallet_id);
+
+  if v_wallet.archived_at is null then
+    raise exception using errcode = 'P0001', message = 'the wallet is not archived';
+  end if;
+
+  update public.wallets as wallet
+  set archived_at = null
+  where wallet.id = p_wallet_id;
+
+  insert into public.wallet_command_requests (
+    space_id, request_id, command_kind, request_fingerprint, wallet_id, actor_id
+  )
+  values (p_space_id, p_request_id, 'restore_wallet', v_fingerprint, p_wallet_id, v_actor_id);
+
+  return query select p_wallet_id;
+end;
+$$;
+
+revoke all on function public.archive_wallet(uuid, uuid, uuid) from public, anon, service_role;
+revoke all on function public.restore_wallet(uuid, uuid, uuid) from public, anon, service_role;
+
+grant execute on function public.archive_wallet(uuid, uuid, uuid) to authenticated;
+grant execute on function public.restore_wallet(uuid, uuid, uuid) to authenticated;
