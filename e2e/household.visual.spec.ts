@@ -63,7 +63,7 @@ test('invitation creation uses one protected command and never renders a token',
   });
   expect(audit).toMatchObject({ protectedMutationCalls: ['create_household_invitation'] });
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-invitation-created.png') });
-  await dialog.getByRole('button', { name: 'Close' }).click();
+  await dialog.locator('.dialog-actions').getByRole('button', { name: 'Close' }).click();
   await expect(opener).toBeFocused();
 });
 
