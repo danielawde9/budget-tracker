@@ -46,7 +46,7 @@ test('first wallet creation preserves an honest zero balance', async ({ page }, 
   await dialog.getByRole('button', { name: 'Create wallet' }).click();
   await expect(dialog.getByRole('status')).toContainText('Wallet created');
   await dialog.getByRole('button', { name: 'Done' }).click();
-  await expect(page.getByText('First safe wallet')).toBeVisible();
+  await expect(page.getByText('First safe wallet').first()).toBeVisible();
   await expect(page.getByText(/LBP.*0/)).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-first-wallet.png'), fullPage: true });
 });
@@ -97,7 +97,7 @@ test('space switching clears the prior wallet projection before the next read', 
   await expect(page.getByText('Daily USD').first()).toBeVisible();
   await page.getByRole('combobox', { name: 'Current space' }).selectOption('household-space');
   await expect(page.getByText('Daily USD')).toHaveCount(0);
-  await expect(page.getByText('Household USD')).toBeVisible();
+  await expect(page.getByText('Household USD').first()).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-space-switch.png'), fullPage: true });
 });
 
@@ -123,4 +123,98 @@ test('Arabic RTL Wallets mirrors overview and history', async ({ page }, testInf
   await expect(page.getByRole('heading', { name: 'المحافظ' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'سجل المعاملات' })).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'mobile-arabic-wallet-history.png'), fullPage: true });
+});
+
+test('renaming a wallet updates its name everywhere, including posted history', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop');
+  await openWallets(page);
+  await page.getByRole('button', { name: 'Rename Daily USD' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Rename wallet' });
+  await dialog.getByLabel('Wallet name').fill('Everyday USD');
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(dialog.getByRole('status')).toContainText('Wallet renamed');
+  await dialog.getByRole('button', { name: 'Done' }).click();
+  await expect(page.getByText('Everyday USD').first()).toBeVisible();
+  await expect(page.getByText('Loan payment')).toBeVisible();
+  await page.screenshot({ path: screenshotPath(testInfo, 'desktop-wallet-renamed.png'), fullPage: true });
+});
+
+test('a non-zero-balance wallet offers no archive action', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop');
+  await openWallets(page);
+  await page.getByRole('button', { name: 'Archive Daily USD' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Archive wallet' });
+  await expect(dialog.getByText('$1,250.50')).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Archive wallet' })).toHaveCount(0);
+  await page.screenshot({ path: screenshotPath(testInfo, 'desktop-archive-blocked.png') });
+});
+
+test('archiving a zero-balance wallet with history gates its Undo actions, and restoring returns them', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop');
+  await openWallets(page);
+  await page.getByRole('button', { name: 'New wallet' }).click();
+  let dialog = page.getByRole('dialog', { name: 'Create a wallet' });
+  await dialog.getByLabel('Wallet name').fill('Travel fund');
+  await dialog.getByRole('button', { name: 'Create wallet' }).click();
+  await expect(dialog.getByRole('status')).toContainText('Wallet created');
+  await dialog.getByRole('button', { name: 'Done' }).click();
+  await expect(page.getByText('Travel fund').first()).toBeVisible();
+
+  // Post an equal income and expense on Travel fund itself (not the default
+  // wallet) so it returns to exactly zero while leaving two still-undoable
+  // entries in its history — the only way to observe undo-gating for real.
+  for (const kind of ['income', 'expense'] as const) {
+    await page.getByRole('button', { name: 'Add transaction' }).click();
+    const txDialog = page.getByRole('dialog', { name: 'Add a transaction' });
+    await txDialog.getByLabel('Type').selectOption(kind);
+    await txDialog.getByLabel('Wallet').selectOption({ label: 'Travel fund · USD' });
+    await txDialog.getByLabel('Amount').fill('10');
+    await txDialog.getByRole('button', { name: 'Review transaction' }).click();
+    await txDialog.getByRole('button', { name: kind === 'income' ? 'Record income' : 'Record expense' }).click();
+    await expect(txDialog.getByRole('status')).toContainText('Transaction recorded');
+    await txDialog.getByRole('button', { name: 'Done' }).click();
+  }
+  // Two "Undo income" buttons now exist: the seeded Daily USD income entry
+  // (unrelated to this wallet) plus the one just posted on Travel fund. Only
+  // Travel fund's own entries get gated by its archival, so the seeded one
+  // must keep its Undo button — the count drops by exactly one, not to zero.
+  await expect(page.getByRole('button', { name: 'Undo income' })).toHaveCount(2);
+  await expect(page.getByRole('button', { name: 'Undo expense' })).toHaveCount(1);
+
+  await page.getByRole('button', { name: 'Archive Travel fund' }).click();
+  dialog = page.getByRole('dialog', { name: 'Archive wallet' });
+  await dialog.getByRole('checkbox').check();
+  await dialog.getByRole('button', { name: 'Archive wallet' }).click();
+  await expect(dialog.getByRole('status')).toContainText('Wallet archived');
+  await dialog.getByRole('button', { name: 'Done' }).click();
+
+  await expect(page.getByRole('button', { name: 'Archive Travel fund' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Undo income' })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Undo expense' })).toHaveCount(0);
+  await expect(page.getByText('Restore Travel fund to undo this').first()).toBeVisible();
+  await page.getByText('Archived wallets (1)').click();
+  await expect(page.getByText('Travel fund').first()).toBeVisible();
+  await page.screenshot({ path: screenshotPath(testInfo, 'desktop-wallet-archived.png'), fullPage: true });
+
+  await page.getByRole('button', { name: 'Restore Travel fund' }).click();
+  dialog = page.getByRole('dialog', { name: 'Restore wallet' });
+  await dialog.getByRole('button', { name: 'Restore' }).click();
+  await expect(dialog.getByRole('status')).toContainText('Wallet restored');
+  await dialog.getByRole('button', { name: 'Done' }).click();
+
+  await expect(page.getByRole('button', { name: 'Archive Travel fund' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Undo income' })).toHaveCount(2);
+  await expect(page.getByRole('button', { name: 'Undo expense' })).toHaveCount(1);
+  await page.screenshot({ path: screenshotPath(testInfo, 'desktop-wallet-restored.png'), fullPage: true });
+});
+
+test('Arabic mobile archived wallets disclosure and restore render right-to-left', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile');
+  await openWallets(page);
+  await page.getByRole('button', { name: 'العربية' }).click();
+  await page.getByRole('button', { name: 'أرشفة Home LBP' }).click();
+  const archiveDialog = page.getByRole('dialog', { name: 'أرشفة المحفظة' });
+  await expect(archiveDialog.getByRole('button', { name: 'أرشفة المحفظة' })).toHaveCount(0);
+  await archiveDialog.getByRole('button', { name: 'إغلاق' }).click();
+  await page.screenshot({ path: screenshotPath(testInfo, 'mobile-arabic-archive-blocked.png'), fullPage: true });
 });

@@ -37,6 +37,7 @@ interface VisualCategory {
 
 const protectedMutationNames = new Set([
   'archive_category',
+  'archive_wallet',
   'create_category',
   'create_subcategory',
   'create_space',
@@ -46,6 +47,8 @@ const protectedMutationNames = new Set([
   'record_categorized_financial_event',
   'record_financial_event',
   'record_loan_repayment',
+  'rename_wallet',
+  'restore_wallet',
   'reverse_financial_event',
   'set_loan_monthly_target',
 ]);
@@ -55,7 +58,16 @@ const spaces = [
   { id: 'household-space', name: 'Home budget', kind: 'household', created_at: '2026-01-02T00:00:00Z' },
 ];
 
-const wallets = [
+interface VisualWallet {
+  id: string;
+  space_id: string;
+  name: string;
+  currency: string;
+  archived_at: string | null;
+  created_at: string;
+}
+
+const wallets: VisualWallet[] = [
   { id: 'usd-wallet', space_id: 'personal-space', name: 'Daily USD', currency: 'USD', archived_at: null, created_at: '2026-01-01T00:00:00Z' },
   { id: 'reserve-usd-wallet', space_id: 'personal-space', name: 'Reserve USD', currency: 'USD', archived_at: null, created_at: '2026-01-02T00:00:00Z' },
   { id: 'lbp-wallet', space_id: 'personal-space', name: 'Home LBP', currency: 'LBP', archived_at: null, created_at: '2026-01-03T00:00:00Z' },
@@ -140,6 +152,18 @@ function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body), headers: { 'access-control-allow-origin': '*' } });
 }
 
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// The real gateway (supabase-wallets-gateway.ts) requires a wallet lifecycle
+// RPC's returned `id` to look like a UUID. The seeded fixture wallets below
+// use short, readable ids ('usd-wallet', 'lbp-wallet', ...) for legibility in
+// this file and in the specs that select them by value, so a rename/archive/
+// restore of one of those wallets must not echo the non-UUID id back — it
+// only needs to pass the gateway's format check, never anything else.
+function walletCommandResponseId(walletId: string): string {
+  return uuidPattern.test(walletId) ? walletId : '00000000-0000-4000-8000-000000000000';
+}
+
 function authUser(email: string, id = 'visual-user') {
   return {
     id, email, aud: 'authenticated', role: 'authenticated',
@@ -170,6 +194,7 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
   const visibleCategories = options.emptySpaces ? [] : cloneRows(categoryRows);
   const visibleEventCategories = options.emptyWallets ? [] : cloneRows(eventCategoryRows);
   const categoryCommandResults = new Map<string, { command_kind: 'create_category' | 'create_subcategory' | 'archive_category'; category_id: string; created_at: string }>();
+  const walletCommandResults = new Map<string, { command_kind: 'rename_wallet' | 'archive_wallet' | 'restore_wallet'; wallet_id: string }>();
   let signInAttempts = 0;
   let ambiguousSpaceRemaining = options.ambiguousSpaceOnce ? 1 : 0;
   let ambiguousEventRemaining = options.ambiguousEventOnce ? 1 : 0;
@@ -249,6 +274,39 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       if (!visibleWallets.some((wallet) => wallet.id === created.id)) visibleWallets.push(created);
       visibleWalletBalances.push({ wallet_id: created.id, space_id: body.p_space_id, currency: body.p_currency, amount_minor: '0' });
       return json(route, [{ id: created.id }]);
+    }
+    if (path.endsWith('/rpc/rename_wallet')) {
+      const body = request.postDataJSON() as { p_request_id: string; p_wallet_id: string; p_name: string };
+      const wallet = visibleWallets.find((item) => item.id === body.p_wallet_id);
+      if (!wallet) return json(route, { message: 'the wallet does not belong to the requested space' }, 400);
+      wallet.name = body.p_name;
+      walletCommandResults.set(body.p_request_id, { command_kind: 'rename_wallet', wallet_id: wallet.id });
+      return json(route, [{ id: walletCommandResponseId(wallet.id) }]);
+    }
+    if (path.endsWith('/rpc/archive_wallet')) {
+      const body = request.postDataJSON() as { p_request_id: string; p_wallet_id: string };
+      const wallet = visibleWallets.find((item) => item.id === body.p_wallet_id);
+      if (!wallet) return json(route, { message: 'the wallet does not belong to the requested space' }, 400);
+      const balance = visibleWalletBalances.find((item) => item.wallet_id === wallet.id);
+      if (balance && BigInt(balance.amount_minor) !== 0n) {
+        return json(route, { message: 'the wallet balance must be zero to archive' }, 400);
+      }
+      wallet.archived_at = '2026-09-11T12:00:00Z';
+      walletCommandResults.set(body.p_request_id, { command_kind: 'archive_wallet', wallet_id: wallet.id });
+      return json(route, [{ id: walletCommandResponseId(wallet.id) }]);
+    }
+    if (path.endsWith('/rpc/restore_wallet')) {
+      const body = request.postDataJSON() as { p_request_id: string; p_wallet_id: string };
+      const wallet = visibleWallets.find((item) => item.id === body.p_wallet_id);
+      if (!wallet) return json(route, { message: 'the wallet does not belong to the requested space' }, 400);
+      wallet.archived_at = null;
+      walletCommandResults.set(body.p_request_id, { command_kind: 'restore_wallet', wallet_id: wallet.id });
+      return json(route, [{ id: walletCommandResponseId(wallet.id) }]);
+    }
+    if (path.endsWith('/rpc/get_wallet_command_result')) {
+      const body = request.postDataJSON() as { p_request_id: string };
+      const result = walletCommandResults.get(body.p_request_id);
+      return json(route, result ? [result] : []);
     }
     if (path.endsWith('/rpc/create_category')) {
       const body = request.postDataJSON() as { p_space_id: string; p_request_id: string; p_kind: 'income' | 'expense'; p_name_en: string | null; p_name_ar: string | null };
