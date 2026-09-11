@@ -264,8 +264,8 @@ export function useWallets(
         if (command.kind === 'rename') await gateway.renameWallet(command.input);
         else if (command.kind === 'archive') await gateway.archiveWallet(command.input);
         else await gateway.restoreWallet(command.input);
-        const refreshed = await refreshAfterCommand(false);
-        return { status: refreshed ? 'success' : 'refresh-required', reconciled: false };
+        await refreshAfterCommand(false);
+        return { status: 'success', reconciled: false };
       } catch (cause) {
         if (!isAmbiguousTransportFailure(cause)) throw cause;
         let record: WalletCommandRecord | null;
@@ -276,8 +276,8 @@ export function useWallets(
           throw reconciliationCause;
         }
         if (record && record.commandKind === walletLifecycleKind(command.kind) && record.walletId === command.input.walletId) {
-          const refreshed = await refreshAfterCommand(false);
-          return { status: refreshed ? 'success' : 'refresh-required', reconciled: true };
+          await refreshAfterCommand(false);
+          return { status: 'success', reconciled: true };
         }
         setRetry(command);
         return { status: 'ambiguous', reconciled: false };

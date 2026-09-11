@@ -605,6 +605,18 @@ describe('useWallets', () => {
     expect(service.loadSnapshot).toHaveBeenCalledTimes(2);
   });
 
+  it.each(['renameWallet', 'archiveWallet', 'restoreWallet'] as const)('reports %s as successful even when the post-command refresh fails', async (method) => {
+    const loadSnapshot = vi.fn(async () => emptySnapshot).mockResolvedValueOnce(emptySnapshot).mockRejectedValueOnce(new Error('Failed to fetch'));
+    const service = gateway({ loadSnapshot });
+    const { result } = renderHook(() => useWallets(service, 'space-1', undefined, () => 'request-fixed'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    const draft = method === 'renameWallet' ? { walletId: 'wallet-1', name: 'Travel cash' } : { walletId: 'wallet-1' };
+    await act(async () => {
+      await expect(result.current[method](draft as never)).resolves.toEqual({ status: 'success', reconciled: false });
+    });
+  });
+
   it('reconciles an ambiguous rename via the wallet command result before offering retry', async () => {
     const renameWallet = vi.fn(async () => { throw new Error('Connection timeout'); });
     const getWalletCommandResult = vi.fn(async () => ({ commandKind: 'rename_wallet' as const, walletId: 'wallet-1' }));

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 
 import type { Locale } from '../loans/types.js';
+import { classifyWalletError, localizeWalletError } from './errors.js';
 import { DialogShell } from './dialog-shell.js';
 import type { CommandOutcome } from './use-wallets.js';
 import type { JournalEvent } from './types.js';
@@ -38,11 +39,14 @@ export function CorrectionDialog(props: CorrectionDialogProps) {
       else setError(t(props.locale, 'The result is still unknown. Retry only with these unchanged details.', 'ما زالت النتيجة غير معروفة. أعد المحاولة بهذه التفاصيل نفسها فقط.'));
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : '';
-      setError(/already has a reversal|cannot be reversed/i.test(message)
-        ? t(props.locale, 'This transaction was already undone or cannot be undone here. Refresh the history.', 'تم التراجع عن هذه المعاملة بالفعل أو لا يمكن التراجع عنها هنا. حدّث السجل.')
-        : /dependent repayments/i.test(message)
-          ? t(props.locale, 'This loan entry has dependent repayments. Manage its correction in Loans.', 'يرتبط قيد القرض هذا بدفعات لاحقة. أدِر تصحيحه في القروض.')
-          : message || t(props.locale, 'The undo was not recorded.', 'لم يتم تسجيل التراجع.'));
+      if (/already has a reversal|cannot be reversed/i.test(message)) {
+        setError(t(props.locale, 'This transaction was already undone or cannot be undone here. Refresh the history.', 'تم التراجع عن هذه المعاملة بالفعل أو لا يمكن التراجع عنها هنا. حدّث السجل.'));
+      } else if (/dependent repayments/i.test(message)) {
+        setError(t(props.locale, 'This loan entry has dependent repayments. Manage its correction in Loans.', 'يرتبط قيد القرض هذا بدفعات لاحقة. أدِر تصحيحه في القروض.'));
+      } else {
+        const result = localizeWalletError(classifyWalletError(cause), props.locale);
+        setError(`${result.message} ${result.recovery}`);
+      }
     }
   }
 

@@ -651,6 +651,20 @@ describe('WalletsPage', () => {
     expect(gateway.calls.some((call) => call.name === 'reverseEvent')).toBe(false);
   });
 
+  it('localizes an archived-wallet rejection surfaced while undoing, instead of showing the raw database text', async () => {
+    const gateway = new InMemoryWalletsGateway();
+    const { user } = await renderPage(gateway, 'ar');
+    await user.click(screen.getByRole('button', { name: 'تراجع عن دخل' }));
+    const dialog = screen.getByRole('dialog', { name: 'التراجع عن هذه المعاملة' });
+    gateway.error = new Error('every wallet movement must use an active wallet');
+    await user.click(within(dialog).getByRole('checkbox'));
+    await user.click(within(dialog).getByRole('button', { name: 'التراجع عن المعاملة' }));
+
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent('هذه المحفظة مؤرشفة');
+    expect(alert).not.toHaveTextContent('every wallet movement must use an active wallet');
+  });
+
   it('marks an undone event and offers no second undo', async () => {
     const gateway = new InMemoryWalletsGateway();
     gateway.events = gateway.events.map((event) => event.id === 'event-income'

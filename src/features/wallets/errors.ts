@@ -64,7 +64,7 @@ export function classifyWalletError(cause: unknown): WalletErrorView {
       recovery: 'Refresh the wallet list to see its current state.',
     };
   }
-  if (/the wallet is archived/i.test(message)) {
+  if (/the wallet is archived/i.test(message) || /every wallet movement must use an active wallet/i.test(message)) {
     return {
       code: 'wallet_archived',
       message: 'This wallet is archived.',
