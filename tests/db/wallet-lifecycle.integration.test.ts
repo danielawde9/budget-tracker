@@ -9,6 +9,7 @@ import {
   disposeDisposableDatabase,
   expectSavepointRejection,
   migrationFiles,
+  orderedAuthenticatedRace,
   replayMigrations,
   withAuthenticatedTransaction,
   withRollback,
@@ -327,6 +328,17 @@ async function walletLifecycleCommand(
     expect(result.rows).toHaveLength(1);
     return result.rows[0]!.id;
   });
+}
+
+async function postIncomeInOpenTransaction(client: Client, spaceId: string, walletId: string, requestId: string) {
+  return client.query(
+    "select * from public.record_financial_event($1, $2, 'income', '2026-09-11', $3::jsonb) limit 2",
+    [spaceId, requestId, JSON.stringify([{ walletId, amountMinor: '500' }])],
+  );
+}
+
+async function archiveInOpenTransaction(client: Client, spaceId: string, walletId: string) {
+  return client.query('select * from public.archive_wallet($1, $2, $3) limit 2', [spaceId, randomUUID(), walletId]);
 }
 
 describe('wallet lifecycle database contract', () => {
@@ -1130,5 +1142,44 @@ describe('wallet lifecycle database contract', () => {
       { signature: 'archive_wallet(uuid,uuid,uuid)', ...command },
       { signature: 'restore_wallet(uuid,uuid,uuid)', ...command },
     ]);
+  });
+
+  it('fails a posting that waits behind a committed archive of the same wallet', async () => {
+    const database = currentDatabase();
+    const walletId = await createWallet(database.client, ownerId, personalId, 'Race archive first');
+    const postingRequestId = randomUUID();
+
+    const outcome = await orderedAuthenticatedRace(
+      database,
+      ownerId,
+      (client) => archiveInOpenTransaction(client, personalId, walletId),
+      (client) => postIncomeInOpenTransaction(client, personalId, walletId, postingRequestId),
+    );
+
+    expect(outcome).toEqual({ status: 'rejected', reason: expect.objectContaining(inactiveMovementError) });
+    expect((await walletRow(database.client, walletId)).archived_at).toBeInstanceOf(Date);
+    expect(await walletBalance(database.client, walletId)).toBe('0');
+    const posted = await database.client.query(
+      'select id from public.financial_events where space_id = $1 and request_id = $2 limit 2',
+      [personalId, postingRequestId],
+    );
+    expect(posted.rows).toEqual([]);
+  });
+
+  it('fails an archive that waits behind a committed posting to the same wallet', async () => {
+    const database = currentDatabase();
+    const walletId = await createWallet(database.client, ownerId, personalId, 'Race posting first');
+
+    const outcome = await orderedAuthenticatedRace(
+      database,
+      ownerId,
+      (client) => postIncomeInOpenTransaction(client, personalId, walletId, randomUUID()),
+      (client) => archiveInOpenTransaction(client, personalId, walletId),
+    );
+
+    expect(outcome).toEqual({ status: 'rejected', reason: expect.objectContaining(nonZeroBalanceError) });
+    expect(await walletRow(database.client, walletId)).toMatchObject({ archived_at: null });
+    expect(await walletBalance(database.client, walletId)).toBe('500');
+    expect(await logRows(database.client, walletId)).toEqual([]);
   });
 });
