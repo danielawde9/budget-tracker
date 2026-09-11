@@ -28,13 +28,26 @@ scripts/ops/migrate-budget.sh verify-manifest MIGRATIONS EXPECTED APPLIED ACTUAL
 
 `check:ops` runs deterministic ops tests, Bash syntax checks, and a bounded
 tracked-text secret scan. Pass explicit absolute artifact/log files to
-`scripts/ops/check-budget.sh` to include them in the same 256-file, 10 MiB-per-
-file bound. Each candidate is read once through a five-second, no-follow file
-descriptor after matching its regular-file identity and size. Secret assignments
-exempt only an empty value, the exact matching
-`${NAME:?required}` form, or the exact `<external-secret-reference>` token;
-mixed values fail closed. If `shellcheck` is installed it runs that too;
-absence is reported rather than hidden.
+`scripts/ops/check-budget.sh` to include them in the same bounded scan:
+
+- at most 4,096 files; `check-budget.sh` refuses a larger tracked-plus-explicit
+  set with exit `69` before scanning;
+- at most 10 MiB per file, enforced on the bytes actually read;
+- at most 64 MiB in total, summed from `lstat` sizes before any content is
+  read;
+- a 180-second monotonic deadline, checked before each file is opened, so one
+  file already being scanned (at most 10 MiB) can finish first.
+
+Inside the scan, a bound failure exits `64` and detected secret material exits
+`69`. A passing scan prints `secret scan passed for N file(s), B byte(s)`. Compare
+those numbers with the bounds as the tree grows, and follow the 2026-09-11
+secret-scan entry in [`docs/decisions.md`](../decisions.md) before changing a
+bound. Each candidate is read once through a no-follow file descriptor, under a
+five-second alarm that the scan deadline can shorten, after matching its
+regular-file identity and size. Secret assignments exempt only an empty value,
+the exact matching `${NAME:?required}` form, or the exact
+`<external-secret-reference>` token; mixed values fail closed. If `shellcheck` is
+installed it runs that too; absence is reported rather than hidden.
 
 Every real command requires explicit, validated environment variables. Do not
 put their values in Git, shell history, tickets, screenshots, logs, or this

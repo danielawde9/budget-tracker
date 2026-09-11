@@ -5,8 +5,10 @@ export PATH='/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin'
 
 readonly BUDGET_COMMON_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly BUDGET_OPS_REPO_ROOT="$(cd "${BUDGET_COMMON_SCRIPT_DIR}/../.." && pwd -P)"
-readonly BUDGET_MAX_SCAN_FILES=256
+readonly BUDGET_MAX_SCAN_FILES=4096
 readonly BUDGET_MAX_SCAN_BYTES=10485760
+readonly BUDGET_MAX_SCAN_TOTAL_BYTES=67108864
+readonly BUDGET_SCAN_DEADLINE_SECONDS=180
 
 budget_error() {
   local message="${1:?error message is required}"
@@ -780,12 +782,24 @@ budget_read_bounded_regular_file() {
   local candidate="${1:-}"
   local maximum_bytes="${2:-}"
   local status="${3:-64}"
+  local deadline="${4:-}"
+  if [[ ! "${deadline}" =~ ^([0-9]{1,12})?$ ]]; then
+    budget_error 'secret scan deadline is invalid' "${status}"
+    return
+  fi
   if [[ -z "${candidate}" || ! "${maximum_bytes}" =~ ^[1-9][0-9]{0,8}$ ]] || \
-    ! /usr/bin/perl -MFcntl=:DEFAULT,O_NOFOLLOW,:mode -e '
+    ! /usr/bin/perl -MFcntl=:DEFAULT,O_NOFOLLOW,:mode \
+      -MTime::HiRes=clock_gettime,CLOCK_MONOTONIC -e '
       use strict;
       use warnings;
-      my ($path, $limit) = @ARGV;
-      alarm 5;
+      my ($path, $limit, $deadline) = @ARGV;
+      my $seconds = 5;
+      if (length $deadline) {
+        my $remaining = $deadline - int(clock_gettime(CLOCK_MONOTONIC));
+        die "deadline\n" unless $remaining > 0;
+        $seconds = $remaining if $remaining < $seconds;
+      }
+      alarm $seconds;
       my @before = lstat($path);
       die "type\n" unless @before && S_ISREG($before[2]) && $before[7] <= $limit;
       sysopen(my $handle, $path, O_RDONLY | O_NOFOLLOW) or die "open\n";
@@ -808,22 +822,68 @@ budget_read_bounded_regular_file() {
       die "swap\n" unless @after && $after[0] == $opened[0] && $after[1] == $opened[1];
       die "binary\n" if index($content, "\0") >= 0;
       print $content;
-    ' "${candidate}" "${maximum_bytes}"; then
+    ' "${candidate}" "${maximum_bytes}" "${deadline}"; then
+    if [[ -n "${deadline}" ]] && ! budget_remaining_seconds "${deadline}" >/dev/null; then
+      budget_error 'secret scan deadline exceeded' "${status}"
+      return
+    fi
     budget_error 'secret scan candidate is not a bounded regular file' "${status}"
     return
   fi
 }
 
-budget_scan_secrets() {
-  if (( $# == 0 || $# > BUDGET_MAX_SCAN_FILES )); then
-    budget_error 'secret scan requires 1 to 256 explicit files' 64
+# Sums candidate lstat sizes before any content is read. Growth after this
+# measurement stays bounded by the per-file read limit and the scan deadline.
+budget_measure_scan_plan() {
+  local total_bytes
+  if ! total_bytes="$(printf '%s\0' "$@" | /usr/bin/perl -e '
+      use strict;
+      use warnings;
+      my ($maximum_files) = @ARGV;
+      alarm 5;
+      $/ = "\0";
+      my ($files, $total) = (0, 0);
+      while (my $path = <STDIN>) {
+        chomp $path;
+        die "files\n" if ++$files > $maximum_files;
+        my @details = lstat($path);
+        $total += $details[7] if @details;
+      }
+      print "$total\n";
+    ' "${BUDGET_MAX_SCAN_FILES}")" || [[ ! "${total_bytes}" =~ ^[0-9]{1,18}$ ]]; then
+    budget_error 'secret scan plan could not be measured' 64
     return
   fi
+  if (( total_bytes > BUDGET_MAX_SCAN_TOTAL_BYTES )); then
+    budget_error "secret scan exceeds the ${BUDGET_MAX_SCAN_TOTAL_BYTES}-byte total bound" 64
+    return
+  fi
+  printf '%s\n' "${total_bytes}"
+}
+
+budget_scan_secrets() {
+  local deadline
+  if ! deadline="$(budget_start_deadline "${BUDGET_SCAN_DEADLINE_SECONDS}")"; then
+    budget_error 'secret scan deadline unavailable' 64
+    return
+  fi
+  budget_scan_secrets_before_deadline "${deadline}" "$@"
+}
+
+budget_scan_secrets_before_deadline() {
+  local deadline="${1:?deadline is required}"
+  shift
+  if (( $# == 0 || $# > BUDGET_MAX_SCAN_FILES )); then
+    budget_error "secret scan requires 1 to ${BUDGET_MAX_SCAN_FILES} explicit files" 64
+    return
+  fi
+  local total_bytes
+  total_bytes="$(budget_measure_scan_plan "$@")" || return
 
   local candidate content line secret display_name read_status
   for candidate in "$@"; do
     if content="$(budget_read_bounded_regular_file \
-      "${candidate}" "${BUDGET_MAX_SCAN_BYTES}" 64)"; then
+      "${candidate}" "${BUDGET_MAX_SCAN_BYTES}" 64 "${deadline}")"; then
       :
     else
       read_status=$?
@@ -854,7 +914,7 @@ budget_scan_secrets() {
     done <<< "${content}"
   done
 
-  printf '%s\n' "secret scan passed for $# file(s)"
+  printf '%s\n' "secret scan passed for $# file(s), ${total_bytes} byte(s)"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
