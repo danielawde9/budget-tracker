@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import type { CategoriesGateway } from '../categories/types.js';
 import { useCategories } from '../categories/use-categories.js';
@@ -10,17 +10,19 @@ import { formatMinorAmount } from './money.js';
 import { RenameWalletDialog } from './rename-wallet-dialog.js';
 import { RestoreWalletDialog } from './restore-wallet-dialog.js';
 import { TransactionDialog } from './transaction-dialog.js';
-import type { JournalEvent, JournalEventKind, WalletProjection, WalletsGateway } from './types.js';
-import { useWallets } from './use-wallets.js';
+import type { JournalEvent, JournalEventKind, WalletProjection } from './types.js';
+import type { WalletsState } from './use-wallets.js';
 import { WalletDialog } from './wallet-dialog.js';
 
 interface WalletsPageProps {
-  gateway: WalletsGateway;
   categoriesGateway?: CategoriesGateway;
   spaceId: string;
+  walletState: WalletsState;
   locale?: Locale;
   onSpaceUnavailable(): void;
   onOpenLoans(): void;
+  openTransaction: boolean;
+  onTransactionDialogOpened(): void;
 }
 
 type OpenDialog = 'wallet' | 'transaction' | { correction: JournalEvent } | { rename: WalletProjection } | { archive: WalletProjection } | { restore: WalletProjection } | null;
@@ -52,9 +54,8 @@ const emptyCategoriesGateway: CategoriesGateway = {
   resolveEventCategories: async () => [],
 };
 
-export function WalletsPage({ gateway, categoriesGateway, spaceId, locale = 'en', onSpaceUnavailable, onOpenLoans }: WalletsPageProps) {
+export function WalletsPage({ categoriesGateway, spaceId, walletState, locale = 'en', onSpaceUnavailable, onOpenLoans, openTransaction, onTransactionDialogOpened }: WalletsPageProps) {
   const categoryState = useCategories(categoriesGateway ?? emptyCategoriesGateway, spaceId, onSpaceUnavailable);
-  const walletState = useWallets(gateway, spaceId, onSpaceUnavailable, undefined, categoriesGateway);
   const categoryError = categoryState.error ? localizeCategoryError(categoryState.error, locale) : null;
   const categoryPaginationError = categoryState.paginationError
     ? { ...categoryState.paginationError, error: localizeCategoryError(categoryState.paginationError.error, locale) }
@@ -67,6 +68,12 @@ export function WalletsPage({ gateway, categoriesGateway, spaceId, locale = 'en'
     : null;
   const [dialog, setDialog] = useState<OpenDialog>(null);
   const activeCategories = [...categoryState.incomeCategories, ...categoryState.expenseCategories];
+
+  useEffect(() => {
+    if (!openTransaction || walletState.wallets.length === 0 || walletState.status !== 'ready') return;
+    setDialog('transaction');
+    onTransactionDialogOpened();
+  }, [onTransactionDialogOpened, openTransaction, walletState.status, walletState.wallets.length]);
 
   return <section className="wallets-workspace">
     <header className="topbar wallets-topbar">

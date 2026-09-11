@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AuthScreen } from './features/auth/auth-screen.js';
 import { createSupabaseAuthGateway } from './features/auth/supabase-auth-gateway.js';
 import type { AuthGateway } from './features/auth/types.js';
@@ -20,26 +20,7 @@ import type { HouseholdGateway } from './features/household/types.js';
 import { AcceptHouseholdInvitationDialog } from './features/household/household-dialogs.js';
 import { classifyHouseholdError, localizeHouseholdError, type HouseholdErrorView } from './features/household/errors.js';
 import type { HouseholdInvitationBootstrap } from './features/household/invitation-fragment.js';
-
-const WalletsPage = lazy(async () => {
-  const module = await import('./features/wallets/wallets-page.js');
-  return { default: module.WalletsPage };
-});
-
-const LoansPage = lazy(async () => {
-  const module = await import('./features/loans/loans-page.js');
-  return { default: module.LoansPage };
-});
-
-const CategoriesPage = lazy(async () => {
-  const module = await import('./features/categories/categories-page.js');
-  return { default: module.CategoriesPage };
-});
-
-const HouseholdPage = lazy(async () => {
-  const module = await import('./features/household/household-page.js');
-  return { default: module.HouseholdPage };
-});
+import { WorkspaceRoutes } from './features/home/workspace-routes.js';
 
 interface AppProps {
   householdInvitationBootstrap?: HouseholdInvitationBootstrap | null;
@@ -68,7 +49,8 @@ interface AuthenticatedWorkspaceProps {
 
 function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
   const workspace = useWorkspace(props.workspaceGateway, props.userId);
-  const [activeDestination, setActiveDestination] = useState<ApplicationDestination>('loans');
+  const [activeDestination, setActiveDestination] = useState<ApplicationDestination>('home');
+  const [openTransaction, setOpenTransaction] = useState(false);
   const [addingSpace, setAddingSpace] = useState(false);
   const [acceptPending, setAcceptPending] = useState(false);
   const [acceptError, setAcceptError] = useState<HouseholdErrorView | null>(null);
@@ -151,34 +133,24 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
       onLocaleChange={props.onLocaleChange}
       onSignOut={props.onSignOut}
     >
-    {activeDestination === 'loans' ? <Suspense fallback={<div className="state-panel" role="status">{props.locale === 'ar' ? 'جارٍ تحميل القروض…' : 'Loading Loans…'}</div>}><LoansPage
-      embedded
-      gateway={props.loansGateway}
-      locale={props.locale}
-      spaces={workspace.spaces}
-      spaceId={workspace.selectedSpaceId}
-      onSpaceChange={workspace.selectSpace}
-      onSpaceUnavailable={() => void workspace.refresh()}
-    /></Suspense> : activeDestination === 'wallets' ? <Suspense fallback={<div className="state-panel" role="status">{props.locale === 'ar' ? 'جارٍ تحميل المحافظ…' : 'Loading Wallets…'}</div>}><WalletsPage
-      gateway={props.walletsGateway}
+    <WorkspaceRoutes
+      activeDestination={activeDestination}
       categoriesGateway={props.categoriesGateway}
-      locale={props.locale}
-      spaceId={workspace.selectedSpaceId}
-      onSpaceUnavailable={() => void workspace.refresh()}
-      onOpenLoans={() => setActiveDestination('loans')}
-    /></Suspense> : activeDestination === 'categories' ? <Suspense fallback={<div className="state-panel" role="status">{props.locale === 'ar' ? 'جارٍ تحميل الفئات…' : 'Loading Categories…'}</div>}><CategoriesPage
-      gateway={props.categoriesGateway}
-      locale={props.locale}
-      spaceId={workspace.selectedSpaceId}
-      onSpaceUnavailable={() => void workspace.refresh()}
-    /></Suspense> : <Suspense fallback={<div className="state-panel" role="status">{props.locale === 'ar' ? 'جارٍ تحميل الأسرة…' : 'Loading Household…'}</div>}><HouseholdPage
-      gateway={props.householdGateway}
+      householdGateway={props.householdGateway}
+      loansGateway={props.loansGateway}
+      walletsGateway={props.walletsGateway}
       locale={props.locale}
       spaceId={workspace.selectedSpaceId}
       spaceName={workspace.selectedSpace.name}
+      spaces={workspace.spaces}
       userId={props.userId}
+      openTransaction={openTransaction}
+      onDestinationChange={setActiveDestination}
+      onSpaceChange={workspace.selectSpace}
       onSpaceUnavailable={() => void workspace.refresh()}
-    /></Suspense>}
+      onRecordTransaction={() => setOpenTransaction(true)}
+      onTransactionDialogOpened={() => setOpenTransaction(false)}
+    />
     </ApplicationShell>
   </>;
 }

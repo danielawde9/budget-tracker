@@ -58,10 +58,9 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
   });
 
-  it('mounts the existing Loans workspace only for an authenticated session', async () => {
+  it('mounts the Home workspace only for an authenticated session', async () => {
     render(<App authGateway={authGateway({ id: 'user-1', email: 'owner@example.com' })} workspaceGateway={workspaceGateway()} householdGateway={new InMemoryHouseholdGateway()} loansGateway={new InMemoryLoansGateway()} walletsGateway={new InMemoryWalletsGateway()} categoriesGateway={new InMemoryCategoriesGateway()} />);
-    await waitFor(() => expect(screen.getByText('Maya')).toBeInTheDocument());
-    expect(screen.getByRole('heading', { name: 'Loans' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
   });
 
   it('switches between Loans, Wallets, and Categories inside one authenticated shell', async () => {
@@ -69,7 +68,7 @@ describe('App', () => {
     const categoriesGateway = new InMemoryCategoriesGateway();
     categoriesGateway.categories = categoriesGateway.categories.map((category) => ({ ...category, spaceId: 'personal-space' }));
     render(<App authGateway={authGateway({ id: 'user-1', email: 'owner@example.com' })} workspaceGateway={workspaceGateway()} householdGateway={new InMemoryHouseholdGateway()} loansGateway={new InMemoryLoansGateway()} walletsGateway={new InMemoryWalletsGateway()} categoriesGateway={categoriesGateway} />);
-    expect(await screen.findByRole('heading', { name: 'Loans' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Wallets' }));
     expect(await screen.findByRole('heading', { name: 'Wallets' })).toBeInTheDocument();
     expect(await screen.findByText('$1,250.50')).toBeInTheDocument();
@@ -78,6 +77,18 @@ describe('App', () => {
     expect(await screen.findByText('Salary')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Loans' }));
     expect(await screen.findByRole('heading', { name: 'Loans' })).toBeInTheDocument();
+  });
+
+  it('opens the existing transaction dialog from Home without recording a transaction', async () => {
+    const user = userEvent.setup();
+    const walletsGateway = new InMemoryWalletsGateway();
+    render(<App authGateway={authGateway({ id: 'user-1', email: 'owner@example.com' })} workspaceGateway={workspaceGateway()} householdGateway={new InMemoryHouseholdGateway()} loansGateway={new InMemoryLoansGateway()} walletsGateway={walletsGateway} categoriesGateway={new InMemoryCategoriesGateway()} />);
+    await screen.findByRole('heading', { name: 'Welcome back' });
+
+    await user.click(screen.getByRole('button', { name: 'Record transaction' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Add a transaction' })).toBeInTheDocument();
+    expect(walletsGateway.calls.some((call) => call.name === 'recordEvent')).toBe(false);
   });
 
   it('lets a signed-in owner add another space from the shell and selects it', async () => {
@@ -93,7 +104,7 @@ describe('App', () => {
       createWallet: vi.fn(async () => ({ id: 'new-wallet' })),
     };
     render(<App authGateway={authGateway({ id: 'user-1', email: 'owner@example.com' })} workspaceGateway={gateway} householdGateway={new InMemoryHouseholdGateway()} loansGateway={new InMemoryLoansGateway()} walletsGateway={new InMemoryWalletsGateway()} categoriesGateway={new InMemoryCategoriesGateway()} />);
-    expect(await screen.findByRole('heading', { name: 'Loans' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Add another space' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add another space' });

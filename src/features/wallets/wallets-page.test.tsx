@@ -6,7 +6,15 @@ import { InMemoryCategoriesGateway } from '../../test/in-memory-categories-gatew
 import { InMemoryWalletsGateway } from '../../test/in-memory-wallets-gateway.js';
 import type { CategoriesGateway } from '../categories/types.js';
 import type { RecordEventInput } from './types.js';
+import { useWallets } from './use-wallets.js';
 import { WalletsPage } from './wallets-page.js';
+
+const onSpaceUnavailable = vi.fn();
+
+function WalletsPageHarness({ gateway, categoriesGateway, locale = 'en' }: { gateway: InMemoryWalletsGateway; categoriesGateway?: CategoriesGateway; locale?: 'en' | 'ar' }) {
+  const walletState = useWallets(gateway, 'personal-space', undefined, undefined, categoriesGateway);
+  return <WalletsPage {...(categoriesGateway ? { categoriesGateway } : {})} spaceId="personal-space" locale={locale} walletState={walletState} onSpaceUnavailable={onSpaceUnavailable} onOpenLoans={vi.fn()} openTransaction={false} onTransactionDialogOpened={vi.fn()} />;
+}
 
 function rejectable<T>() {
   let reject!: (cause: unknown) => void;
@@ -20,7 +28,7 @@ async function renderPage(
   categoriesGateway?: CategoriesGateway,
 ) {
   const user = userEvent.setup();
-  render(<WalletsPage gateway={gateway} {...(categoriesGateway ? { categoriesGateway } : {})} spaceId="personal-space" locale={locale} onSpaceUnavailable={vi.fn()} onOpenLoans={vi.fn()} />);
+  render(<WalletsPageHarness gateway={gateway} {...(categoriesGateway ? { categoriesGateway } : {})} locale={locale} />);
   await screen.findByRole('heading', { name: locale === 'ar' ? 'المحافظ' : 'Wallets' });
   await waitFor(() => expect(screen.queryByRole('status', { name: /loading/i })).not.toBeInTheDocument());
   return { gateway, user };
@@ -679,7 +687,7 @@ describe('WalletsPage', () => {
     const gateway = new InMemoryWalletsGateway();
     gateway.error = new Error('Network unavailable');
     const user = userEvent.setup();
-    render(<WalletsPage gateway={gateway} spaceId="personal-space" locale="en" onSpaceUnavailable={vi.fn()} onOpenLoans={vi.fn()} />);
+    render(<WalletsPageHarness gateway={gateway} locale="en" />);
     expect(await screen.findByRole('alert')).toHaveTextContent('Network unavailable');
     gateway.error = null;
     await user.click(screen.getByRole('button', { name: 'Try again' }));

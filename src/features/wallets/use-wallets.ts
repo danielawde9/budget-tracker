@@ -431,3 +431,5 @@ export function useWallets(
     clearAmbiguous: () => setRetry(null),
   };
 }
+
+export type WalletsState = ReturnType<typeof useWallets>;
