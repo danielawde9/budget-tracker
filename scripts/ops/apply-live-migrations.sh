@@ -23,7 +23,7 @@ readonly LIVE_VERIFY_SQL="select case when
   and to_regclass('public.loans') is not null
   and to_regclass('public.categories') is not null
   and to_regclass('public.household_invitations') is not null
-  and to_regclass('public.subcategories') is not null
+  and to_regprocedure('public.create_subcategory(uuid,uuid,uuid,text,text)') is not null
   and (select array_agg(version order by version) from supabase_migrations.schema_migrations)
     = array[
       '20260907100000','20260907110000','20260907120000','20260907130000',

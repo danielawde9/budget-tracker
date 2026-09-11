@@ -198,7 +198,10 @@ describe('one-time live Supabase migration runner', () => {
     expect(verificationSql).toContain("'20260908170000'");
     expect(verificationSql).toContain("'20260910100000'");
     expect(verificationSql).toContain("to_regclass('public.household_invitations')");
-    expect(verificationSql).toContain("to_regclass('public.subcategories')");
+    expect(verificationSql).toContain(
+      "to_regprocedure('public.create_subcategory(uuid,uuid,uuid,text,text)')",
+    );
+    expect(verificationSql).not.toContain("to_regclass('public.subcategories')");
   });
 
   it('refuses an account that cannot see the exact project before database contact', () => {
