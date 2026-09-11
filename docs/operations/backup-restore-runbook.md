@@ -516,18 +516,63 @@ real image through Testcontainers with synthetic fixtures only: a
 Supabase-shaped source is dumped through the CLI 2.109.1 pipelines copied
 verbatim into `tests/ops/fixtures/supabase-restore/cli-2.109.1-dump.sh`. It
 needs a Docker endpoint that Testcontainers can reach as a unix socket;
-Testcontainers 12.1.0 does not speak `ssh://`. Tailscale SSH on the Le Labo
-Ubuntu host refuses unix-socket forwarding (`socket path "/var/run/docker.sock"
-is not in an allowed directory`, measured 2026-09-11) but allows exec sessions.
-Reach that daemon through a local socket that runs
-`ssh lelabo@100.76.160.91 docker system dial-stdio` for each connection,
-multiplexed over one SSH master whose `ControlPath` fits the 104-byte macOS
-socket limit. Disable the Ryuk reaper, which cannot connect back through such a
-bridge:
+Testcontainers 12.1.0 does not speak `ssh://`. From the operator Mac, run it on
+the Le Labo Ubuntu Docker host through the tracked bridge helper:
 
 ```bash
-DOCKER_HOST="unix://<local bridge socket>" TESTCONTAINERS_RYUK_DISABLED=true pnpm check:ops
+scripts/ops/docker-ssh-bridge.sh run -- pnpm check:ops
 ```
+
+Tailscale SSH on that host refuses unix-socket forwarding (`socket path
+"/var/run/docker.sock" is not in an allowed directory`, measured 2026-09-11) but
+allows exec sessions. The helper therefore creates a private mode-`0700`
+directory under `TMPDIR`, listens on a unix socket there, and for each accepted
+connection runs `ssh lelabo@100.76.160.91 docker system dial-stdio`, multiplexed
+over one `BatchMode` SSH master whose control socket lives in the same
+directory. The address is pinned on the command line together with `HostName`,
+`ProxyJump=none`, and `ProxyCommand=none`, so `~/.ssh/config` cannot route the
+bridge elsewhere; `BUDGET_DOCKER_BRIDGE_SSH_BIN` (absolute path, default
+`/usr/bin/ssh`) only selects the client. On the host, `dial-stdio` reaches
+whichever daemon the `lelabo` user's Docker configuration selects. macOS caps
+socket paths at 103 bytes and OpenSSH first binds a new master at the control
+path plus 17 characters, which otherwise stalls every multiplexed connection, so
+a `TMPDIR` longer than 69 bytes (after one trailing slash is removed) is
+refused.
+
+Before the command starts, `GET /_ping` must answer through the bridge within
+`BUDGET_DOCKER_BRIDGE_READY_SECONDS` (default 30, at most 120). Tailscale SSH
+there runs in check mode, so a stale Tailscale login makes a new SSH connection
+wait for browser approval; the helper then exits `66` instead of hanging.
+Re-authenticate Tailscale and rerun. Later sessions share the master's
+connection; if it drops mid-run, new sessions open a fresh connection, which
+check mode can hold until the suite's own timeouts. SSH diagnostics pass through
+to standard error.
+
+The command keeps the caller's `PATH` and receives
+`DOCKER_HOST=unix://<bridge socket>` and `TESTCONTAINERS_RYUK_DISABLED=true`; the
+Ryuk reaper cannot connect back through the bridge. Testcontainers 12.1.0 tries
+`tc.host` from `~/.testcontainers.properties` before `DOCKER_HOST` and falls back
+to `/var/run/docker.sock` when an endpoint fails, so the helper refuses a
+`tc.host` setting and exits `66` when the bridge exits before the command does,
+even if the command passed. At most 32 bridged connections are open at once, and
+further connections are refused and logged. A client that half-closes still
+receives the full response; one that disconnects while the remote is silent has
+its SSH session ended.
+
+The helper returns the command's status, or `64` usage, `65` configuration
+refused, `66` bridge or remote not ready or lost, `70` cleanup failed after a
+successful command. On exit, `INT`, or `TERM` it sends `TERM` to the command
+process (not to processes it started; `KILL` after 10 s), stops the bridge and
+the SSH master (`ssh -O exit`), and removes the directory, ignoring further
+interrupts meanwhile. SSH sessions run outside the terminal's process group, so
+Ctrl-C reaches the helper rather than them. If the helper itself is killed, the
+bridge ends its sessions within about a second, but the directory and the master
+remain until `ControlPersist` expires (900 s).
+`tests/ops/docker-ssh-bridge.test.ts` covers this with a fake `ssh` and needs no
+remote host. Measured 2026-09-11 from the operator Mac,
+the full `pnpm check:ops` passed 249 tests in 13 files through the helper in
+under four minutes, refused no connection, and left no labelled container on
+the host.
 
 The suite stops its own containers; each carries the label
 `budget.restore-test=supabase-scratch-restore` for manual cleanup after an
