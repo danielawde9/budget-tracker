@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Budget Feature Roadmap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Arabic:wght@400;600&family=Noto+Serif:wght@600;700&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700&display=swap">
+<style>
+:root{
+  --paper:#f4f6f1; --sheet:#fbfcf9; --tint:#e7eee4; --line:#d3ddcf; --line-strong:#b3c3af;
+  --ink:#17231d; --muted:#55655b; --faint:#83928a;
+  --pine:#173e2d; --jade:#1f5a43; --link:#1f5a43;
+  --saffron:#d79a26; --saffron-ink:#8a5d08; --brick:#a53e2e;
+  --band:#173e2d; --band-ink:#eef3ec; --band-muted:#b8cabd; --gold:#f3c96d; --band-line:#3d6452;
+  --yes:#1f5a43; --part:#b07810; --no:#9eaca3; --unk:#c3cdc5;
+  --us:#e3ece0; --chip-l-bg:#173e2d; --chip-l-ink:#f4f6f1;
+  --display:"Noto Serif", Georgia, "Noto Naskh Arabic", serif;
+  --body:"Avenir Next", Avenir, "Nunito Sans", "Segoe UI", "Noto Sans Arabic", sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --arabic:"Noto Sans Arabic", "Geeza Pro", "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0f1814; --sheet:#15211b; --tint:#1b2a22; --line:#27382f; --line-strong:#3a4e42;
+    --ink:#e3eae2; --muted:#a2b2a7; --faint:#77887d;
+    --pine:#cfe3d5; --jade:#7cc4a0; --link:#8fd0ad;
+    --saffron:#e2b04e; --saffron-ink:#e8bd62; --brick:#e38a76;
+    --band:#10281d; --band-ink:#e6eee6; --band-muted:#9fb5a7; --gold:#f0c565; --band-line:#2f4c3e;
+    --yes:#7cc4a0; --part:#e2b04e; --no:#617268; --unk:#4b5b51;
+    --us:#1b2d23; --chip-l-bg:#cfe3d5; --chip-l-ink:#0f1814;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0f1814; --sheet:#15211b; --tint:#1b2a22; --line:#27382f; --line-strong:#3a4e42;
+  --ink:#e3eae2; --muted:#a2b2a7; --faint:#77887d;
+  --pine:#cfe3d5; --jade:#7cc4a0; --link:#8fd0ad;
+  --saffron:#e2b04e; --saffron-ink:#e8bd62; --brick:#e38a76;
+  --band:#10281d; --band-ink:#e6eee6; --band-muted:#9fb5a7; --gold:#f0c565; --band-line:#2f4c3e;
+  --yes:#7cc4a0; --part:#e2b04e; --no:#617268; --unk:#4b5b51;
+  --us:#1b2d23; --chip-l-bg:#cfe3d5; --chip-l-ink:#0f1814;
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.6 var(--body);-webkit-font-smoothing:antialiased}
+a{color:var(--link);text-underline-offset:2px;text-decoration-thickness:1px}
+a:focus-visible{outline:2px solid var(--saffron);outline-offset:2px;border-radius:2px}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ar{font-family:var(--arabic)}
+code{font:0.88em var(--mono);background:var(--tint);padding:1px 5px;border-radius:3px}
+
+/* masthead */
+.masthead{background:var(--band);color:var(--band-ink);padding:36px 0 34px}
+.brand{display:flex;align-items:center;gap:12px;font:500 12px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--band-muted)}
+.mark{inline-size:38px;block-size:38px;display:grid;place-items:center;border:1px solid #789486;border-radius:50%;color:var(--gold);font:600 1.15rem/1 var(--display);letter-spacing:0;text-transform:none}
+h1{font:700 clamp(2.1rem,4.6vw,3.1rem)/1.08 var(--display);margin:22px 0 14px;letter-spacing:-.012em;text-wrap:balance}
+.lede{font-size:1.18rem;line-height:1.55;max-width:62ch;margin:0;color:var(--band-ink)}
+.meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;margin-top:22px;font:13px/1.4 var(--mono);color:var(--band-muted)}
+.meta .status{border:1px solid var(--band-line);color:var(--gold);padding:3px 10px;border-radius:999px}
+
+/* nav */
+nav.toc{position:sticky;top:0;z-index:5;background:var(--paper);border-bottom:1px solid var(--line)}
+nav.toc ul{list-style:none;margin:0;padding:10px 0;display:flex;flex-wrap:wrap;gap:4px 18px;font-size:.88rem}
+nav.toc a{color:var(--muted);text-decoration:none}
+nav.toc a:hover{color:var(--ink);text-decoration:underline}
+
+/* sections */
+main section{padding:46px 0 6px;scroll-margin-top:52px}
+h2{font:600 1.7rem/1.2 var(--display);color:var(--pine);margin:0 0 10px;text-wrap:balance}
+h3{font:700 1.05rem/1.35 var(--body);margin:26px 0 8px;text-wrap:balance}
+.intro{color:var(--muted);max-width:70ch;margin:0 0 16px}
+p{margin:0 0 14px;max-width:70ch}
+ul.plain,ol.plain{padding-inline-start:1.2em;margin:0 0 14px}
+ul.plain li,ol.plain li{max-width:72ch;margin:0 0 8px}
+strong{font-weight:700}
+
+/* summary */
+.summary{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:36px;align-items:start}
+.summary ul{margin:0;padding-inline-start:1.1em}
+.summary li{margin:0 0 12px}
+.order{background:var(--sheet);border:1px solid var(--line);border-radius:8px;padding:18px 20px}
+.order h3{margin:0 0 4px}
+.order p{font-size:.9rem;color:var(--muted);margin:0 0 12px}
+.order ol{margin:0;padding:0;list-style:none;counter-reset:step;display:grid;gap:10px}
+.order li{counter-increment:step;display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:baseline}
+.order li::before{content:counter(step);font:600 .8rem/1 var(--mono);color:var(--jade);border:1px solid var(--line-strong);border-radius:50%;inline-size:24px;block-size:24px;display:grid;place-items:center}
+.order .c{font:600 .78rem var(--mono);color:var(--muted);margin-inline-start:4px}
+@media (max-width:820px){.summary{grid-template-columns:1fr}}
+
+/* tables */
+.table-wrap{overflow-x:auto;margin:12px 0 10px;border:1px solid var(--line);border-radius:8px;background:var(--sheet)}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{padding:9px 12px;text-align:start;vertical-align:top;border-bottom:1px solid var(--line)}
+thead th{font:600 11px/1.3 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);background:var(--tint);white-space:nowrap}
+tbody tr:last-child > *{border-bottom:0}
+td.code{font:600 .82rem/1.5 var(--mono);color:var(--jade);white-space:nowrap}
+td.item{min-width:280px}
+td.src{color:var(--muted);min-width:200px}
+td.dep{font:.8rem/1.5 var(--mono);color:var(--muted);white-space:nowrap}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:end;white-space:nowrap}
+.size{display:inline-block;font:600 11px/1.5 var(--mono);border:1px solid var(--line-strong);border-radius:4px;padding:0 6px;white-space:nowrap}
+.size.m{background:var(--tint)}
+.size.l{background:var(--chip-l-bg);color:var(--chip-l-ink);border-color:var(--chip-l-bg)}
+.size-note{display:block;font-size:.72rem;color:var(--muted);margin-top:3px;white-space:nowrap}
+
+/* matrix */
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.85rem;color:var(--muted);margin:0 0 4px}
+.legend span b{font:600 1rem var(--mono);margin-inline-end:5px}
+.matrix{font-size:.86rem}
+.matrix th[scope=row]{font-weight:600;position:sticky;left:0;background:var(--sheet);z-index:1;min-width:210px;border-inline-end:1px solid var(--line)}
+.matrix thead th:first-child{position:sticky;left:0;z-index:2;border-inline-end:1px solid var(--line)}
+.matrix td{text-align:center;min-width:96px;vertical-align:middle}
+.matrix td.us,.matrix th.us{background:var(--us)}
+.matrix thead th.us{color:var(--pine)}
+.matrix td.txt{font:.78rem/1.35 var(--mono);color:var(--muted)}
+.g{font:600 1.02rem/1 var(--mono);display:block}
+.g.y{color:var(--yes)} .g.p{color:var(--part)} .g.n{color:var(--no)} .g.u{color:var(--unk)}
+.cellnote{display:block;font-size:.7rem;line-height:1.25;color:var(--muted);margin-top:3px}
+tr.group td{background:var(--tint);font:600 10.5px/1.3 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--muted);text-align:start;padding:6px 12px}
+tr.group td span{position:sticky;left:12px}
+
+/* strengths */
+.pairs{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:0 36px}
+.pairs > div{border-top:1px solid var(--line);padding:14px 0 6px}
+.pairs h3{margin:0 0 4px;font-size:1rem}
+.pairs p{margin:0 0 8px;color:var(--muted);font-size:.95rem}
+
+/* lebanon figures */
+.figures{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin:14px 0 20px}
+.figures div{background:var(--sheet);padding:14px 16px}
+.figures dt{font:600 1.45rem/1.15 var(--mono);font-variant-numeric:tabular-nums;color:var(--pine);letter-spacing:-.01em}
+.figures dd{margin:6px 0 0;font-size:.82rem;line-height:1.4;color:var(--muted)}
+
+/* guardrails */
+ol.rules{list-style:none;counter-reset:rule;padding:0;margin:8px 0 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:0 36px}
+ol.rules li{counter-increment:rule;border-top:1px solid var(--line);padding:12px 0 10px;display:grid;grid-template-columns:30px 1fr;gap:6px}
+ol.rules li::before{content:counter(rule);font:600 .85rem/1.6 var(--mono);color:var(--jade)}
+ol.rules p{margin:0;font-size:.95rem}
+ol.rules strong{display:block}
+
+/* horizons */
+.sizes{font-size:.9rem;color:var(--muted)}
+.horizon{margin:34px 0 0}
+.h-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;border-bottom:2px solid var(--pine);padding-bottom:6px}
+.h-head h3{margin:0;font:600 1.3rem/1.2 var(--display);color:var(--pine)}
+.h-head .ar{font-size:1.02rem;color:var(--saffron-ink)}
+.h-head p{margin:0;color:var(--muted);flex-basis:100%}
+.gate{font-size:.88rem;color:var(--muted);margin:6px 0 0}
+.wont{list-style:none;padding:0;margin:10px 0 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:0 36px}
+.wont li{border-top:1px solid var(--line);padding:10px 0;font-size:.95rem}
+.wont li strong{color:var(--brick)}
+
+/* example */
+.example{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:28px;align-items:start}
+.example .table-wrap{margin-top:0}
+.ledger td,.ledger th{white-space:nowrap}
+.ledger .cur{font:600 .8rem var(--mono);color:var(--muted)}
+.neg{color:var(--brick)} .pos{color:var(--jade)}
+.outcome{border-inline-start:3px solid var(--saffron);padding:4px 0 4px 16px}
+.outcome dl{margin:0;display:grid;gap:10px}
+.outcome dt{font:600 11px var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.outcome dd{margin:2px 0 0;font:500 .95rem/1.5 var(--mono);font-variant-numeric:tabular-nums}
+@media (max-width:820px){.example{grid-template-columns:1fr}}
+
+/* dependencies + sources */
+.deps th[scope=row]{white-space:nowrap;font-weight:600;min-width:220px}
+.deps .k{font:600 .8rem var(--mono);color:var(--jade);margin-inline-end:6px}
+.deps td{color:var(--muted);min-width:320px}
+.sources{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px 32px;font-size:.84rem}
+.sources h3{font-size:.8rem;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:18px 0 6px}
+.sources ul{list-style:none;padding:0;margin:0}
+.sources li{margin:0 0 5px;line-height:1.4}
+footer{margin:56px 0 0;border-top:1px solid var(--line);padding:22px 0 40px;color:var(--muted);font-size:.85rem}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="brand"><span class="mark" aria-hidden="true">B</span>Budget · product research</div>
+    <h1>Budget Feature Roadmap</h1>
+    <p class="lede">Budget wins where bank-synced apps can't reach: cash in two currencies, loans between family, and a household record nobody can quietly edit. This page sets 23 competitors against the app as built today and the realities of money in Lebanon, then orders what to build next.</p>
+    <div class="meta">
+      <span>Researched 11 Sep 2026</span>
+      <span>23 apps · 5 research passes</span>
+      <span>Repo @ 1f80212</span>
+      <span class="status">Proposal · nothing decided yet</span>
+    </div>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Sections">
+  <div class="wrap">
+    <ul>
+      <li><a href="#summary">Summary</a></li>
+      <li><a href="#today">Budget today</a></li>
+      <li><a href="#matrix">Comparison</a></li>
+      <li><a href="#strengths">Strengths</a></li>
+      <li><a href="#complaints">Complaints</a></li>
+      <li><a href="#lebanon">Lebanon</a></li>
+      <li><a href="#guardrails">Guardrails</a></li>
+      <li><a href="#roadmap">Roadmap</a></li>
+      <li><a href="#example">Worked example</a></li>
+      <li><a href="#questions">Open questions</a></li>
+      <li><a href="#sources">Sources</a></li>
+    </ul>
+  </div>
+</nav>
+
+<main class="wrap">
+
+<section id="summary">
+  <h2>Summary</h2>
+  <div class="summary">
+    <ul>
+      <li><strong>The position is already unusual.</strong> No app checked combines strict USD/LBP cash wallets, person-to-person loans both ways, private plus household spaces with roles, an uneditable household record, and Arabic/English RTL. YNAB, Monarch and Copilot are single-currency; the multi-currency cash apps convert silently or share loosely, and none documents RTL.</li>
+      <li><strong>Bank sync can't be the answer here, and that's fine.</strong> No aggregator covers Lebanon, and broken sync is the category's most common complaint. The job is fast manual entry.</li>
+      <li><strong>Exchange is the biggest local opportunity.</strong> None of seven multi-currency apps records "paid $20, got change in lira" as one event. Budget can't record any USD↔LBP exchange today without faking income and expense, which would distort the planned reports.</li>
+      <li><strong>Table stakes still missing:</strong> a note or payee on entries, search, recurring bills, export, quick entry, split entries — plus the monthly budget and reports, which are designed but not built.</li>
+      <li><strong>Borrow mechanics, not products:</strong> Dollarwise's editable Needs/Wants/Savings split and "safe to spend", YNAB's who-changed-what feed, Actual's confirm-to-post schedules and cash counts, Lunch Money's per-entry rates, Monarch's mine/theirs/ours.</li>
+      <li><strong>Hold off on AI.</strong> Assistants are rarely used and "unwanted AI" is a complaint cluster. The one AI idea worth prototyping is a bilingual quick add that drafts an entry for a person to confirm.</li>
+    </ul>
+    <aside class="order" aria-labelledby="order-title">
+      <h3 id="order-title">Suggested next five milestones</h3>
+      <p>In order. Codes refer to the roadmap below.</p>
+      <ol>
+        <li><span>Monthly budget, from the existing spec <span class="c">N1</span></span></li>
+        <li><span>Note and payee on entries <span class="c">X1</span></span></li>
+        <li><span>USD↔LBP exchange event <span class="c">X2</span></span></li>
+        <li><span>Reports v1, after exchange exists <span class="c">N2</span></span></li>
+        <li><span>Quick entry and payee memory <span class="c">X3</span></span></li>
+      </ol>
+    </aside>
+  </div>
+</section>
+
+<section id="today">
+  <h2>Budget today</h2>
+  <p class="intro">Built and live in the app: email sign-in and onboarding; personal and household spaces; USD and LBP wallets with derived balances; an immutable journal with four entry shapes and reversals as the only correction; income/expense categories with one level of subcategories; loans in both directions with repayments, due dates and monthly targets; household invitations and roles (email delivery built but not configured); English/Arabic RTL. Monthly budgeting and the reporting read model are fully specified but not built — Reports is a disabled menu item. The public beta is not yet approved for irreplaceable data.</p>
+  <h3>Gaps no existing spec has listed</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th scope="col">Gap</th><th scope="col">Evidence in the repo</th><th scope="col">Why it matters</th></tr></thead>
+      <tbody>
+        <tr><td>No note or payee on entries</td><td><code>financial_events</code> has no text column; only <code>loans.note</code></td><td>Blocks search, payee memory, useful export, SMS and receipt drafts</td></tr>
+        <tr><td>No cross-currency movement</td><td>Transfers require <code>v_currency_count = 1</code></td><td>A money-changer visit can only be faked as income plus expense</td></tr>
+        <tr><td>No wallet archive command</td><td><code>wallets.archived_at</code> exists, no command</td><td>Closed accounts stay in every picker</td></tr>
+        <tr><td>No search or filters</td><td>Journal offers only "older" paging</td><td>"The generator payment in March" can't be found</td></tr>
+        <tr><td>No export</td><td>No export path</td><td>Losing history is a top-10 complaint</td></tr>
+        <tr><td>Not installable</td><td>No web manifest or service worker</td><td>Home-screen entry; prerequisite for share target and offline</td></tr>
+        <tr><td>Members shown as opaque IDs</td><td>Household UI decision, 2026-09-10</td><td>"Who entered this?" can't be shown</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="matrix">
+  <h2>How the apps compare</h2>
+  <p class="intro">Nine columns where research was deepest. Fourteen more apps — PocketGuard, Rocket Money, Simplifi, Copilot, Goodbudget, Spendee, Money Lover, Money Manager, Toshl, Monefy, Wafeer, Riyalak, Masarif, Hakbah — inform the roadmap below. Prices are a September 2026 snapshot.</p>
+  <div class="legend" aria-hidden="true">
+    <span><b style="color:var(--yes)">●</b>yes</span>
+    <span><b style="color:var(--part)">◐</b>partial or limited</span>
+    <span><b style="color:var(--no)">○</b>no</span>
+    <span><b style="color:var(--unk)">?</b>not verified by this research</span>
+  </div>
+  <div class="table-wrap">
+    <table class="matrix" id="matrix-table"><thead></thead><tbody></tbody></table>
+    <noscript><p style="padding:12px">This table needs JavaScript. The same table is in <code>docs/product/2026-09-11-competitor-research-and-roadmap.md</code>.</p></noscript>
+  </div>
+</section>
+
+<section id="strengths">
+  <h2>What Budget already does better</h2>
+  <div class="pairs">
+    <div><h3>Two currencies, never blurred</h3><p>Monefy counts a missing rate as 1:1, a Wallet user's EUR account turned into CHF, Monarch shows everything as "$". Budget stores exact minor units — USD cents, whole LBP — and never adds them together.</p></div>
+    <div><h3>Family loans as a real ledger</h3><p>Spendee, Toshl, Actual and Copilot have no debt feature; YNAB and Monarch model bank debt. In 2022/23, 58% of Lebanese households sought help from relatives or friends (World Bank).</p></div>
+    <div><h3>A record nobody quietly rewrites</h3><p>Corrections are reversals and every event keeps its actor. Spendee lets any guest delete any entry; Goodbudget and Copilot share one login.</p></div>
+    <div><h3>Private and shared, with roles</h3><p>Rocket Money and Simplifi cap sharing at two people. Monarch still can't budget separately per person.</p></div>
+    <div><h3>Arabic and English, right to left</h3><p>Of the multi-currency apps only Wallet, Money Lover and Bluecoins list Arabic, and none documents RTL. No Lebanese USD/LBP household budgeting app could be verified.</p></div>
+    <div><h3>No bank logins to break</h3><p>Sync failures and re-logins lead the complaints (50+ signals in RightIdea's July 2026 analysis), and bank-data costs drive subscription prices.</p></div>
+  </div>
+</section>
+
+<section id="complaints">
+  <h2>What users complain about</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th scope="col">Complaint</th><th scope="col">Evidence</th><th scope="col">For Budget</th></tr></thead>
+      <tbody>
+        <tr><td>Bank sync breaks, re-logins</td><td>RightIdea 50+ signals; Hacker News; long-time Monarch users</td><td>Doesn't apply — say "no bank logins" plainly</td></tr>
+        <tr><td>Price and price hikes</td><td>RightIdea 60+ signals; YNAB now $109/yr</td><td>If it goes public, keep manual entry free</td></tr>
+        <tr><td>Redesigns break workflows</td><td>RightIdea 80+ signals, the largest cluster</td><td>Keep the entry flow stable; change additively</td></tr>
+        <tr><td>Basics behind paywalls</td><td>Splitwise daily entry cap; Rocket Money's 2 free categories</td><td>—</td></tr>
+        <tr><td>Wrong categories, shifting rules</td><td>YNAB changed its payee logic in Aug 2026</td><td>Payee memory must be predictable and overridable</td></tr>
+        <tr><td>Manual-entry fatigue</td><td>Reviews of manual-only free tiers</td><td>Quick entry is the top investment</td></tr>
+        <tr><td>Couples and household friction</td><td>Ipsos/BMO: 34% report money conflict, 36% admit dishonesty</td><td>Who-entered-what, ownership labels, a weekly check-in</td></tr>
+        <tr><td>Shutdowns, lost history</td><td>Mint; Zeta</td><td>Export at any time</td></tr>
+        <tr><td>Dark patterns</td><td>Cleo's $17M FTC settlement</td><td>No card-required trials; easy cancellation</td></tr>
+        <tr><td>Unwanted AI, privacy unease</td><td>RightIdea 15–20 signals</td><td>AI opt-in and drafts only</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="lebanon">
+  <h2>Money in Lebanon, September 2026</h2>
+  <dl class="figures">
+    <div><dt>89,500</dt><dd>LBP per USD, official since 2024; street average 89,600 on 11 Sep 2026</dd></div>
+    <div><dt>~46%</dt><dd>of GDP ran through the cash economy in 2022 (World Bank)</dd></div>
+    <div><dt>0</dt><dd>Lebanese banks covered by Salt Edge; Lean, Tarabut and Plaid don't cover Lebanon</dd></div>
+    <div><dt>$5.8–6.8B</dt><dd>remittances in 2024, mostly cash and transfer companies</dd></div>
+    <div><dt>LL 49,395</dt><dd>generator tariff per kWh, April 2026, on top of a fixed amperage fee</dd></div>
+    <div><dt>−6.4%</dt><dd>World Bank GDP projection for 2026 after fighting resumed in March</dd></div>
+  </dl>
+  <ul class="plain">
+    <li><strong>Change comes back in lira.</strong> Consumer prices are almost fully dollarized, yet small dollar notes are scarce, so a $20 note often returns LBP change.</li>
+    <li><strong>Digital rails don't export.</strong> Whish Money, OMT Pay and BOB Finance hold USD and LBP with in-app exchange but document no export or API. Byblos, BLOM, Fransabank and BBAC send SMS alerts.</li>
+    <li><strong>Locked deposits linger.</strong> Circulars 158/166 allow $1,000 and $500 monthly withdrawals (from December 2025); the deposit "gap law" was still pending in May 2026.</li>
+    <li><strong>Local costs.</strong> Generator subscription, EDL electricity, water trucks ($10–22 per 2,000 L), private school fees in fresh dollars, and over $300 of supplies per child.</li>
+    <li><strong>Regional signals.</strong> Wafeer parses bank SMS (iOS users paste), Riyalak tracks owed and receivable amounts with reminders, Masarif works offline in full Arabic, and savings-circle apps Hakbah (2M+) and MoneyFellows (8.5M+) peak before Ramadan, Eid and September.</li>
+  </ul>
+</section>
+
+<section id="guardrails">
+  <h2>Guardrails every item inherits</h2>
+  <p class="intro">These keep new features inside the journal boundaries the repo already enforces.</p>
+  <ol class="rules">
+    <li><p><strong>Drafts are intent; postings are money.</strong> Recurring bills, pasted SMS, receipts, imports and offline entries create a non-posting draft. Confirming calls an existing protected command with the draft's request ID. One draft inbox serves all five.</p></li>
+    <li><p><strong>A new event kind is a full-stack change.</strong> Exchange, cash-count adjustment, refund and loan write-off each extend the report classification matrix, enum ratchet, reversal rules and command inventory in the same milestone.</p></li>
+    <li><p><strong>Descriptive metadata sits beside the event.</strong> Note, payee, tags and attachments use immutable association tables, as Categories v1 did, so verified posting signatures stay unchanged.</p></li>
+    <li><p><strong>A rate belongs to one event.</strong> It is derived from the two real amounts, never global state. Any combined total names the rate and date it used.</p></li>
+    <li><p><strong>USD and LBP stay separate</strong> in budgets, targets, rollovers, alerts and "left to spend".</p></li>
+    <li><p><strong>Nothing posts itself.</strong> No reminder, schedule or suggestion becomes a posting until a member confirms it.</p></li>
+  </ol>
+</section>
+
+<section id="roadmap">
+  <h2>Roadmap</h2>
+  <p class="sizes"><span class="size s">S</span> a bounded read or UI on existing commands · <span class="size m">M</span> a new table or command plus UI · <span class="size l">L</span> a new event kind touching reversals, reports and loans. Rows are in recommended order within each horizon.</p>
+
+  <div class="horizon">
+    <div class="h-head"><h3>Now</h3><span class="ar" lang="ar" dir="rtl">الآن</span><p>Finish the designed core.</p></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">#</th><th scope="col">Item</th><th scope="col">Borrowed from / evidence</th><th scope="col">Depends on</th><th scope="col">Size</th></tr></thead>
+      <tbody>
+        <tr><td class="code">N1</td><td class="item">Monthly budget from the existing spec, led by one "left to allocate" figure per currency</td><td class="src">Dollarwise Safe to Spend; Simplifi Available; YNAB Ready to Assign</td><td class="dep">—</td><td><span class="size l">L</span><span class="size-note">specified</span></td></tr>
+        <tr><td class="code">N2</td><td class="item">Reports v1 from the existing spec: this month vs last per currency, wallet activity, category actual vs budget with subcategory roll-up</td><td class="src">Table stakes everywhere</td><td class="dep">N1</td><td><span class="size l">L</span><span class="size-note">specified</span></td></tr>
+        <tr><td class="code">N3</td><td class="item">Live invitation delivery plus member display names</td><td class="src">YNAB Together; Lunch Money collaborators</td><td class="dep">approval</td><td><span class="size m">M</span></td></tr>
+      </tbody>
+    </table></div>
+    <p class="gate">Gate before irreplaceable data: an encrypted off-site backup and a restore fetched from that copy.</p>
+  </div>
+
+  <div class="horizon">
+    <div class="h-head"><h3>Next</h3><span class="ar" lang="ar" dir="rtl">التالي</span><p>Fast, trustworthy daily entry.</p></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">#</th><th scope="col">Item</th><th scope="col">Borrowed from / evidence</th><th scope="col">Depends on</th><th scope="col">Size</th></tr></thead>
+      <tbody>
+        <tr><td class="code">X1</td><td class="item">Note and payee on entries</td><td class="src">Every competitor</td><td class="dep">—</td><td><span class="size m">M</span></td></tr>
+        <tr><td class="code">X2</td><td class="item">USD↔LBP exchange as one linked event: outflow, inflow, rate derived and stored, own report buckets, reversible. Ship before the Reports UI.</td><td class="src">Lunch Money dated rates; Bluecoins rate per entry; missing in all seven multi-currency apps</td><td class="dep">—</td><td><span class="size l">L</span></td></tr>
+        <tr><td class="code">X3</td><td class="item">Quick entry: installable web app, "repeat as new", remembered wallet and category, payee → category suggestion that changes only when 2 of the last 3 agree</td><td class="src">YNAB widgets and payee rule; PocketGuard duplicate; Spendee widget</td><td class="dep">X1</td><td><span class="size m">M</span></td></tr>
+        <tr><td class="code">X4</td><td class="item">Journal search and filters — text, dates, wallet, category, amount</td><td class="src">Table stakes; Honeydue criticised for lacking it</td><td class="dep">X1</td><td><span class="size m">M</span></td></tr>
+        <tr><td class="code">X5</td><td class="item">CSV export per space</td><td class="src">Lost-history complaints; Simplifi; Bluecoins</td><td class="dep">X1</td><td><span class="size s">S</span></td></tr>
+        <tr><td class="code">X6</td><td class="item">Archive a wallet</td><td class="src">Column already exists</td><td class="dep">—</td><td><span class="size s">S</span></td></tr>
+        <tr><td class="code">X7</td><td class="item">"Entered by" on every entry and a household activity feed</td><td class="src">YNAB Recent Moves; Lunch Money "Linked by"</td><td class="dep">N3</td><td><span class="size m">M</span></td></tr>
+        <tr><td class="code">X8</td><td class="item">Optional bilingual Lebanese household category pack: generator subscription, EDL, water delivery, school fees, phone recharge, parent support, remittance received</td><td class="src">Local cost structure; the ledger requires its own opt-in pack policy</td><td class="dep">—</td><td><span class="size s">S</span></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="horizon">
+    <div class="h-head"><h3>Later · Lebanon-native money</h3><span class="ar" lang="ar" dir="rtl">لاحقًا</span><p>The features no competitor has.</p></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">#</th><th scope="col">Item</th><th scope="col">Borrowed from / evidence</th><th scope="col">Depends on</th><th scope="col">Size</th></tr></thead>
+      <tbody>
+        <tr><td class="code">L1</td><td class="item">Purchase paid in one currency with change in the other, as one event — see the <a href="#example">worked example</a></td><td class="src">No app checked supports it</td><td class="dep">X2</td><td><span class="size l">L</span></td></tr>
+        <tr><td class="code">L2</td><td class="item">Household reference rate — dated, append-only, prefilled at 89,500, a suggestion only — plus an optional "converted at R on D" report view; face value by default</td><td class="src">Toshl suggested rate; Bluecoins EACR; Monefy's 1:1 anti-pattern</td><td class="dep">X2, N2</td><td><span class="size m">M</span></td></tr>
+        <tr><td class="code">L3</td><td class="item">Repay a loan from a wallet in the other currency</td><td class="src">Deferred "cross-currency settlement"</td><td class="dep">X2</td><td><span class="size m">M</span></td></tr>
+        <tr><td class="code">L4</td><td class="item">Loan upgrades: per-person totals, due and overdue states then reminders, projected payoff date from the monthly target, forgive/write-off event, installment schedule</td><td class="src">Riyalak; Wallet; Money Lover; YNAB Loan Planner; PocketGuard snowball</td><td class="dep">P1 for reminders</td><td><span class="size m">M</span><span class="size-note">each</span></td></tr>
+        <tr><td class="code">L5</td><td class="item">Cash count: enter what's in the wallet; the difference posts as an explicit adjustment event</td><td class="src">Actual reconciliation</td><td class="dep">—</td><td><span class="size m">M</span></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="horizon">
+    <div class="h-head"><h3>Later · Planning depth</h3><span class="ar" lang="ar" dir="rtl">لاحقًا</span><p>After a few real months of budgeting.</p></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">#</th><th scope="col">Item</th><th scope="col">Borrowed from / evidence</th><th scope="col">Depends on</th><th scope="col">Size</th></tr></thead>
+      <tbody>
+        <tr><td class="code">P1</td><td class="item">Recurring bills that propose a draft — upcoming, due, confirmed, skipped or overdue; confirming posts through the protected command</td><td class="src">Actual approval mode; Lunch Money statuses; table stakes</td><td class="dep">draft inbox</td><td><span class="size l">L</span></td></tr>
+        <tr><td class="code">P2</td><td class="item">Rollover per category and currency: opt-in leftover carry; overspending reduces next month's unallocated. Changes today's "no automatic carry-forward" decision.</td><td class="src">Actual; YNAB; Monarch; Copilot</td><td class="dep">N1</td><td><span class="size m">M</span></td></tr>
+        <tr><td class="code">P3</td><td class="item">Copy last month's plan</td><td class="src">Deferred "bulk month copy"</td><td class="dep">N1</td><td><span class="size s">S</span></td></tr>
+        <tr><td class="code">P4</td><td class="item">Sinking funds and goals: an amount by a date becomes a monthly target — September school fees, insurance, Eid</td><td class="src">EveryDollar Funds; Actual templates; Monarch goals</td><td class="dep">N1, P2</td><td><span class="size m">M</span></td></tr>
+        <tr><td class="code">P5</td><td class="item">"Left to spend" with a daily allowance, after scheduled bills</td><td class="src">PocketGuard; Simplifi; Spendee</td><td class="dep">N1, P1</td><td><span class="size s">S</span></td></tr>
+        <tr><td class="code">P6</td><td class="item">Needs / Wants / Savings lens: tag each root category once; an editable split per month and currency</td><td class="src">Dollarwise v6.4</td><td class="dep">N1, N2</td><td><span class="size s">S</span></td></tr>
+        <tr><td class="code">P7</td><td class="item">Split one entry across categories</td><td class="src">EveryDollar; YNAB; Monarch; Bluecoins; Dollarwise's most requested gap</td><td class="dep">allocation spec</td><td><span class="size l">L</span></td></tr>
+        <tr><td class="code">P8</td><td class="item">30–60 day outlook from scheduled bills and loan targets; long-range forecasting stays out</td><td class="src">Market-trend research</td><td class="dep">P1</td><td><span class="size m">M</span></td></tr>
+        <tr><td class="code">P9</td><td class="item">Pay-date planning: assign budget lines to income dates — validate first</td><td class="src">EveryDollar Paycheck Planning</td><td class="dep">N1</td><td><span class="size m">M</span></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="horizon">
+    <div class="h-head"><h3>Later · Household rituals</h3><span class="ar" lang="ar" dir="rtl">لاحقًا</span><p>Trust and attention, computed from the journal.</p></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">#</th><th scope="col">Item</th><th scope="col">Borrowed from / evidence</th><th scope="col">Depends on</th><th scope="col">Size</th></tr></thead>
+      <tbody>
+        <tr><td class="code">H1</td><td class="item">Weekly check-in: other members' entries since your last visit, uncategorized entries, overspent categories, bills and loans due — acknowledge only</td><td class="src">Dollarwise weekly review; Copilot To Review; Monarch weekly recap</td><td class="dep">X7, N2</td><td><span class="size m">M</span></td></tr>
+        <tr><td class="code">H2</td><td class="item">Plain insight cards: change vs last week, 75% / 90% pace, due soon</td><td class="src">Dollarwise insight cards; Spendee alerts</td><td class="dep">N2</td><td><span class="size m">M</span></td></tr>
+        <tr><td class="code">H3</td><td class="item">Mine / theirs / ours label on wallets, inherited by entries; filter reports by member</td><td class="src">Monarch Shared Views</td><td class="dep">N2</td><td><span class="size m">M</span></td></tr>
+        <tr><td class="code">H4</td><td class="item">Hide-amounts toggle</td><td class="src">YNAB (June 2026); Spendee</td><td class="dep">—</td><td><span class="size s">S</span></td></tr>
+        <tr><td class="code">H5</td><td class="item">Monthly recap email</td><td class="src">Existing Resend delivery boundary</td><td class="dep">N3, N2</td><td><span class="size s">S</span></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="horizon">
+    <div class="h-head"><h3>Explore</h3><span class="ar" lang="ar" dir="rtl">للاستكشاف</span><p>Validate before designing.</p></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">#</th><th scope="col">Idea</th><th scope="col">What must be learned first</th></tr></thead>
+      <tbody>
+        <tr><td class="code">E1</td><td class="item">Paste a bank or wallet SMS to create a draft</td><td class="src">Real Lebanese SMS samples. Web apps can't read SMS; the share target works on Android Chrome, not iOS Safari.</td></tr>
+        <tr><td class="code">E2</td><td class="item">Receipt photo to a draft via a vision model</td><td class="src">A privacy decision. Vision models beat classic OCR on Arabic but misread numbers; start with a plain attachment.</td></tr>
+        <tr><td class="code">E3</td><td class="item">CSV import into drafts with a fixed template</td><td class="src">Whether anyone has files — Lebanese wallets document no export.</td></tr>
+        <tr><td class="code">E4</td><td class="item">Offline entry outbox</td><td class="src">iOS storage eviction. Request IDs are already idempotent; effective dates already separate from server time.</td></tr>
+        <tr><td class="code">E5</td><td class="item">Bilingual natural-language quick add, drafted for confirmation</td><td class="src">Time-to-entry measured against the quick-entry form.</td></tr>
+        <tr><td class="code">E6</td><td class="item">Savings-circle (jam'iyya) tracker on the loans ledger</td><td class="src">Lebanese demand — unverified.</td></tr>
+        <tr><td class="code">E7</td><td class="item">Assets and net worth: gold in grams, locked deposits as non-spendable, opt-in zakat estimate</td><td class="src">Whether locked deposits still matter; the deferred assets design.</td></tr>
+        <tr><td class="code">E8</td><td class="item">Settle-up between household members per currency</td><td class="src">Demand, and overlap with loans.</td></tr>
+        <tr><td class="code">E9</td><td class="item">Pricing, if Budget becomes public</td><td class="src">Whether it becomes public at all.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="horizon">
+    <div class="h-head"><h3>Not for now</h3><span class="ar" lang="ar" dir="rtl">ليس الآن</span><p>Deliberately left out, with the reason.</p></div>
+    <ul class="wont">
+      <li><strong>Bank sync or open banking.</strong> No provider covers Lebanon.</li>
+      <li><strong>A live rate feed as truth.</strong> Cash deals differ from mid-market; combined totals always name their rate.</li>
+      <li><strong>Editing or deleting posted entries.</strong> Or shared logins.</li>
+      <li><strong>AI assistant or acting agent.</strong> Rarely used, privacy-heavy, nothing to act on.</li>
+      <li><strong>Machine-learned categorization.</strong> Solves a bank-sync problem Budget doesn't have.</li>
+      <li><strong>Age of Money.</strong> First-in-first-out per currency for little value.</li>
+      <li><strong>Streaks and gamification.</strong> Only vendor evidence.</li>
+      <li><strong>Long-range forecasting.</strong> Also investment tracking and bill negotiation.</li>
+    </ul>
+  </div>
+
+  <h3>Dependencies</h3>
+  <div class="table-wrap">
+    <table class="deps">
+      <thead><tr><th scope="col">Build first</th><th scope="col">Unlocks</th></tr></thead>
+      <tbody>
+        <tr><th scope="row"><span class="k">N1</span>Monthly budget</th><td>N2 Reports v1 · P2 Rollover, then P4 Sinking funds · P3 Copy last month · P9 Pay-date planning</td></tr>
+        <tr><th scope="row"><span class="k">N2</span>Reports v1</th><td>L2 Reference rate · P6 Needs/Wants/Savings · H2 Insight cards · H3 Mine/theirs/ours</td></tr>
+        <tr><th scope="row"><span class="k">N3</span>Invitations + names</th><td>X7 Entered by, then H1 Weekly check-in · H5 Recap email</td></tr>
+        <tr><th scope="row"><span class="k">X1</span>Note and payee</th><td>X3 Quick entry · X4 Search · X5 CSV export</td></tr>
+        <tr><th scope="row"><span class="k">X2</span>USD↔LBP exchange</th><td>L1 Purchase with change · L2 Reference rate · L3 Cross-currency repayment</td></tr>
+        <tr><th scope="row"><span class="k">—</span>Draft inbox</th><td>P1 Recurring bills, then P5 Left to spend, P8 30–60 day outlook, L4 Loan reminders · E1 SMS paste · E2 Receipt drafts · E3 CSV import · E4 Offline outbox</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="example">
+  <h2>Worked example: paid in dollars, change in lira</h2>
+  <p class="intro">A supermarket bill of LL 1,340,000 is paid with a $20 note and LL 450,000 comes back. Under L1 this is one event with three legs.</p>
+  <div class="example">
+    <div class="table-wrap">
+      <table class="ledger">
+        <thead><tr><th scope="col">Leg</th><th scope="col">Wallet</th><th scope="col">Cur.</th><th scope="col" class="num">Minor units</th><th scope="col">Reported as</th></tr></thead>
+        <tbody>
+          <tr><td>Exchange out</td><td>USD cash</td><td class="cur">USD</td><td class="num neg">−2000</td><td>Exchange, not spending</td></tr>
+          <tr><td>Exchange in</td><td>LBP cash</td><td class="cur">LBP</td><td class="num pos">+1790000</td><td>Exchange, not income</td></tr>
+          <tr><td>Purchase</td><td>LBP cash</td><td class="cur">LBP</td><td class="num neg">−1340000</td><td>Expense · Groceries</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="outcome">
+      <dl>
+        <div><dt>Wallet effect</dt><dd>USD cash −$20.00 · LBP cash +LL 450,000</dd></div>
+        <div><dt>Rate stored on the event</dt><dd>1,790,000 ÷ 20.00 = 89,500 LBP/USD</dd></div>
+        <div><dt>Priced in dollars instead</dt><dd>$15 bill, LL 447,500 change → USD −1500 expense, USD −500 and LBP +447500 exchange</dd></div>
+      </dl>
+    </div>
+  </div>
+  <p style="margin-top:14px">Whether legs may share a wallet-movement row is for the design. The invariant: the expense and the exchange are classified separately and reconcile exactly to the two wallet deltas.</p>
+</section>
+
+<section id="questions">
+  <h2>Questions that would change this plan</h2>
+  <ol class="plain">
+    <li>Is Budget staying a private family tool, or becoming a product for Lebanese households? Going public moves onboarding packs, import, pricing and support up.</li>
+    <li>Should exchange (X2) ship before the Reports UI? Recommended: yes.</li>
+    <li>Should opt-in rollover (P2) replace "no automatic carry-forward"?</li>
+    <li>Do household members need a view-only or entry-only role?</li>
+    <li>May receipt images or SMS text go to an external AI model for drafting?</li>
+    <li>Are locked bank deposits still part of the households Budget serves?</li>
+  </ol>
+</section>
+
+<section id="sources">
+  <h2>Sources</h2>
+  <p class="intro">Retrieved 11 Sep 2026 unless noted. Some vendor help centers and Reddit block automated reading; those details came from search excerpts or third-party reviews, and anything unconfirmed is marked "?" above. Vendor pages describe their own products.</p>
+  <div class="sources">
+    <div>
+      <h3>Dollarwise and guided apps</h3>
+      <ul>
+        <li><a href="https://dollarwise.com/">Dollarwise</a> · <a href="https://apps.apple.com/us/app/dollarwise-budget-tracking/id6739215932">App Store listing</a></li>
+        <li><a href="https://thecollegeinvestor.com/78667/dollarwise-review/">The College Investor review</a></li>
+        <li><a href="https://everydollar.help.ramseysolutions.com/hc/en-us/articles/11667520933773-Paycheck-Planning">EveryDollar Paycheck Planning</a></li>
+        <li><a href="https://www.thepennyhoarder.com/budgeting/pocketguard-review/">PocketGuard review</a></li>
+        <li><a href="https://help.rocketmoney.com/en/articles/2677184-premium-membership-features">Rocket Money Premium</a> · <a href="https://www.prnewswire.com/news-releases/rocket-moneys-rowan-rewrites-what-ai-can-do-in-personal-finance-302859522.html">Rowan</a></li>
+        <li><a href="https://support.simplifi.quicken.com/en/articles/4212702-understanding-your-spending-plan">Simplifi Spending Plan</a></li>
+      </ul>
+    </div>
+    <div>
+      <h3>Serious budgeting apps</h3>
+      <ul>
+        <li><a href="https://www.ynab.com/whats-new">YNAB what's new</a> · <a href="https://support.ynab.com/en_us/using-multiple-currencies-in-ynab-a-guide-SyBF6PHno">YNAB currencies</a></li>
+        <li><a href="https://www.monarch.com/blog/shared-views">Monarch Shared Views</a> · <a href="https://www.monarch.com/blog/flex-budgeting-simplify-your-spending-with-just-one-number">Flex budgeting</a></li>
+        <li><a href="https://help.copilot.money/en/articles/9778259-recurrings-tab-overview">Copilot recurrings</a></li>
+        <li><a href="https://support.lunchmoney.app/settings/multicurrency">Lunch Money multicurrency</a> · <a href="https://support.lunchmoney.app/finances/recurring-items/the-basics-of-recurring">recurring items</a></li>
+        <li><a href="https://actualbudget.org/docs/schedules">Actual schedules</a> · <a href="https://actualbudget.org/docs/accounts/reconciliation">reconciliation</a></li>
+        <li><a href="https://goodbudget.com/help/mobile-apps/share-budget-w-partner/">Goodbudget sharing</a></li>
+      </ul>
+    </div>
+    <div>
+      <h3>Multi-currency cash apps</h3>
+      <ul>
+        <li><a href="https://support.budgetbakers.com/hc/en-us/articles/7149394922002-Everything-about-Group-Sharing">Wallet group sharing</a></li>
+        <li><a href="https://help.spendee.com/article/224-shared-wallets">Spendee shared wallets</a></li>
+        <li><a href="https://toshl.com/blog/currencies-in-toshl-finance-ounces-of-gold-welcome-web-app/">Toshl currencies</a></li>
+        <li><a href="https://www.bluecoinsapp.com/guide/multi-currency/">Bluecoins multi-currency</a> · <a href="https://www.bluecoinsapp.com/guide/eacr/">EACR</a></li>
+        <li><a href="https://www.monefy.com/help-center">Monefy help</a></li>
+      </ul>
+    </div>
+    <div>
+      <h3>Lebanon and the region</h3>
+      <ul>
+        <li><a href="https://themedialine.org/life-lines/analysis-lebanons-pound-is-holding-its-economy-is-another-story/">The Media Line on the pound</a> · <a href="https://www.lira-rate.com/lbprate.php">lira-rate.com</a></li>
+        <li><a href="https://www.worldbank.org/en/news/press-release/2026/01/22/lebanon-economic-rebound-marks-cautious-recovery-amidst-progress-on-reforms">World Bank, Jan 2026</a> · <a href="https://www.aljazeera.com/news/2026/8/22/world-bank-projects-war-hit-lebanons-economy-to-contract-by-6-4-percent">Al Jazeera, Aug 2026</a></li>
+        <li><a href="https://documents1.worldbank.org/curated/en/099052224104516741/pdf/P1766511325da10a71ab6b1ae97816dd20c.pdf">World Bank Poverty &amp; Equity Assessment 2024</a></li>
+        <li><a href="https://smartioleb.com/generator-tariff-lebanon/">Generator tariff tracker</a> · <a href="https://www.thebeiruter.com/article/lebanon%E2%80%99s-remittance-lifeline-is-exposed-to-the-middle-east-war/1390">Remittances</a></li>
+        <li><a href="https://www.saltedge.com/products/account_information/coverage/lb">Salt Edge Lebanon coverage</a> · <a href="https://www.whish.money/faq">Whish Money FAQ</a></li>
+        <li><a href="https://apps.apple.com/sa/app/id1552797940?l=en">Wafeer</a> · <a href="https://masarif.mshru3.com/">Masarif</a> · <a href="https://www.semafor.com/article/02/03/2026/saudi-traditional-savings-circles-go-digital">Hakbah</a></li>
+      </ul>
+    </div>
+    <div>
+      <h3>Trends and complaints</h3>
+      <ul>
+        <li><a href="https://rightidea.app/research/budget-app">RightIdea complaint analysis, Jul 2026</a></li>
+        <li><a href="https://www.nerdwallet.com/finance/learn/best-budget-apps">NerdWallet best budget apps</a></li>
+        <li><a href="https://news.ycombinator.com/item?id=39275231">Hacker News on Mint alternatives</a></li>
+        <li><a href="https://www.ipsos.com/en-us/money-fights-one-three-34-partnered-americans-identify-money-source-conflict-their-relationship">Ipsos/BMO couples and money</a></li>
+        <li><a href="https://www.ftc.gov/legal-library/browse/cases-proceedings/cleo-ai-inc-ftc-v">FTC v. Cleo AI</a></li>
+        <li><a href="https://arxiv.org/abs/2502.14949">KITAB-Bench Arabic OCR</a></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">Repository copy with full source list: <code>docs/product/2026-09-11-competitor-research-and-roadmap.md</code>. Proposal only — every adopted item still needs its own spec and decisions-ledger entry.</div>
+</footer>
+
+<script>
+(function(){
+  var cols=["Budget","Dollarwise","EveryDollar","YNAB","Monarch","Lunch Money","Actual","Wallet","Bluecoins"];
+  var words={y:"Yes",p:"Partial",n:"No",u:"Not verified"};
+  var glyph={y:"●",p:"◐",n:"○",u:"?"};
+  var rows=[
+    ["Getting money in"],
+    ["Works fully without bank sync",["y","u","y|free tier","y","p|manual accounts","y","y","y","y"]],
+    ["Bank sync",["n|not in Lebanon","y|Plaid","p|Premium","p|US/CA","y","y","p|EU/NA/BR/NZ","y","p|SMS alerts"]],
+    ["Web app",["y","n","u","y","y","y|web-first","y","y","n"]],
+    ["Import / export",["n","u","u","y","y","y","y","y","y"]],
+    ["Offline use",["n","u","u","u","u","u","y|local-first","u","y"]],
+    ["Currencies and language"],
+    ["More than one currency",["p|USD + LBP","u","u","n|one per plan","n","y|160+","n","y","y"]],
+    ["Rate kept on each entry",["n","u","u","n","n","y|dated rate","n","p|custom rate","y"]],
+    ["Pay in one currency, change in the other",["n","u","u","n","n","u","n","n|two records","p|split rows"]],
+    ["Arabic interface",["y|RTL","u","u","u","u","u","u","p|RTL unverified","p|RTL unverified"]],
+    ["Everyday entries"],
+    ["Note / payee on an entry",["n|loans only","u","u","y","y","y","y","u","u"]],
+    ["Split one entry",["n","n|“coming”","y","y","y","y","y","u","y"]],
+    ["Rules / payee memory",["n","y","p|automatic","y|2 of 3","y","y","y","u","u"]],
+    ["Receipts / attachments",["n","u","u","y","y|scan","u","u","p","y"]],
+    ["Recurring / scheduled",["n","u","u","y","y","y|status","y|approve","y","u"]],
+    ["Planning"],
+    ["Monthly category budget",["p|designed","y|50/30/20","y|zero-based","y","y|flex","y","y|envelopes","y","y"]],
+    ["“Left to spend” number",["p|designed","y","y|by pay date","y","y","p|pool","y","u","u"]],
+    ["Rollover",["n|by decision","u","y|Funds","y","y","y|opt-in","y","u","y"]],
+    ["Savings goals",["n","y","y","y","y","n","p|templates","y","u"]],
+    ["Person-to-person loans",["y|both ways","u","p|debt plan","p|bank loans","p|pay-down","u","n|on roadmap","y","p|receivables"]],
+    ["Reports",["n|designed","p|insights","y","y","y","y","y","u","y"]],
+    ["Forecasting",["n","u","p","u","y","n|thin","p","u","p"]],
+    ["Net worth",["n","u","y","y","y","p|crypto","u","u","y"]],
+    ["Household and trust"],
+    ["Separate logins in one household",["y|roles","n","y|spouse","y|up to 6","y","y|unlimited","p|shared file","y|up to 10","p|cloud folder"]],
+    ["See who entered what",["p|stored, not shown","u","u","y","p|owner labels","y","n","u","u"]],
+    ["AI assistant",["n","p|insight cards","n|coaching","n","y","n","n","u","u"]],
+    ["Price, Sept 2026",["private beta","$89.99–99.99/yr","free · $79.99/yr","$109/yr","$99.99/yr","≥$60/yr","free","from $5.99","free · $15.99 once"],"text"]
+  ];
+  var table=document.getElementById("matrix-table");
+  if(!table){return;}
+  var thead=table.tHead, tbody=table.tBodies[0];
+  var hr=document.createElement("tr");
+  var corner=document.createElement("th"); corner.scope="col"; corner.textContent="Capability"; hr.appendChild(corner);
+  cols.forEach(function(c,i){var h=document.createElement("th"); h.scope="col"; h.textContent=c; if(i===0){h.className="us";} hr.appendChild(h);});
+  thead.appendChild(hr);
+  rows.forEach(function(r){
+    var tr=document.createElement("tr");
+    if(r.length===1){
+      tr.className="group";
+      var td=document.createElement("td"); td.colSpan=cols.length+1;
+      var s=document.createElement("span"); s.textContent=r[0]; td.appendChild(s);
+      tr.appendChild(td); tbody.appendChild(tr); return;
+    }
+    var th=document.createElement("th"); th.scope="row"; th.textContent=r[0]; tr.appendChild(th);
+    r[1].forEach(function(cell,i){
+      var td=document.createElement("td");
+      var cls=[]; if(i===0){cls.push("us");}
+      if(r[2]==="text"){cls.push("txt"); td.className=cls.join(" "); td.textContent=cell; tr.appendChild(td); return;}
+      td.className=cls.join(" ");
+      var parts=cell.split("|"), k=parts[0];
+      var g=document.createElement("span"); g.className="g "+k; g.setAttribute("aria-hidden","true"); g.textContent=glyph[k];
+      var sr=document.createElement("span"); sr.className="sr"; sr.textContent=words[k]+(parts[1]?", "+parts[1]:"");
+      td.appendChild(g); td.appendChild(sr);
+      if(parts[1]){var n=document.createElement("span"); n.className="cellnote"; n.setAttribute("aria-hidden","true"); n.textContent=parts[1]; td.appendChild(n);}
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+})();
+</script>
+</body>
+</html>
