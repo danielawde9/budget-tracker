@@ -137,6 +137,7 @@ test('categorized and uncategorized income preserve exact history labels', async
   await page.getByRole('button', { name: 'Wallets' }).click();
   await page.getByRole('button', { name: 'Add transaction' }).click();
   let dialog = page.getByRole('dialog', { name: 'Add a transaction' });
+  await dialog.getByLabel('Type').selectOption('income');
   await dialog.getByRole('radio', { name: 'Salary' }).check();
   await dialog.getByLabel('Effective date').fill('2026-09-08');
   await dialog.getByLabel('Amount').fill('45.25');
@@ -151,6 +152,7 @@ test('categorized and uncategorized income preserve exact history labels', async
 
   await page.getByRole('button', { name: 'Add transaction' }).click();
   dialog = page.getByRole('dialog', { name: 'Add a transaction' });
+  await dialog.getByLabel('Type').selectOption('income');
   await expect(dialog.getByRole('radio', { name: 'Uncategorized' })).toBeChecked();
   await dialog.getByLabel('Amount').fill('7');
   await dialog.getByRole('button', { name: 'Review transaction' }).click();
@@ -190,6 +192,7 @@ test('archived historical label remains while ambiguity reconciles without dupli
   await expect(page.getByText('Archived', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Add transaction' }).click();
   const dialog = page.getByRole('dialog', { name: 'Add a transaction' });
+  await dialog.getByLabel('Type').selectOption('income');
   await dialog.getByRole('radio', { name: 'Salary' }).check();
   await dialog.getByLabel('Amount').fill('9');
   await dialog.getByRole('button', { name: 'Review transaction' }).click();

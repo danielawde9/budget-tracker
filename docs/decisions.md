@@ -1170,3 +1170,113 @@ keeps its dockerode instance and whether it still caches one client per process;
 if the client starts recording its endpoint, compare against that and keep the
 probes. The helper adds one file to the tracked secret scan (252 on this branch,
 under the 4,096-file bound and still under the earlier 256).
+
+## 2026-09-11 — New wallet transactions start as an expense
+
+**Decision:** The Wallets "Add a transaction" dialog preselects **Expense**
+instead of Income. Opening balance, income, and transfer stay one choice away in
+the same Type control; nothing else about posting changes.
+
+**Why:** The owner asked for it after recording an income by mistake: an
+untouched Type control silently posted money *into* a wallet. Day-to-day entries
+are overwhelmingly expenses, so the common path should need no extra choice and
+the costly mistake (an inflated balance) should need a deliberate one.
+
+**If changed:** Restoring an income default, or remembering the last-used type,
+only changes the dialog's initial state and the tests that assert an untouched
+Type records an expense. Remembering per-user or per-space choices would add
+client state that must be cleared on space switch.
+
+## 2026-09-11 — Wallet journal corrections are presented as Undo on the original date
+
+**Decision:** The Wallets journal presents the existing linked-reversal
+correction as **Undo** in English and Arabic ("Undo income", "Undo this
+transaction", "Undone", "Undoes an earlier entry"), and the undo date defaults
+to the original event's effective date instead of today. The command
+(`public.reverse_financial_event`), eligibility (general, not loan-linked, not
+already reversed), confirmation checkbox, and request-stable retry are
+unchanged. The owner was offered real deletion and chose Undo: the journal stays
+append-only and the original stays visible, marked as undone.
+
+**Why:** The owner looked for "delete" to remove a mistaken income and did not
+recognise "Correct income / Add linked reversal" as that action. Dating the
+reversal like the original makes it cancel in the same period as the mistake, so
+future month- or date-bounded reports net it to zero; a manager can still pick a
+later date for a genuine refund.
+
+**If changed:** Real deletion needs a new protected command that deliberately
+bypasses the append-only journal guards, a command-inventory entry,
+real-Postgres rejection tests, and an audit story — a separate reviewed
+milestone. Hiding undone pairs from history is UI-only but must keep bounded
+pagination honest, since a filtered page can look short. Loans corrections still
+say "Correct … / Add reversal"; aligning that wording is a separate change.
+
+## 2026-09-11 — Wallets change in place behind an append-only command log and are never deleted
+
+**Decision:** A wallet's name and archive state change only through protected
+commands that update `public.wallets` in place and append one row per request to
+`public.wallet_command_requests` (who, what, when, and a rename's previous and new
+name). Triggers let only the owning role update a wallet, allow only `name` and
+`archived_at` (between null and a timestamp) to change, and refuse deleting or
+truncating wallets. The log is owner-insert-only and rejects update, delete
+(including zero-row statements), and truncate.
+
+**Why:** This mirrors Categories' in-place state plus request ledger, so every
+existing wallet read, balance view, and posting check keeps working while the log
+answers "who renamed or archived this wallet, and when". Append-only revision
+tables were rejected: the same audit value for a much larger read-path change.
+Deleting a wallet would orphan journal history; archive is the removal path.
+
+**If changed:** Revision tables would require every wallet reader and
+`wallet_balances` to resolve the latest revision. Allowing deletion needs proof
+that no movement, loan posting, or log row references the wallet, and its own
+rejection tests.
+
+## 2026-09-11 — Archived wallets accept no money movement
+
+**Decision:** A `BEFORE INSERT` trigger on `public.wallet_movements` locks the
+target wallet `FOR SHARE` and refuses any movement into an archived wallet with
+`every wallet movement must use an active wallet`. It covers every writer,
+including `reverse_financial_event` and the loan commands.
+
+**Why:** Posting commands already skipped archived wallets, but reversals did not
+check at all, and no command locked the wallet, so a posting validated just
+before an archive committed could still land in the archived wallet. The share
+lock conflicts with the archive command's row lock, so exactly one of the two
+wins and an archived wallet always has a zero balance.
+
+**If changed:** Allowing corrections into archived wallets needs its own reviewed
+rule for keeping their balance at zero. Removing the lock reopens the race that
+`tests/db/wallet-lifecycle.integration.test.ts` proves closed.
+
+## 2026-09-11 — Any active space member may rename, archive, or restore a wallet
+
+**Decision:** `rename_wallet`, `archive_wallet`, and `restore_wallet` require only
+active membership of the wallet's space, like `create_wallet` and
+`archive_category`. A rename trims the name, keeps the 1–120 character rule,
+refuses an unchanged name, and refuses an archived wallet. The current name is the
+only name and also shows on past entries.
+
+**Why:** Household members already create wallets and post into them; an
+owner-only rule would stop the member who empties an envelope from tidying it up,
+and no owner-only policy was requested.
+
+**If changed:** Owner-only lifecycle commands need an owner check in
+`private.require_wallet_command_actor`, non-owner rejection tests, and UI that
+hides the actions from members. Showing the name a wallet had when an entry was
+posted needs a name-at-time projection built from the command log.
+
+## 2026-09-11 — Wallets archive only at zero balance and can be restored
+
+**Decision:** `archive_wallet` refuses unless the wallet's derived balance (the sum
+of its movements) is exactly zero; `restore_wallet` returns an archived wallet to
+active use at any time. Both are request-idempotent: an exact replay returns the
+original wallet without re-applying, even if the wallet's state changed since.
+
+**Why:** Archiving a wallet that still holds money would hide real balances from
+every total. Restore makes an archive mistake recoverable and is the way to undo
+an old transaction on an archived wallet.
+
+**If changed:** Archiving non-zero wallets needs a visible archived-balance
+projection or a closing-transfer design. Dropping restore makes archive permanent,
+as it is for categories, and leaves old entries on archived wallets uncorrectable.

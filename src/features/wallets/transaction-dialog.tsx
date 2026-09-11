@@ -40,7 +40,7 @@ function validDate(value: string): boolean {
 }
 
 export function TransactionDialog(props: TransactionDialogProps) {
-  const [kind, setKind] = useState<GeneralEventKind>('income');
+  const [kind, setKind] = useState<GeneralEventKind>('expense');
   const [walletId, setWalletId] = useState(props.wallets[0]?.id ?? '');
   const [toWalletId, setToWalletId] = useState(props.wallets[1]?.id ?? props.wallets[0]?.id ?? '');
   const [amount, setAmount] = useState('');

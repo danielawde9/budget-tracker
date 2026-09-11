@@ -29,6 +29,7 @@ async function renderPage(
 async function openArabicCategorizedIncome(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: 'إضافة معاملة' }));
   const dialog = screen.getByRole('dialog', { name: 'إضافة معاملة' });
+  await user.selectOptions(within(dialog).getByLabelText('النوع'), 'income');
   await user.click(within(dialog).getByRole('radio', { name: 'راتب' }));
   await user.type(within(dialog).getByLabelText('المبلغ'), '12.50');
   await user.click(within(dialog).getByRole('button', { name: 'مراجعة المعاملة' }));
@@ -44,8 +45,8 @@ describe('WalletsPage', () => {
     expect(screen.getByRole('heading', { name: 'Transaction history' })).toBeInTheDocument();
     expect(screen.getByText('Loan payment')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /archive|delete/i })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Correct income' })).toHaveLength(1);
-    expect(screen.queryByRole('button', { name: 'Correct loan payment' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Undo income' })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Undo loan payment' })).not.toBeInTheDocument();
   });
 
   it('keeps wallet form values after a database rejection', async () => {
@@ -162,6 +163,7 @@ describe('WalletsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add transaction' }));
     dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+    await user.selectOptions(within(dialog).getByLabelText('Type'), 'income');
     await user.type(within(dialog).getByLabelText('Amount'), '12.50');
     await user.click(within(dialog).getByRole('button', { name: 'Review transaction' }));
     expect(within(dialog).getByRole('region', { name: 'Wallet effect preview' })).toHaveTextContent('Daily USD receives $12.50');
@@ -221,6 +223,7 @@ describe('WalletsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add transaction' }));
     const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+    await user.selectOptions(within(dialog).getByLabelText('Type'), 'income');
     const picker = within(dialog).getByRole('group', { name: 'Category' });
     expect(within(picker).getByText('Salary').closest('bdi')).not.toBeNull();
     expect(within(picker).getByRole('radio', { name: 'Uncategorized' })).toBeChecked();
@@ -269,6 +272,7 @@ describe('WalletsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add transaction' }));
     const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+    await user.selectOptions(within(dialog).getByLabelText('Type'), 'income');
     expect(within(dialog).queryByRole('radio', { name: 'Income 51' })).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Load more income categories' }));
 
@@ -300,6 +304,7 @@ describe('WalletsPage', () => {
     const { user } = await renderPage(new InMemoryWalletsGateway(), 'en', categoriesGateway);
     await user.click(screen.getByRole('button', { name: 'Add transaction' }));
     const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+    await user.selectOptions(within(dialog).getByLabelText('Type'), 'income');
 
     await user.click(within(dialog).getByRole('button', { name: 'Load more income categories' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('category request was not accepted');
@@ -318,6 +323,7 @@ describe('WalletsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add transaction' }));
     const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+    await user.selectOptions(within(dialog).getByLabelText('Type'), 'income');
     await user.click(within(dialog).getByRole('radio', { name: 'Salary' }));
     await user.selectOptions(within(dialog).getByLabelText('Type'), 'opening_balance');
     expect(within(dialog).queryByRole('group', { name: 'Category' })).not.toBeInTheDocument();
@@ -363,6 +369,7 @@ describe('WalletsPage', () => {
     const { user } = await renderPage(walletGateway, 'en', categoriesGateway);
     await user.click(screen.getByRole('button', { name: 'Add transaction' }));
     const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+    await user.selectOptions(within(dialog).getByLabelText('Type'), 'income');
     await user.click(within(dialog).getByRole('radio', { name: 'Salary' }));
     await user.type(within(dialog).getByLabelText('Amount'), '12.50');
     await user.click(within(dialog).getByRole('button', { name: 'Review transaction' }));
@@ -496,6 +503,7 @@ describe('WalletsPage', () => {
     await user.click(screen.getByRole('button', { name: 'Add transaction' }));
     const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
     const type = within(dialog).getByLabelText('Type');
+    await user.selectOptions(type, 'income');
     const salary = within(dialog).getByRole('radio', { name: 'Salary' });
     await user.click(salary);
     await user.type(within(dialog).getByLabelText('Amount'), '12.50');
@@ -562,6 +570,8 @@ describe('WalletsPage', () => {
     expect(label.closest('bdi')).not.toBeNull();
     expect(label.closest('.journal-category')).toHaveTextContent('Archived');
     await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    await user.selectOptions(within(screen.getByRole('dialog')).getByLabelText('Type'), 'income');
+    expect(within(screen.getByRole('dialog')).getByRole('radio', { name: 'Salary' })).toBeInTheDocument();
     expect(within(screen.getByRole('dialog')).queryByRole('radio', { name: 'Former salary' })).not.toBeInTheDocument();
   });
 
@@ -581,7 +591,7 @@ describe('WalletsPage', () => {
 
     await renderPage(walletGateway, 'en', categoriesGateway);
 
-    const reversal = screen.getByText('Linked reversal').closest('li');
+    const reversal = screen.getByText('Undoes an earlier entry').closest('li');
     expect(reversal).not.toBeNull();
     expect(within(reversal!).getByText('Salary').closest('bdi')).not.toBeNull();
     expect(within(reversal!).queryByRole('button', { name: /category/i })).not.toBeInTheDocument();
@@ -602,25 +612,50 @@ describe('WalletsPage', () => {
     expect(gateway.calls.some((call) => call.name === 'recordEvent')).toBe(false);
   });
 
-  it('requires a valid correction date and deliberate linked-reversal confirmation', async () => {
+  it('undoes a transaction on its own effective date unless another date is chosen', async () => {
     const { gateway, user } = await renderPage();
-    await user.click(screen.getByRole('button', { name: 'Correct income' }));
-    const dialog = screen.getByRole('dialog', { name: 'Correct this transaction' });
-    await user.clear(within(dialog).getByLabelText('Correction date'));
+    await user.click(screen.getByRole('button', { name: 'Undo income' }));
+    const dialog = screen.getByRole('dialog', { name: 'Undo this transaction' });
+    expect(within(dialog).getByLabelText('Undo date')).toHaveValue('2026-09-07');
     await user.click(within(dialog).getByRole('checkbox'));
-    await user.click(within(dialog).getByRole('button', { name: 'Add linked reversal' }));
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Enter a valid correction date');
+    await user.click(within(dialog).getByRole('button', { name: 'Undo transaction' }));
+
+    expect(await within(dialog).findByRole('status')).toHaveTextContent('Transaction undone');
+    expect(gateway.calls.filter((call) => call.name === 'reverseEvent').map((call) => call.input)).toEqual([
+      { spaceId: 'personal-space', requestId: expect.any(String), eventId: 'event-income', effectiveDate: '2026-09-07' },
+    ]);
+  });
+
+  it('offers the undo in Arabic on the original transaction date', async () => {
+    const { gateway, user } = await renderPage(new InMemoryWalletsGateway(), 'ar');
+    await user.click(screen.getByRole('button', { name: 'تراجع عن دخل' }));
+    const dialog = screen.getByRole('dialog', { name: 'التراجع عن هذه المعاملة' });
+    expect(within(dialog).getByLabelText('تاريخ التراجع')).toHaveValue('2026-09-07');
+    await user.click(within(dialog).getByRole('button', { name: 'التراجع عن المعاملة' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('حدّد المربع لتأكيد التراجع');
     expect(gateway.calls.some((call) => call.name === 'reverseEvent')).toBe(false);
   });
 
-  it('renders an already-reversed event without another correction action', async () => {
+  it('requires a valid undo date and deliberate confirmation', async () => {
+    const { gateway, user } = await renderPage();
+    await user.click(screen.getByRole('button', { name: 'Undo income' }));
+    const dialog = screen.getByRole('dialog', { name: 'Undo this transaction' });
+    await user.clear(within(dialog).getByLabelText('Undo date'));
+    await user.click(within(dialog).getByRole('checkbox'));
+    await user.click(within(dialog).getByRole('button', { name: 'Undo transaction' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Enter a valid undo date');
+    expect(gateway.calls.some((call) => call.name === 'reverseEvent')).toBe(false);
+  });
+
+  it('marks an undone event and offers no second undo', async () => {
     const gateway = new InMemoryWalletsGateway();
     gateway.events = gateway.events.map((event) => event.id === 'event-income'
       ? { ...event, reversedBy: 'reversal-income' }
       : event);
     await renderPage(gateway);
-    expect(screen.getByText('Reversed')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Correct income' })).not.toBeInTheDocument();
+    expect(screen.getByText('Undone')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Undo income' })).not.toBeInTheDocument();
   });
 
   it('offers a manager-friendly load retry and recovers from a network error', async () => {

@@ -27,7 +27,7 @@ function eventLabel(locale: Locale, kind: JournalEventKind): string {
   const labels = {
     opening_balance: ['Opening balance', 'رصيد افتتاحي'], income: ['Income', 'دخل'], expense: ['Expense', 'مصروف'], transfer: ['Transfer', 'تحويل'],
     loan_opening: ['Loan opening', 'رصيد قرض افتتاحي'], loan_lend: ['Loan payment', 'دفع قرض'], loan_borrow: ['Borrowed funds', 'أموال مقترضة'],
-    loan_receive_repayment: ['Loan repayment received', 'دفعة قرض مستلمة'], loan_repay_borrowing: ['Loan repayment paid', 'دفعة قرض مدفوعة'], reversal: ['Reversal', 'قيد عكسي'],
+    loan_receive_repayment: ['Loan repayment received', 'دفعة قرض مستلمة'], loan_repay_borrowing: ['Loan repayment paid', 'دفعة قرض مدفوعة'], reversal: ['Undo', 'تراجع'],
   } as const;
   return labels[kind][locale === 'ar' ? 1 : 0];
 }
@@ -63,7 +63,7 @@ export function WalletsPage({ gateway, categoriesGateway, spaceId, locale = 'en'
 
   return <section className="wallets-workspace">
     <header className="topbar wallets-topbar">
-      <div><span className="brand">{t(locale, 'Wallet journal', 'سجل المحافظ')}</span><h1>{t(locale, 'Wallets', 'المحافظ')}</h1><p>{t(locale, 'See server-derived balances, record wallet activity, and correct history with linked reversals.', 'اطّلع على الأرصدة المشتقة من الخادم، وسجّل حركة المحافظ، وصحّح السجل بقيود عكسية مرتبطة.')}</p></div>
+      <div><span className="brand">{t(locale, 'Wallet journal', 'سجل المحافظ')}</span><h1>{t(locale, 'Wallets', 'المحافظ')}</h1><p>{t(locale, 'See server-derived balances, record wallet activity, and undo mistaken transactions.', 'اطّلع على الأرصدة المشتقة من الخادم، وسجّل حركة المحافظ، وتراجع عن المعاملات الخاطئة.')}</p></div>
       <div className="wallet-actions"><button type="button" className="button-secondary" onClick={() => setDialog('wallet')}>{t(locale, 'New wallet', 'محفظة جديدة')}</button><button type="button" disabled={walletState.wallets.length === 0 || walletState.status !== 'ready'} onClick={() => setDialog('transaction')}>{t(locale, 'Add transaction', 'إضافة معاملة')}</button></div>
     </header>
 
@@ -82,10 +82,10 @@ export function WalletsPage({ gateway, categoriesGateway, spaceId, locale = 'en'
           const label = eventLabel(locale, event.kind);
           const canCorrect = generalKinds.has(event.kind) && !event.loanLinked && !event.reversalOf && !event.reversedBy;
           return <li key={event.id} className={event.kind === 'reversal' ? 'journal-reversal' : ''}>
-            <header><div><strong>{label}</strong><time dateTime={event.effectiveDate}>{event.effectiveDate}</time></div><div className="journal-state">{event.reversedBy && <span>{t(locale, 'Reversed', 'تم عكسه')}</span>}{event.reversalOf && <span>{t(locale, 'Linked reversal', 'قيد عكسي مرتبط')}</span>}{event.loanLinked && <span>{t(locale, 'Loan-linked', 'مرتبط بقرض')}</span>}</div></header>
+            <header><div><strong>{label}</strong><time dateTime={event.effectiveDate}>{event.effectiveDate}</time></div><div className="journal-state">{event.reversedBy && <span>{t(locale, 'Undone', 'تم التراجع عنه')}</span>}{event.reversalOf && <span>{t(locale, 'Undoes an earlier entry', 'تراجع عن قيد سابق')}</span>}{event.loanLinked && <span>{t(locale, 'Loan-linked', 'مرتبط بقرض')}</span>}</div></header>
             {categoriesGateway && (event.category || event.kind === 'income' || event.kind === 'expense') && <div className="journal-category"><span>{t(locale, 'Category', 'الفئة')}</span> <bdi>{event.category ? (locale === 'ar' ? event.category.nameAr ?? event.category.nameEn : event.category.nameEn ?? event.category.nameAr) : t(locale, 'Uncategorized', 'غير مصنّف')}</bdi>{event.category?.archivedAt && <small>{t(locale, 'Archived', 'مؤرشفة')}</small>}</div>}
             <ul>{event.movements.map((movement) => <li key={`${event.id}-${movement.walletId}`}><bdi>{movement.walletName}</bdi><bdi className={BigInt(movement.amountMinor) < 0n ? 'amount-negative' : 'amount-positive'}>{formatMinorAmount(movement.amountMinor, movement.currency, locale)}</bdi></li>)}</ul>
-            <footer>{canCorrect && <button type="button" className="text-button" onClick={() => setDialog({ correction: event })}>{t(locale, `Correct ${label.toLowerCase()}`, `تصحيح ${label}`)}</button>}{event.loanLinked && <button type="button" className="text-button" onClick={onOpenLoans}>{t(locale, 'Manage in Loans', 'الإدارة في القروض')}</button>}</footer>
+            <footer>{canCorrect && <button type="button" className="text-button" onClick={() => setDialog({ correction: event })}>{t(locale, `Undo ${label.toLowerCase()}`, `تراجع عن ${label}`)}</button>}{event.loanLinked && <button type="button" className="text-button" onClick={onOpenLoans}>{t(locale, 'Manage in Loans', 'الإدارة في القروض')}</button>}</footer>
           </li>;
         })}</ol>}
         {walletState.nextCursor && !walletState.historyPaginationError && <button type="button" className="button-secondary load-more" disabled={walletState.loadingMore} onClick={() => void walletState.loadMore()}>{walletState.loadingMore ? t(locale, 'Loading…', 'جارٍ التحميل…') : t(locale, 'Load older entries', 'تحميل قيود أقدم')}</button>}

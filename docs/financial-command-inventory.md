@@ -31,6 +31,16 @@ change the implemented financial-writer list above.
 function reached through the same gateway. They cannot create a financial event,
 wallet movement, loan posting, or balance effect.
 
+`public.rename_wallet`, `public.archive_wallet`, and `public.restore_wallet` are
+protected wallet lifecycle commands, not posting commands. They change only a
+wallet's `name` or `archived_at` and append one row to
+`public.wallet_command_requests`; `archive_wallet` refuses any non-zero derived
+balance. `public.get_wallet_command_result` is their bounded read-only
+reconciliation function. The `wallet_movements_require_active_wallet` trigger
+refuses every money movement into an archived wallet, including reversals and
+loan postings, so it narrows what the posting commands above can write without
+adding a writer. No browser entry path calls the lifecycle commands yet.
+
 The Loans and Wallets workspaces are the implemented financial entry paths in
 the authenticated application shell; Categories manages metadata only. Wallets
 can create wallets, post the four approved general event shapes, optionally
