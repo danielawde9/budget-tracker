@@ -965,3 +965,24 @@ real-Postgres rejection tests, and an audit story — a separate reviewed
 milestone. Hiding undone pairs from history is UI-only but must keep bounded
 pagination honest, since a filtered page can look short. Loans corrections still
 say "Correct … / Add reversal"; aligning that wording is a separate change.
+
+## 2026-09-11 — Wallets change in place behind an append-only command log and are never deleted
+
+**Decision:** A wallet's name and archive state change only through protected
+commands that update `public.wallets` in place and append one row per request to
+`public.wallet_command_requests` (who, what, when, and a rename's previous and new
+name). Triggers let only the owning role update a wallet, allow only `name` and
+`archived_at` (between null and a timestamp) to change, and refuse deleting or
+truncating wallets. The log is owner-insert-only and rejects update, delete
+(including zero-row statements), and truncate.
+
+**Why:** This mirrors Categories' in-place state plus request ledger, so every
+existing wallet read, balance view, and posting check keeps working while the log
+answers "who renamed or archived this wallet, and when". Append-only revision
+tables were rejected: the same audit value for a much larger read-path change.
+Deleting a wallet would orphan journal history; archive is the removal path.
+
+**If changed:** Revision tables would require every wallet reader and
+`wallet_balances` to resolve the latest revision. Allowing deletion needs proof
+that no movement, loan posting, or log row references the wallet, and its own
+rejection tests.

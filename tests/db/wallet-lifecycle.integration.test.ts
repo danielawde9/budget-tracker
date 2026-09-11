@@ -1,0 +1,497 @@
+import { randomUUID } from 'node:crypto';
+
+import type { Client } from 'pg';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import {
+  bootstrapCompatibilityObjects,
+  createDisposableDatabase,
+  disposeDisposableDatabase,
+  expectSavepointRejection,
+  migrationFiles,
+  replayMigrations,
+  withAuthenticatedTransaction,
+  withRollback,
+  type DisposableDatabase,
+  type MigrationFile,
+} from './disposable-database.js';
+
+type Currency = 'USD' | 'LBP';
+type GeneralEventKind = 'opening_balance' | 'income' | 'expense' | 'transfer';
+
+interface MovementInput {
+  walletId: string;
+  amountMinor: string;
+}
+
+interface WalletRow {
+  id: string;
+  space_id: string;
+  name: string;
+  currency: Currency;
+  archived_at: Date | null;
+  created_at: Date;
+}
+
+interface LogRow {
+  request_id: string;
+  command_kind: string;
+  wallet_id: string;
+  actor_id: string;
+  previous_name: string | null;
+  name: string | null;
+}
+
+const lifecycleVersion = '20260911100000';
+const ownerWriteError = { code: '42501', message: 'protected rows may be written only by their owning command' };
+const walletShapeError = { code: '42501', message: 'wallets may change only their name and archive state' };
+const walletDeleteError = { code: '42501', message: 'wallets are archived, never deleted' };
+const logImmutableError = { code: '42501', message: 'wallet command history is immutable' };
+
+async function insertUsers(client: Client, userIds: readonly string[]): Promise<void> {
+  if (userIds.length < 1 || userIds.length > 8) {
+    throw new Error('test user setup accepts between one and eight users');
+  }
+  await client.query(
+    `insert into auth.users (id, email, email_confirmed_at)
+     select user_id, 'wallets-' || user_id::text || '@budget.invalid', now()
+     from unnest($1::uuid[]) as user_id
+     limit 8`,
+    [userIds],
+  );
+}
+
+async function createSpace(client: Client, ownerId: string, kind: 'personal' | 'household'): Promise<string> {
+  return withAuthenticatedTransaction(client, ownerId, async () => {
+    const result = await client.query<{ id: string }>(
+      'select * from public.create_space($1, $2) limit 2',
+      [`Wallets ${randomUUID()}`, kind],
+    );
+    expect(result.rows).toHaveLength(1);
+    return result.rows[0]!.id;
+  });
+}
+
+async function addHouseholdMember(client: Client, spaceId: string, userId: string): Promise<void> {
+  await client.query(
+    "insert into public.space_memberships (space_id, user_id, role) values ($1, $2, 'member')",
+    [spaceId, userId],
+  );
+}
+
+async function createWallet(
+  client: Client,
+  actorId: string,
+  spaceId: string,
+  name: string,
+  currency: Currency = 'USD',
+): Promise<string> {
+  return withAuthenticatedTransaction(client, actorId, async () => {
+    const result = await client.query<{ id: string }>(
+      'select * from public.create_wallet($1, $2, $3::public.currency_code) limit 2',
+      [spaceId, name, currency],
+    );
+    expect(result.rows).toHaveLength(1);
+    return result.rows[0]!.id;
+  });
+}
+
+async function postEvent(
+  client: Client,
+  actorId: string,
+  spaceId: string,
+  kind: GeneralEventKind,
+  movements: readonly MovementInput[],
+  requestId: string = randomUUID(),
+): Promise<string> {
+  return withAuthenticatedTransaction(client, actorId, async () => {
+    const result = await client.query<{ id: string }>(
+      `select * from public.record_financial_event(
+         $1, $2, $3::public.financial_event_kind, '2026-09-11', $4::jsonb
+       ) limit 2`,
+      [spaceId, requestId, kind, JSON.stringify(movements)],
+    );
+    expect(result.rows).toHaveLength(1);
+    return result.rows[0]!.id;
+  });
+}
+
+async function walletRow(client: Client, walletId: string): Promise<WalletRow> {
+  const result = await client.query<WalletRow>(
+    `select id, space_id, name, currency::text as currency, archived_at, created_at
+     from public.wallets
+     where id = $1
+     limit 2`,
+    [walletId],
+  );
+  expect(result.rows).toHaveLength(1);
+  return result.rows[0]!;
+}
+
+async function walletBalance(client: Client, walletId: string): Promise<string> {
+  const result = await client.query<{ amount_minor: string }>(
+    `select coalesce(sum(amount_minor), 0)::text as amount_minor
+     from public.wallet_movements
+     where wallet_id = $1`,
+    [walletId],
+  );
+  return result.rows[0]?.amount_minor ?? '0';
+}
+
+async function archiveWalletDirectly(client: Client, walletId: string): Promise<void> {
+  const result = await client.query(
+    'update public.wallets set archived_at = now() where id = $1 and archived_at is null',
+    [walletId],
+  );
+  expect(result.rowCount).toBe(1);
+}
+
+async function logRows(client: Client, walletId: string): Promise<LogRow[]> {
+  const result = await client.query<LogRow>(
+    `select request_id, command_kind, wallet_id, actor_id, previous_name, name
+     from public.wallet_command_requests
+     where wallet_id = $1
+     order by created_at, request_id
+     limit 51`,
+    [walletId],
+  );
+  expect(result.rows.length).toBeLessThanOrEqual(50);
+  return result.rows;
+}
+
+async function functionCatalog(client: Client, signatures: readonly string[]) {
+  const result = await client.query<Record<string, unknown>>(
+    `select procedure.oid::regprocedure::text as signature,
+       pg_get_function_result(procedure.oid) as result,
+       procedure.prosecdef, procedure.provolatile, procedure.proconfig,
+       has_function_privilege('public', procedure.oid, 'execute') as public_exec,
+       has_function_privilege('anon', procedure.oid, 'execute') as anon_exec,
+       has_function_privilege('authenticated', procedure.oid, 'execute') as authenticated_exec,
+       has_function_privilege('service_role', procedure.oid, 'execute') as service_exec
+     from pg_proc as procedure
+     where procedure.oid = any($1::regprocedure[])
+     order by procedure.oid::regprocedure::text collate "C"
+     limit 20`,
+    [signatures],
+  );
+  expect(result.rows).toHaveLength(signatures.length);
+  return result.rows;
+}
+
+describe('wallet lifecycle database contract', () => {
+  let database: DisposableDatabase | undefined;
+  let migrations: MigrationFile[] = [];
+  let ownerId = '';
+  let memberId = '';
+  let outsiderId = '';
+  let personalId = '';
+  let householdId = '';
+
+  function currentDatabase(): DisposableDatabase {
+    if (!database) {
+      throw new Error('disposable database is unavailable');
+    }
+    return database;
+  }
+
+  beforeAll(async () => {
+    database = await createDisposableDatabase('budget_wallets');
+    try {
+      await bootstrapCompatibilityObjects(database.client);
+      migrations = migrationFiles();
+      await replayMigrations(database.client, migrations);
+      ownerId = randomUUID();
+      memberId = randomUUID();
+      outsiderId = randomUUID();
+      await insertUsers(database.client, [ownerId, memberId, outsiderId]);
+      personalId = await createSpace(database.client, ownerId, 'personal');
+      householdId = await createSpace(database.client, ownerId, 'household');
+      await addHouseholdMember(database.client, householdId, memberId);
+    } catch (error) {
+      const failedDatabase = database;
+      database = undefined;
+      try {
+        await disposeDisposableDatabase(failedDatabase);
+      } catch (cleanupError) {
+        throw new AggregateError([error, cleanupError], 'setup and cleanup both failed');
+      }
+      throw error;
+    }
+  }, 120_000);
+
+  afterAll(async () => {
+    if (!database) {
+      return;
+    }
+    const completedDatabase = database;
+    database = undefined;
+    await disposeDisposableDatabase(completedDatabase);
+  }, 60_000);
+
+  it('replays the complete journal including the wallet lifecycle migration', async () => {
+    const { client } = currentDatabase();
+    const journal = await client.query<{ version: string }>(
+      'select version from supabase_migrations.schema_migrations order by version limit 101',
+    );
+    expect(journal.rows.map(({ version }) => version)).toEqual(migrations.map(({ version }) => version));
+    expect(migrations.map(({ version }) => version)).toContain(lifecycleVersion);
+  });
+
+  it('keeps the wallet command log behind row security with no raw client access', async () => {
+    const { client } = currentDatabase();
+    const table = await client.query<{ relrowsecurity: boolean }>(
+      "select relrowsecurity from pg_class where oid = 'public.wallet_command_requests'::regclass limit 2",
+    );
+    expect(table.rows).toEqual([{ relrowsecurity: true }]);
+    const policies = await client.query(
+      `select policyname from pg_policies
+       where schemaname = 'public' and tablename = 'wallet_command_requests'
+       limit 2`,
+    );
+    expect(policies.rows).toEqual([]);
+    const grants = await client.query<Record<string, unknown>>(
+      `select role_name,
+         has_table_privilege(role_name, 'public.wallet_command_requests', 'select') as select,
+         has_table_privilege(role_name, 'public.wallet_command_requests', 'insert') as insert,
+         has_table_privilege(role_name, 'public.wallet_command_requests', 'update') as update,
+         has_table_privilege(role_name, 'public.wallet_command_requests', 'delete') as delete,
+         has_table_privilege(role_name, 'public.wallet_command_requests', 'truncate') as truncate
+       from unnest(array['public', 'anon', 'authenticated', 'service_role']) as role_name
+       order by role_name collate "C"
+       limit 5`,
+    );
+    expect(grants.rows).toEqual(['anon', 'authenticated', 'public', 'service_role'].map((role_name) => ({
+      role_name, select: false, insert: false, update: false, delete: false, truncate: false,
+    })));
+    const constraints = await client.query<{ conname: string; contype: string }>(
+      `select conname, contype from pg_constraint
+       where conrelid = 'public.wallet_command_requests'::regclass
+         and contype in ('c', 'f', 'p', 'u')
+       order by conname
+       limit 10`,
+    );
+    expect(constraints.rows).toEqual([
+      { conname: 'wallet_command_requests_actor_id_fkey', contype: 'f' },
+      { conname: 'wallet_command_requests_kind_check', contype: 'c' },
+      { conname: 'wallet_command_requests_names_check', contype: 'c' },
+      { conname: 'wallet_command_requests_pkey', contype: 'p' },
+      { conname: 'wallet_command_requests_space_id_fkey', contype: 'f' },
+      { conname: 'wallet_command_requests_wallet_fkey', contype: 'f' },
+    ]);
+    const indexes = await client.query<{ indexname: string; indexdef: string }>(
+      `select indexname, indexdef from pg_indexes
+       where schemaname = 'public' and tablename = 'wallet_command_requests'
+       order by indexname collate "C"
+       limit 5`,
+    );
+    expect(indexes.rows).toEqual([
+      {
+        indexname: 'wallet_command_requests_pkey',
+        indexdef: 'CREATE UNIQUE INDEX wallet_command_requests_pkey ON public.wallet_command_requests USING btree (space_id, request_id)',
+      },
+      {
+        indexname: 'wallet_command_requests_wallet_idx',
+        indexdef: 'CREATE INDEX wallet_command_requests_wallet_idx ON public.wallet_command_requests USING btree (space_id, wallet_id)',
+      },
+    ]);
+  });
+
+  it('enforces command kinds, rename names, and same-space wallets in the command log', async () => {
+    const { client } = currentDatabase();
+    const walletId = await createWallet(client, ownerId, personalId, `Log ${randomUUID()}`);
+    const householdWalletId = await createWallet(client, ownerId, householdId, `Log ${randomUUID()}`);
+    const insert = (kind: string, targetWalletId: string, previousName: string | null, name: string | null) =>
+      client.query(
+        `insert into public.wallet_command_requests (
+           space_id, request_id, command_kind, request_fingerprint, wallet_id, actor_id, previous_name, name
+         ) values ($1, $2, $3, pg_catalog.decode('00', 'hex'), $4, $5, $6, $7)`,
+        [personalId, randomUUID(), kind, targetWalletId, ownerId, previousName, name],
+      );
+    const kindError = { code: '23514', constraint: 'wallet_command_requests_kind_check' };
+    const namesError = { code: '23514', constraint: 'wallet_command_requests_names_check' };
+    await withRollback(client, async () => {
+      await expectSavepointRejection(client, () => insert('delete_wallet', walletId, null, null), kindError);
+      await expectSavepointRejection(client, () => insert('rename_wallet', walletId, null, null), namesError);
+      await expectSavepointRejection(client, () => insert('rename_wallet', walletId, 'Old', '   '), namesError);
+      await expectSavepointRejection(client, () => insert('rename_wallet', walletId, 'Old', ' Cash '), namesError);
+      await expectSavepointRejection(
+        client, () => insert('rename_wallet', walletId, 'Old', 'x'.repeat(121)), namesError,
+      );
+      await expectSavepointRejection(client, () => insert('archive_wallet', walletId, 'Old', 'New'), namesError);
+      await expectSavepointRejection(client, () => insert('archive_wallet', householdWalletId, null, null), {
+        code: '23503', constraint: 'wallet_command_requests_wallet_fkey',
+      });
+      await insert('rename_wallet', walletId, 'Old', 'x'.repeat(120));
+      await insert('restore_wallet', walletId, null, null);
+    });
+    expect(await logRows(client, walletId)).toEqual([]);
+  });
+
+  it('rejects command log updates, deletes including zero-row deletes, and truncation', async () => {
+    const { client } = currentDatabase();
+    const walletId = await createWallet(client, ownerId, personalId, `Immutable ${randomUUID()}`);
+    await withRollback(client, async () => {
+      const requestId = randomUUID();
+      await client.query(
+        `insert into public.wallet_command_requests (
+           space_id, request_id, command_kind, request_fingerprint, wallet_id, actor_id
+         ) values ($1, $2, 'archive_wallet', pg_catalog.decode('00', 'hex'), $3, $4)`,
+        [personalId, requestId, walletId, ownerId],
+      );
+      await expectSavepointRejection(client, () => client.query(
+        "update public.wallet_command_requests set command_kind = 'restore_wallet' where request_id = $1",
+        [requestId],
+      ), logImmutableError);
+      await expectSavepointRejection(client, () => client.query(
+        'delete from public.wallet_command_requests where request_id = $1', [requestId],
+      ), logImmutableError);
+      await expectSavepointRejection(client, () => client.query(
+        'delete from public.wallet_command_requests where false',
+      ), logImmutableError);
+      await expectSavepointRejection(client, () => client.query(
+        'truncate public.wallet_command_requests',
+      ), logImmutableError);
+    });
+  });
+
+  it('keeps log and wallet guards effective after raw grants and matching policies', async () => {
+    const { client } = currentDatabase();
+    const name = `Granted ${randomUUID()}`;
+    const walletId = await createWallet(client, ownerId, personalId, name);
+    await withRollback(client, async () => {
+      const existingRequestId = randomUUID();
+      await client.query(
+        `insert into public.wallet_command_requests (
+           space_id, request_id, command_kind, request_fingerprint, wallet_id, actor_id
+         ) values ($1, $2, 'archive_wallet', pg_catalog.decode('00', 'hex'), $3, $4)`,
+        [personalId, existingRequestId, walletId, ownerId],
+      );
+      await client.query('grant select, insert, update, delete, truncate on public.wallet_command_requests to authenticated');
+      await client.query(`create policy wallet_command_requests_test_all on public.wallet_command_requests
+        for all to authenticated using (true) with check (true)`);
+      await client.query('grant update on public.wallets to authenticated');
+      await client.query(`create policy wallets_test_update on public.wallets
+        for update to authenticated using (true) with check (true)`);
+      await client.query("select set_config('request.jwt.claim.sub', $1, true)", [ownerId]);
+      await client.query('set local role authenticated');
+      await expectSavepointRejection(client, () => client.query(
+        `insert into public.wallet_command_requests (
+           space_id, request_id, command_kind, request_fingerprint, wallet_id, actor_id
+         ) values ($1, $2, 'archive_wallet', pg_catalog.decode('00', 'hex'), $3, $4)`,
+        [personalId, randomUUID(), walletId, ownerId],
+      ), ownerWriteError);
+      await expectSavepointRejection(client, () => client.query(
+        "update public.wallet_command_requests set command_kind = 'restore_wallet' where request_id = $1",
+        [existingRequestId],
+      ), logImmutableError);
+      await expectSavepointRejection(client, () => client.query(
+        'delete from public.wallet_command_requests where request_id = $1', [existingRequestId],
+      ), logImmutableError);
+      await expectSavepointRejection(client, () => client.query(
+        'delete from public.wallet_command_requests where false',
+      ), logImmutableError);
+      await expectSavepointRejection(client, () => client.query(
+        'truncate public.wallet_command_requests',
+      ), logImmutableError);
+      await expectSavepointRejection(client, () => client.query(
+        "update public.wallets set name = 'Raw rename' where id = $1", [walletId],
+      ), ownerWriteError);
+      await expectSavepointRejection(client, () => client.query(
+        'update public.wallets set archived_at = now() where id = $1', [walletId],
+      ), ownerWriteError);
+    });
+    expect(await walletRow(client, walletId)).toMatchObject({ name, archived_at: null });
+  });
+
+  it('lets the owning role change only a wallet name and its archive state', async () => {
+    const { client } = currentDatabase();
+    const walletId = await createWallet(client, ownerId, personalId, `Shape ${randomUUID()}`);
+    const before = await walletRow(client, walletId);
+    await withRollback(client, async () => {
+      await expectSavepointRejection(client, () => client.query(
+        "update public.wallets set currency = 'LBP' where id = $1", [walletId],
+      ), walletShapeError);
+      await expectSavepointRejection(client, () => client.query(
+        'update public.wallets set space_id = $1 where id = $2', [householdId, walletId],
+      ), walletShapeError);
+      await expectSavepointRejection(client, () => client.query(
+        "update public.wallets set created_at = created_at - interval '1 day' where id = $1", [walletId],
+      ), walletShapeError);
+      await expectSavepointRejection(client, () => client.query(
+        'update public.wallets set id = $1 where id = $2', [randomUUID(), walletId],
+      ), walletShapeError);
+      await client.query("update public.wallets set name = 'Renamed by owner' where id = $1", [walletId]);
+      await client.query('update public.wallets set archived_at = now() where id = $1', [walletId]);
+      await expectSavepointRejection(client, () => client.query(
+        "update public.wallets set archived_at = archived_at + interval '1 second' where id = $1", [walletId],
+      ), walletShapeError);
+      await client.query('update public.wallets set archived_at = null where id = $1', [walletId]);
+    });
+    expect(await walletRow(client, walletId)).toEqual(before);
+  });
+
+  it('refuses wallet deletion by row and by zero-row statement', async () => {
+    const { client } = currentDatabase();
+    const walletId = await createWallet(client, ownerId, personalId, `Delete ${randomUUID()}`);
+    await withRollback(client, async () => {
+      await expectSavepointRejection(client, () => client.query(
+        'delete from public.wallets where id = $1', [walletId],
+      ), walletDeleteError);
+      await expectSavepointRejection(client, () => client.query(
+        'delete from public.wallets where false',
+      ), walletDeleteError);
+    });
+    expect((await walletRow(client, walletId)).id).toBe(walletId);
+  });
+
+  it('pins the wallet and command log guard triggers and their private functions', async () => {
+    const { client } = currentDatabase();
+    const triggers = await client.query<{ tgname: string; tgenabled: string; definition: string }>(
+      `select tgname, tgenabled, pg_get_triggerdef(oid) as definition
+       from pg_trigger
+       where tgrelid = any(array['public.wallets'::regclass, 'public.wallet_command_requests'::regclass])
+         and not tgisinternal
+       order by tgname collate "C"
+       limit 10`,
+    );
+    expect(triggers.rows).toEqual([
+      {
+        tgname: 'wallet_command_requests_reject_row_mutation', tgenabled: 'O',
+        definition: 'CREATE TRIGGER wallet_command_requests_reject_row_mutation BEFORE DELETE OR UPDATE ON public.wallet_command_requests FOR EACH ROW EXECUTE FUNCTION private.reject_wallet_command_history_mutation()',
+      },
+      {
+        tgname: 'wallet_command_requests_reject_statement_mutation', tgenabled: 'O',
+        definition: 'CREATE TRIGGER wallet_command_requests_reject_statement_mutation BEFORE DELETE OR TRUNCATE ON public.wallet_command_requests FOR EACH STATEMENT EXECUTE FUNCTION private.reject_wallet_command_history_mutation()',
+      },
+      {
+        tgname: 'wallet_command_requests_require_owner_insert', tgenabled: 'O',
+        definition: 'CREATE TRIGGER wallet_command_requests_require_owner_insert BEFORE INSERT ON public.wallet_command_requests FOR EACH ROW EXECUTE FUNCTION private.require_table_owner_write()',
+      },
+      {
+        tgname: 'wallets_guard_update', tgenabled: 'O',
+        definition: 'CREATE TRIGGER wallets_guard_update BEFORE UPDATE ON public.wallets FOR EACH ROW EXECUTE FUNCTION private.guard_wallet_update()',
+      },
+      {
+        tgname: 'wallets_reject_delete', tgenabled: 'O',
+        definition: 'CREATE TRIGGER wallets_reject_delete BEFORE DELETE ON public.wallets FOR EACH ROW EXECUTE FUNCTION private.reject_wallet_deletion()',
+      },
+      {
+        tgname: 'wallets_reject_delete_statement', tgenabled: 'O',
+        definition: 'CREATE TRIGGER wallets_reject_delete_statement BEFORE DELETE OR TRUNCATE ON public.wallets FOR EACH STATEMENT EXECUTE FUNCTION private.reject_wallet_deletion()',
+      },
+    ]);
+    const privateGuard = {
+      result: 'trigger', prosecdef: false, provolatile: 'v', proconfig: ['search_path=pg_catalog'],
+      public_exec: false, anon_exec: false, authenticated_exec: false, service_exec: false,
+    };
+    expect(await functionCatalog(client, [
+      'private.guard_wallet_update()',
+      'private.reject_wallet_command_history_mutation()',
+      'private.reject_wallet_deletion()',
+    ])).toEqual([
+      { signature: 'private.guard_wallet_update()', ...privateGuard },
+      { signature: 'private.reject_wallet_command_history_mutation()', ...privateGuard },
+      { signature: 'private.reject_wallet_deletion()', ...privateGuard },
+    ]);
+  });
+});
