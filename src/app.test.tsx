@@ -18,6 +18,7 @@ function authGateway(initial: AuthUser | null, session?: Promise<AuthUser | null
     signIn: vi.fn(async (email: string) => ({ id: 'signed-in', email })),
     signUp: vi.fn(async (email: string) => ({ confirmationRequired: true, user: { id: 'pending', email } })),
     signOut: vi.fn(async () => undefined),
+    resendConfirmation: vi.fn(async () => undefined),
   };
 }
 

@@ -46,6 +46,11 @@ class FakeAuthGateway implements AuthGateway {
     if (this.error) throw this.error;
   }
 
+  async resendConfirmation(email: string) {
+    this.calls.push(`resendConfirmation:${email}`);
+    if (this.error) throw this.error;
+  }
+
   emit(event: string, user: AuthUser | null) {
     this.listener?.({ event, user });
   }
@@ -111,6 +116,37 @@ describe('useAuthSession', () => {
     expect(result.current.status).toBe('confirmation-required');
     expect(result.current.confirmationEmail).toBe('new@example.com');
     expect(JSON.stringify(result.current)).not.toContain('private-password');
+  });
+
+  it('dismisses confirmation-required back to signed-out without contacting the gateway', async () => {
+    const gateway = new FakeAuthGateway();
+    gateway.confirmationRequired = true;
+    const { result } = renderHook(() => useAuthSession(gateway));
+    await waitFor(() => expect(result.current.status).toBe('signed-out'));
+
+    await act(async () => result.current.signUp('new@example.com', 'private-password'));
+    expect(result.current.status).toBe('confirmation-required');
+
+    act(() => result.current.dismissConfirmation());
+    expect(result.current.status).toBe('signed-out');
+    expect(result.current.confirmationEmail).toBeNull();
+    expect(gateway.calls).not.toContain('signOut');
+  });
+
+  it('resends the confirmation email for the pending address and surfaces a resend failure', async () => {
+    const gateway = new FakeAuthGateway();
+    gateway.confirmationRequired = true;
+    const { result } = renderHook(() => useAuthSession(gateway));
+    await waitFor(() => expect(result.current.status).toBe('signed-out'));
+    await act(async () => result.current.signUp('new@example.com', 'private-password'));
+
+    await act(async () => result.current.resendConfirmation());
+    expect(gateway.calls).toContain('resendConfirmation:new@example.com');
+    expect(result.current.status).toBe('confirmation-required');
+
+    gateway.error = new Error('Your confirmation email could not be resent. Try again.');
+    await act(async () => result.current.resendConfirmation());
+    expect(result.current.error).toContain('could not be resent');
   });
 
   it('keeps sign-in failures safe and permits a later successful retry', async () => {

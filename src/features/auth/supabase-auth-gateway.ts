@@ -32,6 +32,7 @@ export interface SupabaseAuthClient {
     signInWithPassword(credentials: { email: string; password: string }): Promise<RawAuthResult>;
     signUp(credentials: { email: string; password: string }): Promise<RawAuthResult>;
     signOut(): Promise<{ error: RawAuthError | null }>;
+    resend(credentials: { type: 'signup'; email: string }): Promise<{ error: RawAuthError | null }>;
   };
 }
 
@@ -40,12 +41,13 @@ function userFrom(raw: RawUser | null | undefined): AuthUser | null {
   return { id: raw.id, email: raw.email ?? null };
 }
 
-function safeError(operation: 'session' | 'sign-in' | 'sign-up' | 'sign-out'): Error {
+function safeError(operation: 'session' | 'sign-in' | 'sign-up' | 'sign-out' | 'resend'): Error {
   const messages = {
     session: 'Your session could not be checked. Try again.',
     'sign-in': 'Sign-in was not accepted. Check your email and password, then try again.',
     'sign-up': 'Your account could not be created. Check the details and try again.',
     'sign-out': 'Sign-out could not be completed. Try again.',
+    resend: 'Your confirmation email could not be resent. Try again.',
   } as const;
   return new Error(messages[operation]);
 }
@@ -85,6 +87,11 @@ export function createSupabaseAuthGateway(client: SupabaseAuthClient): AuthGatew
     async signOut() {
       const result = await client.auth.signOut();
       if (result.error) throw safeError('sign-out');
+    },
+
+    async resendConfirmation(email) {
+      const result = await client.auth.resend({ type: 'signup', email });
+      if (result.error) throw safeError('resend');
     },
   };
 }

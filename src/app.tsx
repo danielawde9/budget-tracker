@@ -197,6 +197,8 @@ function ConfiguredApp({ authGateway, categoriesGateway, householdGateway, house
       onLocaleChange={() => setLocale((current) => current === 'en' ? 'ar' : 'en')}
       onSignIn={auth.signIn}
       onSignUp={auth.signUp}
+      onBack={auth.dismissConfirmation}
+      onResendConfirmation={auth.resendConfirmation}
     />;
   }
 

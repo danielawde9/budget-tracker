@@ -12,6 +12,8 @@ export interface AuthSessionState {
   signIn(email: string, password: string): Promise<void>;
   signUp(email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
+  dismissConfirmation(): void;
+  resendConfirmation(): Promise<void>;
 }
 
 function message(cause: unknown, fallback: string): string {
@@ -122,5 +124,24 @@ export function useAuthSession(gateway: AuthGateway): AuthSessionState {
     }
   }, [gateway]);
 
-  return { status, user, error, confirmationEmail, pending, signIn, signUp, signOut };
+  const dismissConfirmation = useCallback(() => {
+    setStatus('signed-out');
+    setConfirmationEmail(null);
+    setError(null);
+  }, []);
+
+  const resendConfirmation = useCallback(async () => {
+    if (!confirmationEmail) return;
+    setPending(true);
+    setError(null);
+    try {
+      await gateway.resendConfirmation(confirmationEmail);
+    } catch (cause) {
+      setError(message(cause, 'Your confirmation email could not be resent. Try again.'));
+    } finally {
+      setPending(false);
+    }
+  }, [gateway, confirmationEmail]);
+
+  return { status, user, error, confirmationEmail, pending, signIn, signUp, signOut, dismissConfirmation, resendConfirmation };
 }

@@ -11,6 +11,8 @@ interface AuthScreenProps {
   onLocaleChange(): void;
   onSignIn(email: string, password: string): Promise<void> | void;
   onSignUp(email: string, password: string): Promise<void> | void;
+  onBack(): void;
+  onResendConfirmation(): Promise<void> | void;
 }
 
 const text = {
@@ -21,6 +23,7 @@ const text = {
     createIntro: 'Start with a private space, then add a household space when you need one.',
     haveAccount: 'I already have an account', check: 'Check your email',
     checkBody: 'Use the confirmation link sent to', checkTail: 'Then return here and sign in.', language: 'العربية',
+    resend: 'Resend confirmation email', resendSent: 'Confirmation email sent.', backToSignIn: 'Back to sign in',
   },
   ar: {
     product: 'دفتر الميزانية', signInTitle: 'مرحبًا بعودتك', expiredTitle: 'انتهت جلستك',
@@ -29,6 +32,7 @@ const text = {
     createIntro: 'ابدأ بمساحة خاصة، وأضف مساحة منزلية عندما تحتاج إليها.',
     haveAccount: 'لديّ حساب بالفعل', check: 'تحقق من بريدك الإلكتروني',
     checkBody: 'استخدم رابط التأكيد المرسل إلى', checkTail: 'ثم عد إلى هنا وسجّل الدخول.', language: 'English',
+    resend: 'إعادة إرسال رسالة التأكيد', resendSent: 'تم إرسال رسالة التأكيد.', backToSignIn: 'العودة إلى تسجيل الدخول',
   },
 } as const;
 
@@ -37,15 +41,24 @@ export function AuthScreen(props: AuthScreenProps) {
   const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-in');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [resent, setResent] = useState(false);
 
   if (props.state === 'confirmation-required') {
+    const resend = async () => {
+      setResent(false);
+      await props.onResendConfirmation();
+      setResent(true);
+    };
     return <main className="auth-page">
       <button type="button" className="locale-button auth-language" onClick={props.onLocaleChange}>{copy.language}</button>
       <section className="auth-confirmation" role="status">
         <span className="brand">{copy.product}</span>
         <h1>{copy.check}</h1>
         <p>{copy.checkBody} <bdi>{props.confirmationEmail}</bdi>. {copy.checkTail}</p>
-        <button type="button" onClick={() => setMode('sign-in')}>{copy.signIn}</button>
+        {props.error ? <div className="error-notice" role="alert">{props.error}</div> : null}
+        <button type="button" onClick={() => void resend()} disabled={props.pending}>{copy.resend}</button>
+        {resent ? <p>{copy.resendSent}</p> : null}
+        <button type="button" onClick={props.onBack}>{copy.backToSignIn}</button>
       </section>
     </main>;
   }

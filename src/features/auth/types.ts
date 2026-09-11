@@ -19,4 +19,5 @@ export interface AuthGateway {
   signIn(email: string, password: string): Promise<AuthUser>;
   signUp(email: string, password: string): Promise<SignUpResult>;
   signOut(): Promise<void>;
+  resendConfirmation(email: string): Promise<void>;
 }

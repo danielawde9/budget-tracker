@@ -14,6 +14,7 @@ function clientWith(currentSession: ReturnType<typeof session> | null) {
     signInWithPassword: vi.fn(async () => ({ data: { session: currentSession }, error: null as { message: string } | null })),
     signUp: vi.fn(async () => ({ data: { session: currentSession, user: currentSession?.user ?? { id: 'pending', email: 'new@example.com' } }, error: null as { message: string } | null })),
     signOut: vi.fn(async () => ({ error: null as { message: string } | null })),
+    resend: vi.fn(async () => ({ data: { user: null, session: null }, error: null as { message: string } | null })),
     onAuthStateChange: vi.fn((callback: typeof listener) => {
       listener = callback;
       return { data: { subscription: { unsubscribe } } };
@@ -49,6 +50,16 @@ describe('Supabase auth gateway', () => {
     const pendingGateway = createSupabaseAuthGateway(pending.client);
     await expect(pendingGateway.signUp('new@example.com', 'private-password')).resolves.toEqual({ confirmationRequired: true, user: { id: 'pending', email: 'new@example.com' } });
     expect(pending.auth.signUp).toHaveBeenCalledWith({ email: 'new@example.com', password: 'private-password' });
+  });
+
+  it('resends a signup confirmation email and replaces a raw error with an operation-safe one', async () => {
+    const fake = clientWith(null);
+    const gateway = createSupabaseAuthGateway(fake.client);
+    await gateway.resendConfirmation('new@example.com');
+    expect(fake.auth.resend).toHaveBeenCalledWith({ type: 'signup', email: 'new@example.com' });
+
+    fake.auth.resend.mockResolvedValueOnce({ data: { user: null, session: null }, error: { message: 'over_email_send_rate_limit' } });
+    await expect(gateway.resendConfirmation('new@example.com')).rejects.toThrow('Your confirmation email could not be resent. Try again.');
   });
 
   it('signs out and replaces raw auth errors with operation-safe errors', async () => {
