@@ -5,12 +5,11 @@ import type { LoansDataClient } from '../features/loans/supabase-loans-gateway.j
 import type { WalletsDataClient } from '../features/wallets/supabase-wallets-gateway.js';
 import type { HouseholdDataClient } from '../features/household/supabase-household-gateway.js';
 
-const url = import.meta.env['VITE_SUPABASE_URL'];
-const anonKey = import.meta.env['VITE_SUPABASE_ANON_KEY'];
-
 export type BudgetDataClient = LoansDataClient & SupabaseAuthClient & WalletsDataClient & CategoriesDataClient & HouseholdDataClient;
 
 export function createBrowserDataClient(): BudgetDataClient | null {
+  const url = import.meta.env['VITE_SUPABASE_URL'];
+  const anonKey = import.meta.env['VITE_SUPABASE_ANON_KEY'];
   if (!url || !anonKey) return null;
   return createClient(url, anonKey) as unknown as BudgetDataClient;
 }

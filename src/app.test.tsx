@@ -32,9 +32,15 @@ function workspaceGateway(spaces = [personalSpace]): WorkspaceGateway {
 
 describe('App', () => {
   it('shows a safe configuration state when Supabase settings are absent', () => {
-    render(<App />);
-    expect(screen.getByRole('heading', { name: 'Configuration needed' })).toBeInTheDocument();
-    expect(screen.queryByText('Maya')).not.toBeInTheDocument();
+    vi.stubEnv('VITE_SUPABASE_URL', '');
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', '');
+    try {
+      render(<App />);
+      expect(screen.getByRole('heading', { name: 'Configuration needed' })).toBeInTheDocument();
+      expect(screen.queryByText('Maya')).not.toBeInTheDocument();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('never exposes financial content while the initial session is loading', () => {
