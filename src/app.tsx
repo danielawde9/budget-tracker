@@ -5,7 +5,6 @@ import type { AuthGateway } from './features/auth/types.js';
 import { useAuthSession } from './features/auth/use-auth-session.js';
 import { createSupabaseCategoriesGateway } from './features/categories/supabase-categories-gateway.js';
 import type { CategoriesGateway } from './features/categories/types.js';
-import { LoansPage } from './features/loans/loans-page.js';
 import { createSupabaseLoansGateway } from './features/loans/supabase-loans-gateway.js';
 import type { LoansGateway, Locale } from './features/loans/types.js';
 import { ApplicationShell, type ApplicationDestination } from './features/shell/application-shell.js';
@@ -16,7 +15,6 @@ import { useWorkspace } from './features/workspace/use-workspace.js';
 import { createSupabaseWalletsGateway } from './features/wallets/supabase-wallets-gateway.js';
 import type { WalletsGateway } from './features/wallets/types.js';
 import { createBrowserDataClient } from './lib/supabase.js';
-import { HouseholdPage } from './features/household/household-page.js';
 import { createSupabaseHouseholdGateway } from './features/household/supabase-household-gateway.js';
 import type { HouseholdGateway } from './features/household/types.js';
 import { AcceptHouseholdInvitationDialog } from './features/household/household-dialogs.js';
@@ -28,9 +26,19 @@ const WalletsPage = lazy(async () => {
   return { default: module.WalletsPage };
 });
 
+const LoansPage = lazy(async () => {
+  const module = await import('./features/loans/loans-page.js');
+  return { default: module.LoansPage };
+});
+
 const CategoriesPage = lazy(async () => {
   const module = await import('./features/categories/categories-page.js');
   return { default: module.CategoriesPage };
+});
+
+const HouseholdPage = lazy(async () => {
+  const module = await import('./features/household/household-page.js');
+  return { default: module.HouseholdPage };
 });
 
 interface AppProps {
@@ -130,7 +138,7 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
     onLocaleChange={props.onLocaleChange}
     onSignOut={props.onSignOut}
   >
-    {activeDestination === 'loans' ? <LoansPage
+    {activeDestination === 'loans' ? <Suspense fallback={<div className="state-panel" role="status">{props.locale === 'ar' ? 'جارٍ تحميل القروض…' : 'Loading Loans…'}</div>}><LoansPage
       embedded
       gateway={props.loansGateway}
       locale={props.locale}
@@ -138,7 +146,7 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
       spaceId={workspace.selectedSpaceId}
       onSpaceChange={workspace.selectSpace}
       onSpaceUnavailable={() => void workspace.refresh()}
-    /> : activeDestination === 'wallets' ? <Suspense fallback={<div className="state-panel" role="status">{props.locale === 'ar' ? 'جارٍ تحميل المحافظ…' : 'Loading Wallets…'}</div>}><WalletsPage
+    /></Suspense> : activeDestination === 'wallets' ? <Suspense fallback={<div className="state-panel" role="status">{props.locale === 'ar' ? 'جارٍ تحميل المحافظ…' : 'Loading Wallets…'}</div>}><WalletsPage
       gateway={props.walletsGateway}
       categoriesGateway={props.categoriesGateway}
       locale={props.locale}
@@ -150,14 +158,14 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
       locale={props.locale}
       spaceId={workspace.selectedSpaceId}
       onSpaceUnavailable={() => void workspace.refresh()}
-    /></Suspense> : <HouseholdPage
+    /></Suspense> : <Suspense fallback={<div className="state-panel" role="status">{props.locale === 'ar' ? 'جارٍ تحميل الأسرة…' : 'Loading Household…'}</div>}><HouseholdPage
       gateway={props.householdGateway}
       locale={props.locale}
       spaceId={workspace.selectedSpaceId}
       spaceName={workspace.selectedSpace.name}
       userId={props.userId}
       onSpaceUnavailable={() => void workspace.refresh()}
-    />}
+    /></Suspense>}
   </ApplicationShell>;
 }
 
