@@ -56,6 +56,23 @@ const loanWalletError = {
   message: 'the wallet must be active, in the requested space, and in the loan currency',
 };
 const inactiveMovementError = { code: 'P0001', message: 'every wallet movement must use an active wallet' };
+const membershipError = { code: '42501', message: 'an active space membership is required' };
+const replayError = { code: 'P0001', message: 'request ID was already used with different data' };
+const missingIdsError = { code: 'P0001', message: 'request ID and wallet ID are required' };
+const foreignWalletError = { code: 'P0001', message: 'the wallet does not belong to the requested space' };
+const archivedWalletError = { code: 'P0001', message: 'the wallet is archived' };
+const nameLengthError = { code: 'P0001', message: 'the wallet name must be 1 to 120 characters' };
+const sameNameError = { code: 'P0001', message: 'the wallet already has this name' };
+
+interface WalletCommand {
+  spaceId: string | null;
+  requestId: string | null;
+  walletId: string | null;
+}
+
+interface RenameCommand extends WalletCommand {
+  name: string | null;
+}
 
 async function insertUsers(client: Client, userIds: readonly string[]): Promise<void> {
   if (userIds.length < 1 || userIds.length > 8) {
@@ -264,6 +281,32 @@ async function repayLoan(
     );
     expect(result.rows).toHaveLength(1);
     return result.rows[0]!.event_id;
+  });
+}
+
+async function renameWallet(client: Client, actorId: string, command: RenameCommand): Promise<string> {
+  return withAuthenticatedTransaction(client, actorId, async () => {
+    const result = await client.query<{ id: string }>(
+      'select * from public.rename_wallet($1, $2, $3, $4) limit 2',
+      [command.spaceId, command.requestId, command.walletId, command.name],
+    );
+    expect(result.rows).toHaveLength(1);
+    return result.rows[0]!.id;
+  });
+}
+
+async function commandResult(
+  client: Client,
+  actorId: string,
+  spaceId: string,
+  requestId: string,
+): Promise<Array<{ command_kind: string; wallet_id: string }>> {
+  return withAuthenticatedTransaction(client, actorId, async () => {
+    const result = await client.query<{ command_kind: string; wallet_id: string }>(
+      'select command_kind, wallet_id from public.get_wallet_command_result($1, $2) limit 2',
+      [spaceId, requestId],
+    );
+    return result.rows;
   });
 }
 
@@ -675,5 +718,183 @@ describe('wallet lifecycle database contract', () => {
       proconfig: ['search_path=pg_catalog'],
       public_exec: false, anon_exec: false, authenticated_exec: false, service_exec: false,
     }]);
+  });
+
+  it('renames an active wallet, trims the name, and records the previous name', async () => {
+    const { client } = currentDatabase();
+    const walletId = await createWallet(client, ownerId, personalId, 'Daily USD');
+    const requestId = randomUUID();
+    expect(await renameWallet(client, ownerId, {
+      spaceId: personalId, requestId, walletId, name: '  Travel cash  ',
+    })).toBe(walletId);
+    expect(await walletRow(client, walletId)).toMatchObject({ name: 'Travel cash', currency: 'USD', archived_at: null });
+    expect(await logRows(client, walletId)).toEqual([{
+      request_id: requestId, command_kind: 'rename_wallet', wallet_id: walletId, actor_id: ownerId,
+      previous_name: 'Daily USD', name: 'Travel cash',
+    }]);
+    expect(await commandResult(client, ownerId, personalId, requestId)).toEqual([
+      { command_kind: 'rename_wallet', wallet_id: walletId },
+    ]);
+  });
+
+  it('accepts a 120-character wallet name', async () => {
+    const { client } = currentDatabase();
+    const walletId = await createWallet(client, ownerId, personalId, 'Short USD');
+    await renameWallet(client, ownerId, {
+      spaceId: personalId, requestId: randomUUID(), walletId, name: 'x'.repeat(120),
+    });
+    expect((await walletRow(client, walletId)).name).toHaveLength(120);
+  });
+
+  it('lets an active non-owner household member rename a household wallet', async () => {
+    const { client } = currentDatabase();
+    const walletId = await createWallet(client, ownerId, householdId, 'Shared cash');
+    await renameWallet(client, memberId, {
+      spaceId: householdId, requestId: randomUUID(), walletId, name: 'Family cash',
+    });
+    expect(await walletRow(client, walletId)).toMatchObject({ name: 'Family cash' });
+    expect((await logRows(client, walletId)).map(({ actor_id }) => actor_id)).toEqual([memberId]);
+  });
+
+  it('replays an exact rename once and rejects changed data under the same request', async () => {
+    const { client } = currentDatabase();
+    const walletId = await createWallet(client, ownerId, personalId, 'Replay USD');
+    const otherWalletId = await createWallet(client, ownerId, personalId, 'Other USD');
+    const command: RenameCommand = { spaceId: personalId, requestId: randomUUID(), walletId, name: 'Replayed USD' };
+    await renameWallet(client, ownerId, command);
+
+    expect(await renameWallet(client, ownerId, command)).toBe(walletId);
+    expect(await renameWallet(client, ownerId, { ...command, name: '  Replayed USD ' })).toBe(walletId);
+    await expect(renameWallet(client, ownerId, { ...command, name: 'Changed USD' }))
+      .rejects.toMatchObject(replayError);
+    await expect(renameWallet(client, ownerId, { ...command, walletId: otherWalletId }))
+      .rejects.toMatchObject(replayError);
+    expect(await walletRow(client, walletId)).toMatchObject({ name: 'Replayed USD' });
+    expect(await walletRow(client, otherWalletId)).toMatchObject({ name: 'Other USD' });
+    expect(await logRows(client, walletId)).toHaveLength(1);
+  });
+
+  it.each([
+    'outsider', 'null space', 'null request', 'null wallet', 'foreign wallet', 'archived wallet',
+    'blank name', 'null name', 'long name', 'unchanged name',
+  ] as const)('rejects a rename with %s without partial state', async (scenario) => {
+    const { client } = currentDatabase();
+    const walletId = await createWallet(client, ownerId, personalId, 'Stable USD');
+    const householdWalletId = await createWallet(client, ownerId, householdId, 'Household USD');
+    if (scenario === 'archived wallet') {
+      await archiveWalletDirectly(client, walletId);
+    }
+    const before = await walletRow(client, walletId);
+    const command: RenameCommand = { spaceId: personalId, requestId: randomUUID(), walletId, name: 'Renamed USD' };
+    let actorId = ownerId;
+    let expected: { code: string; message: string } = nameLengthError;
+    switch (scenario) {
+      case 'outsider':
+        actorId = outsiderId;
+        expected = membershipError;
+        break;
+      case 'null space':
+        command.spaceId = null;
+        expected = membershipError;
+        break;
+      case 'null request':
+        command.requestId = null;
+        expected = missingIdsError;
+        break;
+      case 'null wallet':
+        command.walletId = null;
+        expected = missingIdsError;
+        break;
+      case 'foreign wallet':
+        command.walletId = householdWalletId;
+        expected = foreignWalletError;
+        break;
+      case 'archived wallet':
+        expected = archivedWalletError;
+        break;
+      case 'blank name':
+        command.name = '   ';
+        break;
+      case 'null name':
+        command.name = null;
+        break;
+      case 'long name':
+        command.name = 'x'.repeat(121);
+        break;
+      case 'unchanged name':
+        command.name = ' Stable USD ';
+        expected = sameNameError;
+        break;
+    }
+
+    await expect(renameWallet(client, actorId, command)).rejects.toMatchObject(expected);
+    expect(await walletRow(client, walletId)).toEqual(before);
+    expect(await logRows(client, walletId)).toEqual([]);
+    expect(await walletRow(client, householdWalletId)).toMatchObject({ name: 'Household USD' });
+    expect(await logRows(client, householdWalletId)).toEqual([]);
+  });
+
+  it.each(['anon', 'service_role'] as const)('denies the %s role rename and result lookup', async (role) => {
+    const { client } = currentDatabase();
+    const walletId = await createWallet(client, ownerId, personalId, 'Role USD');
+    await withRollback(client, async () => {
+      await client.query("select set_config('request.jwt.claim.sub', $1, true)", [ownerId]);
+      await client.query(`set local role ${role}`);
+      await expectSavepointRejection(client, () => client.query(
+        "select * from public.rename_wallet($1, $2, $3, 'Blocked USD')", [personalId, randomUUID(), walletId],
+      ), { code: '42501' });
+      await expectSavepointRejection(client, () => client.query(
+        'select * from public.get_wallet_command_result($1, $2)', [personalId, randomUUID()],
+      ), { code: '42501' });
+    });
+    expect(await walletRow(client, walletId)).toMatchObject({ name: 'Role USD' });
+  });
+
+  it('returns a wallet command result only to active members of its space', async () => {
+    const { client } = currentDatabase();
+    const walletId = await createWallet(client, ownerId, householdId, 'Lookup USD');
+    const requestId = randomUUID();
+    await renameWallet(client, ownerId, { spaceId: householdId, requestId, walletId, name: 'Looked up USD' });
+
+    expect(await commandResult(client, memberId, householdId, requestId)).toEqual([
+      { command_kind: 'rename_wallet', wallet_id: walletId },
+    ]);
+    expect(await commandResult(client, memberId, householdId, randomUUID())).toEqual([]);
+    await expect(commandResult(client, outsiderId, householdId, requestId)).rejects.toMatchObject(membershipError);
+  });
+
+  it('pins rename, result, and helper signatures, search paths, and execute grants', async () => {
+    const { client } = currentDatabase();
+    const command = { public_exec: false, anon_exec: false, authenticated_exec: true, service_exec: false };
+    const helper = { public_exec: false, anon_exec: false, authenticated_exec: false, service_exec: false };
+    expect(await functionCatalog(client, [
+      'public.get_wallet_command_result(uuid,uuid)',
+      'private.lock_space_wallet(uuid,uuid)',
+      'private.replay_wallet_command(uuid,uuid,text,bytea,uuid)',
+      'private.require_wallet_command_actor(uuid,uuid,uuid)',
+      'public.rename_wallet(uuid,uuid,uuid,text)',
+    ])).toEqual([
+      {
+        signature: 'get_wallet_command_result(uuid,uuid)',
+        result: 'TABLE(command_kind text, wallet_id uuid, created_at timestamp with time zone)',
+        prosecdef: true, provolatile: 's', proconfig: ['search_path=pg_catalog'], ...command,
+      },
+      {
+        signature: 'private.lock_space_wallet(uuid,uuid)', result: 'wallets',
+        prosecdef: false, provolatile: 'v', proconfig: ['search_path=pg_catalog'], ...helper,
+      },
+      {
+        signature: 'private.replay_wallet_command(uuid,uuid,text,bytea,uuid)', result: 'boolean',
+        prosecdef: false, provolatile: 'v', proconfig: ['search_path=pg_catalog'], ...helper,
+      },
+      {
+        signature: 'private.require_wallet_command_actor(uuid,uuid,uuid)', result: 'uuid',
+        prosecdef: false, provolatile: 's', proconfig: ['search_path=pg_catalog'], ...helper,
+      },
+      {
+        signature: 'rename_wallet(uuid,uuid,uuid,text)', result: 'TABLE(id uuid)',
+        prosecdef: true, provolatile: 'v', proconfig: ['search_path=pg_catalog, extensions'], ...command,
+      },
+    ]);
   });
 });

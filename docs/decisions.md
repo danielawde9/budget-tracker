@@ -1003,3 +1003,20 @@ wins and an archived wallet always has a zero balance.
 **If changed:** Allowing corrections into archived wallets needs its own reviewed
 rule for keeping their balance at zero. Removing the lock reopens the race that
 `tests/db/wallet-lifecycle.integration.test.ts` proves closed.
+
+## 2026-09-11 — Any active space member may rename, archive, or restore a wallet
+
+**Decision:** `rename_wallet`, `archive_wallet`, and `restore_wallet` require only
+active membership of the wallet's space, like `create_wallet` and
+`archive_category`. A rename trims the name, keeps the 1–120 character rule,
+refuses an unchanged name, and refuses an archived wallet. The current name is the
+only name and also shows on past entries.
+
+**Why:** Household members already create wallets and post into them; an
+owner-only rule would stop the member who empties an envelope from tidying it up,
+and no owner-only policy was requested.
+
+**If changed:** Owner-only lifecycle commands need an owner check in
+`private.require_wallet_command_actor`, non-owner rejection tests, and UI that
+hides the actions from members. Showing the name a wallet had when an entry was
+posted needs a name-at-time projection built from the command log.

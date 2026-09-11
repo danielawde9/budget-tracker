@@ -159,3 +159,195 @@ before insert on public.wallet_movements
 for each row execute function private.require_active_movement_wallet();
 
 revoke all on function private.require_active_movement_wallet() from public, anon, authenticated, service_role;
+
+-- 3. Shared command preconditions, request replay, rename, and result lookup.
+
+create function private.require_wallet_command_actor(
+  p_space_id uuid,
+  p_request_id uuid,
+  p_wallet_id uuid
+)
+returns uuid
+language plpgsql
+stable
+set search_path = pg_catalog
+as $$
+declare
+  v_actor_id uuid := auth.uid();
+begin
+  if v_actor_id is null or not private.is_active_member(p_space_id) then
+    raise exception using errcode = '42501', message = 'an active space membership is required';
+  end if;
+
+  if p_request_id is null or p_wallet_id is null then
+    raise exception using errcode = 'P0001', message = 'request ID and wallet ID are required';
+  end if;
+
+  return v_actor_id;
+end;
+$$;
+
+create function private.replay_wallet_command(
+  p_space_id uuid,
+  p_request_id uuid,
+  p_command_kind text,
+  p_fingerprint bytea,
+  p_wallet_id uuid
+)
+returns boolean
+language plpgsql
+set search_path = pg_catalog
+as $$
+declare
+  v_existing_kind text;
+  v_existing_fingerprint bytea;
+  v_existing_wallet_id uuid;
+begin
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('wallet:' || p_space_id::text || ':' || p_request_id::text, 0)
+  );
+
+  select request.command_kind, request.request_fingerprint, request.wallet_id
+  into v_existing_kind, v_existing_fingerprint, v_existing_wallet_id
+  from public.wallet_command_requests as request
+  where request.space_id = p_space_id
+    and request.request_id = p_request_id;
+
+  if not found then
+    return false;
+  end if;
+
+  if v_existing_kind <> p_command_kind
+    or v_existing_fingerprint <> p_fingerprint
+    or v_existing_wallet_id <> p_wallet_id then
+    raise exception using errcode = 'P0001', message = 'request ID was already used with different data';
+  end if;
+
+  return true;
+end;
+$$;
+
+create function private.lock_space_wallet(
+  p_space_id uuid,
+  p_wallet_id uuid
+)
+returns public.wallets
+language plpgsql
+set search_path = pg_catalog
+as $$
+declare
+  v_wallet public.wallets;
+begin
+  select wallet.*
+  into v_wallet
+  from public.wallets as wallet
+  where wallet.id = p_wallet_id
+    and wallet.space_id = p_space_id
+  for update;
+
+  if not found then
+    raise exception using errcode = 'P0001', message = 'the wallet does not belong to the requested space';
+  end if;
+
+  return v_wallet;
+end;
+$$;
+
+create function public.rename_wallet(
+  p_space_id uuid,
+  p_request_id uuid,
+  p_wallet_id uuid,
+  p_name text
+)
+returns table (id uuid)
+language plpgsql
+security definer
+set search_path = pg_catalog, extensions
+as $$
+declare
+  v_actor_id uuid;
+  v_name text := pg_catalog.btrim(p_name);
+  v_fingerprint bytea;
+  v_wallet public.wallets;
+begin
+  v_actor_id := private.require_wallet_command_actor(p_space_id, p_request_id, p_wallet_id);
+  v_fingerprint := extensions.digest(
+    pg_catalog.jsonb_build_object(
+      'version', 1,
+      'command', 'rename_wallet',
+      'walletId', p_wallet_id,
+      'name', v_name
+    )::text,
+    'sha256'
+  );
+
+  if private.replay_wallet_command(p_space_id, p_request_id, 'rename_wallet', v_fingerprint, p_wallet_id) then
+    return query select p_wallet_id;
+    return;
+  end if;
+
+  v_wallet := private.lock_space_wallet(p_space_id, p_wallet_id);
+
+  if v_wallet.archived_at is not null then
+    raise exception using errcode = 'P0001', message = 'the wallet is archived';
+  end if;
+
+  if v_name is null or pg_catalog.char_length(v_name) not between 1 and 120 then
+    raise exception using errcode = 'P0001', message = 'the wallet name must be 1 to 120 characters';
+  end if;
+
+  if v_name = v_wallet.name then
+    raise exception using errcode = 'P0001', message = 'the wallet already has this name';
+  end if;
+
+  update public.wallets as wallet
+  set name = v_name
+  where wallet.id = p_wallet_id;
+
+  insert into public.wallet_command_requests (
+    space_id, request_id, command_kind, request_fingerprint, wallet_id, actor_id, previous_name, name
+  )
+  values (
+    p_space_id, p_request_id, 'rename_wallet', v_fingerprint, p_wallet_id, v_actor_id, v_wallet.name, v_name
+  );
+
+  return query select p_wallet_id;
+end;
+$$;
+
+create function public.get_wallet_command_result(
+  p_space_id uuid,
+  p_request_id uuid
+)
+returns table (
+  command_kind text,
+  wallet_id uuid,
+  created_at timestamptz
+)
+language plpgsql
+stable
+security definer
+set search_path = pg_catalog
+as $$
+begin
+  if auth.uid() is null or not private.is_active_member(p_space_id) then
+    raise exception using errcode = '42501', message = 'an active space membership is required';
+  end if;
+
+  return query
+  select request.command_kind, request.wallet_id, request.created_at
+  from public.wallet_command_requests as request
+  where request.space_id = p_space_id
+    and request.request_id = p_request_id
+  limit 1;
+end;
+$$;
+
+revoke all on function private.require_wallet_command_actor(uuid, uuid, uuid) from public, anon, authenticated, service_role;
+revoke all on function private.replay_wallet_command(uuid, uuid, text, bytea, uuid) from public, anon, authenticated, service_role;
+revoke all on function private.lock_space_wallet(uuid, uuid) from public, anon, authenticated, service_role;
+revoke all on function public.rename_wallet(uuid, uuid, uuid, text) from public, anon, service_role;
+revoke all on function public.get_wallet_command_result(uuid, uuid) from public, anon, service_role;
+
+grant execute on function public.rename_wallet(uuid, uuid, uuid, text) to authenticated;
+grant execute on function public.get_wallet_command_result(uuid, uuid) to authenticated;
