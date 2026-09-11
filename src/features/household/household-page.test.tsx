@@ -58,7 +58,7 @@ describe('HouseholdPage', () => {
     await user.type(within(dialog).getByLabelText(email), 'person@example.com');
     await user.click(within(dialog).getByRole('button', { name: create }));
     await within(dialog).findByRole('status');
-    const actions = dialog.querySelector('.dialog-actions');
+    const actions = dialog.querySelector<HTMLElement>('.dialog-actions');
     expect(actions).not.toBeNull();
     expect(within(actions!).getByRole('button', { name: close })).toBeInTheDocument();
   });
