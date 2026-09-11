@@ -71,6 +71,27 @@ backup, or recovery operation.
 
 ## Deployment sequence
 
+### Frontend-only release before invitation delivery
+
+When invitation delivery is intentionally deferred and the six required Worker
+secrets are not installed, deploy only the static application. This config does
+not contain the Worker entry point, API-first routing, rate-limit bindings, or
+secret declarations:
+
+```bash
+pnpm deploy:cloudflare:frontend:dry-run
+pnpm deploy:cloudflare:frontend
+```
+
+The frontend command repeats the protected production build and its own dry-run
+before uploading. It replaces the `budget-tracker` deployment with static SPA
+assets, so `/api/household-invitations` is deliberately unavailable. Restoring
+that endpoint requires all six reviewed secrets and the ordinary combined
+deployment below. Do not use the frontend-only command after invitation
+delivery has been enabled.
+
+### Combined frontend and invitation Worker release
+
 First inspect the generated release without changing Cloudflare:
 
 ```bash

@@ -22,6 +22,8 @@
     "migrate:live": "bash scripts/ops/apply-live-migrations.sh",
     "check:cloudflare-env": "node scripts/cloudflare/check-build-environment.mjs",
     "build:cloudflare": "env -u DEBUG pnpm check:cloudflare-env && env -u DEBUG pnpm build",
+    "deploy:cloudflare:frontend:dry-run": "pnpm exec wrangler deploy --config wrangler.frontend.jsonc --dry-run",
+    "deploy:cloudflare:frontend": "pnpm build:cloudflare && pnpm deploy:cloudflare:frontend:dry-run && pnpm exec wrangler deploy --config wrangler.frontend.jsonc",
     "deploy:cloudflare:dry-run": "pnpm exec wrangler deploy --dry-run",
     "deploy:cloudflare": "pnpm build:cloudflare && pnpm deploy:cloudflare:dry-run && pnpm exec wrangler deploy",
     "check:ui": "pnpm typecheck && pnpm test:ui && pnpm build",

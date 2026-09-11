@@ -14,7 +14,32 @@ describe('Cloudflare deployment contract', () => {
     expect(packageJson.scripts['deploy:cloudflare']).toBe(
       'pnpm build:cloudflare && pnpm deploy:cloudflare:dry-run && pnpm exec wrangler deploy',
     );
+    expect(packageJson.scripts['deploy:cloudflare:frontend:dry-run']).toBe(
+      'pnpm exec wrangler deploy --config wrangler.frontend.jsonc --dry-run',
+    );
+    expect(packageJson.scripts['deploy:cloudflare:frontend']).toBe(
+      'pnpm build:cloudflare && pnpm deploy:cloudflare:frontend:dry-run && pnpm exec wrangler deploy --config wrangler.frontend.jsonc',
+    );
     expect(JSON.stringify(packageJson)).not.toContain('npx wrangler');
+  });
+
+  it('provides a static frontend-only release without invitation bindings', () => {
+    const config = JSON.parse(
+      readFileSync(join(process.cwd(), 'wrangler.frontend.jsonc'), 'utf8'),
+    );
+
+    expect(config).toEqual({
+      $schema: './node_modules/wrangler/config-schema.json',
+      name: 'budget-tracker',
+      compatibility_date: '2026-09-10',
+      assets: {
+        directory: './dist',
+        not_found_handling: 'single-page-application',
+      },
+    });
+    expect(config).not.toHaveProperty('main');
+    expect(config).not.toHaveProperty('ratelimits');
+    expect(config).not.toHaveProperty('secrets');
   });
 
   it('serves the Vite SPA and runs only API paths through the Worker first', () => {
@@ -89,6 +114,7 @@ describe('Cloudflare deployment contract', () => {
       /Owner-authorized local fallback uses only\s+the ignored `\.env\.local` file\./,
     );
     expect(runbook).toContain('pnpm deploy:cloudflare:dry-run');
+    expect(runbook).toContain('pnpm deploy:cloudflare:frontend');
     expect(runbook).toContain('```bash\npnpm deploy:cloudflare\n```');
     expect(runbook).toContain('The Cloudflare production branch is `main`.');
     expect(runbook).toContain('synthetic or replaceable data');

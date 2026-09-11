@@ -834,3 +834,23 @@ SQL and does not alter any forward-only migration.
 **If changed:** Any other project ref, restored source database, imported data,
 or expanded journal requires a new read-only identity and journal inspection,
 runner review, green release gate, and exact owner approval before application.
+
+## 2026-09-11 — Frontend may deploy before invitation delivery
+
+**Decision:** While the Household invitation provider remains deliberately
+unconfigured, the public Budget release uses a separate static-assets-only
+Cloudflare configuration. It keeps the same `budget-tracker` Worker name and
+SPA fallback but omits the Worker entry point, `/api/*` routing, rate-limit
+bindings, and server-secret contract. The combined configuration remains the
+only approved path once invitation delivery is enabled.
+
+**Why:** Cloudflare correctly rejects the combined deployment while its six
+required invitation secrets are absent. The owner ordered frontend availability
+before the separately approved Resend milestone. A distinct static release
+keeps that sequencing explicit instead of weakening or partially configuring
+the invitation Worker.
+
+**If changed:** Enabling invitation delivery requires all six reviewed hosted
+secrets, provider/domain verification, a combined dry-run and deployment, and a
+synthetic send test. Running the frontend-only command afterward would remove
+the API route and must therefore be blocked by the release procedure.
