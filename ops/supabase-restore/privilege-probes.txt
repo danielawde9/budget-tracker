@@ -1,0 +1,11 @@
+# Budget privilege probes for a verified Supabase scratch restore.
+# Format: `role action object`; role is anon or authenticated, action is
+# select, insert, update, delete, or execute. Every probe must fail with
+# SQLSTATE 42501 (permission denied): zero rows or any other error fails
+# verification. Each was measured denied on Budget Production during the
+# 2026-09-11 hosted restore drill; changing this list needs a reviewed decision.
+anon select public.spaces
+anon select public.categories
+anon execute public.leave_household_space(uuid,uuid)
+authenticated insert public.spaces
+authenticated select private.household_invitation_keys

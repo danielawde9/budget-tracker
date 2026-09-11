@@ -396,3 +396,142 @@ blocks removed because scratch runs no storage service), migration history,
 - The default schema dump excludes `auth`, `storage`, and `supabase_migrations`;
   the default data dump includes `auth` rows but excludes `supabase_migrations`
   and `auth.schema_migrations`.
+
+## Supabase CLI dump scratch restore (repository procedure)
+
+`scripts/ops/supabase-scratch-restore.sh` replaces the drill's throwaway
+scripts with a reviewed, fail-closed procedure. It is offline tooling: it never
+connects to a hosted project, and every database command runs through
+`docker exec` inside one labelled scratch container. Producing a bundle or a
+fingerprint from Budget Production is production contact and requires
+Daniel's explicit approval; the CLI hazards above still apply.
+
+### Bundle
+
+An operator-owned directory with no group/other permissions, holding
+operator-owned files with no group/other permissions (dumps up to 512 MiB each,
+the versions file up to 16 MiB):
+
+| File | Supabase CLI 2.109.1 source |
+| --- | --- |
+| `roles.sql` | `db dump --role-only` |
+| `auth-schema.sql` | `db dump -s auth` |
+| `supabase-migrations-schema.sql` | `db dump -s supabase_migrations` |
+| `schema.sql` | `db dump` |
+| `data.sql` | `db dump --data-only --use-copy` with `-x` for `auth.sessions`, `auth.refresh_tokens`, `auth.mfa_amr_claims`, `auth.one_time_tokens`, `auth.flow_state` |
+| `migration-history.sql` | `db dump --data-only --use-copy -s supabase_migrations` |
+| `auth-schema-migrations.txt` | one `auth.schema_migrations` version per line: 2–14 digits, unique, at most 512 |
+
+Before any target is contacted the script refuses a psql meta-command or
+transaction-control statement outside COPY data, an unterminated COPY block,
+any `storage` row (scratch runs no storage service; only empty `storage` COPY
+blocks are dropped), and an invalid versions file. The transaction-control
+check is line-based and conservative: a function body line beginning with
+`COMMIT` or `ROLLBACK` is refused for review rather than parsed.
+
+### Scratch target
+
+`BUDGET_SCRATCH_CONTAINER` names one running container that:
+
+- carries the label `budget.restore-target=supabase-scratch`;
+- runs `supabase/postgres:17.6.1.166` by index digest
+  `sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86`
+  (identical on Docker Hub and `public.ecr.aws`, measured 2026-09-11);
+- publishes no port, or only on `127.0.0.1`/`::1`, and does not use host
+  networking; and
+- is reached through a local unix-socket or SSH Docker endpoint (`tcp://` is
+  refused).
+
+The container ID is resolved and pinned before any database command. A real-data
+scratch on the shared Ubuntu host remains subject to the isolation audit above.
+
+### Commands
+
+```bash
+scripts/ops/supabase-scratch-restore.sh render /absolute/bundle
+BUDGET_SCRATCH_CONTAINER=name scripts/ops/supabase-scratch-restore.sh restore /absolute/bundle
+BUDGET_SCRATCH_CONTAINER=name scripts/ops/supabase-scratch-restore.sh verify /absolute/production.fingerprint
+BUDGET_SCRATCH_CONTAINER=name scripts/ops/supabase-scratch-restore.sh fingerprint /absolute/new.fingerprint
+scripts/ops/supabase-scratch-restore.sh compare /absolute/expected /absolute/actual
+```
+
+`render` prints the exact transaction for review. It contains the dump data, so
+keep any saved copy inside the private bundle directory. Exit codes: `64` usage,
+`65` bundle or input refused, `66` target refused, `67` database command failed
+or restore rolled back, `68` verification failed.
+
+### Transaction
+
+`restore` pipes the rendered stream to `psql --single-transaction` with
+`ON_ERROR_STOP` as `supabase_admin`, in this order:
+
+1. `prepare-target.sql` records the transaction, refuses a target that is not a
+   pristine image, and drops the placeholder `auth` schema without `CASCADE`.
+2. `platform-role-supabase_realtime_admin.sql`, only when `roles.sql`
+   references that role, creates it when absent.
+3. `neutralize-default-privileges.sql` snapshots and revokes every item of the
+   `public` default-privilege rows of `postgres` and `supabase_admin`, then
+   asserts none remain.
+4. `roles.sql`, `auth-schema.sql`, `supabase-migrations-schema.sql`, `schema.sql`,
+   `data.sql`, `migration-history.sql`, then the `auth.schema_migrations`
+   versions. Each segment first resets role, session authorization, and
+   settings and asserts it is still in the same transaction; data segments load
+   with `session_replication_role = replica`.
+5. `reinstate-default-privileges.sql` grants the snapshot back and asserts
+   every item is present.
+6. The completion segment marks the stream complete. A deferred constraint
+   trigger, enabled in every replication role, refuses the commit otherwise, so
+   a stream that ends early commits nothing.
+
+### Verification
+
+`verify` requires all three checks and reports every failure:
+
+- **Fingerprint:** `ops/supabase-restore/fingerprint.sql`, run as `postgres`,
+  must match the production fingerprint line for line. It covers role and
+  function settings (non-allowlisted values as md5), schema, relation, function,
+  and type owners and ACLs with NULL normalized to `acldefault()`, columns by
+  position among non-dropped columns, constraints, indexes, RLS flags,
+  policies, triggers, default ACLs, sequences, and per-table `count:md5`. Scope
+  is every CLI application schema plus `auth` and `supabase_migrations`; row
+  data of the five excluded session tables is not hashed. Role attributes are
+  not compared.
+- **Foreign keys:** `foreign-key-orphans.sql` counts child rows without a
+  parent for every foreign key; any orphan fails, because data loads with
+  triggers disabled.
+- **Privileges:** every probe in `ops/supabase-restore/privilege-probes.txt`
+  must raise SQLSTATE `42501`. A probe that succeeds, even on zero rows, fails.
+
+The production side runs the same file read-only, as `postgres`, only with
+Daniel's approval (**BLOCKED**):
+`psql "<approved connection by reference>" -X -f ops/supabase-restore/fingerprint.sql > production.fingerprint`.
+This definition has not yet been run against production. The drill used a
+throwaway query, so the first comparison may surface differences that need a
+reviewed decision rather than an ad hoc exclusion.
+
+### Tests
+
+`pnpm check:ops` runs `tests/ops/supabase-scratch-restore.test.ts` against the
+real image through Testcontainers with synthetic fixtures only: a
+Supabase-shaped source is dumped through the CLI 2.109.1 pipelines copied
+verbatim into `tests/ops/fixtures/supabase-restore/cli-2.109.1-dump.sh`. It
+needs a Docker endpoint that Testcontainers can reach as a unix socket;
+Testcontainers 12.1.0 does not speak `ssh://`. Tailscale SSH on the Le Labo
+Ubuntu host refuses unix-socket forwarding (`socket path "/var/run/docker.sock"
+is not in an allowed directory`, measured 2026-09-11) but allows exec sessions.
+Reach that daemon through a local socket that runs
+`ssh lelabo@100.76.160.91 docker system dial-stdio` for each connection,
+multiplexed over one SSH master whose `ControlPath` fits the 104-byte macOS
+socket limit. Disable the Ryuk reaper, which cannot connect back through such a
+bridge:
+
+```bash
+DOCKER_HOST="unix://<local bridge socket>" TESTCONTAINERS_RYUK_DISABLED=true pnpm check:ops
+```
+
+The suite stops its own containers; each carries the label
+`budget.restore-test=supabase-scratch-restore` for manual cleanup after an
+interrupted run.
+
+Encryption, off-site storage, key custody, scheduling, and any live restore
+remain outside this procedure and **BLOCKED** on owner decisions.

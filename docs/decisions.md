@@ -925,3 +925,64 @@ such a target.
 neutralization but still needs the ACL comparison. A different backup format or
 an explicit ACL-reset step needs its own rejection test proving `anon` is denied
 after restore.
+
+## 2026-09-11 — Supabase scratch restores use one reviewed fail-closed procedure
+
+**Decision:** Supabase CLI dumps are restored only through
+`scripts/ops/supabase-scratch-restore.sh`, re-derived from the drill's runbook
+section and the two entries above because the drill scripts were never
+committed. It renders one `psql --single-transaction` stream in the drill's
+restore order and runs it through `docker exec` in one running container
+labelled `budget.restore-target=supabase-scratch`, built from
+`supabase/postgres:17.6.1.166` pinned by index digest, publishing nothing beyond
+loopback, and reached over a local-socket or SSH Docker endpoint. Verification
+needs a line-for-line match with a production fingerprint produced by
+`ops/supabase-restore/fingerprint.sql`, zero foreign-key orphans, and SQLSTATE
+`42501` for every probe in `ops/supabase-restore/privilege-probes.txt`. A
+Testcontainers suite on the real image joins `pnpm check:ops`, using synthetic
+fixtures dumped through the CLI 2.109.1 pipelines copied from its `--dry-run`
+output. Defaults taken in the owner's absence:
+
+- The image is referenced as `public.ecr.aws/supabase/postgres:17.6.1.166`,
+  whose index digest equals Docker Hub `supabase/postgres:17.6.1.166` (measured
+  2026-09-11); either name is accepted only with that digest.
+- The fingerprint compares CLI application schemas plus `auth` and
+  `supabase_migrations`. It excludes the CLI's internal platform schemas, row
+  data of the five excluded session tables, and role attributes (the image and
+  hosted `postgres` attributes already differ). Non-allowlisted setting values
+  appear only as md5.
+- The probe manifest holds exactly the five probes measured denied in
+  production, for `anon` and `authenticated` only.
+- A non-empty `storage` table, any psql meta-command, and line-level transaction
+  control refuse the bundle before a target is contacted.
+- Only `supabase_realtime_admin` has a reviewed platform-role definition; any
+  other missing platform role fails the whole transaction.
+- A deferred completion sentinel refuses the commit when the stream ends early,
+  because `psql --single-transaction` commits whatever it read at end of input.
+- `pnpm check:ops` now needs a reachable Docker endpoint. At Daniel's request
+  the suite runs on the Le Labo Ubuntu Docker host through a local unix-socket
+  bridge to `ssh ... docker system dial-stdio`, because Tailscale SSH refuses
+  socket forwarding and Testcontainers 12.1.0 does not speak `ssh://`. Ryuk is
+  disabled there, and the suite stops each test's labelled containers itself.
+- `testcontainers` 12.1.0 (MIT, pinned devDependency) brings build scripts for
+  `cpu-features`, `protobufjs`, and `ssh2`. The pinned pnpm 11.17.0 refuses a
+  frozen install while they are unreviewed (measured: `ERR_PNPM_IGNORED_BUILDS`),
+  so `allowBuilds` denies each explicitly. The deployment contract test still
+  pins approvals to `esbuild` and `workerd` and now accepts only explicit
+  denials besides them.
+
+**Why:** The drill exposed two defects that a hand-run procedure could repeat
+silently: a platform role missing from the target, and target default
+privileges that widened `anon` while row-visibility checks still passed.
+Encoding the order, guards, and checks with rejection tests turns both into
+refusals, and pinning the target by label, image digest, and loopback-only
+ports keeps a restore of production data off any other database.
+
+**If changed:** Another image tag or registry digest needs a new pin and a
+re-measured placeholder `auth` inventory. Including session tables needs their
+data dumped and a churn-tolerant comparison. The fingerprint definition has not
+yet run against production, so its first approved run may expose differences;
+each needs its own ledger entry, not an ad hoc exclusion. More probes or
+platform roles need measured production evidence. A real-data restore on the
+shared Ubuntu host needs the host isolation audit. Encryption, off-site storage,
+key custody, and scheduling remain owner decisions.
