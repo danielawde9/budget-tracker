@@ -1,25 +1,17 @@
 import { randomBytes } from 'node:crypto';
-import { readFileSync, readdirSync } from 'node:fs';
-import { basename, join } from 'node:path';
 
 import { Client } from 'pg';
 import { describe, expect, it } from 'vitest';
 
-const migrationsDirectory = join(process.cwd(), 'supabase', 'migrations');
+import { bootstrapCompatibilityObjects, migrationFiles, replayMigrations } from './disposable-database.js';
+
 const householdStart = '20260908170000';
-const migrationLimit = 100;
 const disposableDatabaseNamePattern = /^budget_household_migration_[0-9a-f]{12}$/;
 
 type CleanupQuery = (
   statement: string,
   values?: unknown[],
 ) => Promise<{ rows: Array<Record<string, unknown>> }>;
-
-interface MigrationFile {
-  name: string;
-  path: string;
-  version: string;
-}
 
 interface MembershipProof {
   activated_matches_created: boolean;
@@ -54,21 +46,6 @@ function databaseUrl(): string {
   const value = process.env.BUDGET_TEST_DATABASE_URL;
   if (!value) throw new Error('BUDGET_TEST_DATABASE_URL is required');
   return value;
-}
-
-function migrationFiles(): MigrationFile[] {
-  const files = readdirSync(migrationsDirectory)
-    .filter((name) => /^\d{14}_[a-z0-9_]+\.sql$/.test(name))
-    .sort()
-    .map((name) => ({
-      name: basename(name, '.sql').slice(15),
-      path: join(migrationsDirectory, name),
-      version: name.slice(0, 14),
-    }));
-  if (files.length < 1 || files.length > migrationLimit) {
-    throw new Error(`migration count must be between 1 and ${migrationLimit}`);
-  }
-  return files;
 }
 
 function disposableDatabaseUrl(name: string): string {
@@ -132,53 +109,6 @@ async function cleanupDisposableDatabase(query: CleanupQuery, name: string): Pro
         + `backend cleanup: ${errorDetail(terminationError)}; `
         + `second drop: ${errorDetail(secondDropError)}`,
     );
-  }
-}
-
-async function bootstrap(client: Client): Promise<void> {
-  await client.query(`
-    create schema auth;
-    create table auth.users (
-      id uuid primary key,
-      email text,
-      email_confirmed_at timestamptz
-    );
-    create function auth.uid()
-    returns uuid
-    language sql
-    stable
-    set search_path = pg_catalog
-    as $$
-      select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
-    $$;
-    grant usage on schema auth to authenticated;
-    grant execute on function auth.uid() to authenticated;
-    create schema extensions;
-    create extension pgcrypto with schema extensions;
-    create schema supabase_migrations;
-    create table supabase_migrations.schema_migrations (
-      version text primary key,
-      statements text[] not null default array[]::text[],
-      name text
-    );
-  `);
-}
-
-async function applyMigrations(client: Client, files: MigrationFile[]): Promise<void> {
-  for (const file of files) {
-    await client.query('begin');
-    try {
-      await client.query(readFileSync(file.path, 'utf8'));
-      await client.query(
-        `insert into supabase_migrations.schema_migrations (version, statements, name)
-         values ($1, array[]::text[], $2)`,
-        [file.version, file.name],
-      );
-      await client.query('commit');
-    } catch (error) {
-      await client.query('rollback');
-      throw error;
-    }
   }
 }
 
@@ -345,16 +275,16 @@ async function verifyHouseholdMigrations(seeded: boolean): Promise<MigrationProo
       connectionTimeoutMillis: 10_000,
     });
     await database.connect();
-    await bootstrap(database);
+    await bootstrapCompatibilityObjects(database);
     const files = migrationFiles();
     const baseline = files.filter((file) => file.version < householdStart);
     const household = files.filter((file) => file.version >= householdStart);
-    await applyMigrations(database, seeded ? baseline : files);
+    await replayMigrations(database, seeded ? baseline : files);
     let beforeFinancials: string | undefined;
     if (seeded) {
       await seedPreHouseholdDatabase(database);
       beforeFinancials = await financialSnapshot(database);
-      await applyMigrations(database, household);
+      await replayMigrations(database, household);
     }
     const proof = await proofResult(database, seeded);
     if (beforeFinancials) {
