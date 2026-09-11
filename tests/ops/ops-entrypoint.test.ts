@@ -20,7 +20,7 @@ describe('operations verification entrypoint', () => {
       'bash scripts/ops/check-budget.sh',
     );
     expect(packageJson.scripts['migrate:live']).toBe(
-      'bash scripts/ops/apply-live-migrations.sh',
+      'bash scripts/ops/docker-ssh-bridge.sh run -- bash scripts/ops/apply-live-migrations.sh',
     );
     expect(packageJson.scripts.check).toBe(
       'pnpm check:ops && pnpm typecheck && pnpm test:db && pnpm test:worker && pnpm test:ui && pnpm build',
