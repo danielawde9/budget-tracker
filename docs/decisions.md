@@ -854,3 +854,23 @@ the invitation Worker.
 secrets, provider/domain verification, a combined dry-run and deployment, and a
 synthetic send test. Running the frontend-only command afterward would remove
 the API route and must therefore be blocked by the release procedure.
+
+## 2026-09-11 — Cloudflare Workers Builds retargets to the frontend-only command
+
+**Decision:** The `budget-tracker` Worker's Cloudflare Workers Builds production
+settings (GitHub-connected auto-deploy on every push to `main`) now run
+`pnpm deploy:cloudflare:frontend` instead of `pnpm deploy:cloudflare`. Build
+command, environment variables, and repository/branch watch are unchanged.
+
+**Why:** Workers Builds predates the frontend-only release decision above and
+still pointed at the combined deploy command. The push that landed the
+frontend-only release and Subcategories timeout fix auto-triggered Workers
+Builds, which correctly failed at Cloudflare's required-secrets gate (the six
+invitation secrets are still unset) without deploying anything — the manually
+deployed frontend-only release stayed live and unaffected. Left unchanged,
+every future push to `main` would keep failing the same way until the
+invitation milestone starts.
+
+**If changed:** Enabling invitation delivery must flip this deploy command back
+to `pnpm deploy:cloudflare` in the same change that configures the six hosted
+secrets, so Workers Builds and the manual release procedure stay consistent.
