@@ -1319,3 +1319,24 @@ household-migrations means either enhancing `dropDisposableDatabase` in
 all three consumers) and moving `cleanupDisposableDatabase`'s two dedicated
 unit tests to target the shared function, or accepting the loss of that retry
 path. Either call should happen as its own reviewed change, not silently.
+
+## 2026-09-11 — The authenticated finance app gets a Home orientation surface and a transaction-first Wallets workspace
+
+**Decision:** The approved visual direction is a calm, practical financial
+workspace. Authenticated navigation begins at a bounded Home surface that shows
+orientation, active wallet balances, and recent activity, while Wallets remains
+the primary place to read and record the full journal. The redesign changes only
+presentation and route composition: existing protected commands, typed gateways,
+derived balance rules, and archive behavior remain authoritative. Reports stays
+out of primary navigation until a real, approved feature exists.
+
+**Why:** The existing UI presents every feature as a dense ledger/admin surface,
+with heavy borders, oversized headings, placeholder-like navigation glyphs, and
+no clear daily entry point. A small Home surface provides orientation without
+inventing reporting; a transaction-first Wallets page keeps financial work close
+to the verified ledger behavior.
+
+**If changed:** Making Wallets the default instead removes the Home route but
+does not alter the shared visual system. Adding charts, budgets, search,
+notifications, or reporting requires a separate product and data-contract
+decision; they are not cosmetic additions to this redesign.
