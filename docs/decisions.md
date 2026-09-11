@@ -987,6 +987,82 @@ platform roles need measured production evidence. A real-data restore on the
 shared Ubuntu host needs the host isolation audit. Encryption, off-site storage,
 key custody, and scheduling remain owner decisions.
 
+## 2026-09-11 — The Testcontainers suite reaches the Le Labo Docker host through a tracked bridge
+
+**Decision:** `scripts/ops/docker-ssh-bridge.sh run -- COMMAND` replaces the
+hand-built bridge described in the entry above. It runs one command with
+`DOCKER_HOST` pointing at a private local unix socket and
+`TESTCONTAINERS_RYUK_DISABLED=true`; each accepted connection runs
+`ssh lelabo@100.76.160.91 docker system dial-stdio` over one multiplexed SSH
+master. Fixture tests with a fake `ssh` join `pnpm check:ops` and need no remote
+host. Defaults taken in the owner's absence:
+
+- The address is a pinned constant with no override, passed with `HostName`,
+  `ProxyJump=none`, and `ProxyCommand=none` so ssh configuration cannot reroute
+  it (accepted by `ssh -G` with OpenSSH 10.3p1). Only the client binary can
+  change (`BUDGET_DOCKER_BRIDGE_SSH_BIN`, an absolute path, default
+  `/usr/bin/ssh`), which is how the tests substitute a fake. On the host,
+  `docker system dial-stdio` still follows the `lelabo` user's Docker
+  configuration.
+- Each run gets its own mode-`0700` directory under `TMPDIR` holding the bridge
+  socket and `ControlPath=<dir>/ssh`, and ends its master with `ssh -O exit`,
+  instead of a shared `${TMPDIR%/}/bl-%h` (the form measured working on
+  2026-09-11). Concurrent runs cannot stop each other's master, at the cost of
+  one master start per run; only a killed helper leaves its master and directory
+  behind, until `ControlPersist` (900 s). A `TMPDIR` longer than 69 bytes after
+  one trailing slash is removed is refused, because the control path plus
+  OpenSSH's 17-character suffix would reach the 104-byte macOS `sun_path`.
+- Readiness is `GET /_ping` through the bridge within 30 s
+  (`BUDGET_DOCKER_BRIDGE_READY_SECONDS`, 1-120). Failure exits `66` with a
+  Tailscale re-authentication hint, so a stale login at startup cannot hang the
+  run. Sessions have no wall-clock limit because hijacked `docker exec` streams
+  last as long as a restore; SSH keepalives (15 s, two misses) bound a dead link.
+  If the master connection drops mid-run, new sessions reconnect, and check mode
+  can hold those until the suite's own timeouts.
+- Testcontainers 12.1.0 tries `tc.host` from `~/.testcontainers.properties`
+  before `DOCKER_HOST` and falls back to `/var/run/docker.sock` when an endpoint
+  fails (read from the pinned source). The helper refuses a `tc.host` setting and
+  exits `66` when the bridge exits before the command does. It cannot see which
+  endpoint a client finally used; asserting that belongs to the suite and is not
+  yet done.
+- Interrupts during cleanup are ignored because cleanup is bounded, so a second
+  Ctrl-C cannot orphan the bridge. SSH sessions run in their own session so a
+  terminal Ctrl-C reaches the helper first, and the bridge stops itself within a
+  second when the helper is killed. The command process gets `TERM`, then `KILL`
+  after 10 s; processes it started are not signalled directly.
+- At most 32 connections are open at once; excess connections are refused and
+  logged rather than queued. Tailscale SSH's own per-connection session limit is
+  unmeasured; a full `pnpm check:ops` through the helper (13 files, 249 tests,
+  231 s, measured 2026-09-11) never reached the bound.
+- Client EOF closes SSH stdin while the response keeps flowing; remote EOF ends
+  the connection. While the remote is silent, a POLLHUP on the client ends the
+  session. On macOS a half-closed peer still polls writable, while a closed one
+  reports only POLLHUP (measured 2026-09-11).
+- Sessions the bridge terminates at shutdown are not reported as SSH failures.
+  OpenSSH mux clients exit 255 when terminated, which printed a false
+  `ssh exited with status 255` in 3 of 5 live `docker version` runs before the
+  fix.
+- The command keeps the caller's `PATH`, because Node comes from a version
+  manager outside the ops allowlist. `DOCKER_CONTEXT` is left alone: Docker CLI
+  29.7.2 prefers `DOCKER_HOST` when both are set (measured).
+
+**Why:** `pnpm check:ops` now depends on this host, and the bridge existed only
+as prose that each operator rebuilt by hand, with two silent traps: a
+`ControlPath` over the socket limit stalls every connection, and a stale
+Tailscale login makes the suite look stuck. Tracked, tested tooling turns both
+into loud refusals, pins the SSH route, and refuses the two ways Testcontainers
+12.1.0 could quietly use a different daemon.
+
+**If changed:** If Tailscale SSH allows socket forwarding, or Testcontainers
+supports `ssh://`, remove the helper in favour of `ssh -L` or
+`DOCKER_HOST=ssh://`. Another Docker host needs its own pinned constant and
+measurements, not an override. If the suite needs more concurrent connections,
+or the SSH server caps sessions lower, re-measure and move the bound with its
+test. Once the suite asserts its runtime endpoint, the `tc.host` refusal and
+bridge-exit check remain as defense in depth. Running the suite in CI needs a
+Docker endpoint there; this helper is operator-Mac tooling. The helper adds two
+files to the tracked secret scan (248 of 256 on this branch).
+
 ## 2026-09-11 — Secret scan is bounded by bytes and time, not a near-full file count
 
 **Decision:** The tracked-text secret scan behind `pnpm check:ops` accepts up to

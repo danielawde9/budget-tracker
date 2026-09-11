@@ -20,6 +20,7 @@ readonly -a CHECK_OPS_SCRIPTS=(
   "${CHECK_REPO_ROOT}/tests/ops/fixtures/supabase-restore/cli-2.109.1-dump.sh"
   "${CHECK_SCRIPT_DIR}/budget-uat-18.sh"
   "${CHECK_REPO_ROOT}/ops/uat/remote-budget-uat-18.sh"
+  "${CHECK_SCRIPT_DIR}/docker-ssh-bridge.sh"
   "${CHECK_SCRIPT_DIR}/check-budget.sh"
 )
 
