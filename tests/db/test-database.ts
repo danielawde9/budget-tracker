@@ -191,6 +191,7 @@ export async function financialTableWritePrivileges(
       roleName,
       [
         'wallets',
+        'wallet_command_requests',
         'financial_events',
         'wallet_movements',
         'loans',

@@ -44,6 +44,7 @@ describe('financial posting boundary coverage', () => {
       { table_name: 'loan_monthly_target_revisions', writable: false },
       { table_name: 'loan_postings', writable: false },
       { table_name: 'loans', writable: false },
+      { table_name: 'wallet_command_requests', writable: false },
       { table_name: 'wallet_movements', writable: false },
       { table_name: 'wallets', writable: false },
     ]);
@@ -56,6 +57,7 @@ describe('financial posting boundary coverage', () => {
       { table_name: 'loan_monthly_target_revisions', writable: false },
       { table_name: 'loan_postings', writable: false },
       { table_name: 'loans', writable: false },
+      { table_name: 'wallet_command_requests', writable: false },
       { table_name: 'wallet_movements', writable: false },
       { table_name: 'wallets', writable: false },
     ]);
