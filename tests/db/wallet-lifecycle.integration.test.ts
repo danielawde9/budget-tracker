@@ -47,6 +47,15 @@ const ownerWriteError = { code: '42501', message: 'protected rows may be written
 const walletShapeError = { code: '42501', message: 'wallets may change only their name and archive state' };
 const walletDeleteError = { code: '42501', message: 'wallets are archived, never deleted' };
 const logImmutableError = { code: '42501', message: 'wallet command history is immutable' };
+const genericPostingError = {
+  code: 'P0001',
+  message: 'every movement must contain a unique active wallet and a bounded nonzero minor-unit amount',
+};
+const loanWalletError = {
+  code: 'P0001',
+  message: 'the wallet must be active, in the requested space, and in the loan currency',
+};
+const inactiveMovementError = { code: 'P0001', message: 'every wallet movement must use an active wallet' };
 
 async function insertUsers(client: Client, userIds: readonly string[]): Promise<void> {
   if (userIds.length < 1 || userIds.length > 8) {
@@ -177,6 +186,85 @@ async function functionCatalog(client: Client, signatures: readonly string[]) {
   );
   expect(result.rows).toHaveLength(signatures.length);
   return result.rows;
+}
+
+async function reverseEvent(client: Client, actorId: string, spaceId: string, eventId: string): Promise<string> {
+  return withAuthenticatedTransaction(client, actorId, async () => {
+    const result = await client.query<{ id: string }>(
+      "select * from public.reverse_financial_event($1, $2, $3, '2026-09-11') limit 2",
+      [spaceId, randomUUID(), eventId],
+    );
+    expect(result.rows).toHaveLength(1);
+    return result.rows[0]!.id;
+  });
+}
+
+async function createExpenseCategory(client: Client, actorId: string, spaceId: string): Promise<string> {
+  return withAuthenticatedTransaction(client, actorId, async () => {
+    const result = await client.query<{ id: string }>(
+      "select * from public.create_category($1, $2, 'expense', $3, null) limit 2",
+      [spaceId, randomUUID(), `Groceries ${randomUUID()}`],
+    );
+    expect(result.rows).toHaveLength(1);
+    return result.rows[0]!.id;
+  });
+}
+
+async function postCategorizedExpense(
+  client: Client,
+  actorId: string,
+  spaceId: string,
+  walletId: string,
+  categoryId: string,
+  amountMinor: string,
+): Promise<string> {
+  return withAuthenticatedTransaction(client, actorId, async () => {
+    const result = await client.query<{ id: string }>(
+      `select * from public.record_categorized_financial_event(
+         $1, $2, 'expense', '2026-09-11', $3::jsonb, $4
+       ) limit 2`,
+      [spaceId, randomUUID(), JSON.stringify([{ walletId, amountMinor }]), categoryId],
+    );
+    expect(result.rows).toHaveLength(1);
+    return result.rows[0]!.id;
+  });
+}
+
+async function recordCashLoan(
+  client: Client,
+  actorId: string,
+  spaceId: string,
+  walletId: string,
+  amountMinor: string,
+): Promise<string> {
+  return withAuthenticatedTransaction(client, actorId, async () => {
+    const result = await client.query<{ loan_id: string }>(
+      `select loan_id from public.record_cash_loan(
+         $1, $2, 'they_owe_me', 'Sami', 'USD', $3, $4, '2026-09-11', null, null
+       ) limit 2`,
+      [spaceId, randomUUID(), walletId, amountMinor],
+    );
+    expect(result.rows).toHaveLength(1);
+    return result.rows[0]!.loan_id;
+  });
+}
+
+async function repayLoan(
+  client: Client,
+  actorId: string,
+  spaceId: string,
+  loanId: string,
+  walletId: string,
+  amountMinor: string,
+): Promise<string> {
+  return withAuthenticatedTransaction(client, actorId, async () => {
+    const result = await client.query<{ event_id: string }>(
+      "select event_id from public.record_loan_repayment($1, $2, $3, $4, $5, '2026-09-11') limit 2",
+      [spaceId, randomUUID(), loanId, walletId, amountMinor],
+    );
+    expect(result.rows).toHaveLength(1);
+    return result.rows[0]!.event_id;
+  });
 }
 
 describe('wallet lifecycle database contract', () => {
@@ -494,5 +582,98 @@ describe('wallet lifecycle database contract', () => {
       { signature: 'private.reject_wallet_command_history_mutation()', ...privateGuard },
       { signature: 'private.reject_wallet_deletion()', ...privateGuard },
     ]);
+  });
+
+  it('refuses a reversal that would move money through an archived wallet', async () => {
+    const { client } = currentDatabase();
+    const walletId = await createWallet(client, ownerId, personalId, 'Reversal USD');
+    const incomeId = await postEvent(client, ownerId, personalId, 'income', [{ walletId, amountMinor: '500' }]);
+    await postEvent(client, ownerId, personalId, 'expense', [{ walletId, amountMinor: '-500' }]);
+    await archiveWalletDirectly(client, walletId);
+
+    await expect(reverseEvent(client, ownerId, personalId, incomeId)).rejects.toMatchObject(inactiveMovementError);
+    expect(await walletBalance(client, walletId)).toBe('0');
+    const reversals = await client.query(
+      'select id from public.financial_events where reversal_of = $1 limit 2', [incomeId],
+    );
+    expect(reversals.rows).toEqual([]);
+  });
+
+  it('refuses a raw owner movement into an archived wallet when command checks are bypassed', async () => {
+    const { client } = currentDatabase();
+    const walletId = await createWallet(client, ownerId, personalId, 'Raw movement USD');
+    await archiveWalletDirectly(client, walletId);
+    await withRollback(client, async () => {
+      const event = await client.query<{ id: string }>(
+        `insert into public.financial_events (
+           space_id, request_id, request_fingerprint, kind, effective_date, actor_id
+         ) values ($1, $2, pg_catalog.decode('00', 'hex'), 'income', '2026-09-11', $3)
+         returning id`,
+        [personalId, randomUUID(), ownerId],
+      );
+      expect(event.rows).toHaveLength(1);
+      await expectSavepointRejection(client, () => client.query(
+        `insert into public.wallet_movements (event_id, space_id, wallet_id, amount_minor)
+         values ($1, $2, $3, 500)`,
+        [event.rows[0]!.id, personalId, walletId],
+      ), inactiveMovementError);
+    });
+    expect(await walletBalance(client, walletId)).toBe('0');
+  });
+
+  // Characterization: these command-level refusals already existed. They stay
+  // pinned so the trigger is proven to back up, not replace, the command checks.
+  it('refuses every posting command into an archived wallet', async () => {
+    const { client } = currentDatabase();
+    const activeId = await createWallet(client, ownerId, personalId, 'Active lender USD');
+    const archivedId = await createWallet(client, ownerId, personalId, 'Archived USD');
+    await postEvent(client, ownerId, personalId, 'opening_balance', [{ walletId: activeId, amountMinor: '10000' }]);
+    const loanId = await recordCashLoan(client, ownerId, personalId, activeId, '3000');
+    const categoryId = await createExpenseCategory(client, ownerId, personalId);
+    await archiveWalletDirectly(client, archivedId);
+
+    await expect(postEvent(client, ownerId, personalId, 'income', [{ walletId: archivedId, amountMinor: '100' }]))
+      .rejects.toMatchObject(genericPostingError);
+    await expect(postEvent(client, ownerId, personalId, 'transfer', [
+      { walletId: activeId, amountMinor: '-100' },
+      { walletId: archivedId, amountMinor: '100' },
+    ])).rejects.toMatchObject(genericPostingError);
+    await expect(postCategorizedExpense(client, ownerId, personalId, archivedId, categoryId, '-100'))
+      .rejects.toMatchObject(genericPostingError);
+    await expect(recordCashLoan(client, ownerId, personalId, archivedId, '100'))
+      .rejects.toMatchObject(loanWalletError);
+    await expect(repayLoan(client, ownerId, personalId, loanId, archivedId, '100'))
+      .rejects.toMatchObject(loanWalletError);
+    expect(await walletBalance(client, archivedId)).toBe('0');
+    expect(await walletBalance(client, activeId)).toBe('7000');
+  });
+
+  it('accepts movements again once an archived wallet is active', async () => {
+    const { client } = currentDatabase();
+    const walletId = await createWallet(client, ownerId, personalId, 'Returning USD');
+    await archiveWalletDirectly(client, walletId);
+    await client.query('update public.wallets set archived_at = null where id = $1', [walletId]);
+    await postEvent(client, ownerId, personalId, 'income', [{ walletId, amountMinor: '250' }]);
+    expect(await walletBalance(client, walletId)).toBe('250');
+  });
+
+  it('pins the active-wallet movement trigger and its definer function', async () => {
+    const { client } = currentDatabase();
+    const trigger = await client.query<Record<string, unknown>>(
+      `select tgname, tgenabled, pg_get_triggerdef(oid) as definition
+       from pg_trigger
+       where tgrelid = 'public.wallet_movements'::regclass
+         and tgname = 'wallet_movements_require_active_wallet'
+       limit 2`,
+    );
+    expect(trigger.rows).toEqual([{
+      tgname: 'wallet_movements_require_active_wallet', tgenabled: 'O',
+      definition: 'CREATE TRIGGER wallet_movements_require_active_wallet BEFORE INSERT ON public.wallet_movements FOR EACH ROW EXECUTE FUNCTION private.require_active_movement_wallet()',
+    }]);
+    expect(await functionCatalog(client, ['private.require_active_movement_wallet()'])).toEqual([{
+      signature: 'private.require_active_movement_wallet()', result: 'trigger', prosecdef: true, provolatile: 'v',
+      proconfig: ['search_path=pg_catalog'],
+      public_exec: false, anon_exec: false, authenticated_exec: false, service_exec: false,
+    }]);
   });
 });

@@ -986,3 +986,20 @@ Deleting a wallet would orphan journal history; archive is the removal path.
 `wallet_balances` to resolve the latest revision. Allowing deletion needs proof
 that no movement, loan posting, or log row references the wallet, and its own
 rejection tests.
+
+## 2026-09-11 — Archived wallets accept no money movement
+
+**Decision:** A `BEFORE INSERT` trigger on `public.wallet_movements` locks the
+target wallet `FOR SHARE` and refuses any movement into an archived wallet with
+`every wallet movement must use an active wallet`. It covers every writer,
+including `reverse_financial_event` and the loan commands.
+
+**Why:** Posting commands already skipped archived wallets, but reversals did not
+check at all, and no command locked the wallet, so a posting validated just
+before an archive committed could still land in the archived wallet. The share
+lock conflicts with the archive command's row lock, so exactly one of the two
+wins and an archived wallet always has a zero balance.
+
+**If changed:** Allowing corrections into archived wallets needs its own reviewed
+rule for keeping their balance at zero. Removing the lock reopens the race that
+`tests/db/wallet-lifecycle.integration.test.ts` proves closed.

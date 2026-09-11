@@ -122,3 +122,40 @@ revoke all on table public.wallet_command_requests from public, anon, authentica
 revoke all on function private.reject_wallet_command_history_mutation() from public, anon, authenticated, service_role;
 revoke all on function private.guard_wallet_update() from public, anon, authenticated, service_role;
 revoke all on function private.reject_wallet_deletion() from public, anon, authenticated, service_role;
+
+-- 2. Archived wallets accept no money movement from any writer.
+
+create function private.require_active_movement_wallet()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog
+as $$
+declare
+  v_wallet_id uuid;
+begin
+  -- FOR SHARE conflicts with archive_wallet's FOR UPDATE, so a movement and an
+  -- archive of the same wallet serialize instead of both committing.
+  select wallet.id
+  into v_wallet_id
+  from public.wallets as wallet
+  where wallet.id = new.wallet_id
+    and wallet.space_id = new.space_id
+    and wallet.archived_at is null
+  for share;
+
+  if not found then
+    raise exception using
+      errcode = 'P0001',
+      message = 'every wallet movement must use an active wallet';
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger wallet_movements_require_active_wallet
+before insert on public.wallet_movements
+for each row execute function private.require_active_movement_wallet();
+
+revoke all on function private.require_active_movement_wallet() from public, anon, authenticated, service_role;
