@@ -68,6 +68,7 @@ test('desktop English rehearsal exercises every protected financial mutation and
   await page.goto('/');
 
   await page.getByText('Account').click();
+  await page.getByText('Backup readiness').click();
   await expect(page.getByRole('note', { name: 'Backup readiness' })).toContainText('Do not enter real financial data');
   await page.getByText('Account').click();
 
@@ -195,6 +196,7 @@ test('mobile Arabic rehearsal keeps the empty state, RTL, recovery notice, and s
   await page.getByRole('button', { name: 'المحافظ' }).click();
   await expect(page.getByText('محفظة تجريبية').first()).toBeVisible();
   await page.getByText('الحساب').click();
+  await page.getByText('جاهزية النسخ الاحتياطي').click();
   const backupReadiness = page.getByRole('note', { name: 'جاهزية النسخ الاحتياطي' });
   await expect(backupReadiness).toContainText('لا تُدخل بيانات مالية حقيقية');
   await expect(backupReadiness).toBeInViewport({ ratio: 1 });

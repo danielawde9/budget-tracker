@@ -16,9 +16,27 @@ test('signed-out desktop keeps financial content private', async ({ page }, test
   await installApplicationFixture(page, { authenticated: false });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'العربية' })).toHaveCSS('color', 'rgb(255, 255, 255)');
+  await expect(page.getByRole('button', { name: 'العربية' })).toHaveCSS('color', 'rgb(23, 35, 29)');
   await expect(page.getByText('Maya')).toHaveCount(0);
   await page.screenshot({ path: screenshotPath(testInfo, 'signed-out-desktop.png'), fullPage: true });
+});
+
+test('narrow signed-out auth stays within the viewport in English and Arabic', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile');
+  await page.setViewportSize({ width: 320, height: 568 });
+  await installApplicationFixture(page, { authenticated: false });
+  await page.goto('/');
+
+  for (const language of ['en', 'ar'] as const) {
+    const boundary = page.locator('.auth-boundary');
+    await expect(boundary).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+    const box = await boundary.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(320);
+    if (language === 'en') await page.getByRole('button', { name: 'العربية' }).click();
+  }
 });
 
 test('sign-in failure preserves email and a later retry opens Loans', async ({ page }, testInfo) => {

@@ -309,7 +309,7 @@ dd { margin: 8px 0 0; font-weight: 760; white-space: nowrap; }
   .auth-page, .configuration-page, .workspace-state-page { padding: 14px; }
   .auth-boundary { padding: 32px 24px; }
   .auth-intro h1 { font-size: 3.1rem; margin-block: 20px 14px; }
-  .auth-form { padding: 26px 24px 34px; }
+  .auth-form { padding: 26px 0 34px; }
   .auth-language { inset-block-start: 16px; inset-inline-end: 16px; }
   .app-shell { width: min(100% - 28px, 680px); padding-top: 24px; }
   .topbar { align-items: start; }
