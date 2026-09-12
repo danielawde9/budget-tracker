@@ -6,11 +6,12 @@ import type { Locale } from '../loans/types.js';
 import { DialogShell } from './dialog-shell.js';
 import { formatMinorAmount, invertMinorAmount, parsePositiveMinorAmount } from './money.js';
 import type { CommandOutcome } from './use-wallets.js';
-import type { GeneralEventKind, MovementInput, WalletProjection } from './types.js';
+import type { GeneralEventKind, MovementInput, Payee, WalletProjection } from './types.js';
 
 interface TransactionDialogProps {
   locale: Locale;
   wallets: readonly WalletProjection[];
+  payees?: readonly Payee[];
   categories?: readonly Category[];
   categoryNextCursors?: Partial<Record<CategoryKind, string | null>>;
   categoryLoadingMore?: CategoryKind | null;
@@ -22,7 +23,7 @@ interface TransactionDialogProps {
   onClearAmbiguous(): void;
   onRetry(): Promise<CommandOutcome>;
   onRefresh(): Promise<boolean>;
-  onSubmit(input: { kind: GeneralEventKind; effectiveDate: string; movements: readonly MovementInput[]; categoryId?: string }): Promise<CommandOutcome>;
+  onSubmit(input: { kind: GeneralEventKind; effectiveDate: string; movements: readonly MovementInput[]; categoryId?: string; payeeName?: string | null; note?: string | null }): Promise<CommandOutcome>;
 }
 
 const t = (locale: Locale, en: string, ar: string) => locale === 'ar' ? ar : en;
@@ -46,6 +47,8 @@ export function TransactionDialog(props: TransactionDialogProps) {
   const [amount, setAmount] = useState('');
   const [effectiveDate, setEffectiveDate] = useState(today);
   const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [payeeName, setPayeeName] = useState('');
+  const [note, setNote] = useState('');
   const [movements, setMovements] = useState<readonly MovementInput[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -113,6 +116,8 @@ export function TransactionDialog(props: TransactionDialogProps) {
         effectiveDate,
         movements,
         ...(categoryId && (kind === 'income' || kind === 'expense') ? { categoryId } : {}),
+        ...(payeeName.trim() ? { payeeName: payeeName.trim() } : {}),
+        ...(note.trim() ? { note: note.trim() } : {}),
       });
       if (outcome.status === 'success') setSuccess(true);
       else if (outcome.status === 'refresh-required') {
@@ -175,6 +180,8 @@ export function TransactionDialog(props: TransactionDialogProps) {
         <label>{kind === 'transfer' ? t(props.locale, 'From wallet', 'من محفظة') : t(props.locale, 'Wallet', 'المحفظة')}<select value={walletId} disabled={mutationLocked} onChange={(event) => edit(() => setWalletId(event.target.value))}>{props.wallets.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.currency}</option>)}</select></label>
         {kind === 'transfer' && <label>{t(props.locale, 'To wallet', 'إلى محفظة')}<select value={toWalletId} disabled={mutationLocked} onChange={(event) => edit(() => setToWalletId(event.target.value))}>{props.wallets.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.currency}</option>)}</select></label>}
         <label className="full-field">{t(props.locale, 'Amount', 'المبلغ')}<input inputMode="decimal" value={amount} disabled={mutationLocked} onChange={(event) => edit(() => setAmount(event.target.value))} /></label>
+        <label>{t(props.locale, 'Payee', 'الجهة')}<input value={payeeName} list="transaction-payees" maxLength={120} disabled={mutationLocked} onChange={(event) => edit(() => setPayeeName(event.target.value))} />{(props.payees?.length ?? 0) > 0 && <datalist id="transaction-payees">{props.payees?.map((payee) => <option key={payee.id} value={payee.name} />)}</datalist>}</label>
+        <label className="full-field">{t(props.locale, 'Note', 'ملاحظة')}<textarea value={note} maxLength={2000} rows={3} disabled={mutationLocked} onChange={(event) => edit(() => setNote(event.target.value))} /></label>
       </div>
       {(kind === 'income' || kind === 'expense') && <fieldset className="category-picker">
         <legend>{t(props.locale, 'Category', 'الفئة')}</legend>

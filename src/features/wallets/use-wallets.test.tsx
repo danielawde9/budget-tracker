@@ -29,6 +29,7 @@ function gateway(overrides: Partial<WalletsGateway> = {}): WalletsGateway {
     restoreWallet: vi.fn(async () => ({ id: 'wallet-1' })),
     getWalletCommandResult: vi.fn(async () => null),
     recordEvent: vi.fn(async () => ({ eventId: 'event-new' })),
+    describeEvent: vi.fn(async () => ({ eventId: 'event-new' })),
     reverseEvent: vi.fn(async () => ({ eventId: 'reversal-new' })),
     findEventByRequestId: vi.fn(async () => null),
     ...overrides,

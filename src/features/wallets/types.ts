@@ -48,6 +48,14 @@ export interface JournalEvent {
   loanLinked: boolean;
   movements: readonly JournalMovement[];
   category?: JournalCategoryLabel | null;
+  payeeName?: string | null;
+  note?: string | null;
+}
+
+export interface Payee {
+  id: string;
+  spaceId: string;
+  name: string;
 }
 
 export interface JournalPage {
@@ -59,6 +67,7 @@ export interface WalletsSnapshot {
   wallets: readonly WalletProjection[];
   archivedWallets: readonly WalletProjection[];
   history: JournalPage;
+  payees?: readonly Payee[];
 }
 
 export interface CreateWalletInput {
@@ -100,6 +109,14 @@ export interface RecordEventInput {
   movements: readonly MovementInput[];
 }
 
+export interface DescribeEventInput {
+  spaceId: string;
+  requestId: string;
+  eventId: string;
+  payeeName?: string | null;
+  note?: string | null;
+}
+
 export interface ReverseEventInput {
   spaceId: string;
   requestId: string;
@@ -121,6 +138,7 @@ export interface WalletsGateway {
   restoreWallet(input: WalletLifecycleInput): Promise<CommandResult>;
   getWalletCommandResult(spaceId: string, requestId: string): Promise<WalletCommandRecord | null>;
   recordEvent(input: RecordEventInput): Promise<CommandResult>;
+  describeEvent(input: DescribeEventInput): Promise<CommandResult>;
   reverseEvent(input: ReverseEventInput): Promise<CommandResult>;
   findEventByRequestId(spaceId: string, requestId: string): Promise<JournalEvent | null>;
 }

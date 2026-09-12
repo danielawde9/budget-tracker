@@ -198,6 +198,9 @@ export async function financialTableWritePrivileges(
         'loan_postings',
         'loan_monthly_target_revisions',
         'financial_event_categories',
+        'financial_event_descriptions',
+        'financial_event_description_requests',
+        'payees',
         ],
     ],
   );

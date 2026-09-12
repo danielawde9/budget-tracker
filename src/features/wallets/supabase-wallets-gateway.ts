@@ -1,11 +1,13 @@
 import type { Currency } from '../loans/types.js';
 import type {
   CommandResult,
+  DescribeEventInput,
   CreateWalletInput,
   JournalEvent,
   JournalEventKind,
   JournalMovement,
   JournalPage,
+  Payee,
   RecordEventInput,
   RenameWalletInput,
   ReverseEventInput,
@@ -18,6 +20,7 @@ import type {
 const WALLET_READ_LIMIT = 500;
 const HISTORY_PAGE_SIZE = 20;
 const RELATED_READ_LIMIT = HISTORY_PAGE_SIZE * 20;
+const PAYEE_READ_LIMIT = 100;
 
 interface DataError {
   message: string;
@@ -45,7 +48,7 @@ export interface WalletsDataClient {
 }
 
 type Row = Record<string, unknown>;
-type MutationName = 'create_wallet' | 'rename_wallet' | 'archive_wallet' | 'restore_wallet' | 'record_financial_event' | 'reverse_financial_event';
+type MutationName = 'create_wallet' | 'rename_wallet' | 'archive_wallet' | 'restore_wallet' | 'record_financial_event' | 'reverse_financial_event' | 'describe_financial_event';
 
 const currencies = new Set<Currency>(['USD', 'LBP']);
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -146,6 +149,19 @@ export function createSupabaseWalletsGateway(client: WalletsDataClient): Wallets
     );
   }
 
+  async function loadPayees(spaceId: string): Promise<Payee[]> {
+    const values = await rows(
+      client.from('payees').select('id,space_id,name,created_at').eq('space_id', spaceId)
+        .order('created_at', { ascending: false }).limit(PAYEE_READ_LIMIT + 1),
+      'Payees',
+      PAYEE_READ_LIMIT,
+    );
+    return values.map((value) => {
+      if (textValue(value, 'space_id') !== spaceId) throw new Error('A payee escaped the selected space.');
+      return { id: uuidValue(value, 'id'), spaceId, name: textValue(value, 'name') };
+    });
+  }
+
   function walletMap(walletRows: readonly Row[], spaceId: string): Map<string, WalletProjection> {
     return new Map(walletRows.map((value) => {
       if (textValue(value, 'space_id') !== spaceId) throw new Error('A wallet escaped the selected space.');
@@ -165,10 +181,11 @@ export function createSupabaseWalletsGateway(client: WalletsDataClient): Wallets
     spaceId: string,
     eventRows: readonly Row[],
     wallets: ReadonlyMap<string, WalletProjection>,
+    payees: ReadonlyMap<string, Payee>,
   ): Promise<JournalEvent[]> {
     if (eventRows.length === 0) return [];
     const eventIds = eventRows.map((value) => textValue(value, 'id'));
-    const [movementRows, postingRows, reversalRows] = await Promise.all([
+    const [movementRows, postingRows, reversalRows, descriptionRows] = await Promise.all([
       rows(
         client.from('wallet_movements').select('event_id,wallet_id,amount_minor')
           .eq('space_id', spaceId).in('event_id', eventIds).limit(RELATED_READ_LIMIT + 1),
@@ -186,6 +203,12 @@ export function createSupabaseWalletsGateway(client: WalletsDataClient): Wallets
           .in('reversal_of', eventIds).limit(HISTORY_PAGE_SIZE + 1),
         'Event reversals',
         HISTORY_PAGE_SIZE + 1,
+      ),
+      rows(
+        client.from('financial_event_descriptions').select('event_id,payee_id,note').eq('space_id', spaceId)
+          .in('event_id', eventIds).limit(HISTORY_PAGE_SIZE + 1),
+        'Financial event descriptions',
+        HISTORY_PAGE_SIZE,
       ),
     ]);
     const movements = new Map<string, JournalMovement[]>();
@@ -210,6 +233,10 @@ export function createSupabaseWalletsGateway(client: WalletsDataClient): Wallets
       const original = nullableText(value, 'reversal_of');
       if (original && eventIds.includes(original)) reversedBy.set(original, textValue(value, 'id'));
     }
+    const descriptions = new Map(descriptionRows.map((value) => [
+      textValue(value, 'event_id'),
+      { payeeName: nullableText(value, 'payee_id') ? payees.get(nullableText(value, 'payee_id') ?? '')?.name ?? null : null, note: nullableText(value, 'note') },
+    ]));
     return eventRows.map((value): JournalEvent => {
       if (textValue(value, 'space_id') !== spaceId) throw new Error('A journal event escaped the selected space.');
       const id = textValue(value, 'id');
@@ -225,6 +252,7 @@ export function createSupabaseWalletsGateway(client: WalletsDataClient): Wallets
         reversedBy: reversedBy.get(id) ?? null,
         loanLinked: linkedEvents.has(id),
         movements: movements.get(id) ?? [],
+        ...(descriptions.get(id) ?? {}),
       };
     });
   }
@@ -233,6 +261,7 @@ export function createSupabaseWalletsGateway(client: WalletsDataClient): Wallets
     spaceId: string,
     offset: number,
     wallets: ReadonlyMap<string, WalletProjection>,
+    payees: ReadonlyMap<string, Payee>,
   ): Promise<JournalPage> {
     const values = await rows(
       client.from('financial_events')
@@ -247,14 +276,14 @@ export function createSupabaseWalletsGateway(client: WalletsDataClient): Wallets
     const hasMore = values.length > HISTORY_PAGE_SIZE;
     const visibleRows = values.slice(0, HISTORY_PAGE_SIZE);
     return {
-      events: await composeEvents(spaceId, visibleRows, wallets),
+      events: await composeEvents(spaceId, visibleRows, wallets, payees),
       nextCursor: hasMore ? String(offset + HISTORY_PAGE_SIZE) : null,
     };
   }
 
   return {
     async loadSnapshot(spaceId) {
-      const [walletRows, balanceRows] = await Promise.all([
+      const [walletRows, balanceRows, payees] = await Promise.all([
         loadWalletRows(spaceId),
         rows(
           client.from('wallet_balances').select('wallet_id,space_id,currency,amount_minor')
@@ -262,6 +291,7 @@ export function createSupabaseWalletsGateway(client: WalletsDataClient): Wallets
           'Wallet balances',
           WALLET_READ_LIMIT,
         ),
+        loadPayees(spaceId),
       ]);
       const walletById = walletMap(walletRows, spaceId);
       for (const value of balanceRows) {
@@ -273,18 +303,21 @@ export function createSupabaseWalletsGateway(client: WalletsDataClient): Wallets
         walletById.set(wallet.id, { ...wallet, balanceMinor: minorValue(value, 'amount_minor') });
       }
       const allWallets = [...walletById.values()];
+      const payeeById = new Map(payees.map((payee) => [payee.id, payee]));
       return {
         wallets: allWallets.filter((wallet) => wallet.archivedAt === null),
         archivedWallets: allWallets
           .filter((wallet) => wallet.archivedAt !== null)
           .sort((left, right) => (right.archivedAt ?? '').localeCompare(left.archivedAt ?? '')),
-        history: await loadPage(spaceId, 0, walletById),
+        history: await loadPage(spaceId, 0, walletById, payeeById),
+        payees,
       };
     },
 
     async loadHistoryPage(spaceId, cursor) {
       const walletById = walletMap(await loadWalletRows(spaceId), spaceId);
-      return loadPage(spaceId, parseCursor(cursor), walletById);
+      const payees = await loadPayees(spaceId);
+      return loadPage(spaceId, parseCursor(cursor), walletById, new Map(payees.map((payee) => [payee.id, payee])));
     },
 
     createWallet(input: CreateWalletInput) {
@@ -344,6 +377,16 @@ export function createSupabaseWalletsGateway(client: WalletsDataClient): Wallets
       });
     },
 
+    describeEvent(input: DescribeEventInput) {
+      return runCommand('describe_financial_event', {
+        p_space_id: input.spaceId,
+        p_request_id: input.requestId,
+        p_event_id: input.eventId,
+        p_payee_name: input.payeeName?.trim() || null,
+        p_note: input.note?.trim() || null,
+      });
+    },
+
     reverseEvent(input: ReverseEventInput) {
       return runCommand('reverse_financial_event', {
         p_space_id: input.spaceId,
@@ -363,7 +406,9 @@ export function createSupabaseWalletsGateway(client: WalletsDataClient): Wallets
       );
       if (!values[0]) return null;
       const walletById = walletMap(await loadWalletRows(spaceId), spaceId);
-      return (await composeEvents(spaceId, values, walletById))[0] ?? null;
+      const payees = await loadPayees(spaceId);
+      const events = await composeEvents(spaceId, values, walletById, new Map(payees.map((payee) => [payee.id, payee])));
+      return events[0] ?? null;
     },
   };
 }

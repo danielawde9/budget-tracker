@@ -47,6 +47,21 @@ describe('TransactionDialog defaults', () => {
       movements: [{ walletId: 'wallet-1', amountMinor: '-1250' }],
     }));
   });
+
+  it('submits an optional payee and note with the reviewed immutable transaction', async () => {
+    const { onSubmit, user } = renderDialog();
+    const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+    await user.type(within(dialog).getByLabelText('Payee'), 'Cedar Market');
+    await user.type(within(dialog).getByLabelText('Note'), 'groceries for the week');
+    await user.type(within(dialog).getByLabelText('Amount'), '12.50');
+    await user.click(within(dialog).getByRole('button', { name: 'Review transaction' }));
+    await user.click(within(dialog).getByRole('button', { name: /^Record / }));
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      payeeName: 'Cedar Market',
+      note: 'groceries for the week',
+    }));
+  });
 });
 
 describe('TransactionDialog category hierarchy', () => {

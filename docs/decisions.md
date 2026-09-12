@@ -3,6 +3,14 @@
 Append-only project decisions and assumptions. Each entry records what would
 change if the decision changes.
 
+## 2026-09-12 — Event notes and reusable payees are immutable metadata
+
+**Decision:** Notes and one optional reusable payee attach to an existing financial event through immutable association tables. Existing protected financial posting signatures remain unchanged. A narrow, idempotent metadata command canonicalizes payee names per space, creates a payee only when needed, and refuses to overwrite an event's description. The Wallets flow posts money first, then persists the description using its own retry-safe request receipt.
+
+**Why:** Descriptive text must not weaken the verified journal posting boundary or make wallet balances mutable. Keeping metadata beside the event preserves future search/export/repeat-entry value while maintaining a clear audit trail.
+
+**If changed:** Editable notes, multiple payees, deletion/merging, attachments, or automatic payee-to-category rules require new history, authorization, concurrency, and search/export behavior; the latter remains a separate milestone.
+
 ## 2026-09-08 — Household authorization is a protected stateful database lifecycle
 
 **Decision:** Household invitations store only versioned keyed recipient digests
