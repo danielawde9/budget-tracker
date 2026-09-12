@@ -90,7 +90,7 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'Personal space' })).toBeInTheDocument();
 
     await user.click(screen.getAllByRole('button', { name: 'Journal' })[0]!);
-    expect(await screen.findByText('journal coming soon')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Journal' })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Journal' })[0]).toHaveAttribute('aria-current', 'page');
     expect(screen.getAllByRole('button', { name: 'Home' })[0]).not.toHaveAttribute('aria-current');
 

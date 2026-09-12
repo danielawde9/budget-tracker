@@ -7,7 +7,7 @@ import type { JournalEvent, JournalEventKind } from '../wallets/types.js';
 
 const t = (locale: Locale, en: string, ar: string) => (locale === 'ar' ? ar : en);
 
-const KIND_LABELS: Record<JournalEventKind, { en: string; ar: string }> = {
+export const KIND_LABELS: Record<JournalEventKind, { en: string; ar: string }> = {
   opening_balance: { en: 'Opening balance', ar: 'الرصيد الافتتاحي' },
   income: { en: 'Income', ar: 'دخل' },
   expense: { en: 'Expense', ar: 'مصروف' },
@@ -36,7 +36,7 @@ function monthLabel(month: string, locale: Locale): string {
   return new Intl.DateTimeFormat(locale === 'ar' ? 'ar-LB' : 'en-US', { month: 'long', year: 'numeric' }).format(date);
 }
 
-function eventLabel(event: JournalEvent, locale: Locale): string {
+export function eventLabel(event: JournalEvent, locale: Locale): string {
   if (event.payeeName?.trim()) return event.payeeName.trim();
   const categoryName = locale === 'ar' ? event.category?.nameAr : event.category?.nameEn;
   if (categoryName?.trim()) return categoryName.trim();

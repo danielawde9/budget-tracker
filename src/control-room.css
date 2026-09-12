@@ -91,6 +91,14 @@
 /* Journal feed */
 .cr-journal-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-block: 10px; border-block-end: 1px solid var(--cr-border); font-size: 14px; }
 .cr-journal-row:last-child { border-block-end: 0; }
+.cr-journal-row--button { inline-size: 100%; background: none; border: 0; padding-inline: 0; color: var(--cr-ink); font: inherit; text-align: start; cursor: pointer; }
+.cr-journal-row--button:hover { background: var(--cr-surface-sunken); }
+.cr-journal-row--button > span > span + span { margin-inline-start: 8px; }
+.cr-reversal-text { color: var(--cr-danger); opacity: 0.75; }
+.cr-movements { list-style: none; margin: 0; padding: 0; }
+.cr-movements li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-block: 8px; border-block-end: 1px solid var(--cr-border); font-size: 14px; }
+.cr-movements li:last-child { border-block-end: 0; }
+.cr-banner { margin-block: 10px; display: flex; flex-direction: column; gap: 8px; }
 
 /* Bottom sheet (record flow + entry detail) */
 .cr-sheet-backdrop { position: fixed; inset: 0; background: rgb(28 26 21 / 0.4); z-index: 40; display: flex; align-items: flex-end; justify-content: center; }
@@ -120,7 +128,7 @@
 .cr-button:disabled { cursor: not-allowed; }
 
 /* Focus and hover states */
-.cr-tab:focus-visible, .cr-fab:focus-visible, .cr-button:focus-visible, .cr-type-tile:focus-visible, .cr-chip:focus-visible, .cr-keypad button:focus-visible {
+.cr-tab:focus-visible, .cr-fab:focus-visible, .cr-button:focus-visible, .cr-type-tile:focus-visible, .cr-chip:focus-visible, .cr-keypad button:focus-visible, .cr-journal-row--button:focus-visible {
   outline: 2px solid var(--cr-accent);
   outline-offset: 2px;
 }

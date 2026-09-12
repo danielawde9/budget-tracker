@@ -11,7 +11,9 @@ import type { MonthlyCashSummary, ReportsGateway } from '../reports/types.js';
 import { useWallets } from '../wallets/use-wallets.js';
 import type { WalletsGateway } from '../wallets/types.js';
 import { sumMinorAmounts } from '../wallets/money.js';
+import { AmbiguousBanner } from './ambiguous-banner.js';
 import { HomeScreen } from './home-screen.js';
+import { JournalScreen } from './journal-screen.js';
 import type { ControlRoomDestination } from './types.js';
 
 const unavailableInsightsClient: InsightsClient = {
@@ -47,6 +49,10 @@ export interface ControlRoomRoutesProps {
 function currentMonthStart(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function isSpaceUnavailable(cause: unknown): boolean {
@@ -149,6 +155,37 @@ function HomeRoutes(props: HomeRoutesProps) {
   );
 }
 
+interface JournalRoutesProps {
+  locale: Locale;
+  spaceId: string;
+  gateways: ControlRoomGateways;
+  onSpaceUnavailable?: (() => void) | undefined;
+}
+
+function JournalRoutes(props: JournalRoutesProps) {
+  const { locale, spaceId, gateways } = props;
+  const wallets = useWallets(gateways.wallets, spaceId, props.onSpaceUnavailable, undefined, gateways.categories);
+  return (
+    <>
+      <JournalScreen
+        locale={locale}
+        events={wallets.events}
+        nextCursor={wallets.nextCursor}
+        loadingMore={wallets.loadingMore}
+        onLoadMore={() => void wallets.loadMore()}
+        onReverse={(id) => wallets.reverseEvent({ eventId: id, effectiveDate: todayIso() })}
+        reversePending={wallets.pending}
+      />
+      <AmbiguousBanner
+        locale={locale}
+        ambiguous={wallets.ambiguous}
+        onRetry={() => void wallets.retryAmbiguous()}
+        onDismiss={wallets.clearAmbiguous}
+      />
+    </>
+  );
+}
+
 export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
   if (props.destination === 'home') {
     return (
@@ -162,7 +199,17 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
       />
     );
   }
-  // TODO(tasks 8-11): journal, plan, and manage screens replace these placeholders.
+  if (props.destination === 'journal') {
+    return (
+      <JournalRoutes
+        locale={props.locale}
+        spaceId={props.spaceId}
+        gateways={props.gateways}
+        onSpaceUnavailable={props.onSpaceUnavailable}
+      />
+    );
+  }
+  // TODO(tasks 9-11): plan and manage screens replace these placeholders.
   // Task 9 mounts the record sheet here when recordOpen is true.
   return <p>{props.destination} coming soon</p>;
 }
