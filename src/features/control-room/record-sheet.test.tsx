@@ -534,4 +534,21 @@ describe('RecordSheet', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Trigger' })).toHaveFocus();
   });
+
+  it('renders Arabic copy without leaking English labels', async () => {
+    const user = userEvent.setup();
+    render(<RecordSheet {...makeProps({ locale: 'ar' })} />);
+    expect(screen.getByRole('dialog', { name: 'تسجيل' })).toBeInTheDocument();
+    for (const tile of ['مصروف', 'دخل', 'تحويل', 'صرف', 'إقراض', 'استدانة', 'سداد']) {
+      expect(screen.getByRole('button', { name: tile })).toBeInTheDocument();
+    }
+    expect(screen.queryByRole('button', { name: 'Expense' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Continue' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'مصروف' }));
+    expect(screen.getByLabelText('المبلغ')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'حذف' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'متابعة' }));
+    expect(screen.getByRole('button', { name: 'رجوع' })).toBeInTheDocument();
+  });
 });

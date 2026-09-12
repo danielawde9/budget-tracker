@@ -261,4 +261,16 @@ describe('JournalScreen', () => {
     render(<JournalScreen {...baseProps} locale="ar" events={[event({ payeeName: 'Employer' })]} />);
     expect(screen.getByText(byExactText(formatMinorAmount('25000', 'USD', 'ar')))).toBeInTheDocument();
   });
+
+  it('renders Arabic chrome without leaking English labels', () => {
+    render(<JournalScreen {...baseProps} locale="ar" nextCursor="20" events={[event({ payeeName: 'Employer' })]} />);
+    expect(screen.getByRole('heading', { name: 'القيود' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'تحميل المزيد' })).toBeInTheDocument();
+    for (const chip of ['الكل', 'دخل', 'مصروف', 'تحويل', 'صرف', 'الديون']) {
+      expect(screen.getByRole('button', { name: chip })).toBeInTheDocument();
+    }
+    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'All' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Journal' })).not.toBeInTheDocument();
+  });
 });

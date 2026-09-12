@@ -139,4 +139,18 @@ describe('ManageScreen section panels', () => {
     expect(await screen.findByRole('navigation', { name: 'Manage sections' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Household access' })).not.toBeInTheDocument();
   });
+
+  it('renders the section menu in Arabic without leaking English labels', () => {
+    renderManage({ locale: 'ar' });
+    expect(screen.getByRole('heading', { name: 'الإدارة' })).toBeInTheDocument();
+    const menu = screen.getByRole('navigation', { name: 'أقسام الإدارة' });
+    for (const name of ['المحافظ', 'الفئات', 'القروض', 'اللغة']) {
+      expect(within(menu).getByRole('button', { name: new RegExp(name) })).toBeInTheDocument();
+    }
+    expect(within(menu).getByText('الحساب')).toBeInTheDocument();
+    expect(within(menu).getByRole('button', { name: 'تسجيل الخروج' })).toBeInTheDocument();
+    expect(within(menu).getByText('dana@example.com')).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Manage sections' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sign out' })).not.toBeInTheDocument();
+  });
 });

@@ -203,4 +203,24 @@ describe('PlanPage', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.queryByText('Could not save the plan — please try again.')).not.toBeInTheDocument();
   });
+
+  it('renders Arabic copy without leaking English labels', async () => {
+    const user = userEvent.setup();
+    setup({ locale: 'ar' });
+    expect(screen.getByRole('heading', { name: 'الخطة الشهرية' })).toBeInTheDocument();
+    const card = screen.getByRole('region', { name: 'الدخل المخطط USD' });
+    await user.click(within(card).getByRole('button', { name: 'تعديل الدخل المخطط USD' }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('الدخل المخطط');
+    expect(within(dialog).getByRole('button', { name: 'إلغاء' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'حفظ' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('button', { name: 'إلغاء' }));
+    const targets = screen.getByRole('region', { name: 'أهداف الفئات' });
+    expect(within(targets).getByText('بقالة')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'التزامات الديون' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Category targets' })).not.toBeInTheDocument();
+  });
 });
