@@ -1,6 +1,7 @@
 import { expect, test, type TestInfo } from '@playwright/test';
 import { installLoansApiFixture } from './fixtures/loans.js';
 import { expectDialogReturnsFocus } from './workspace-contract.js';
+import { chooseWorkspaceDestination, switchWorkspaceLanguage, switchWorkspaceSpace } from './workspace-navigation.js';
 
 function screenshotPath(testInfo: TestInfo, name: string) {
   return process.env['UPDATE_VISUAL_ARTIFACTS'] === '1'
@@ -12,7 +13,7 @@ test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await installLoansApiFixture(page);
   await page.goto('/');
-  await page.getByRole('navigation').getByRole('button', { name: 'Loans', exact: true }).click();
+  await chooseWorkspaceDestination(page, 'Loans');
   await expect(page.getByText('Maya')).toBeVisible();
 });
 
@@ -51,7 +52,7 @@ test('loan history correction actions name borrowing repayments in English and A
   await expect(detail.getByRole('button', { name: 'Correct borrowing repayment from Sep 3, 2026' })).toBeVisible();
   await detail.getByRole('button', { name: 'Close' }).click();
 
-  await page.getByRole('button', { name: 'العربية' }).click();
+  await switchWorkspaceLanguage(page);
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await page.getByRole('button', { name: 'فتح قرض Karim' }).click();
   detail = page.getByRole('dialog', { name: 'تفاصيل قرض Karim' });
@@ -77,16 +78,16 @@ test('mobile English creation and repayment overlays', async ({ page }, testInfo
 
 test('desktop Arabic household workspace mirrors the ledger', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop');
-  await page.getByRole('button', { name: 'العربية' }).click();
-  await page.getByRole('combobox', { name: 'المساحة الحالية' }).selectOption('household-space');
+  await switchWorkspaceLanguage(page);
+  await switchWorkspaceSpace(page, 'المساحة الحالية: My money', 'التبديل إلى Home budget');
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-  await expect(page.getByText('مساحة منزلية')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'المساحة الحالية: Home budget' })).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-ar-household.png'), fullPage: true });
 });
 
 test('mobile Arabic overdue correction rejection explains recovery', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile');
-  await page.getByRole('button', { name: 'العربية' }).click();
+  await switchWorkspaceLanguage(page);
   await page.getByRole('button', { name: 'فتح قرض Karim' }).click();
   await page.getByRole('button', { name: /تصحيح قرض/ }).click();
   const correction = page.getByRole('dialog', { name: 'تصحيح هذا القيد' });

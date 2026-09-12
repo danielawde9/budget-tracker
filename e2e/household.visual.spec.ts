@@ -6,13 +6,14 @@ import {
   installHouseholdApiFixture,
   type HouseholdFixtureOptions,
 } from './fixtures/household.js';
+import { chooseWorkspaceDestination, switchWorkspaceLanguage } from './workspace-navigation.js';
 
 const TOKEN = 'A'.repeat(43);
 
 for (const locale of ['en', 'ar'] as const) {
   test(`household ${locale} register and invitation controls fit the viewport`, async ({ page }, testInfo) => {
     await openHousehold(page);
-    if (locale === 'ar') await page.getByRole('button', { name: 'العربية' }).click();
+    if (locale === 'ar') await switchWorkspaceLanguage(page);
     await expect(page.locator('html')).toHaveAttribute('dir', locale === 'ar' ? 'rtl' : 'ltr');
     await expectContainedControls(page);
     await page.screenshot({ path: screenshotPath(testInfo, `household-${locale}-${testInfo.project.name}.png`), fullPage: true });
@@ -43,7 +44,7 @@ async function openHousehold(page: Page, options: HouseholdFixtureOptions = {}) 
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await installHouseholdApiFixture(page, options);
   await page.goto('/');
-  await page.getByRole('button', { name: 'Household' }).click();
+  await chooseWorkspaceDestination(page, 'Household');
   if (!options.failHouseholdOnce) {
     await expect(page.getByRole('heading', { name: options.memberAccess ? 'Your household access' : 'Household access' })).toBeVisible();
   }
@@ -146,7 +147,7 @@ test('mobile owner dialog is contained and restores focus', async ({ page }, tes
 test('mobile Arabic register mirrors safely without horizontal overflow', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile');
   await openHousehold(page);
-  await page.getByRole('button', { name: 'العربية' }).click();
+  await switchWorkspaceLanguage(page);
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await expect(page.getByRole('heading', { name: 'إدارة المنزل' })).toBeVisible();
   await expect(page.getByText(householdFixtureIds.member).locator('xpath=ancestor-or-self::bdi')).toBeVisible();
@@ -162,6 +163,6 @@ test('fragment acceptance clears the secret and selects the new household', asyn
   await expect(page).toHaveURL('/');
   const dialog = page.getByRole('dialog', { name: 'Accept household invitation' });
   await dialog.getByRole('button', { name: 'Accept invitation' }).click();
-  await expect(page.locator('.space-current-name').getByText('Home budget')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Current space: Home budget' })).toBeVisible();
   await expect(page).toHaveURL('/');
 });

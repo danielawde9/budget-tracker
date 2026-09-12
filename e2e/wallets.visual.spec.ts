@@ -2,6 +2,7 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test';
 
 import { installWalletsApiFixture, type WalletsFixtureOptions } from './fixtures/wallets.js';
 import { expectDialogReturnsFocus } from './workspace-contract.js';
+import { chooseWorkspaceDestination, switchWorkspaceLanguage, switchWorkspaceSpace } from './workspace-navigation.js';
 
 function screenshotPath(testInfo: TestInfo, name: string) {
   return process.env['UPDATE_VISUAL_ARTIFACTS'] === '1'
@@ -9,11 +10,15 @@ function screenshotPath(testInfo: TestInfo, name: string) {
     : testInfo.outputPath(name);
 }
 
+function activeWalletName(page: Page, name: string) {
+  return page.locator('.wallet-context .wallet-list > li > div > bdi').filter({ hasText: new RegExp(`^${name}$`) });
+}
+
 async function openWallets(page: Page, options: WalletsFixtureOptions = {}) {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await installWalletsApiFixture(page, options);
   await page.goto('/');
-  await page.getByRole('navigation').getByRole('button', { name: 'Wallets', exact: true }).click();
+  await chooseWorkspaceDestination(page, 'Wallets');
   await expect(page.getByRole('heading', { name: 'Wallets' })).toBeVisible();
 }
 
@@ -84,8 +89,8 @@ test('income and expense refresh the protected journal', async ({ page }, testIn
   await openWallets(page);
   await postTransaction(page, 'income', '45.25');
   await postTransaction(page, 'expense', '12');
-  await expect(page.getByText('Income').first()).toBeVisible();
-  await expect(page.getByText('Expense').first()).toBeVisible();
+  await expect(page.locator('.journal-table [role="cell"][aria-label="Event: Income"]').last()).toBeVisible();
+  await expect(page.locator('.journal-table [role="cell"][aria-label="Event: Expense"]').last()).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-income-expense.png'), fullPage: true });
 });
 
@@ -93,7 +98,7 @@ test('same-currency transfer records equal and opposite effects', async ({ page 
   test.skip(testInfo.project.name !== 'desktop');
   await openWallets(page);
   await postTransaction(page, 'transfer', '10');
-  await expect(page.getByText('Transfer').first()).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Event: Transfer' })).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-transfer.png'), fullPage: true });
 });
 
@@ -122,10 +127,10 @@ test('ambiguous posting reconciles by request ID without a second mutation', asy
 test('space switching clears the prior wallet projection before the next read', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop');
   await openWallets(page);
-  await expect(page.getByText('Daily USD').first()).toBeVisible();
-  await page.getByRole('combobox', { name: 'Current space' }).selectOption('household-space');
-  await expect(page.getByText('Daily USD')).toHaveCount(0);
-  await expect(page.getByText('Household USD').first()).toBeVisible();
+  await expect(activeWalletName(page, 'Daily USD')).toBeVisible();
+  await switchWorkspaceSpace(page, 'Current space: My money', 'Switch to Home budget');
+  await expect(activeWalletName(page, 'Daily USD')).toHaveCount(0);
+  await expect(activeWalletName(page, 'Household USD')).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-space-switch.png'), fullPage: true });
 });
 
@@ -146,7 +151,7 @@ test('mobile transaction dialog is full-screen and rejects cross-currency transf
 test('Arabic RTL Wallets mirrors overview and history', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile');
   await openWallets(page);
-  await page.getByRole('button', { name: 'العربية' }).click();
+  await switchWorkspaceLanguage(page);
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await expect(page.getByRole('heading', { name: 'المحافظ' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'سجل المعاملات' })).toBeVisible();
@@ -162,8 +167,8 @@ test('renaming a wallet updates its name everywhere, including posted history', 
   await dialog.getByRole('button', { name: 'Save' }).click();
   await expect(dialog.getByRole('status')).toContainText('Wallet renamed');
   await dialog.getByRole('button', { name: 'Done' }).click();
-  await expect(page.getByText('Everyday USD').first()).toBeVisible();
-  await expect(page.getByText('Loan payment')).toBeVisible();
+  await expect(activeWalletName(page, 'Everyday USD')).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Event: Loan payment' })).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-wallet-renamed.png'), fullPage: true });
 });
 
@@ -186,7 +191,7 @@ test('archiving a zero-balance wallet with history gates its Undo actions, and r
   await dialog.getByRole('button', { name: 'Create wallet' }).click();
   await expect(dialog.getByRole('status')).toContainText('Wallet created');
   await dialog.getByRole('button', { name: 'Done' }).click();
-  await expect(page.getByText('Travel fund').first()).toBeVisible();
+  await expect(activeWalletName(page, 'Travel fund')).toBeVisible();
 
   // Post an equal income and expense on Travel fund itself (not the default
   // wallet) so it returns to exactly zero while leaving two still-undoable
@@ -239,7 +244,7 @@ test('archiving a zero-balance wallet with history gates its Undo actions, and r
 test('Arabic mobile archived wallets disclosure and restore render right-to-left', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile');
   await openWallets(page);
-  await page.getByRole('button', { name: 'العربية' }).click();
+  await switchWorkspaceLanguage(page);
   await page.getByRole('button', { name: 'أرشفة Home LBP' }).click();
   const archiveDialog = page.getByRole('dialog', { name: 'أرشفة المحفظة' });
   await expect(archiveDialog.getByRole('button', { name: 'أرشفة المحفظة' })).toHaveCount(0);
