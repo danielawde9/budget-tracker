@@ -12,6 +12,16 @@ test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
 });
 
+test('Home desktop light mint shell visual baseline', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop');
+  await installApplicationFixture(page);
+  await page.goto('/');
+  await expect(page.locator('.app-rail')).toHaveClass(/app-rail--light/);
+  await expect(page.locator('.app-rail')).toHaveCSS('background-color', 'rgb(251, 250, 244)');
+  await expect(page.locator('.primary-nav .nav-active')).toHaveCSS('background-color', 'rgb(216, 241, 233)');
+  await page.screenshot({ path: screenshotPath(testInfo, 'home-light-mint-desktop.png'), fullPage: true });
+});
+
 for (const locale of ['en', 'ar'] as const) {
   test(`Home journal text has readable separation ${locale}`, async ({ page }) => {
     await installApplicationFixture(page);
