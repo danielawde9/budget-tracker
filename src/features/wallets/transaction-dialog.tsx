@@ -5,13 +5,16 @@ import type { Category, CategoryKind } from '../categories/types.js';
 import type { Locale } from '../loans/types.js';
 import { DialogShell } from './dialog-shell.js';
 import { formatMinorAmount, invertMinorAmount, parsePositiveMinorAmount } from './money.js';
+import { suggestedCategoryForPayee, type QuickEntryDefaults } from './quick-entry.js';
 import type { CommandOutcome } from './use-wallets.js';
-import type { GeneralEventKind, MovementInput, Payee, WalletProjection } from './types.js';
+import type { GeneralEventKind, JournalEvent, MovementInput, Payee, WalletProjection } from './types.js';
 
 interface TransactionDialogProps {
   locale: Locale;
   wallets: readonly WalletProjection[];
   payees?: readonly Payee[];
+  recentEvents?: readonly JournalEvent[];
+  quickEntryDefaults?: QuickEntryDefaults | null;
   categories?: readonly Category[];
   categoryNextCursors?: Partial<Record<CategoryKind, string | null>>;
   categoryLoadingMore?: CategoryKind | null;
@@ -41,13 +44,13 @@ function validDate(value: string): boolean {
 }
 
 export function TransactionDialog(props: TransactionDialogProps) {
-  const [kind, setKind] = useState<GeneralEventKind>('expense');
-  const [walletId, setWalletId] = useState(props.wallets[0]?.id ?? '');
+  const [kind, setKind] = useState<GeneralEventKind>(props.quickEntryDefaults?.kind ?? 'expense');
+  const [walletId, setWalletId] = useState(props.quickEntryDefaults?.walletId ?? props.wallets[0]?.id ?? '');
   const [toWalletId, setToWalletId] = useState(props.wallets[1]?.id ?? props.wallets[0]?.id ?? '');
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState(props.quickEntryDefaults?.amount ?? '');
   const [effectiveDate, setEffectiveDate] = useState(today);
-  const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [payeeName, setPayeeName] = useState('');
+  const [categoryId, setCategoryId] = useState<string | null>(props.quickEntryDefaults?.categoryId ?? null);
+  const [payeeName, setPayeeName] = useState(props.quickEntryDefaults?.payeeName ?? '');
   const [note, setNote] = useState('');
   const [movements, setMovements] = useState<readonly MovementInput[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +68,9 @@ export function TransactionDialog(props: TransactionDialogProps) {
     ? (props.locale === 'ar' ? category.nameAr ?? category.nameEn : category.nameEn ?? category.nameAr)
     : null;
   const mutationLocked = props.pending || refreshRequired;
+  const payeeSuggestion = (kind === 'income' || kind === 'expense')
+    ? suggestedCategoryForPayee(props.recentEvents ?? [], payeeName, kind, eligibleCategories)
+    : null;
 
   function edit(action: () => void) {
     if (mutationLocked) return;
@@ -180,7 +186,7 @@ export function TransactionDialog(props: TransactionDialogProps) {
         <label>{kind === 'transfer' ? t(props.locale, 'From wallet', 'من محفظة') : t(props.locale, 'Wallet', 'المحفظة')}<select value={walletId} disabled={mutationLocked} onChange={(event) => edit(() => setWalletId(event.target.value))}>{props.wallets.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.currency}</option>)}</select></label>
         {kind === 'transfer' && <label>{t(props.locale, 'To wallet', 'إلى محفظة')}<select value={toWalletId} disabled={mutationLocked} onChange={(event) => edit(() => setToWalletId(event.target.value))}>{props.wallets.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.currency}</option>)}</select></label>}
         <label className="full-field">{t(props.locale, 'Amount', 'المبلغ')}<input inputMode="decimal" value={amount} disabled={mutationLocked} onChange={(event) => edit(() => setAmount(event.target.value))} /></label>
-        <label>{t(props.locale, 'Payee', 'الجهة')}<input value={payeeName} list="transaction-payees" maxLength={120} disabled={mutationLocked} onChange={(event) => edit(() => setPayeeName(event.target.value))} />{(props.payees?.length ?? 0) > 0 && <datalist id="transaction-payees">{props.payees?.map((payee) => <option key={payee.id} value={payee.name} />)}</datalist>}</label>
+        <label>{t(props.locale, 'Payee', 'الجهة')}<input value={payeeName} list="transaction-payees" maxLength={120} disabled={mutationLocked} onChange={(event) => edit(() => { const nextPayee = event.target.value; setPayeeName(nextPayee); if (kind === 'income' || kind === 'expense') setCategoryId(suggestedCategoryForPayee(props.recentEvents ?? [], nextPayee, kind, eligibleCategories)); })} />{(props.payees?.length ?? 0) > 0 && <datalist id="transaction-payees">{props.payees?.map((payee) => <option key={payee.id} value={payee.name} />)}</datalist>}{payeeSuggestion && <span className="field-note" role="status">{t(props.locale, 'Category suggested from 2 of your last 3 entries. You can change it.', 'اقتُرحت الفئة من اثنين من آخر ثلاثة قيود. يمكنك تغييرها.')}</span>}</label>
         <label className="full-field">{t(props.locale, 'Note', 'ملاحظة')}<textarea value={note} maxLength={2000} rows={3} disabled={mutationLocked} onChange={(event) => edit(() => setNote(event.target.value))} /></label>
       </div>
       {(kind === 'income' || kind === 'expense') && <fieldset className="category-picker">

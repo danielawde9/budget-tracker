@@ -7,6 +7,7 @@ import type { Locale } from '../loans/types.js';
 import { ArchiveWalletDialog } from './archive-wallet-dialog.js';
 import { CorrectionDialog } from './correction-dialog.js';
 import { formatMinorAmount } from './money.js';
+import { transactionDefaultsFromRecentEvent, type QuickEntryDefaults } from './quick-entry.js';
 import { RenameWalletDialog } from './rename-wallet-dialog.js';
 import { RestoreWalletDialog } from './restore-wallet-dialog.js';
 import { TransactionDialog } from './transaction-dialog.js';
@@ -68,8 +69,16 @@ export function WalletsPage({ categoriesGateway, spaceId, walletState, locale = 
     ? localizeCategoryError(walletState.historyPaginationError.categoryError, locale)
     : null;
   const [dialog, setDialog] = useState<OpenDialog>(null);
+  const [quickEntryDefaults, setQuickEntryDefaults] = useState<QuickEntryDefaults | null>(null);
   const initialDialogConsumed = useRef(false);
   const activeCategories = [...categoryState.incomeCategories, ...categoryState.expenseCategories];
+
+  function openQuickEntry(event?: JournalEvent) {
+    const source = event ?? walletState.initialEvents.find((item) => item.kind === 'expense' && !item.reversalOf && !item.reversedBy && !item.loanLinked);
+    const defaults = source ? transactionDefaultsFromRecentEvent(source, walletState.wallets, activeCategories) : null;
+    setQuickEntryDefaults(event ? defaults : defaults ? { ...defaults, payeeName: null, amount: '' } : null);
+    setDialog('transaction');
+  }
 
   useEffect(() => {
     const requestedTransaction = openTransaction || (initialDialog === 'transaction' && !initialDialogConsumed.current);
@@ -82,7 +91,7 @@ export function WalletsPage({ categoriesGateway, spaceId, walletState, locale = 
   return <section className="wallets-workspace">
     <header className="topbar page-header wallets-topbar">
       <div><span className="brand">{t(locale, 'Wallet journal', 'سجل المحافظ')}</span><h1>{t(locale, 'Wallets', 'المحافظ')}</h1><p>{t(locale, 'See server-derived balances, record wallet activity, and undo mistaken transactions.', 'اطّلع على الأرصدة المشتقة من الخادم، وسجّل حركة المحافظ، وتراجع عن المعاملات الخاطئة.')}</p></div>
-      <div className="wallet-actions"><button type="button" className="button-secondary" onClick={() => setDialog('wallet')}>{t(locale, 'New wallet', 'محفظة جديدة')}</button><button type="button" disabled={walletState.wallets.length === 0 || walletState.status !== 'ready'} onClick={() => setDialog('transaction')}>{t(locale, 'Add transaction', 'إضافة معاملة')}</button></div>
+      <div className="wallet-actions"><button type="button" className="button-secondary" onClick={() => setDialog('wallet')}>{t(locale, 'New wallet', 'محفظة جديدة')}</button><button type="button" disabled={walletState.wallets.length === 0 || walletState.status !== 'ready'} onClick={() => openQuickEntry()}>{t(locale, 'Add transaction', 'إضافة معاملة')}</button></div>
     </header>
 
     {walletState.status === 'loading' && <div className="state-panel" role="status" aria-label="Loading wallets">{t(locale, 'Loading this space’s wallets…', 'جارٍ تحميل محافظ هذه المساحة…')}</div>}
@@ -120,7 +129,7 @@ export function WalletsPage({ categoriesGateway, spaceId, walletState, locale = 
                   <bdi role="cell" aria-label={`${amountLabel}: ${amountValue}`} data-label={amountLabel} className={movement && BigInt(movement.amountMinor) < 0n ? 'amount-negative' : 'amount-positive'}>{amountValue}</bdi>
                 </div>;
               })}
-              <footer>{(event.payeeName || event.note) && <div className="journal-state">{event.payeeName && <span><bdi>{event.payeeName}</bdi></span>}{event.note && <span><bdi>{event.note}</bdi></span>}</div>}{(event.reversedBy || event.reversalOf || event.loanLinked) && <div className="journal-state">{event.reversedBy && <span>{t(locale, 'Undone', 'تم التراجع عنه')}</span>}{event.reversalOf && <span>{t(locale, 'Undoes an earlier entry', 'تراجع عن قيد سابق')}</span>}{event.loanLinked && <span>{t(locale, 'Loan-linked', 'مرتبط بقرض')}</span>}</div>}{canCorrect && (archivedMovementWallet(event) ? <span className="undo-gated">{t(locale, 'Restore', 'استعد')} <bdi>{archivedMovementWallet(event)}</bdi> {t(locale, 'to undo this', 'للتراجع عن هذا')}</span> : <button type="button" className="text-button" onClick={() => setDialog({ correction: event })}>{t(locale, `Undo ${label.toLowerCase()}`, `تراجع عن ${label}`)}</button>)}{event.loanLinked && <button type="button" className="text-button" onClick={onOpenLoans}>{t(locale, 'Manage in Loans', 'الإدارة في القروض')}</button>}</footer>
+              <footer>{(event.payeeName || event.note) && <div className="journal-state">{event.payeeName && <span><bdi>{event.payeeName}</bdi></span>}{event.note && <span><bdi>{event.note}</bdi></span>}</div>}{(event.reversedBy || event.reversalOf || event.loanLinked) && <div className="journal-state">{event.reversedBy && <span>{t(locale, 'Undone', 'تم التراجع عنه')}</span>}{event.reversalOf && <span>{t(locale, 'Undoes an earlier entry', 'تراجع عن قيد سابق')}</span>}{event.loanLinked && <span>{t(locale, 'Loan-linked', 'مرتبط بقرض')}</span>}</div>}{canCorrect && <button type="button" className="text-button" onClick={() => openQuickEntry(event)}>{t(locale, 'Repeat as new', 'كرّر كقيد جديد')}</button>}{canCorrect && (archivedMovementWallet(event) ? <span className="undo-gated">{t(locale, 'Restore', 'استعد')} <bdi>{archivedMovementWallet(event)}</bdi> {t(locale, 'to undo this', 'للتراجع عن هذا')}</span> : <button type="button" className="text-button" onClick={() => setDialog({ correction: event })}>{t(locale, `Undo ${label.toLowerCase()}`, `تراجع عن ${label}`)}</button>)}{event.loanLinked && <button type="button" className="text-button" onClick={onOpenLoans}>{t(locale, 'Manage in Loans', 'الإدارة في القروض')}</button>}</footer>
             </li>;
           })}</ol>
         </div>}
@@ -147,7 +156,7 @@ export function WalletsPage({ categoriesGateway, spaceId, walletState, locale = 
     </div>}
 
     {dialog === 'wallet' && <WalletDialog locale={locale} pending={walletState.pending} onClose={() => setDialog(null)} onRefresh={walletState.recoverRefresh} onSubmit={walletState.createWallet} />}
-    {dialog === 'transaction' && <TransactionDialog locale={locale} wallets={walletState.wallets} payees={walletState.payees} categories={activeCategories} categoryNextCursors={{ income: categoryState.incomeNextCursor, expense: categoryState.expenseNextCursor }} categoryLoadingMore={categoryState.loadingMore} categoryPaginationError={categoryPaginationError} onLoadMoreCategories={categoryState.loadMore} pending={walletState.pending} ambiguous={walletState.ambiguous?.kind === 'record'} onClose={() => setDialog(null)} onClearAmbiguous={walletState.clearAmbiguous} onRetry={walletState.retryAmbiguous} onRefresh={walletState.recoverRefresh} onSubmit={walletState.recordEvent} />}
+    {dialog === 'transaction' && <TransactionDialog locale={locale} wallets={walletState.wallets} payees={walletState.payees} recentEvents={walletState.events} quickEntryDefaults={quickEntryDefaults} categories={activeCategories} categoryNextCursors={{ income: categoryState.incomeNextCursor, expense: categoryState.expenseNextCursor }} categoryLoadingMore={categoryState.loadingMore} categoryPaginationError={categoryPaginationError} onLoadMoreCategories={categoryState.loadMore} pending={walletState.pending} ambiguous={walletState.ambiguous?.kind === 'record'} onClose={() => { setDialog(null); setQuickEntryDefaults(null); }} onClearAmbiguous={walletState.clearAmbiguous} onRetry={walletState.retryAmbiguous} onRefresh={walletState.recoverRefresh} onSubmit={walletState.recordEvent} />}
     {dialog && typeof dialog === 'object' && 'correction' in dialog && <CorrectionDialog locale={locale} event={dialog.correction} pending={walletState.pending} ambiguous={walletState.ambiguous?.kind === 'reverse'} onClose={() => setDialog(null)} onClearAmbiguous={walletState.clearAmbiguous} onRetry={walletState.retryAmbiguous} onSubmit={walletState.reverseEvent} />}
     {dialog && typeof dialog === 'object' && 'rename' in dialog && <RenameWalletDialog locale={locale} wallet={dialog.rename} pending={walletState.pending} ambiguous={walletState.ambiguous?.kind === 'rename'} onClose={() => setDialog(null)} onClearAmbiguous={walletState.clearAmbiguous} onRetry={walletState.retryAmbiguous} onSubmit={walletState.renameWallet} />}
     {dialog && typeof dialog === 'object' && 'archive' in dialog && <ArchiveWalletDialog locale={locale} wallet={dialog.archive} pending={walletState.pending} ambiguous={walletState.ambiguous?.kind === 'archive'} onClose={() => setDialog(null)} onClearAmbiguous={walletState.clearAmbiguous} onRetry={walletState.retryAmbiguous} onSubmit={walletState.archiveWallet} />}
