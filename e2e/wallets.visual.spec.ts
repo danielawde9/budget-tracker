@@ -1,6 +1,7 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 
 import { installWalletsApiFixture, type WalletsFixtureOptions } from './fixtures/wallets.js';
+import { expectDialogReturnsFocus } from './workspace-contract.js';
 
 function screenshotPath(testInfo: TestInfo, name: string) {
   return process.env['UPDATE_VISUAL_ARTIFACTS'] === '1'
@@ -12,7 +13,7 @@ async function openWallets(page: Page, options: WalletsFixtureOptions = {}) {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await installWalletsApiFixture(page, options);
   await page.goto('/');
-  await page.getByRole('button', { name: 'Wallets' }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Wallets', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Wallets' })).toBeVisible();
 }
 
@@ -34,6 +35,33 @@ test('desktop Wallets overview separates balances and immutable history', async 
   await expect(page.getByText('$1,250.50')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Transaction history' })).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-wallets-overview.png'), fullPage: true });
+});
+
+test('wallet create, transaction, rename, archive and undo dialogs return focus', async ({ page }) => {
+  await openWallets(page);
+  for (const [action, title] of [
+    ['New wallet', 'Create a wallet'],
+    ['Add transaction', 'Add a transaction'],
+    ['Rename Daily USD', 'Rename wallet'],
+    ['Archive Daily USD', 'Archive wallet'],
+    ['Undo income', 'Undo this transaction'],
+  ] as const) {
+    await expectDialogReturnsFocus(page, page.getByRole('button', { name: action, exact: true }), title);
+  }
+  await page.getByRole('button', { name: 'New wallet', exact: true }).click();
+  let dialog = page.getByRole('dialog', { name: 'Create a wallet' });
+  await dialog.getByLabel('Wallet name').fill('Focus reserve');
+  await dialog.getByRole('button', { name: 'Create wallet', exact: true }).click();
+  await expect(dialog.getByRole('status')).toContainText('Wallet created');
+  await dialog.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: 'Archive Focus reserve', exact: true }).click();
+  dialog = page.getByRole('dialog', { name: 'Archive wallet' });
+  await dialog.getByRole('checkbox').check();
+  await dialog.getByRole('button', { name: 'Archive wallet', exact: true }).click();
+  await expect(dialog.getByRole('status')).toContainText('Wallet archived');
+  await dialog.getByRole('button', { name: 'Done' }).click();
+  await page.getByText('Archived wallets (1)', { exact: true }).click();
+  await expectDialogReturnsFocus(page, page.getByRole('button', { name: 'Restore Focus reserve', exact: true }), 'Restore wallet');
 });
 
 test('first wallet creation preserves an honest zero balance', async ({ page }, testInfo) => {

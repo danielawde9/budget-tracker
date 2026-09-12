@@ -3,17 +3,25 @@ import { classifyLoanError } from './errors.js';
 import { formatMinorAmount, parseMinorAmount } from './money.js';
 import type { Currency, Loan, LoanErrorView, LoanHistoryItem, Locale, Wallet } from './types.js';
 
-interface ModalProps { title: string; locale: Locale; onClose: () => void; children: ReactNode; wide?: boolean }
+interface ModalProps { title: string; locale: Locale; onClose: () => void; children: ReactNode; wide?: boolean; active?: boolean }
 
 const localized = (locale: Locale, english: string, arabic: string) => locale === 'ar' ? arabic : english;
 
-function Modal({ title, locale, onClose, children, wide = false }: ModalProps) {
+function Modal({ title, locale, onClose, children, wide = false, active = true }: ModalProps) {
   const panel = useRef<HTMLDivElement>(null);
   const returnFocus = useRef<HTMLElement | null>(document.activeElement as HTMLElement | null);
+  const lastFocus = useRef<HTMLElement | null>(null);
+  const close = useRef(onClose);
+  // Suspending a detail dialog keeps its opener alive; only unmount returns to the list.
+  useEffect(() => { close.current = onClose; }, [onClose]);
+  useEffect(() => () => { returnFocus.current?.focus(); }, []);
   useEffect(() => {
-    panel.current?.focus();
+    if (!active) return;
+    if (!panel.current?.contains(document.activeElement)) {
+      (lastFocus.current?.isConnected ? lastFocus.current : panel.current)?.focus();
+    }
     const keydown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') close.current();
       if (event.key !== 'Tab' || !panel.current) return;
       const controls = [...panel.current.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]')];
       const first = controls[0];
@@ -25,11 +33,11 @@ function Modal({ title, locale, onClose, children, wide = false }: ModalProps) {
       }
     };
     document.addEventListener('keydown', keydown);
-    return () => { document.removeEventListener('keydown', keydown); returnFocus.current?.focus(); };
-  }, [onClose]);
+    return () => { document.removeEventListener('keydown', keydown); };
+  }, [active]);
   return (
-    <div className="overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <div className={`dialog ${wide ? 'dialog-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={panel}>
+    <div className="overlay" hidden={!active} style={active ? undefined : { display: 'none' }} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className={`dialog loan-dialog ${wide ? 'dialog-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={panel} onFocusCapture={(event) => { lastFocus.current = event.target; }}>
         <header className="dialog-header"><h2>{title}</h2><button type="button" className="icon-button" onClick={onClose} aria-label={localized(locale, 'Close', 'إغلاق')}>×</button></header>
         {children}
       </div>
@@ -84,8 +92,8 @@ export function CreateLoanDialog({ spaceId, wallets, locale, onClose, onSave }: 
   }
 
   return <Modal title={localized(locale, 'Add a loan', 'إضافة قرض')} locale={locale} onClose={onClose} wide>
-    <p className="dialog-intro">{mode === 'opening' ? localized(locale, 'Record what is already outstanding. No wallet money moves.', 'سجّل المبلغ القائم حاليًا. لن تتحرك أموال أي محفظة.') : direction === 'they_owe_me' ? localized(locale, 'Record money leaving a wallet and becoming owed to you.', 'سجّل مالًا خرج من محفظة وأصبح دينًا مستحقًا لك.') : localized(locale, 'Record money entering a wallet and becoming owed by you.', 'سجّل مالًا دخل إلى محفظة وأصبح دينًا مستحقًا عليك.')}</p>
-    <form onSubmit={(event) => void submit(event)}>
+    <p className="dialog-intro dialog-consequence">{mode === 'opening' ? localized(locale, 'Record what is already outstanding. No wallet money moves.', 'سجّل المبلغ القائم حاليًا. لن تتحرك أموال أي محفظة.') : direction === 'they_owe_me' ? localized(locale, 'Record money leaving a wallet and becoming owed to you.', 'سجّل مالًا خرج من محفظة وأصبح دينًا مستحقًا لك.') : localized(locale, 'Record money entering a wallet and becoming owed by you.', 'سجّل مالًا دخل إلى محفظة وأصبح دينًا مستحقًا عليك.')}</p>
+    <form className="dialog-form" onSubmit={(event) => void submit(event)}>
       <fieldset className="choice-grid"><legend>{localized(locale, 'What happened?', 'ماذا حدث؟')}</legend>
         <label><input type="radio" name="mode" checked={mode === 'opening'} onChange={() => setMode('opening')} /> {localized(locale, 'Opening outstanding', 'رصيد قائم عند البدء')}</label>
         <label><input type="radio" name="mode" checked={mode === 'cash' && direction === 'they_owe_me'} onChange={() => { setMode('cash'); setDirection('they_owe_me'); }} /> {localized(locale, 'I lent money', 'أقرضت مالًا')}</label>
@@ -130,8 +138,8 @@ function historyLabel(loan: Loan, item: NonNullable<Loan['history']>[number], lo
   return localized(locale, `Correct ${kind} from ${date}`, `تصحيح ${kind} بتاريخ ${date}`);
 }
 
-export function LoanDetailDialog({ loan, locale, onClose, onRepay, onTarget, onCorrect }: { loan: Loan; locale: Locale; onClose: () => void; onRepay: () => void; onTarget: () => void; onCorrect: (eventId: string) => void }) {
-  return <Modal title={localized(locale, `${loan.personName} loan details`, `تفاصيل قرض ${loan.personName}`)} locale={locale} onClose={onClose} wide>
+export function LoanDetailDialog({ loan, locale, onClose, onRepay, onTarget, onCorrect, active = true }: { loan: Loan; locale: Locale; onClose: () => void; onRepay: () => void; onTarget: () => void; onCorrect: (eventId: string) => void; active?: boolean }) {
+  return <Modal title={localized(locale, `${loan.personName} loan details`, `تفاصيل قرض ${loan.personName}`)} locale={locale} onClose={onClose} active={active} wide>
     <div className="detail-hero"><div><span className={`status status-${loan.status}`}>{localized(locale, loan.status[0]?.toUpperCase() + loan.status.slice(1), loan.status === 'settled' ? 'مسدّد' : loan.status === 'overdue' ? 'متأخر' : 'قائم')}</span><p>{localized(locale, loan.direction === 'they_owe_me' ? 'They owe me' : 'I owe them', loan.direction === 'they_owe_me' ? 'لديهم دين لي' : 'عليّ دين لهم')}</p></div><strong><bdi>{formatMinorAmount(loan.outstandingMinor, loan.currency, locale)}</bdi><small>{localized(locale, 'remaining', 'متبقٍ')}</small></strong></div>
     <dl className="detail-figures detail-figures-three"><div><dt>{localized(locale, 'Opening amount', 'المبلغ عند البدء')}</dt><dd><bdi>{formatMinorAmount(loan.originalPrincipalMinor, loan.currency, locale)}</bdi></dd></div><div><dt>{localized(locale, 'Total repaid', 'إجمالي المسدّد')}</dt><dd><bdi>{formatMinorAmount(loan.totalRepaidMinor, loan.currency, locale)}</bdi></dd></div><div><dt>{localized(locale, 'Due date', 'تاريخ الاستحقاق')}</dt><dd><bdi>{loan.dueDate ?? localized(locale, 'No due date', 'بدون تاريخ استحقاق')}</bdi></dd></div></dl>
     {loan.direction === 'i_owe_them' ? <><PlanFigures loan={loan} locale={locale} /><button type="button" className="button-secondary" onClick={onTarget}>{localized(locale, 'Change monthly target', 'تغيير هدف الشهر')}</button></> : null}

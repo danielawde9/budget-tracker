@@ -1,6 +1,7 @@
-import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route, type TestInfo } from '@playwright/test';
 
 import { installCategoriesApiFixture, type CategoriesFixtureOptions } from './fixtures/categories.js';
+import { expectDialogReturnsFocus } from './workspace-contract.js';
 
 function screenshotPath(testInfo: TestInfo, name: string) {
   return process.env['UPDATE_VISUAL_ARTIFACTS'] === '1'
@@ -8,10 +9,16 @@ function screenshotPath(testInfo: TestInfo, name: string) {
     : testInfo.outputPath(name);
 }
 
-async function openCategories(page: Page, options: CategoriesFixtureOptions = {}) {
+async function openSettledHome(page: Page, options: CategoriesFixtureOptions = {}) {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await installCategoriesApiFixture(page, options);
   await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Categories' })).toBeVisible();
+  await expect(page.getByRole('status', { name: 'Loading financial overview' })).toHaveCount(0);
+}
+
+async function openCategories(page: Page, options: CategoriesFixtureOptions = {}) {
+  await openSettledHome(page, options);
   await page.getByRole('button', { name: 'Categories' }).click();
   await expect(page.getByRole('heading', { name: 'Categories', exact: true })).toBeVisible();
   if (!options.failCategoriesOnce) {
@@ -43,6 +50,14 @@ test('desktop category register separates active income and expense labels', asy
   await expect(page.getByText('Archive subcategories first')).toBeVisible();
   await expect(page.getByText('Archived travel')).toHaveCount(0);
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-category-register.png'), fullPage: true });
+});
+
+test('category, subcategory and archive dialogs return focus to their opener', async ({ page }, testInfo) => {
+  await openCategories(page);
+  await expectDialogReturnsFocus(page, page.getByRole('button', { name: 'New category', exact: true }), 'Create a category');
+  await expectDialogReturnsFocus(page, page.getByRole('button', { name: 'Archive Salary', exact: true }), 'Archive category');
+  if (testInfo.project.name === 'mobile') await page.getByRole('button', { name: 'Expense', exact: true }).click();
+  await expectDialogReturnsFocus(page, page.getByRole('button', { name: 'New subcategory for Essentials', exact: true }), 'Create a subcategory');
 });
 
 test('subcategory create and archive stay beneath the immutable selected root', async ({ page }, testInfo) => {
@@ -134,7 +149,7 @@ test('category rejection preserves safe bilingual form values', async ({ page },
 test('categorized and uncategorized income preserve exact history labels', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop');
   await openCategories(page);
-  await page.getByRole('button', { name: 'Wallets' }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Wallets', exact: true }).click();
   await page.getByRole('button', { name: 'Add transaction' }).click();
   let dialog = page.getByRole('dialog', { name: 'Add a transaction' });
   await dialog.getByLabel('Type').selectOption('income');
@@ -165,7 +180,7 @@ test('categorized and uncategorized income preserve exact history labels', async
 test('a child category posts its exact identity without changing signed minor units', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop');
   await openCategories(page);
-  await page.getByRole('button', { name: 'Wallets' }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Wallets', exact: true }).click();
   await page.getByRole('button', { name: 'Add transaction' }).click();
   const dialog = page.getByRole('dialog', { name: 'Add a transaction' });
   await dialog.getByLabel('Type').selectOption('expense');
@@ -187,7 +202,7 @@ test('a child category posts its exact identity without changing signed minor un
 test('archived historical label remains while ambiguity reconciles without duplicate posts', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop');
   await openCategories(page, { ambiguousCategorizedEventOnce: true });
-  await page.getByRole('button', { name: 'Wallets' }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Wallets', exact: true }).click();
   await expect(page.getByText('Archived travel')).toBeVisible();
   await expect(page.getByText('Archived', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Add transaction' }).click();
@@ -204,9 +219,18 @@ test('archived historical label remains while ambiguity reconciles without dupli
 
 test('category load failure offers a deterministic manager retry', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop');
-  await openCategories(page, { failCategoriesOnce: true });
+  await openSettledHome(page);
+  const categoryPath = 'http://127.0.0.1:55432/rest/v1/categories**';
+  const failCategories = async (route: Route) => route.fulfill({
+    status: 503,
+    headers: { 'access-control-allow-origin': '*', 'content-type': 'application/json' },
+    body: JSON.stringify({ message: 'category register temporarily unavailable' }),
+  });
+  await page.route(categoryPath, failCategories);
+  await page.getByRole('button', { name: 'Categories' }).click();
   const error = page.getByRole('alert');
   await expect(error).toContainText('Categories are unavailable', { timeout: 15_000 });
+  await page.unroute(categoryPath, failCategories);
   await error.getByRole('button', { name: 'Try again' }).click();
   await expect(page.getByText('Salary')).toBeVisible();
 });
@@ -233,7 +257,7 @@ test('mobile category tabs and dialog remain contained with accessible targets',
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.screenshot({ path: screenshotPath(testInfo, 'mobile-create-subcategory.png') });
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: 'Wallets' }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Wallets', exact: true }).click();
   await page.getByRole('button', { name: 'Add transaction' }).click();
   const transactionDialog = page.getByRole('dialog', { name: 'Add a transaction' });
   await expectMinimumControlSize(transactionDialog);
@@ -250,7 +274,7 @@ test('Arabic RTL mirrors management and categorized history with isolated names'
   await page.getByRole('button', { name: 'المصروف', exact: true }).click();
   await expect(page.getByRole('list', { name: 'الفئات الفرعية ضمن الأساسيات' })).toContainText('بقالة');
   await page.screenshot({ path: screenshotPath(testInfo, 'mobile-arabic-category-register.png') });
-  await page.getByRole('button', { name: 'المحافظ' }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'المحافظ', exact: true }).click();
   const historyHeading = page.getByRole('heading', { name: 'سجل المعاملات' });
   await expect(historyHeading).toBeVisible();
   const archivedCategory = page.getByText('سفر مؤرشف').locator('xpath=ancestor-or-self::bdi');

@@ -1,5 +1,6 @@
 import { expect, test, type TestInfo } from '@playwright/test';
 import { installLoansApiFixture } from './fixtures/loans.js';
+import { expectDialogReturnsFocus } from './workspace-contract.js';
 
 function screenshotPath(testInfo: TestInfo, name: string) {
   return process.env['UPDATE_VISUAL_ARTIFACTS'] === '1'
@@ -11,8 +12,25 @@ test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await installLoansApiFixture(page);
   await page.goto('/');
+  await page.getByRole('navigation').getByRole('button', { name: 'Loans', exact: true }).click();
   await expect(page.getByText('Maya')).toBeVisible();
 });
+
+test('loan creation and detail dialogs return focus to their opener', async ({ page }) => {
+  await expectDialogReturnsFocus(page, page.getByRole('button', { name: 'Add loan' }), 'Add a loan');
+  await expectDialogReturnsFocus(page, page.getByRole('button', { name: 'Open Karim loan' }), 'Karim loan details');
+});
+
+for (const [action, title] of [
+  ['Record repayment', 'Record repayment to Karim'],
+  ['Change monthly target', 'Monthly target for Karim'],
+  ['Correct borrowing entry from Jun 1, 2026', 'Correct this ledger entry'],
+] as const) {
+  test(`closing ${title} returns focus to its detail action`, async ({ page }) => {
+    await page.getByRole('button', { name: 'Open Karim loan' }).click();
+    await expectDialogReturnsFocus(page, page.getByRole('button', { name: action, exact: true }), title);
+  });
+}
 
 test('desktop English overview and immutable detail', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop');

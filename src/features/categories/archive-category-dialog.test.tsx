@@ -16,6 +16,7 @@ describe('ArchiveCategoryDialog', () => {
     const save = vi.fn(async () => ({ status: 'success' as const, reconciled: false }));
     render(<ArchiveCategoryDialog locale="en" category={category} pending={false} ambiguous={false} onClose={vi.fn()} onRetry={vi.fn()} onRefresh={vi.fn()} onSubmit={save} />);
     const dialog = screen.getByRole('dialog', { name: 'Archive category' });
+    expect(within(dialog).getByText(/It disappears from new entries/)).toHaveClass('dialog-consequence');
     const description = within(dialog).getByText(/It disappears from new entries/);
     expect(description.id).not.toBe('');
     expect(dialog).toHaveAttribute('aria-describedby', description.id);

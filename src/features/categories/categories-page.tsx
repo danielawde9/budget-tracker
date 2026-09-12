@@ -73,8 +73,8 @@ function CategoryTree({ props }: { props: RegisterProps }) {
 
 function CategoryRegister(props: RegisterProps) {
   const income = props.kind === 'income';
-  return <section className={`category-register ${props.activeKind === props.kind ? 'category-register-mobile-active' : ''}`} aria-labelledby={`${props.kind}-categories-heading`}>
-    <header><div><span className="section-kicker">{income ? t(props.locale, 'Money in', 'الأموال الواردة') : t(props.locale, 'Money out', 'الأموال الصادرة')}</span><h2 id={`${props.kind}-categories-heading`}>{income ? t(props.locale, 'Income categories', 'فئات الدخل') : t(props.locale, 'Expense categories', 'فئات المصروف')}</h2></div><span>{props.categories.length}</span></header>
+  return <section className={`category-register register-section ${props.activeKind === props.kind ? 'category-register-mobile-active' : ''}`} data-category-kind={props.kind} aria-labelledby={`${props.kind}-categories-heading`}>
+    <header><div><span className="section-kicker">{income ? t(props.locale, 'Money in', 'الأموال الواردة') : t(props.locale, 'Money out', 'الأموال الصادرة')}</span><h2 id={`${props.kind}-categories-heading`}>{income ? t(props.locale, 'Income categories', 'فئات الدخل') : t(props.locale, 'Expense categories', 'فئات المصروف')}</h2></div><span className="count-badge">{props.categories.length}</span></header>
     {props.categories.length === 0 ? <div className="empty category-empty"><strong>{income ? t(props.locale, 'No income categories yet', 'لا توجد فئات دخل بعد') : t(props.locale, 'No expense categories yet', 'لا توجد فئات مصروف بعد')}</strong><p>{t(props.locale, 'Create a label when this space needs one.', 'أنشئ تسمية عندما تحتاج إليها هذه المساحة.')}</p></div> : <CategoryTree props={props} />}
     {props.nextCursor && <button type="button" className="button-secondary load-more" disabled={props.loadingMore} onClick={props.onLoadMore}>{props.loadingMore ? t(props.locale, 'Loading…', 'جارٍ التحميل…') : t(props.locale, 'Load more', 'تحميل المزيد')}</button>}
   </section>;
@@ -90,7 +90,7 @@ export function CategoriesPage({ gateway, spaceId, locale = 'en', onSpaceUnavail
   const [dialog, setDialog] = useState<OpenDialog>(null);
 
   return <section className="categories-workspace">
-    <header className="topbar categories-topbar"><div><span className="brand">{t(locale, 'Category register', 'سجل الفئات')}</span><h1>{t(locale, 'Categories', 'الفئات')}</h1><p>{t(locale, 'Keep income and expense labels clear. Archiving affects new entries only; history stays intact.', 'نظّم تسميات الدخل والمصروف بوضوح. تؤثر الأرشفة على القيود الجديدة فقط ويبقى السجل كما هو.')}</p></div><button type="button" onClick={() => setDialog({ create: activeKind })}>{t(locale, 'New category', 'فئة جديدة')}</button></header>
+    <header className="topbar page-header categories-topbar"><div><span className="brand">{t(locale, 'Category register', 'سجل الفئات')}</span><h1>{t(locale, 'Categories', 'الفئات')}</h1><p>{t(locale, 'Keep income and expense labels clear. Archiving affects new entries only; history stays intact.', 'نظّم تسميات الدخل والمصروف بوضوح. تؤثر الأرشفة على القيود الجديدة فقط ويبقى السجل كما هو.')}</p></div><button type="button" className="page-header-action" onClick={() => setDialog({ create: activeKind })}>{t(locale, 'New category', 'فئة جديدة')}</button></header>
 
     <div className="category-kind-tabs" role="group" aria-label={t(locale, 'Category type', 'نوع الفئة')}><button type="button" className={activeKind === 'income' ? 'category-tab-active' : ''} aria-pressed={activeKind === 'income'} onClick={() => setActiveKind('income')}>{t(locale, 'Income', 'الدخل')}</button><button type="button" className={activeKind === 'expense' ? 'category-tab-active' : ''} aria-pressed={activeKind === 'expense'} onClick={() => setActiveKind('expense')}>{t(locale, 'Expense', 'المصروف')}</button></div>
 

@@ -12,6 +12,7 @@ describe('OnboardingDialog', () => {
     render(<OnboardingDialog locale="en" createSpace={createSpace} createWallet={createWallet} onComplete={complete} />);
 
     const dialog = screen.getByRole('dialog', { name: 'Create your first space' });
+    expect(dialog).toHaveClass('onboarding-dialog', 'dialog-setup');
     await user.type(within(dialog).getByLabelText('Space name'), 'My money');
     await user.click(within(dialog).getByRole('button', { name: 'Create personal space' }));
     expect(createSpace).toHaveBeenCalledWith({ name: 'My money', kind: 'personal' });
@@ -81,6 +82,7 @@ describe('OnboardingDialog', () => {
     const dialog = screen.getByRole('dialog', { name: 'إنشاء مساحتك الأولى' });
     expect(within(dialog).getByLabelText('اسم المساحة')).toBeInTheDocument();
     const first = within(dialog).getByRole('radio', { name: 'مساحة شخصية' });
+    expect(within(dialog).getByRole('button', { name: 'إنشاء مساحة شخصية' })).toBeInTheDocument();
     first.focus();
     await user.tab({ shift: true });
     expect(dialog).toContainElement(document.activeElement as HTMLElement);

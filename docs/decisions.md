@@ -1340,3 +1340,59 @@ to the verified ledger behavior.
 does not alter the shared visual system. Adding charts, budgets, search,
 notifications, or reporting requires a separate product and data-contract
 decision; they are not cosmetic additions to this redesign.
+
+## 2026-09-11 — Account, household, onboarding, and auth share the workspace presentation language
+
+**Decision:** Household headers, required onboarding, authentication, loading,
+and configuration states use the same calm paper/surface and dialog treatments
+as the authenticated workspace. Authentication remains a clear bounded surface,
+not a separate full-screen promotional card. Backup readiness stays available in
+the Account menu but is collapsed as operator-only detail by default.
+
+**Why:** These states are part of one financial product and should not interrupt
+the working model with a different visual system. The backup warning is
+important but does not belong in the normal task hierarchy for every user.
+
+**If changed:** Restoring a distinct auth treatment is presentation-only as
+long as email/password autocomplete, confirmation/resend, and session-state
+contracts are unchanged. Promoting backup readiness into primary navigation
+requires a product decision about user-facing operational status and ownership.
+
+## 2026-09-12 — Preserve nested loan focus and fit the financial workspace to its containers
+
+**Decision:** Keep the loan detail mounted but hidden and without its keyboard
+listener while repayment, monthly-target, or correction dialogs are active.
+Closing the child restores its actual action; closing the detail restores its
+list opener. If a successful mutation removes that action, focus falls back to
+the detail panel. Home receives its own wrapping header and spaced journal
+rows. The narrow Wallets balance folio stacks wallet identity above the amount.
+The rail add-space action uses light text on the rail and dark text on hover.
+
+**Why:** Browser QA reproduced mobile Home overflow/action interception,
+detached nested-dialog openers, touching journal text, colliding LBP balances,
+and a 1.48:1 rail action contrast ratio. Dedicated browser geometry/contrast
+checks and retained focus regressions now detect these failures. Unit coverage
+also asserts one exposed dialog, child Tab containment, opener identity, and
+two-level Escape return.
+
+**If changed:** Recreating the detail requires an explicit stable focus target
+and preservation of the original list opener. A side-by-side balance layout
+must prove separation at its actual folio width in both languages. No financial
+command, gateway, derived-state, archive rule, or dialog copy changes are needed.
+
+## 2026-09-12 — The workspace rail is compact, light neutral, and mint-selected
+
+**Decision:** Replace the dark full-height rail with the approved light neutral
+rail, dark-green navigation text, and a mint active destination. Tighten the
+shell's logo, space switcher, navigation, page-header, and control spacing on
+the shared 8px rhythm. Use restrained mint, peach, and soft-blue content accents
+rather than a blanket dark theme.
+
+**Why:** The previous redesigned shell retained too much visual weight and
+empty space. The selected light-and-mint direction is visibly distinct while
+keeping a finance workspace calm, readable, and compact.
+
+**If changed:** A dark rail or a more expressive palette is a visual-system
+decision and must be reviewed across desktop, mobile, and Arabic RTL. This
+decision does not authorize changes to routes, financial behavior, data, or
+archive flows.

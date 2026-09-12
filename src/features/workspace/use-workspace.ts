@@ -119,6 +119,8 @@ export function useWorkspace(gateway: WorkspaceGateway, userId: string) {
     return created;
   }, [gateway, load]);
 
+  const refresh = useCallback((preferredSpaceId?: string) => load(false, preferredSpaceId), [load]);
+
   return {
     status,
     spaces,
@@ -126,7 +128,7 @@ export function useWorkspace(gateway: WorkspaceGateway, userId: string) {
     selectedSpace: spaces.find((space) => space.id === selectedSpaceId) ?? null,
     error,
     selectSpace,
-    refresh: (preferredSpaceId?: string) => load(false, preferredSpaceId),
+    refresh,
     createFirstSpace,
     createFirstWallet,
   };

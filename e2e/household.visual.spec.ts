@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test';
+import { expectContainedControls, expectDialogReturnsFocus } from './workspace-contract.js';
 
 import {
   householdFixtureIds,
@@ -7,6 +8,30 @@ import {
 } from './fixtures/household.js';
 
 const TOKEN = 'A'.repeat(43);
+
+for (const locale of ['en', 'ar'] as const) {
+  test(`household ${locale} register and invitation controls fit the viewport`, async ({ page }, testInfo) => {
+    await openHousehold(page);
+    if (locale === 'ar') await page.getByRole('button', { name: 'العربية' }).click();
+    await expect(page.locator('html')).toHaveAttribute('dir', locale === 'ar' ? 'rtl' : 'ltr');
+    await expectContainedControls(page);
+    await page.screenshot({ path: screenshotPath(testInfo, `household-${locale}-${testInfo.project.name}.png`), fullPage: true });
+    await expectDialogReturnsFocus(page, page.getByRole('button', { name: locale === 'ar' ? 'دعوة عضو' : 'Invite member' }), locale === 'ar' ? 'إنشاء سجل دعوة' : 'Create invitation record');
+  });
+}
+
+test('household invitation and access confirmation dialogs return focus', async ({ page }) => {
+  await openHousehold(page);
+  for (const [action, title] of [
+    [`Promote ${householdFixtureIds.member} to owner`, 'Promote to owner'],
+    [/^Demote .+ to member$/, 'Demote to member'],
+    [`Remove ${householdFixtureIds.member}`, 'Remove access'],
+    [`Cancel invitation ${householdFixtureIds.invitation}`, 'Cancel invitation'],
+    ['Leave household', 'Leave household'],
+  ] as const) {
+    await expectDialogReturnsFocus(page, page.getByRole('button', { name: action, exact: true }), title);
+  }
+});
 
 function screenshotPath(testInfo: TestInfo, name: string) {
   return process.env['UPDATE_VISUAL_ARTIFACTS'] === '1'

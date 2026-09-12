@@ -90,6 +90,19 @@ describe('LoansPage', () => {
     expect(screen.queryByText(/grand total/i)).not.toBeInTheDocument();
   });
 
+  it('uses the workspace page hierarchy and mobile-safe rows while keeping recovery and dialog actions clear', async () => {
+    const { user } = await renderPage();
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Loans' }).closest('.page-header')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Add loan' })).toHaveClass('page-header-action');
+    expect(screen.getByRole('button', { name: 'Open Maya loan' })).toHaveClass('mobile-safe-row');
+
+    await user.click(screen.getByRole('button', { name: 'Open Maya loan' }));
+    await user.click(screen.getByRole('button', { name: 'Correct lending entry from Jul 1, 2026' }));
+    const actions = within(screen.getByRole('dialog', { name: 'Correct this ledger entry' })).getAllByRole('button');
+    expect(actions.findIndex((button) => button.textContent === 'Cancel')).toBeLessThan(actions.findIndex((button) => button.textContent === 'Add reversal'));
+  });
+
   it('switches the complete workspace to Arabic RTL', async () => {
     const { user } = await renderPage();
     await user.click(screen.getByRole('button', { name: 'العربية' }));
@@ -198,6 +211,29 @@ describe('LoansPage', () => {
     await user.click(within(target).getByRole('button', { name: 'Save target' }));
     await waitFor(() => expect(gateway.calls.some((call) => call.name === 'setMonthlyTarget')).toBe(true));
     expect(gateway.calls.find((call) => call.name === 'setMonthlyTarget')?.input).toMatchObject({ targetMinor: '0' });
+  });
+
+  it.each([
+    ['Record repayment', 'Record repayment to Karim'],
+    ['Change monthly target', 'Monthly target for Karim'],
+    ['Correct borrowing entry from Jun 1, 2026', 'Correct this ledger entry'],
+  ])('preserves the detail opener and keyboard trap through %s', async (action, title) => {
+    const { user } = await renderPage();
+    const loanOpener = screen.getByRole('button', { name: 'Open Karim loan' });
+    await user.click(loanOpener);
+    const detail = screen.getByRole('dialog', { name: 'Karim loan details' });
+    const opener = within(detail).getByRole('button', { name: action });
+    await user.click(opener);
+    const child = screen.getByRole('dialog', { name: title });
+    expect(screen.getAllByRole('dialog')).toEqual([child]);
+    await user.tab({ shift: true });
+    expect(child).toContainElement(document.activeElement as HTMLElement);
+    await user.keyboard('{Escape}');
+    expect(opener).toHaveFocus();
+    expect(screen.getByRole('dialog', { name: 'Karim loan details' })).toBe(detail);
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(loanOpener).toHaveFocus();
   });
 
   it('records a partial repayment and restores trigger focus after Escape', async () => {

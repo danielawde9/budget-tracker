@@ -18,13 +18,22 @@ describe('ApplicationShell', () => {
     expect(within(space).getByRole('option', { name: 'Home budget' })).toBeInTheDocument();
     expect(screen.getAllByText('Home budget').some((element) => element.closest('bdi') !== null)).toBe(true);
     expect(screen.getByText('Household space')).toBeInTheDocument();
+    const navigation = screen.getByRole('navigation', { name: 'Primary navigation' });
+    expect(screen.getByRole('complementary')).toHaveClass('app-rail', 'app-rail--light');
+    expect(within(navigation).getAllByRole('button').at(0)).toHaveAccessibleName('Home');
+    expect(within(navigation).queryByRole('button', { name: /Reports/i })).not.toBeInTheDocument();
+    expect(within(navigation).getAllByTestId('navigation-icon')).toHaveLength(5);
+    for (const icon of within(navigation).getAllByTestId('navigation-icon')) {
+      expect(icon).toHaveAttribute('aria-hidden', 'true');
+    }
     expect(screen.getByRole('button', { name: 'Loans' })).toHaveAttribute('aria-current', 'page');
     const wallets = screen.getByRole('button', { name: 'Wallets' });
     const categories = screen.getByRole('button', { name: 'Categories' });
     expect(wallets).not.toBeDisabled();
     expect(categories).not.toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Reports — coming later' })).toBeDisabled();
 
+    await user.click(screen.getByRole('button', { name: 'Home' }));
+    expect(changeDestination).toHaveBeenCalledWith('home');
     await user.click(wallets);
     expect(changeDestination).toHaveBeenCalledWith('wallets');
     await user.click(categories);
@@ -36,6 +45,9 @@ describe('ApplicationShell', () => {
     expect(addSpace).toHaveBeenCalledOnce();
     await user.click(screen.getByText('Account'));
     expect(screen.getByText('owner@example.com').closest('bdi')).not.toBeNull();
+    const backupDetails = document.querySelector<HTMLDetailsElement>('details.backup-details');
+    expect(backupDetails).not.toBeNull();
+    expect(backupDetails).not.toHaveAttribute('open');
     expect(screen.getByRole('note', { name: 'Backup readiness' })).toHaveTextContent(
       'Do not enter real financial data',
     );
@@ -61,6 +73,15 @@ describe('ApplicationShell', () => {
       'لا تُدخل بيانات مالية حقيقية',
     );
     expect(screen.getByRole('button', { name: 'المنزل' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('marks each visible active destination as the current page', () => {
+    const destinations = ['home', 'loans', 'wallets', 'categories', 'household'] as const;
+    for (const activeDestination of destinations) {
+      const { unmount } = render(<ApplicationShell locale="en" userEmail="owner@example.com" spaces={[householdSpace]} selectedSpace={householdSpace} activeDestination={activeDestination} onDestinationChange={vi.fn()} onSpaceChange={vi.fn()} onAddSpace={vi.fn()} onLocaleChange={vi.fn()} onSignOut={vi.fn()}><div>Workspace</div></ApplicationShell>);
+      expect(screen.getByRole('button', { current: 'page' })).toBeInTheDocument();
+      unmount();
+    }
   });
 
   it('exposes Household navigation only for a selected household space', async () => {

@@ -9,6 +9,9 @@ describe('AuthScreen', () => {
     const onSignIn = vi.fn(async () => undefined);
     render(<AuthScreen locale="en" state="signed-out" error="Sign-in was not accepted." pending={false} onLocaleChange={vi.fn()} onSignIn={onSignIn} onSignUp={vi.fn()} onBack={vi.fn()} onResendConfirmation={vi.fn()} />);
 
+    expect(screen.getByRole('main')).toHaveClass('workspace-state-page');
+    expect(document.querySelector('.auth-panel')).toBeNull();
+
     const email = screen.getByLabelText('Email');
     const password = screen.getByLabelText('Password');
     expect(email).toHaveAttribute('autocomplete', 'email');
@@ -55,5 +58,6 @@ describe('AuthScreen', () => {
     expect(screen.getByRole('heading', { name: 'انتهت جلستك' })).toBeInTheDocument();
     expect(screen.getByLabelText('البريد الإلكتروني')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'تسجيل الدخول' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'إنشاء حساب' })).toBeInTheDocument();
   });
 });

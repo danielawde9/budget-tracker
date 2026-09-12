@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AuthScreen } from './features/auth/auth-screen.js';
 import { createSupabaseAuthGateway } from './features/auth/supabase-auth-gateway.js';
 import type { AuthGateway } from './features/auth/types.js';
@@ -20,26 +20,7 @@ import type { HouseholdGateway } from './features/household/types.js';
 import { AcceptHouseholdInvitationDialog } from './features/household/household-dialogs.js';
 import { classifyHouseholdError, localizeHouseholdError, type HouseholdErrorView } from './features/household/errors.js';
 import type { HouseholdInvitationBootstrap } from './features/household/invitation-fragment.js';
-
-const WalletsPage = lazy(async () => {
-  const module = await import('./features/wallets/wallets-page.js');
-  return { default: module.WalletsPage };
-});
-
-const LoansPage = lazy(async () => {
-  const module = await import('./features/loans/loans-page.js');
-  return { default: module.LoansPage };
-});
-
-const CategoriesPage = lazy(async () => {
-  const module = await import('./features/categories/categories-page.js');
-  return { default: module.CategoriesPage };
-});
-
-const HouseholdPage = lazy(async () => {
-  const module = await import('./features/household/household-page.js');
-  return { default: module.HouseholdPage };
-});
+import { WorkspaceRoutes } from './features/home/workspace-routes.js';
 
 interface AppProps {
   householdInvitationBootstrap?: HouseholdInvitationBootstrap | null;
@@ -68,12 +49,14 @@ interface AuthenticatedWorkspaceProps {
 
 function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
   const workspace = useWorkspace(props.workspaceGateway, props.userId);
-  const [activeDestination, setActiveDestination] = useState<ApplicationDestination>('loans');
+  const [activeDestination, setActiveDestination] = useState<ApplicationDestination>('home');
+  const [openTransaction, setOpenTransaction] = useState(false);
   const [addingSpace, setAddingSpace] = useState(false);
   const [acceptPending, setAcceptPending] = useState(false);
   const [acceptError, setAcceptError] = useState<HouseholdErrorView | null>(null);
   const [terminalAcceptance, setTerminalAcceptance] = useState(false);
   const acceptRequestId = useState(() => crypto.randomUUID())[0];
+  const onSpaceUnavailable = useCallback(() => { void workspace.refresh(); }, [workspace.refresh]);
 
   useEffect(() => {
     if (activeDestination === 'household' && workspace.selectedSpace?.kind !== 'household') {
@@ -151,34 +134,24 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
       onLocaleChange={props.onLocaleChange}
       onSignOut={props.onSignOut}
     >
-    {activeDestination === 'loans' ? <Suspense fallback={<div className="state-panel" role="status">{props.locale === 'ar' ? 'جارٍ تحميل القروض…' : 'Loading Loans…'}</div>}><LoansPage
-      embedded
-      gateway={props.loansGateway}
-      locale={props.locale}
-      spaces={workspace.spaces}
-      spaceId={workspace.selectedSpaceId}
-      onSpaceChange={workspace.selectSpace}
-      onSpaceUnavailable={() => void workspace.refresh()}
-    /></Suspense> : activeDestination === 'wallets' ? <Suspense fallback={<div className="state-panel" role="status">{props.locale === 'ar' ? 'جارٍ تحميل المحافظ…' : 'Loading Wallets…'}</div>}><WalletsPage
-      gateway={props.walletsGateway}
+    <WorkspaceRoutes
+      activeDestination={activeDestination}
       categoriesGateway={props.categoriesGateway}
-      locale={props.locale}
-      spaceId={workspace.selectedSpaceId}
-      onSpaceUnavailable={() => void workspace.refresh()}
-      onOpenLoans={() => setActiveDestination('loans')}
-    /></Suspense> : activeDestination === 'categories' ? <Suspense fallback={<div className="state-panel" role="status">{props.locale === 'ar' ? 'جارٍ تحميل الفئات…' : 'Loading Categories…'}</div>}><CategoriesPage
-      gateway={props.categoriesGateway}
-      locale={props.locale}
-      spaceId={workspace.selectedSpaceId}
-      onSpaceUnavailable={() => void workspace.refresh()}
-    /></Suspense> : <Suspense fallback={<div className="state-panel" role="status">{props.locale === 'ar' ? 'جارٍ تحميل الأسرة…' : 'Loading Household…'}</div>}><HouseholdPage
-      gateway={props.householdGateway}
+      householdGateway={props.householdGateway}
+      loansGateway={props.loansGateway}
+      walletsGateway={props.walletsGateway}
       locale={props.locale}
       spaceId={workspace.selectedSpaceId}
       spaceName={workspace.selectedSpace.name}
+      spaces={workspace.spaces}
       userId={props.userId}
-      onSpaceUnavailable={() => void workspace.refresh()}
-    /></Suspense>}
+      openTransaction={openTransaction}
+      onDestinationChange={setActiveDestination}
+      onSpaceChange={workspace.selectSpace}
+      onSpaceUnavailable={onSpaceUnavailable}
+      onRecordTransaction={() => setOpenTransaction(true)}
+      onTransactionDialogOpened={() => setOpenTransaction(false)}
+    />
     </ApplicationShell>
   </>;
 }
@@ -198,7 +171,7 @@ function ConfiguredApp({ authGateway, categoriesGateway, householdGateway, house
   }, [locale]);
 
   if (auth.status === 'loading') {
-    return <main className="auth-page"><div className="auth-loading" role="status">Checking your session…</div></main>;
+    return <main className="workspace-state-page auth-page"><div className="state-panel auth-loading" role="status">Checking your session…</div></main>;
   }
 
   if (auth.status !== 'authenticated' || !auth.user) {
@@ -243,7 +216,7 @@ export function App({ householdInvitationBootstrap = null, authGateway, categori
   const activeWorkspaceGateway = useMemo(() => workspaceGateway ?? (client ? createSupabaseWorkspaceGateway(client) : null), [workspaceGateway, client]);
 
   if (!activeAuthGateway || !activeCategoriesGateway || !activeHouseholdGateway || !activeLoansGateway || !activeWalletsGateway || !activeWorkspaceGateway) {
-    return <main className="configuration-page"><section><span className="brand">Budget ledger</span><h1>Configuration needed</h1><p>Connect this browser to the dedicated Budget development stack before continuing.</p></section></main>;
+    return <main className="workspace-state-page configuration-page"><section className="state-panel"><span className="brand">Budget ledger</span><h1>Configuration needed</h1><p>This installation needs its data service before the financial workspace can open.</p><details className="configuration-detail"><summary>Operator setup details</summary><p>Connect this browser to the dedicated Budget development stack before continuing.</p></details></section></main>;
   }
 
   return <ConfiguredApp householdInvitationBootstrap={householdInvitationBootstrap} authGateway={activeAuthGateway} categoriesGateway={activeCategoriesGateway} householdGateway={activeHouseholdGateway} loansGateway={activeLoansGateway} walletsGateway={activeWalletsGateway} workspaceGateway={activeWorkspaceGateway} />;

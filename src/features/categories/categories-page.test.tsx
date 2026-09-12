@@ -41,6 +41,23 @@ describe('CategoriesPage', () => {
     expect(screen.getByRole('button', { name: 'New subcategory for Groceries' })).toBeInTheDocument();
   });
 
+  it('keeps income and expense registers distinct in the shared workspace hierarchy', async () => {
+    const gateway = new InMemoryCategoriesGateway();
+    gateway.categories.push({
+      id: 'category-food', spaceId: 'space-1', kind: 'expense', nameEn: 'Food', nameAr: 'طعام',
+      parentCategoryId: 'category-groceries', createdAt: '2026-09-08T12:00:00Z', archivedAt: null,
+    });
+    const { user } = await renderPage(gateway);
+    expect(screen.getByRole('heading', { level: 1, name: 'Categories' }).closest('.page-header')).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Income categories' }).closest('[data-category-kind="income"]')).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Expense categories' }).closest('[data-category-kind="expense"]')).not.toBeNull();
+    expect(screen.getByText('Archive subcategories first')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    expect(screen.getByRole('button', { name: 'Income' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Expense' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
   it('nests active children under roots and requires child archival before parent archival', async () => {
     const gateway = new InMemoryCategoriesGateway();
     gateway.categories.push({

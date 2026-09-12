@@ -49,9 +49,9 @@ export function AuthScreen(props: AuthScreenProps) {
       await props.onResendConfirmation();
       setResent(true);
     };
-    return <main className="auth-page">
+    return <main className="workspace-state-page auth-page">
       <button type="button" className="locale-button auth-language" onClick={props.onLocaleChange}>{copy.language}</button>
-      <section className="auth-confirmation" role="status">
+      <section className="auth-boundary auth-confirmation" role="status">
         <span className="brand">{copy.product}</span>
         <h1>{copy.check}</h1>
         <p>{copy.checkBody} <bdi>{props.confirmationEmail}</bdi>. {copy.checkTail}</p>
@@ -72,9 +72,9 @@ export function AuthScreen(props: AuthScreenProps) {
     else await props.onSignIn(email.trim(), submittedPassword);
   };
 
-  return <main className="auth-page">
+  return <main className="workspace-state-page auth-page">
     <button type="button" className="locale-button auth-language" onClick={props.onLocaleChange}>{copy.language}</button>
-    <section className="auth-panel">
+    <section className="auth-boundary">
       <div className="auth-intro">
         <span className="brand">{copy.product}</span>
         <h1>{signingUp ? copy.createTitle : props.state === 'expired' ? copy.expiredTitle : copy.signInTitle}</h1>

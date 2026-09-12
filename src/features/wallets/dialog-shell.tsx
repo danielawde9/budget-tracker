@@ -59,7 +59,7 @@ export function DialogShell({ title, closeLabel, onClose, children, pending = fa
         <h2>{title}</h2>
         <button type="button" className="icon-button" aria-label={closeLabel} disabled={pending} onClick={onClose}>×</button>
       </header>
-      {children}
+      <div className="dialog-body">{children}</div>
     </div>
   </div>;
 }
