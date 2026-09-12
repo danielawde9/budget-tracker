@@ -1379,3 +1379,20 @@ two-level Escape return.
 and preservation of the original list opener. A side-by-side balance layout
 must prove separation at its actual folio width in both languages. No financial
 command, gateway, derived-state, archive rule, or dialog copy changes are needed.
+
+## 2026-09-12 — The workspace rail is compact, light neutral, and mint-selected
+
+**Decision:** Replace the dark full-height rail with the approved light neutral
+rail, dark-green navigation text, and a mint active destination. Tighten the
+shell's logo, space switcher, navigation, page-header, and control spacing on
+the shared 8px rhythm. Use restrained mint, peach, and soft-blue content accents
+rather than a blanket dark theme.
+
+**Why:** The previous redesigned shell retained too much visual weight and
+empty space. The selected light-and-mint direction is visibly distinct while
+keeping a finance workspace calm, readable, and compact.
+
+**If changed:** A dark rail or a more expressive palette is a visual-system
+decision and must be reviewed across desktop, mobile, and Arabic RTL. This
+decision does not authorize changes to routes, financial behavior, data, or
+archive flows.
