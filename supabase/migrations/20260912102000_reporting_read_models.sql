@@ -10,8 +10,8 @@ begin
     raise exception using errcode = '42501', message = 'an active space membership and normalized month are required';
   end if;
   return query
-  with periods as (select (p_anchor_month - interval '1 month')::date month, 'previous'::text role union all select p_anchor_month, 'current'),
-  dimensions as (select periods.month, periods.role, currency.value::public.currency_code currency from periods cross join (values ('USD'), ('LBP')) currency(value)),
+  with periods as (select (p_anchor_month - interval '1 month')::date as period_start, 'previous'::text as role union all select p_anchor_month, 'current'),
+  dimensions as (select periods.period_start, periods.role, currency.value::public.currency_code currency from periods cross join (values ('USD'), ('LBP')) currency(value)),
   movements as (
     select event.effective_date, wallet.currency, event.kind, event.reversal_of, movement.amount_minor
     from public.financial_events event join public.wallet_movements movement on movement.event_id = event.id and movement.space_id = p_space_id
@@ -22,12 +22,12 @@ begin
       case when movement.reversal_of is null then movement.amount_minor else -movement.amount_minor end normalized_amount
     from movements movement left join public.financial_events original on original.id = movement.reversal_of and original.space_id = p_space_id
   )
-  select dimensions.month, dimensions.role, dimensions.currency,
+  select dimensions.period_start, dimensions.role, dimensions.currency,
     coalesce(sum(case when normalized.semantic_kind = 'income' then normalized.normalized_amount else 0 end), 0),
     coalesce(sum(case when normalized.semantic_kind = 'expense' then -normalized.normalized_amount else 0 end), 0),
     coalesce(sum(normalized.amount_minor), 0)
-  from dimensions left join normalized on normalized.currency = dimensions.currency and normalized.effective_date >= dimensions.month and normalized.effective_date < dimensions.month + interval '1 month'
-  group by dimensions.month, dimensions.role, dimensions.currency order by dimensions.month, dimensions.currency;
+  from dimensions left join normalized on normalized.currency = dimensions.currency and normalized.effective_date >= dimensions.period_start and normalized.effective_date < dimensions.period_start + interval '1 month'
+  group by dimensions.period_start, dimensions.role, dimensions.currency order by dimensions.period_start, dimensions.currency;
 end; $$;
 
 create function public.report_wallet_activity(p_space_id uuid, p_from_date date, p_to_date date, p_wallet_id uuid default null, p_currency public.currency_code default null, p_event_limit integer default 50)
