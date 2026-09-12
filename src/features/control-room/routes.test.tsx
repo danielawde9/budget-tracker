@@ -90,3 +90,39 @@ describe('ControlRoomRoutes home data loading', () => {
     expect(document.querySelector('.cr-bars [data-role="previous"]')).not.toBeNull();
   });
 });
+
+describe('ControlRoomRoutes record sheet', () => {
+  it('mounts the record sheet when recordOpen is true', async () => {
+    renderHome(gateways({}), { recordOpen: true });
+    expect(await screen.findByRole('dialog', { name: 'Record' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Expense' })).toBeInTheDocument();
+  });
+
+  it('keeps the record sheet available on non-home destinations', async () => {
+    render(
+      <ControlRoomRoutes
+        locale="en"
+        spaceId="personal-space"
+        spaceKind="personal"
+        destination="journal"
+        gateways={gateways({})}
+        recordOpen
+        onCloseRecord={() => undefined}
+      />,
+    );
+    expect(await screen.findByRole('dialog', { name: 'Record' })).toBeInTheDocument();
+  });
+
+  it('requests the record sheet when the home Record action is pressed', async () => {
+    const user = userEvent.setup();
+    const onOpenRecord = vi.fn();
+    renderHome(gateways({}), { onOpenRecord });
+    await user.click(await screen.findByRole('button', { name: 'Record' }));
+    expect(onOpenRecord).toHaveBeenCalled();
+  });
+
+  it('disables the Exchange tile when no exchange client is configured', async () => {
+    renderHome(gateways({}), { recordOpen: true });
+    expect(await screen.findByRole('button', { name: 'Exchange' })).toBeDisabled();
+  });
+});

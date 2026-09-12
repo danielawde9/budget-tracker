@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import { useCategories } from '../categories/use-categories.js';
 import type { CategoriesGateway } from '../categories/types.js';
+import { useExchange } from '../exchange/use-exchange.js';
 import type { ExchangeClient } from '../exchange/types.js';
 import type { HouseholdGateway } from '../household/types.js';
 import type { InsightsClient, CategoryBudgetRow } from '../insights/types.js';
@@ -9,16 +12,22 @@ import { useLoans } from '../loans/use-loans.js';
 import type { PlanClient } from '../plan/types.js';
 import type { MonthlyCashSummary, ReportsGateway } from '../reports/types.js';
 import { useWallets } from '../wallets/use-wallets.js';
+import type { WalletsState } from '../wallets/use-wallets.js';
 import type { WalletsGateway } from '../wallets/types.js';
 import { sumMinorAmounts } from '../wallets/money.js';
 import { AmbiguousBanner } from './ambiguous-banner.js';
 import { HomeScreen } from './home-screen.js';
 import { JournalScreen } from './journal-screen.js';
+import { RecordSheet } from './record-sheet.js';
 import type { ControlRoomDestination } from './types.js';
 
 const unavailableInsightsClient: InsightsClient = {
   async walletActivity() { throw new Error('Insights are unavailable until this browser is connected to its data service.'); },
   async categoryActualVsBudget() { throw new Error('Insights are unavailable until this browser is connected to its data service.'); },
+};
+
+const unavailableExchangeClient: ExchangeClient = {
+  async recordExchange() { throw new Error('Exchange is unavailable until this browser is connected to its data service.'); },
 };
 
 export interface ControlRoomGateways {
@@ -72,6 +81,8 @@ interface HomeRoutesProps {
   spaceId: string;
   spaceKind: SpaceKind;
   gateways: ControlRoomGateways;
+  wallets: WalletsState;
+  loans: ReturnType<typeof useLoans>;
   onSpaceUnavailable?: (() => void) | undefined;
   onOpenRecord?: (() => void) | undefined;
 }
@@ -81,8 +92,8 @@ function HomeRoutes(props: HomeRoutesProps) {
   const [month, setMonth] = useState(currentMonthStart);
   const insightsClient = gateways.insights ?? unavailableInsightsClient;
 
-  const wallets = useWallets(gateways.wallets, spaceId, props.onSpaceUnavailable, undefined, gateways.categories);
-  const loans = useLoans(gateways.loans, { spaceId, ...(props.onSpaceUnavailable ? { onSpaceUnavailable: props.onSpaceUnavailable } : {}) });
+  const wallets = props.wallets;
+  const loans = props.loans;
 
   const [data, setData] = useState<HomeDataState>({ status: 'loading', budgets: [], trend: [], error: null });
   const [attempt, setAttempt] = useState(0);
@@ -157,14 +168,13 @@ function HomeRoutes(props: HomeRoutesProps) {
 
 interface JournalRoutesProps {
   locale: Locale;
-  spaceId: string;
-  gateways: ControlRoomGateways;
+  wallets: WalletsState;
   onSpaceUnavailable?: (() => void) | undefined;
 }
 
 function JournalRoutes(props: JournalRoutesProps) {
-  const { locale, spaceId, gateways } = props;
-  const wallets = useWallets(gateways.wallets, spaceId, props.onSpaceUnavailable, undefined, gateways.categories);
+  const { locale } = props;
+  const wallets = props.wallets;
   return (
     <>
       <JournalScreen
@@ -187,29 +197,110 @@ function JournalRoutes(props: JournalRoutesProps) {
 }
 
 export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
+  const { locale, spaceId, gateways } = props;
+  const wallets = useWallets(gateways.wallets, spaceId, props.onSpaceUnavailable, undefined, gateways.categories);
+  const loans = useLoans(gateways.loans, { spaceId, ...(props.onSpaceUnavailable ? { onSpaceUnavailable: props.onSpaceUnavailable } : {}) });
+  const categories = useCategories(gateways.categories, spaceId, props.onSpaceUnavailable);
+  const exchangeReceipts = useMemo(() => ({
+    findEventByRequestId: (targetSpaceId: string, requestId: string) =>
+      gateways.wallets.findEventByRequestId(targetSpaceId, requestId),
+  }), [gateways.wallets]);
+  const onExchangeRecorded = useMemo(() => async () => { await wallets.refresh(); }, [wallets]);
+  const exchange = useExchange(gateways.exchange ?? unavailableExchangeClient, exchangeReceipts, spaceId, onExchangeRecorded);
+
+  const loansOutstanding = useMemo(() => {
+    const active = (loans.dashboard?.loans ?? []).filter((loan) => BigInt(loan.outstandingMinor) > 0n);
+    return active.map((loan) => ({
+      loanId: loan.id,
+      personName: loan.personName,
+      currency: loan.currency,
+      outstandingMinor: loan.outstandingMinor,
+    }));
+  }, [loans.dashboard]);
+
+  const categoryTree = useMemo(() => {
+    const all = [...categories.incomeCategories, ...categories.expenseCategories];
+    const active = all.filter((category) => !category.archivedAt);
+    return active
+      .filter((category) => category.parentCategoryId === null)
+      .map((root) => ({
+        id: root.id,
+        nameEn: root.nameEn ?? '',
+        nameAr: root.nameAr ?? '',
+        kind: root.kind,
+        children: active
+          .filter((category) => category.parentCategoryId === root.id)
+          .map((child) => ({ id: child.id, nameEn: child.nameEn ?? '', nameAr: child.nameAr ?? '' })),
+      }));
+  }, [categories.incomeCategories, categories.expenseCategories]);
+
+  let destinationRoutes: ReactNode;
   if (props.destination === 'home') {
-    return (
+    destinationRoutes = (
       <HomeRoutes
-        locale={props.locale}
-        spaceId={props.spaceId}
+        locale={locale}
+        spaceId={spaceId}
         spaceKind={props.spaceKind}
-        gateways={props.gateways}
+        gateways={gateways}
+        wallets={wallets}
+        loans={loans}
         onSpaceUnavailable={props.onSpaceUnavailable}
         onOpenRecord={props.onOpenRecord}
       />
     );
-  }
-  if (props.destination === 'journal') {
-    return (
+  } else if (props.destination === 'journal') {
+    destinationRoutes = (
       <JournalRoutes
-        locale={props.locale}
-        spaceId={props.spaceId}
-        gateways={props.gateways}
+        locale={locale}
+        wallets={wallets}
         onSpaceUnavailable={props.onSpaceUnavailable}
       />
     );
+  } else {
+    // TODO(tasks 10-11): plan and manage screens replace these placeholders.
+    destinationRoutes = <p>{props.destination} coming soon</p>;
   }
-  // TODO(tasks 9-11): plan and manage screens replace these placeholders.
-  // Task 9 mounts the record sheet here when recordOpen is true.
-  return <p>{props.destination} coming soon</p>;
+
+  return (
+    <>
+      {destinationRoutes}
+      <RecordSheet
+        open={props.recordOpen}
+        locale={locale}
+        wallets={wallets.wallets.filter((wallet) => wallet.archivedAt === null)}
+        loans={loansOutstanding}
+        payees={wallets.payees.map((payee) => payee.name)}
+        categoryTree={categoryTree}
+        exchangeAvailable={gateways.exchange !== null}
+        pending={wallets.pending || exchange.pending}
+        error={null}
+        walletAmbiguous={wallets.ambiguous}
+        exchangeAmbiguous={exchange.ambiguous}
+        onRetryWalletAmbiguous={() => void wallets.retryAmbiguous()}
+        onDismissWalletAmbiguous={wallets.clearAmbiguous}
+        onRetryExchangeAmbiguous={() => void exchange.retryAmbiguous()}
+        onDismissExchangeAmbiguous={exchange.clearAmbiguous}
+        onClose={props.onCloseRecord}
+        onSubmitRecord={async (draft) => {
+          const outcome = await wallets.recordEvent(draft);
+          if (outcome.status !== 'ambiguous') props.onCloseRecord();
+        }}
+        onSubmitExchange={async (draft) => {
+          const outcome = await exchange.recordExchange(draft);
+          if (outcome.status === 'success') {
+            await wallets.refresh();
+            props.onCloseRecord();
+          }
+        }}
+        onSubmitLoan={async (draft) => {
+          await loans.createLoan({ mode: 'cash', spaceId, ...draft });
+          props.onCloseRecord();
+        }}
+        onSubmitRepayment={async (draft) => {
+          await loans.recordRepayment({ spaceId, ...draft });
+          props.onCloseRecord();
+        }}
+      />
+    </>
+  );
 }
