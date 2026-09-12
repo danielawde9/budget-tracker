@@ -1,6 +1,6 @@
 # Task-oriented navigation replacement
 
-**Date:** 2026-09-12  
+**Date:** 2026-09-12
 **Status:** Approved for planning; implementation has not started.
 
 ## Outcome
