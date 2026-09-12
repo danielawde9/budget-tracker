@@ -95,7 +95,7 @@ describe('App', () => {
     expect(screen.getAllByRole('button', { name: 'Home' })[0]).not.toHaveAttribute('aria-current');
 
     await user.click(screen.getAllByRole('button', { name: 'Plan' })[0]!);
-    expect(await screen.findByText('plan coming soon')).toBeInTheDocument();
+    expect(await screen.findByText('Could not load the monthly plan.')).toBeInTheDocument();
 
     await user.click(screen.getAllByRole('button', { name: 'Manage' })[0]!);
     expect(await screen.findByText('manage coming soon')).toBeInTheDocument();

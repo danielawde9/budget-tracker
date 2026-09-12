@@ -9,6 +9,8 @@ import type { InsightsClient, CategoryBudgetRow } from '../insights/types.js';
 import type { Currency, Locale, SpaceKind } from '../loans/types.js';
 import type { LoansGateway } from '../loans/types.js';
 import { useLoans } from '../loans/use-loans.js';
+import { PlanPage } from '../plan/plan-page.js';
+import { usePlan } from '../plan/use-plan.js';
 import type { PlanClient } from '../plan/types.js';
 import type { MonthlyCashSummary, ReportsGateway } from '../reports/types.js';
 import { useWallets } from '../wallets/use-wallets.js';
@@ -28,6 +30,13 @@ const unavailableInsightsClient: InsightsClient = {
 
 const unavailableExchangeClient: ExchangeClient = {
   async recordExchange() { throw new Error('Exchange is unavailable until this browser is connected to its data service.'); },
+};
+
+const unavailablePlanClient: PlanClient = {
+  async loadCurrencySummary() { throw new Error('Planning is unavailable until this browser is connected to its data service.'); },
+  async loadCategoryPage() { throw new Error('Planning is unavailable until this browser is connected to its data service.'); },
+  async setIncomePlan() { throw new Error('Planning is unavailable until this browser is connected to its data service.'); },
+  async setCategoryTarget() { throw new Error('Planning is unavailable until this browser is connected to its data service.'); },
 };
 
 export interface ControlRoomGateways {
@@ -83,13 +92,15 @@ interface HomeRoutesProps {
   gateways: ControlRoomGateways;
   wallets: WalletsState;
   loans: ReturnType<typeof useLoans>;
+  month: string;
+  onMonthChange(month: string): void;
   onSpaceUnavailable?: (() => void) | undefined;
   onOpenRecord?: (() => void) | undefined;
 }
 
 function HomeRoutes(props: HomeRoutesProps) {
   const { locale, spaceId, spaceKind, gateways } = props;
-  const [month, setMonth] = useState(currentMonthStart);
+  const month = props.month;
   const insightsClient = gateways.insights ?? unavailableInsightsClient;
 
   const wallets = props.wallets;
@@ -152,7 +163,7 @@ function HomeRoutes(props: HomeRoutesProps) {
       locale={locale}
       spaceKind={spaceKind}
       month={month}
-      onMonthChange={setMonth}
+      onMonthChange={props.onMonthChange}
       onRecord={() => props.onOpenRecord?.()}
       totals={totals}
       budgets={data.budgets}
@@ -196,8 +207,52 @@ function JournalRoutes(props: JournalRoutesProps) {
   );
 }
 
+interface PlanRoutesProps {
+  locale: Locale;
+  spaceId: string;
+  gateways: ControlRoomGateways;
+  loans: ReturnType<typeof useLoans>;
+  month: string;
+}
+
+function PlanRoutes(props: PlanRoutesProps) {
+  const { locale, spaceId, gateways } = props;
+  const plan = usePlan(gateways.plan ?? unavailablePlanClient, spaceId, props.month);
+
+  if (plan.status === 'loading') {
+    return <p className="cr-label">{locale === 'ar' ? 'جارٍ تحميل الخطة…' : 'Loading the plan…'}</p>;
+  }
+  if (plan.status === 'error') {
+    return (
+      <div className="cr-card" role="alert">
+        <div className="cr-row">
+          <span>{locale === 'ar' ? 'تعذر تحميل الخطة الشهرية.' : 'Could not load the monthly plan.'}</span>
+          <button type="button" className="cr-button" onClick={() => void plan.refresh()}>
+            {locale === 'ar' ? 'إعادة المحاولة' : 'Retry'}
+          </button>
+        </div>
+        {plan.error ? <small>{plan.error}</small> : null}
+      </div>
+    );
+  }
+  return (
+    <PlanPage
+      locale={locale}
+      month={props.month}
+      summaries={plan.summaries}
+      categoryRows={plan.categoryRows}
+      pending={plan.pending}
+      error={plan.error}
+      loansSummary={props.loans.dashboard?.summaries ?? []}
+      onSaveIncome={plan.setIncomePlan}
+      onSaveTarget={plan.setCategoryTarget}
+    />
+  );
+}
+
 export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
   const { locale, spaceId, gateways } = props;
+  const [month, setMonth] = useState(currentMonthStart);
   const wallets = useWallets(gateways.wallets, spaceId, props.onSpaceUnavailable, undefined, gateways.categories);
   const loans = useLoans(gateways.loans, { spaceId, ...(props.onSpaceUnavailable ? { onSpaceUnavailable: props.onSpaceUnavailable } : {}) });
   const categories = useCategories(gateways.categories, spaceId, props.onSpaceUnavailable);
@@ -246,6 +301,8 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
         gateways={gateways}
         wallets={wallets}
         loans={loans}
+        month={month}
+        onMonthChange={setMonth}
         onSpaceUnavailable={props.onSpaceUnavailable}
         onOpenRecord={props.onOpenRecord}
       />
@@ -256,6 +313,16 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
         locale={locale}
         wallets={wallets}
         onSpaceUnavailable={props.onSpaceUnavailable}
+      />
+    );
+  } else if (props.destination === 'plan') {
+    destinationRoutes = (
+      <PlanRoutes
+        locale={locale}
+        spaceId={spaceId}
+        gateways={gateways}
+        loans={loans}
+        month={month}
       />
     );
   } else {

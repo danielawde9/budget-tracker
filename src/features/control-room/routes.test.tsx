@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { InsightsClient, CategoryBudgetRow } from '../insights/types.js';
@@ -6,6 +6,7 @@ import type { MonthlyCashSummary, ReportsGateway } from '../reports/types.js';
 import { InMemoryCategoriesGateway } from '../../test/in-memory-categories-gateway.js';
 import { InMemoryHouseholdGateway } from '../../test/in-memory-household-gateway.js';
 import { InMemoryLoansGateway } from '../../test/in-memory-loans-gateway.js';
+import { InMemoryPlanClient } from '../../test/in-memory-plan-client.js';
 import { InMemoryWalletsGateway } from '../../test/in-memory-wallets-gateway.js';
 import { ControlRoomRoutes } from './routes.js';
 import type { ControlRoomGateways } from './routes.js';
@@ -169,5 +170,73 @@ describe('ControlRoomRoutes record sheet', () => {
       'Recorded, but refreshing balances failed — check your connection.');
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(onCloseRecord).not.toHaveBeenCalled();
+  });
+});
+
+describe('ControlRoomRoutes plan destination', () => {
+  it('renders the plan screen from the plan client and saves income through usePlan', async () => {
+    const user = userEvent.setup();
+    const plan = new InMemoryPlanClient();
+    plan.summaries = [{
+      currency: 'USD', plannedIncomeMinor: '300000', actualIncomeMinor: '0',
+      categoryTargetTotalMinor: '0', categoryActualSpentMinor: '0', uncategorizedSpentMinor: '0',
+      categoryOverspentMinor: '0', actualLoanRepaymentMinor: '0', remainingLoanReservationMinor: '0',
+      loanCommitmentMinor: '0', unallocatedMinor: '300000', overallocatedMinor: '0',
+      incomePlanRevisionId: 'rev-income-1',
+    }];
+    const gatewaysBag = gateways({});
+    gatewaysBag.plan = plan;
+    render(
+      <ControlRoomRoutes
+        locale="en"
+        spaceId="personal-space"
+        spaceKind="personal"
+        destination="plan"
+        gateways={gatewaysBag}
+        recordOpen={false}
+        onCloseRecord={() => undefined}
+      />,
+    );
+
+    const card = await screen.findByRole('region', { name: 'Planned income USD' });
+    expect(within(card).getByText('$3,000.00')).toBeInTheDocument();
+
+    await user.click(within(card).getByRole('button', { name: 'Edit' }));
+    const dialog = screen.getByRole('dialog');
+    await user.clear(within(dialog).getByRole('textbox'));
+    await user.type(within(dialog).getByRole('textbox'), '2100.00');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(plan.calls).toHaveLength(1));
+    expect(plan.calls[0]).toEqual({
+      name: 'setIncomePlan',
+      input: expect.objectContaining({
+        spaceId: 'personal-space',
+        currency: 'USD',
+        amountMinor: '210000',
+        expectedRevisionId: 'rev-income-1',
+      }),
+    });
+  });
+
+  it('shows an error card with retry when the plan fails to load', async () => {
+    const plan = new InMemoryPlanClient();
+    plan.error = new Error('plan backend exploded');
+    const gatewaysBag = gateways({});
+    gatewaysBag.plan = plan;
+    render(
+      <ControlRoomRoutes
+        locale="en"
+        spaceId="personal-space"
+        spaceKind="personal"
+        destination="plan"
+        gateways={gatewaysBag}
+        recordOpen={false}
+        onCloseRecord={() => undefined}
+      />,
+    );
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Could not load the monthly plan.');
+    expect(alert).toHaveTextContent('plan backend exploded');
   });
 });
