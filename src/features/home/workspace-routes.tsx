@@ -5,6 +5,8 @@ import type { HouseholdGateway } from '../household/types.js';
 import type { LoansGateway, Locale, Space } from '../loans/types.js';
 import type { ApplicationDestination } from '../shell/application-shell.js';
 import type { WalletsGateway } from '../wallets/types.js';
+import type { ReportsGateway } from '../reports/types.js';
+import { ReportsPage } from '../reports/reports-page.js';
 import { useWallets } from '../wallets/use-wallets.js';
 import { HomePage } from './home-page.js';
 
@@ -36,6 +38,7 @@ interface WorkspaceRoutesProps {
   householdGateway: HouseholdGateway;
   loansGateway: LoansGateway;
   walletsGateway: WalletsGateway;
+  reportsGateway: ReportsGateway;
   locale: Locale;
   spaceId: string;
   spaceName: string;
@@ -66,5 +69,6 @@ export function WorkspaceRoutes(props: WorkspaceRoutesProps) {
   if (props.activeDestination === 'loans') return <Suspense fallback={<div className="state-panel" role="status">{props.locale === 'ar' ? 'جارٍ تحميل القروض…' : 'Loading Loans…'}</div>}><LoansPage embedded gateway={props.loansGateway} locale={props.locale} spaces={props.spaces} spaceId={props.spaceId} onSpaceChange={props.onSpaceChange} onSpaceUnavailable={props.onSpaceUnavailable} /></Suspense>;
   if (props.activeDestination === 'wallets') return <Suspense fallback={<div className="state-panel" role="status">{props.locale === 'ar' ? 'جارٍ تحميل المحافظ…' : 'Loading Wallets…'}</div>}><WalletsPage categoriesGateway={props.categoriesGateway} locale={props.locale} spaceId={props.spaceId} onSpaceUnavailable={props.onSpaceUnavailable} walletState={walletState} openTransaction={props.openTransaction} onTransactionDialogOpened={props.onTransactionDialogOpened} onOpenLoans={() => props.onDestinationChange('loans')} /></Suspense>;
   if (props.activeDestination === 'categories') return <Suspense fallback={<div className="state-panel" role="status">{props.locale === 'ar' ? 'جارٍ تحميل الفئات…' : 'Loading Categories…'}</div>}><CategoriesPage gateway={props.categoriesGateway} locale={props.locale} spaceId={props.spaceId} onSpaceUnavailable={props.onSpaceUnavailable} /></Suspense>;
+  if (props.activeDestination === 'reports') return <ReportsPage gateway={props.reportsGateway} locale={props.locale} spaceId={props.spaceId} />;
   return <Suspense fallback={<div className="state-panel" role="status">{props.locale === 'ar' ? 'جارٍ تحميل الأسرة…' : 'Loading Household…'}</div>}><HouseholdPage gateway={props.householdGateway} locale={props.locale} spaceId={props.spaceId} spaceName={props.spaceName} userId={props.userId} onSpaceUnavailable={props.onSpaceUnavailable} /></Suspense>;
 }

@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
-import { CircleUserRound, HandCoins, House, Languages, Tags, UsersRound, WalletCards } from 'lucide-react';
+import { BarChart3, CircleUserRound, HandCoins, House, Languages, Tags, UsersRound, WalletCards } from 'lucide-react';
 import type { Locale, Space } from '../loans/types.js';
 
-export type ApplicationDestination = 'home' | 'loans' | 'wallets' | 'categories' | 'household';
+export type ApplicationDestination = 'home' | 'loans' | 'wallets' | 'categories' | 'reports' | 'household';
 
 interface ApplicationShellProps {
   locale: Locale;
@@ -21,7 +21,7 @@ interface ApplicationShellProps {
 const copy = {
   en: {
     product: 'Budget ledger', currentSpace: 'Current space', addSpace: 'Add another space', personal: 'Personal space', household: 'Household space',
-    home: 'Home', loans: 'Loans', wallets: 'Wallets', categories: 'Categories', householdNav: 'Household', language: 'العربية',
+    home: 'Home', loans: 'Loans', wallets: 'Wallets', categories: 'Categories', reports: 'Reports', householdNav: 'Household', language: 'العربية',
     account: 'Account', signOut: 'Sign out', navigation: 'Primary navigation', workspace: 'Workspace',
     backupReadiness: 'Backup readiness',
     backupWarning: 'Do not enter real financial data until an encrypted off-site backup and a measured scratch restore are verified.',
@@ -29,7 +29,7 @@ const copy = {
   },
   ar: {
     product: 'دفتر الميزانية', currentSpace: 'المساحة الحالية', addSpace: 'إضافة مساحة أخرى', personal: 'مساحة شخصية', household: 'مساحة منزلية',
-    home: 'الرئيسية', loans: 'القروض', wallets: 'المحافظ', categories: 'الفئات', householdNav: 'المنزل', language: 'English',
+    home: 'الرئيسية', loans: 'القروض', wallets: 'المحافظ', categories: 'الفئات', reports: 'التقارير', householdNav: 'المنزل', language: 'English',
     account: 'الحساب', signOut: 'تسجيل الخروج', navigation: 'التنقل الرئيسي', workspace: 'مساحة العمل',
     backupReadiness: 'جاهزية النسخ الاحتياطي',
     backupWarning: 'لا تُدخل بيانات مالية حقيقية قبل التحقق من نسخة احتياطية مشفّرة خارج الجهاز واستعادة تجريبية مقاسة.',
@@ -53,6 +53,7 @@ export function ApplicationShell(props: ApplicationShellProps) {
         <button type="button" className={activeDestination === 'loans' ? 'nav-active' : ''} aria-current={activeDestination === 'loans' ? 'page' : undefined} onClick={() => props.onDestinationChange?.('loans')}><span className="navigation-icon" data-testid="navigation-icon" aria-hidden="true"><HandCoins /></span>{text.loans}</button>
         <button type="button" className={activeDestination === 'wallets' ? 'nav-active' : ''} aria-current={activeDestination === 'wallets' ? 'page' : undefined} onClick={() => props.onDestinationChange?.('wallets')}><span className="navigation-icon" data-testid="navigation-icon" aria-hidden="true"><WalletCards /></span>{text.wallets}</button>
         <button type="button" className={activeDestination === 'categories' ? 'nav-active' : ''} aria-current={activeDestination === 'categories' ? 'page' : undefined} onClick={() => props.onDestinationChange?.('categories')}><span className="navigation-icon" data-testid="navigation-icon" aria-hidden="true"><Tags /></span>{text.categories}</button>
+        <button type="button" className={activeDestination === 'reports' ? 'nav-active' : ''} aria-current={activeDestination === 'reports' ? 'page' : undefined} onClick={() => props.onDestinationChange?.('reports')}><span className="navigation-icon" data-testid="navigation-icon" aria-hidden="true"><BarChart3 /></span>{text.reports}</button>
         {props.selectedSpace.kind === 'household' ? <button type="button" className={activeDestination === 'household' ? 'nav-active' : ''} aria-current={activeDestination === 'household' ? 'page' : undefined} onClick={() => props.onDestinationChange?.('household')}><span className="navigation-icon" data-testid="navigation-icon" aria-hidden="true"><UsersRound /></span>{text.householdNav}</button> : null}
       </nav>
       <div className="rail-footer">

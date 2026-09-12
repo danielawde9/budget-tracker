@@ -21,6 +21,8 @@ import { AcceptHouseholdInvitationDialog } from './features/household/household-
 import { classifyHouseholdError, localizeHouseholdError, type HouseholdErrorView } from './features/household/errors.js';
 import type { HouseholdInvitationBootstrap } from './features/household/invitation-fragment.js';
 import { WorkspaceRoutes } from './features/home/workspace-routes.js';
+import { createSupabaseReportsGateway } from './features/reports/supabase-reports-gateway.js';
+import type { ReportsGateway } from './features/reports/types.js';
 
 interface AppProps {
   householdInvitationBootstrap?: HouseholdInvitationBootstrap | null;
@@ -29,6 +31,7 @@ interface AppProps {
   householdGateway?: HouseholdGateway;
   loansGateway?: LoansGateway;
   walletsGateway?: WalletsGateway;
+  reportsGateway?: ReportsGateway;
   workspaceGateway?: WorkspaceGateway;
 }
 
@@ -42,6 +45,7 @@ interface AuthenticatedWorkspaceProps {
   householdInvitationToken: string | null;
   loansGateway: LoansGateway;
   walletsGateway: WalletsGateway;
+  reportsGateway: ReportsGateway;
   onLocaleChange(): void;
   onHouseholdInvitationConsumed(): void;
   onSignOut(): void;
@@ -140,6 +144,7 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
       householdGateway={props.householdGateway}
       loansGateway={props.loansGateway}
       walletsGateway={props.walletsGateway}
+      reportsGateway={props.reportsGateway}
       locale={props.locale}
       spaceId={workspace.selectedSpaceId}
       spaceName={workspace.selectedSpace.name}
@@ -160,7 +165,7 @@ interface ConfiguredAppProps extends Omit<Required<AppProps>, 'householdInvitati
   readonly householdInvitationBootstrap: HouseholdInvitationBootstrap | null;
 }
 
-function ConfiguredApp({ authGateway, categoriesGateway, householdGateway, householdInvitationBootstrap, loansGateway, walletsGateway, workspaceGateway }: ConfiguredAppProps) {
+function ConfiguredApp({ authGateway, categoriesGateway, householdGateway, householdInvitationBootstrap, loansGateway, walletsGateway, reportsGateway, workspaceGateway }: ConfiguredAppProps) {
   const auth = useAuthSession(authGateway);
   const [locale, setLocale] = useState<Locale>('en');
   const [householdInvitationToken, setHouseholdInvitationToken] = useState(() => householdInvitationBootstrap?.take() ?? null);
@@ -200,24 +205,26 @@ function ConfiguredApp({ authGateway, categoriesGateway, householdGateway, house
     householdInvitationToken={householdInvitationToken}
     loansGateway={loansGateway}
     walletsGateway={walletsGateway}
+    reportsGateway={reportsGateway}
     onLocaleChange={() => setLocale((current) => current === 'en' ? 'ar' : 'en')}
     onHouseholdInvitationConsumed={() => setHouseholdInvitationToken(null)}
     onSignOut={() => void auth.signOut()}
   />;
 }
 
-export function App({ householdInvitationBootstrap = null, authGateway, categoriesGateway, householdGateway, loansGateway, walletsGateway, workspaceGateway }: AppProps = {}) {
+export function App({ householdInvitationBootstrap = null, authGateway, categoriesGateway, householdGateway, loansGateway, walletsGateway, reportsGateway, workspaceGateway }: AppProps = {}) {
   const client = useMemo(() => createBrowserDataClient(), []);
   const activeAuthGateway = useMemo(() => authGateway ?? (client ? createSupabaseAuthGateway(client) : null), [authGateway, client]);
   const activeCategoriesGateway = useMemo(() => categoriesGateway ?? (client ? createSupabaseCategoriesGateway(client) : null), [categoriesGateway, client]);
   const activeHouseholdGateway = useMemo(() => householdGateway ?? (client ? createSupabaseHouseholdGateway(client) : null), [householdGateway, client]);
   const activeLoansGateway = useMemo(() => loansGateway ?? (client ? createSupabaseLoansGateway(client) : null), [loansGateway, client]);
   const activeWalletsGateway = useMemo(() => walletsGateway ?? (client ? createSupabaseWalletsGateway(client) : null), [walletsGateway, client]);
+  const activeReportsGateway = useMemo(() => reportsGateway ?? (client ? createSupabaseReportsGateway(client) : null), [reportsGateway, client]);
   const activeWorkspaceGateway = useMemo(() => workspaceGateway ?? (client ? createSupabaseWorkspaceGateway(client) : null), [workspaceGateway, client]);
 
-  if (!activeAuthGateway || !activeCategoriesGateway || !activeHouseholdGateway || !activeLoansGateway || !activeWalletsGateway || !activeWorkspaceGateway) {
+  if (!activeAuthGateway || !activeCategoriesGateway || !activeHouseholdGateway || !activeLoansGateway || !activeWalletsGateway || !activeReportsGateway || !activeWorkspaceGateway) {
     return <main className="workspace-state-page configuration-page"><section className="state-panel"><span className="brand">Budget ledger</span><h1>Configuration needed</h1><p>This installation needs its data service before the financial workspace can open.</p><details className="configuration-detail"><summary>Operator setup details</summary><p>Connect this browser to the dedicated Budget development stack before continuing.</p></details></section></main>;
   }
 
-  return <ConfiguredApp householdInvitationBootstrap={householdInvitationBootstrap} authGateway={activeAuthGateway} categoriesGateway={activeCategoriesGateway} householdGateway={activeHouseholdGateway} loansGateway={activeLoansGateway} walletsGateway={activeWalletsGateway} workspaceGateway={activeWorkspaceGateway} />;
+  return <ConfiguredApp householdInvitationBootstrap={householdInvitationBootstrap} authGateway={activeAuthGateway} categoriesGateway={activeCategoriesGateway} householdGateway={activeHouseholdGateway} loansGateway={activeLoansGateway} walletsGateway={activeWalletsGateway} reportsGateway={activeReportsGateway} workspaceGateway={activeWorkspaceGateway} />;
 }

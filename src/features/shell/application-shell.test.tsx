@@ -21,8 +21,8 @@ describe('ApplicationShell', () => {
     const navigation = screen.getByRole('navigation', { name: 'Primary navigation' });
     expect(screen.getByRole('complementary')).toHaveClass('app-rail', 'app-rail--light');
     expect(within(navigation).getAllByRole('button').at(0)).toHaveAccessibleName('Home');
-    expect(within(navigation).queryByRole('button', { name: /Reports/i })).not.toBeInTheDocument();
-    expect(within(navigation).getAllByTestId('navigation-icon')).toHaveLength(5);
+    expect(within(navigation).getByRole('button', { name: 'Reports' })).toBeInTheDocument();
+    expect(within(navigation).getAllByTestId('navigation-icon')).toHaveLength(6);
     for (const icon of within(navigation).getAllByTestId('navigation-icon')) {
       expect(icon).toHaveAttribute('aria-hidden', 'true');
     }
@@ -38,6 +38,8 @@ describe('ApplicationShell', () => {
     expect(changeDestination).toHaveBeenCalledWith('wallets');
     await user.click(categories);
     expect(changeDestination).toHaveBeenCalledWith('categories');
+    await user.click(screen.getByRole('button', { name: 'Reports' }));
+    expect(changeDestination).toHaveBeenCalledWith('reports');
 
     await user.selectOptions(space, personalSpace.id);
     expect(changeSpace).toHaveBeenCalledWith(personalSpace.id);
@@ -68,6 +70,7 @@ describe('ApplicationShell', () => {
     expect(screen.getByRole('button', { name: 'المحافظ' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('button', { name: 'القروض' })).not.toHaveAttribute('aria-current');
     expect(screen.getByRole('button', { name: 'الفئات' })).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('button', { name: 'التقارير' })).not.toHaveAttribute('aria-current');
     expect(screen.getByRole('button', { name: 'English' })).toBeInTheDocument();
     expect(screen.getByRole('note', { name: 'جاهزية النسخ الاحتياطي' })).toHaveTextContent(
       'لا تُدخل بيانات مالية حقيقية',
@@ -76,7 +79,7 @@ describe('ApplicationShell', () => {
   });
 
   it('marks each visible active destination as the current page', () => {
-    const destinations = ['home', 'loans', 'wallets', 'categories', 'household'] as const;
+    const destinations = ['home', 'loans', 'wallets', 'categories', 'reports', 'household'] as const;
     for (const activeDestination of destinations) {
       const { unmount } = render(<ApplicationShell locale="en" userEmail="owner@example.com" spaces={[householdSpace]} selectedSpace={householdSpace} activeDestination={activeDestination} onDestinationChange={vi.fn()} onSpaceChange={vi.fn()} onAddSpace={vi.fn()} onLocaleChange={vi.fn()} onSignOut={vi.fn()}><div>Workspace</div></ApplicationShell>);
       expect(screen.getByRole('button', { current: 'page' })).toBeInTheDocument();
