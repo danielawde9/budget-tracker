@@ -1396,3 +1396,23 @@ keeping a finance workspace calm, readable, and compact.
 decision and must be reviewed across desktop, mobile, and Arabic RTL. This
 decision does not authorize changes to routes, financial behavior, data, or
 archive flows.
+
+## 2026-09-12 — Journal discovery and portability remain bounded to loaded, authorized history
+
+**Decision:** Search, wallet/event filters, and CSV export operate only on the
+already loaded journal entries for the selected space. The journal reads the
+existing immutable `financial_events.actor_id` through its member-only RLS
+projection; it labels the current actor as “You” and otherwise shows the
+authorized actor UUID. It does not join `auth.users`, expose email addresses,
+or add a privileged identity lookup.
+
+**Why:** The current journal gateway has bounded pagination and an existing
+member-only RLS boundary. Client-side discovery/export keeps that boundary
+intact and makes its scope explicit rather than issuing an unbounded export
+query. Actor IDs are durable event provenance, whereas member profile display
+names are not an approved data contract.
+
+**If changed:** A full-history export needs a separately reviewed bounded
+server-side export contract. Human-readable household identities require an
+explicit profile/privacy schema and an RLS-tested member-only projection; it
+must not read `auth.users` from the browser.

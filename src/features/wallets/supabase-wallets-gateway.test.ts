@@ -45,7 +45,7 @@ function clientWith(
   const values: Record<string, unknown[]> = {
     wallets: [{ id: 'wallet-1', space_id: 'space-1', name: 'Daily', currency: 'USD', archived_at: null }],
     wallet_balances: [{ wallet_id: 'wallet-1', space_id: 'space-1', currency: 'USD', amount_minor: '1250' }],
-    financial_events: [{ id: 'event-1', space_id: 'space-1', request_id: 'request-1', kind: 'income', effective_date: '2026-09-08', reversal_of: null, created_at: '2026-09-08T10:00:00Z' }],
+    financial_events: [{ id: 'event-1', space_id: 'space-1', request_id: 'request-1', kind: 'income', effective_date: '2026-09-08', actor_id: '33333333-3333-4333-8333-333333333333', reversal_of: null, created_at: '2026-09-08T10:00:00Z' }],
     wallet_movements: [{ event_id: 'event-1', wallet_id: 'wallet-1', amount_minor: '1250' }],
     loan_postings: [],
     ...overrides,
@@ -75,8 +75,10 @@ describe('Supabase Wallets gateway', () => {
     expect(snapshot.wallets).toEqual([{ id: 'wallet-1', spaceId: 'space-1', name: 'Daily', currency: 'USD', archivedAt: null, balanceMinor: '1250' }]);
     expect(snapshot.history.events[0]).toMatchObject({ id: 'event-1', requestId: 'request-1', loanLinked: false });
     expect(snapshot.history.events[0]?.movements).toEqual([{ walletId: 'wallet-1', walletName: 'Daily', currency: 'USD', amountMinor: '1250', walletArchived: false }]);
+    expect(snapshot.history.events[0]?.actorId).toBe('33333333-3333-4333-8333-333333333333');
     expect(operations).toContainEqual({ relation: 'wallets', name: 'eq', args: ['space_id', 'space-1'] });
     expect(operations).toContainEqual({ relation: 'financial_events', name: 'range', args: [0, 20] });
+    expect(operations).toContainEqual({ relation: 'financial_events', name: 'select', args: ['id,space_id,request_id,kind,effective_date,actor_id,reversal_of,created_at'] });
     expect(operations).toContainEqual({ relation: 'wallet_movements', name: 'in', args: ['event_id', ['event-1']] });
   });
 
@@ -99,6 +101,7 @@ describe('Supabase Wallets gateway', () => {
       request_id: `request-${index}`,
       kind: index === 0 ? 'loan_lend' : 'income',
       effective_date: '2026-09-08',
+      actor_id: '33333333-3333-4333-8333-333333333333',
       reversal_of: index === 1 ? 'event-2' : null,
       created_at: `2026-09-08T10:${String(index).padStart(2, '0')}:00Z`,
     }));

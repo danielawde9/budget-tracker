@@ -220,6 +220,7 @@ export function createSupabaseWalletsGateway(client: WalletsDataClient): Wallets
         kind: eventKindValue(value),
         effectiveDate: textValue(value, 'effective_date'),
         createdAt: textValue(value, 'created_at'),
+        actorId: uuidValue(value, 'actor_id'),
         reversalOf: nullableText(value, 'reversal_of'),
         reversedBy: reversedBy.get(id) ?? null,
         loanLinked: linkedEvents.has(id),
@@ -235,7 +236,7 @@ export function createSupabaseWalletsGateway(client: WalletsDataClient): Wallets
   ): Promise<JournalPage> {
     const values = await rows(
       client.from('financial_events')
-        .select('id,space_id,request_id,kind,effective_date,reversal_of,created_at')
+        .select('id,space_id,request_id,kind,effective_date,actor_id,reversal_of,created_at')
         .eq('space_id', spaceId)
         .order('effective_date', { ascending: false })
         .order('created_at', { ascending: false })

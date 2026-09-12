@@ -14,7 +14,7 @@ const onSpaceUnavailable = vi.fn();
 
 function WalletsPageHarness({ gateway, categoriesGateway, initialDialog, locale = 'en' }: { gateway: InMemoryWalletsGateway; categoriesGateway?: CategoriesGateway; initialDialog?: 'transaction' | null; locale?: 'en' | 'ar' }) {
   const walletState = useWallets(gateway, 'personal-space', undefined, undefined, categoriesGateway);
-  return <WalletsPage {...(categoriesGateway ? { categoriesGateway } : {})} {...(initialDialog === undefined ? {} : { initialDialog })} spaceId="personal-space" locale={locale} walletState={walletState} onSpaceUnavailable={onSpaceUnavailable} onOpenLoans={vi.fn()} openTransaction={false} onTransactionDialogOpened={vi.fn()} />;
+  return <WalletsPage {...(categoriesGateway ? { categoriesGateway } : {})} {...(initialDialog === undefined ? {} : { initialDialog })} spaceId="personal-space" userId="11111111-1111-4111-8111-111111111111" locale={locale} walletState={walletState} onSpaceUnavailable={onSpaceUnavailable} onOpenLoans={vi.fn()} openTransaction={false} onTransactionDialogOpened={vi.fn()} />;
 }
 
 function InitialTransactionHarness({ gateway }: { gateway: InMemoryWalletsGateway }) {
@@ -58,15 +58,26 @@ describe('WalletsPage', () => {
     expect(screen.getAllByRole('button', { name: 'Add transaction' })).toHaveLength(1);
     expect(screen.getByRole('heading', { name: 'Active balances' }).closest('.wallet-context')).not.toBeNull();
     const table = screen.getByRole('table', { name: 'Transaction history entries' });
-    expect(within(table).getAllByRole('columnheader').map((header) => header.textContent)).toEqual(['Date', 'Event', 'Wallet', 'Category', 'Amount']);
+    expect(within(table).getAllByRole('columnheader').map((header) => header.textContent)).toEqual(['Date', 'Event', 'Wallet', 'Category', 'Entered by', 'Amount']);
     const firstDataRow = within(table).getAllByRole('row').at(1);
     expect(firstDataRow).toBeDefined();
     expect(within(firstDataRow!).getByRole('cell', { name: 'Date: 2026-09-07' })).toBeInTheDocument();
     expect(within(firstDataRow!).getByRole('cell', { name: 'Event: Income' })).toBeInTheDocument();
     expect(within(firstDataRow!).getByRole('cell', { name: 'Wallet: Daily USD' })).toBeInTheDocument();
     expect(within(firstDataRow!).getByRole('cell', { name: 'Category: —' })).toBeInTheDocument();
+    expect(within(firstDataRow!).getByRole('cell', { name: /Entered by:/ })).toBeInTheDocument();
     expect(within(firstDataRow!).getByRole('cell', { name: 'Amount: $250.50' })).toBeInTheDocument();
-    expect(within(firstDataRow!).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['2026-09-07', 'Income', 'Daily USD', '—', '$250.50']);
+    expect(within(firstDataRow!).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['2026-09-07', 'Income', 'Daily USD', '—', 'You', '$250.50']);
+  });
+
+  it('filters the loaded journal by event kind without requesting a different space', async () => {
+    const { gateway, user } = await renderPage();
+
+    await user.selectOptions(screen.getByLabelText('Event'), 'income');
+
+    expect(screen.getByRole('cell', { name: 'Event: Income' })).toBeInTheDocument();
+    expect(screen.queryByRole('cell', { name: 'Event: Loan payment' })).not.toBeInTheDocument();
+    expect(gateway.calls.filter((call) => call.name === 'loadSnapshot').map((call) => call.input)).toEqual(['personal-space']);
   });
 
   it('opens the requested transaction dialog once without dispatching a wallet mutation after close and rerender', async () => {
@@ -92,11 +103,11 @@ describe('WalletsPage', () => {
 
   it('renders active wallet balances and immutable history with sourced names isolated', async () => {
     await renderPage();
-    expect(screen.getAllByText('Daily USD').every((element) => element.closest('bdi') !== null)).toBe(true);
+    expect(screen.getAllByText('Daily USD').filter((element) => element.tagName !== 'OPTION').every((element) => element.closest('bdi') !== null)).toBe(true);
     expect(screen.getByText('$1,250.50').closest('bdi')).not.toBeNull();
-    expect(screen.getAllByText('Daily LBP').every((element) => element.closest('bdi') !== null)).toBe(true);
+    expect(screen.getAllByText('Daily LBP').filter((element) => element.tagName !== 'OPTION').every((element) => element.closest('bdi') !== null)).toBe(true);
     expect(screen.getByRole('heading', { name: 'Transaction history' })).toBeInTheDocument();
-    expect(screen.getByText('Loan payment')).toBeInTheDocument();
+    expect(screen.getAllByText('Loan payment').some((element) => element.getAttribute('role') === 'cell')).toBe(true);
     expect(screen.queryByRole('button', { name: /delete/i })).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Undo income' })).toHaveLength(1);
     expect(screen.queryByRole('button', { name: 'Undo loan payment' })).not.toBeInTheDocument();
@@ -763,7 +774,7 @@ describe('WalletsPage', () => {
     await within(dialog).findByText('Wallet renamed');
     await user.click(within(dialog).getByRole('button', { name: 'Done' }));
 
-    expect(screen.getAllByText('Everyday USD').every((element) => element.closest('bdi') !== null)).toBe(true);
+    expect(screen.getAllByText('Everyday USD').filter((element) => element.tagName !== 'OPTION').every((element) => element.closest('bdi') !== null)).toBe(true);
     expect(gateway.calls.filter((call) => call.name === 'renameWallet')).toHaveLength(1);
   });
 

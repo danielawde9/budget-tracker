@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { CategoriesGateway } from '../categories/types.js';
 import { useCategories } from '../categories/use-categories.js';
@@ -7,6 +7,7 @@ import type { Locale } from '../loans/types.js';
 import { ArchiveWalletDialog } from './archive-wallet-dialog.js';
 import { CorrectionDialog } from './correction-dialog.js';
 import { formatMinorAmount } from './money.js';
+import { filterJournalEvents, journalEventsToCsv, type JournalFilters } from './journal-tools.js';
 import { RenameWalletDialog } from './rename-wallet-dialog.js';
 import { RestoreWalletDialog } from './restore-wallet-dialog.js';
 import { TransactionDialog } from './transaction-dialog.js';
@@ -17,6 +18,7 @@ import { WalletDialog } from './wallet-dialog.js';
 interface WalletsPageProps {
   categoriesGateway?: CategoriesGateway;
   spaceId: string;
+  userId?: string;
   walletState: WalletsState;
   locale?: Locale;
   onSpaceUnavailable(): void;
@@ -55,7 +57,7 @@ const emptyCategoriesGateway: CategoriesGateway = {
   resolveEventCategories: async () => [],
 };
 
-export function WalletsPage({ categoriesGateway, spaceId, walletState, locale = 'en', onSpaceUnavailable, onOpenLoans, initialDialog = null, openTransaction = false, onTransactionDialogOpened }: WalletsPageProps) {
+export function WalletsPage({ categoriesGateway, spaceId, userId, walletState, locale = 'en', onSpaceUnavailable, onOpenLoans, initialDialog = null, openTransaction = false, onTransactionDialogOpened }: WalletsPageProps) {
   const categoryState = useCategories(categoriesGateway ?? emptyCategoriesGateway, spaceId, onSpaceUnavailable);
   const categoryError = categoryState.error ? localizeCategoryError(categoryState.error, locale) : null;
   const categoryPaginationError = categoryState.paginationError
@@ -68,8 +70,20 @@ export function WalletsPage({ categoriesGateway, spaceId, walletState, locale = 
     ? localizeCategoryError(walletState.historyPaginationError.categoryError, locale)
     : null;
   const [dialog, setDialog] = useState<OpenDialog>(null);
+  const [filters, setFilters] = useState<JournalFilters>({ query: '', walletId: '', kind: '' });
   const initialDialogConsumed = useRef(false);
   const activeCategories = [...categoryState.incomeCategories, ...categoryState.expenseCategories];
+  const filteredEvents = useMemo(() => filterJournalEvents(walletState.events, filters), [filters, walletState.events]);
+
+  function exportCsv() {
+    const csv = journalEventsToCsv(filteredEvents);
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'budget-journal.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  }
 
   useEffect(() => {
     const requestedTransaction = openTransaction || (initialDialog === 'transaction' && !initialDialogConsumed.current);
@@ -90,10 +104,10 @@ export function WalletsPage({ categoriesGateway, spaceId, walletState, locale = 
     {categoriesGateway && categoryState.status === 'error' && <div className="state-panel error-notice" role="alert"><strong>{t(locale, 'Categories are unavailable', 'الفئات غير متاحة')}</strong><p>{categoryError?.message}</p><p>{categoryError?.recovery}</p><button type="button" onClick={() => void categoryState.refresh()}>{t(locale, 'Try again', 'المحاولة مجددًا')}</button></div>}
     {walletState.status === 'ready' && <div className="wallet-journal-layout">
       <section className="journal data-list" aria-labelledby="journal-heading">
-        <div className="section-heading"><div><span className="section-kicker">{t(locale, 'Immutable journal', 'سجل غير قابل للتعديل')}</span><h2 id="journal-heading">{t(locale, 'Transaction history', 'سجل المعاملات')}</h2></div></div>
-        {walletState.events.length === 0 ? <div className="empty journal-empty"><strong>{t(locale, 'No transactions yet', 'لا توجد معاملات بعد')}</strong><p>{t(locale, 'Opening balances, income, expenses, and transfers will appear here.', 'ستظهر هنا الأرصدة الافتتاحية والدخل والمصروفات والتحويلات.')}</p></div> : <div className="journal-table" role="table" aria-label={t(locale, 'Transaction history entries', 'قيود سجل المعاملات')}>
-          <div className="journal-column-headings" role="row"><span role="columnheader">{t(locale, 'Date', 'التاريخ')}</span><span role="columnheader">{t(locale, 'Event', 'الحدث')}</span><span role="columnheader">{t(locale, 'Wallet', 'المحفظة')}</span><span role="columnheader">{t(locale, 'Category', 'الفئة')}</span><span role="columnheader">{t(locale, 'Amount', 'المبلغ')}</span></div>
-          <ol className="journal-list" role="rowgroup">{walletState.events.map((event) => {
+        <div className="section-heading"><div><span className="section-kicker">{t(locale, 'Immutable journal', 'سجل غير قابل للتعديل')}</span><h2 id="journal-heading">{t(locale, 'Transaction history', 'سجل المعاملات')}</h2></div><button type="button" className="button-secondary" disabled={filteredEvents.length === 0} onClick={exportCsv}>{t(locale, 'Export CSV', 'تصدير CSV')}</button></div>
+        {walletState.events.length === 0 ? <div className="empty journal-empty"><strong>{t(locale, 'No transactions yet', 'لا توجد معاملات بعد')}</strong><p>{t(locale, 'Opening balances, income, expenses, and transfers will appear here.', 'ستظهر هنا الأرصدة الافتتاحية والدخل والمصروفات والتحويلات.')}</p></div> : <><div className="journal-filters" role="search" aria-label={t(locale, 'Filter transaction history', 'تصفية سجل المعاملات')}><label>{t(locale, 'Search', 'بحث')}<input value={filters.query} onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))} /></label><label>{t(locale, 'Wallet', 'المحفظة')}<select value={filters.walletId} onChange={(event) => setFilters((current) => ({ ...current, walletId: event.target.value }))}><option value="">{t(locale, 'All wallets', 'كل المحافظ')}</option>{walletState.wallets.map((wallet) => <option key={wallet.id} value={wallet.id}>{wallet.name}</option>)}</select></label><label>{t(locale, 'Event', 'الحدث')}<select value={filters.kind} onChange={(event) => setFilters((current) => ({ ...current, kind: event.target.value as JournalFilters['kind'] }))}><option value="">{t(locale, 'All events', 'كل الأحداث')}</option>{['opening_balance', 'income', 'expense', 'transfer', 'loan_opening', 'loan_lend', 'loan_borrow', 'loan_receive_repayment', 'loan_repay_borrowing', 'reversal'].map((kind) => <option key={kind} value={kind}>{eventLabel(locale, kind as JournalEventKind)}</option>)}</select></label></div>{filteredEvents.length === 0 ? <div className="empty journal-empty"><strong>{t(locale, 'No matching transactions', 'لا توجد معاملات مطابقة')}</strong></div> : <div className="journal-table" role="table" aria-label={t(locale, 'Transaction history entries', 'قيود سجل المعاملات')}>
+          <div className="journal-column-headings" role="row"><span role="columnheader">{t(locale, 'Date', 'التاريخ')}</span><span role="columnheader">{t(locale, 'Event', 'الحدث')}</span><span role="columnheader">{t(locale, 'Wallet', 'المحفظة')}</span><span role="columnheader">{t(locale, 'Category', 'الفئة')}</span><span role="columnheader">{t(locale, 'Entered by', 'أدخله')}</span><span role="columnheader">{t(locale, 'Amount', 'المبلغ')}</span></div>
+          <ol className="journal-list" role="rowgroup">{filteredEvents.map((event) => {
             const label = eventLabel(locale, event.kind);
             const canCorrect = generalKinds.has(event.kind) && !event.loanLinked && !event.reversalOf && !event.reversedBy;
             const categoryLabel = event.category ? (locale === 'ar' ? event.category.nameAr ?? event.category.nameEn : event.category.nameEn ?? event.category.nameAr) : t(locale, 'Uncategorized', 'غير مصنّف');
@@ -103,6 +117,8 @@ export function WalletsPage({ categoriesGateway, spaceId, walletState, locale = 
             const walletLabel = t(locale, 'Wallet', 'المحفظة');
             const categoryColumnLabel = t(locale, 'Category', 'الفئة');
             const amountLabel = t(locale, 'Amount', 'المبلغ');
+            const enteredByLabel = t(locale, 'Entered by', 'أدخله');
+            const enteredBy = userId && event.actorId === userId ? t(locale, 'You', 'أنت') : event.actorId ?? t(locale, 'Unavailable', 'غير متاح');
             return <li key={event.id} role="presentation" className={`journal-row ${event.kind === 'reversal' ? 'journal-reversal' : ''}`}>
               {(event.movements.length === 0 ? [null] : event.movements).map((movement, index) => {
                 const dateValue = index === 0 ? event.effectiveDate : '—';
@@ -117,13 +133,14 @@ export function WalletsPage({ categoriesGateway, spaceId, walletState, locale = 
                   <strong role="cell" aria-label={`${eventColumnLabel}: ${eventValue}`} data-label={eventColumnLabel}>{eventValue}</strong>
                   <bdi role="cell" aria-label={`${walletLabel}: ${walletValue}`} data-label={walletLabel}>{walletValue}</bdi>
                   <span role="cell" aria-label={`${categoryColumnLabel}: ${categoryAccessibleValue}`} data-label={categoryColumnLabel} className="journal-category journal-category-cell">{categoryValue === '—' ? '—' : <><bdi>{categoryValue}</bdi>{archivedCategory && <small>{t(locale, 'Archived', 'مؤرشفة')}</small>}</>}</span>
+                  <bdi role="cell" aria-label={`${enteredByLabel}: ${enteredBy}`} data-label={enteredByLabel}>{index === 0 ? enteredBy : '—'}</bdi>
                   <bdi role="cell" aria-label={`${amountLabel}: ${amountValue}`} data-label={amountLabel} className={movement && BigInt(movement.amountMinor) < 0n ? 'amount-negative' : 'amount-positive'}>{amountValue}</bdi>
                 </div>;
               })}
               <footer>{(event.reversedBy || event.reversalOf || event.loanLinked) && <div className="journal-state">{event.reversedBy && <span>{t(locale, 'Undone', 'تم التراجع عنه')}</span>}{event.reversalOf && <span>{t(locale, 'Undoes an earlier entry', 'تراجع عن قيد سابق')}</span>}{event.loanLinked && <span>{t(locale, 'Loan-linked', 'مرتبط بقرض')}</span>}</div>}{canCorrect && (archivedMovementWallet(event) ? <span className="undo-gated">{t(locale, 'Restore', 'استعد')} <bdi>{archivedMovementWallet(event)}</bdi> {t(locale, 'to undo this', 'للتراجع عن هذا')}</span> : <button type="button" className="text-button" onClick={() => setDialog({ correction: event })}>{t(locale, `Undo ${label.toLowerCase()}`, `تراجع عن ${label}`)}</button>)}{event.loanLinked && <button type="button" className="text-button" onClick={onOpenLoans}>{t(locale, 'Manage in Loans', 'الإدارة في القروض')}</button>}</footer>
             </li>;
           })}</ol>
-        </div>}
+        </div>}</>}
         {walletState.nextCursor && !walletState.historyPaginationError && <button type="button" className="button-secondary load-more" disabled={walletState.loadingMore} onClick={() => void walletState.loadMore()}>{walletState.loadingMore ? t(locale, 'Loading…', 'جارٍ التحميل…') : t(locale, 'Load older entries', 'تحميل قيود أقدم')}</button>}
         {walletState.historyPaginationError && <div className="state-panel error-notice" role="alert"><strong>{t(locale, 'Older entries could not be loaded', 'تعذّر تحميل القيود الأقدم')}</strong><p>{historyPaginationCategoryError?.message ?? walletState.historyPaginationError.error}</p>{historyPaginationCategoryError && <p>{historyPaginationCategoryError.recovery}</p>}<button type="button" disabled={walletState.loadingMore} onClick={() => void walletState.loadMore()}>{walletState.loadingMore ? t(locale, 'Loading…', 'جارٍ التحميل…') : t(locale, 'Retry loading older entries', 'إعادة تحميل القيود الأقدم')}</button></div>}
       </section>

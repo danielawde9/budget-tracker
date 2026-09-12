@@ -21,12 +21,12 @@ export const walletFixtures: readonly WalletProjection[] = [
 export const journalFixtures: readonly JournalEvent[] = [
   {
     id: 'event-income', spaceId: 'personal-space', requestId: 'request-income', kind: 'income',
-    effectiveDate: '2026-09-07', createdAt: '2026-09-07T10:00:00Z', reversalOf: null, reversedBy: null, loanLinked: false,
+    effectiveDate: '2026-09-07', createdAt: '2026-09-07T10:00:00Z', actorId: '11111111-1111-4111-8111-111111111111', reversalOf: null, reversedBy: null, loanLinked: false,
     movements: [{ walletId: 'wallet-usd-1', walletName: 'Daily USD', currency: 'USD', amountMinor: '25050', walletArchived: false }],
   },
   {
     id: 'event-loan', spaceId: 'personal-space', requestId: 'request-loan', kind: 'loan_lend',
-    effectiveDate: '2026-09-06', createdAt: '2026-09-06T10:00:00Z', reversalOf: null, reversedBy: null, loanLinked: true,
+    effectiveDate: '2026-09-06', createdAt: '2026-09-06T10:00:00Z', actorId: '11111111-1111-4111-8111-111111111111', reversalOf: null, reversedBy: null, loanLinked: true,
     movements: [{ walletId: 'wallet-usd-1', walletName: 'Daily USD', currency: 'USD', amountMinor: '-50000', walletArchived: false }],
   },
 ];

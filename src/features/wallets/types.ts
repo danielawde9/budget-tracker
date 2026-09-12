@@ -42,6 +42,7 @@ export interface JournalEvent {
   kind: JournalEventKind;
   effectiveDate: string;
   createdAt: string;
+  actorId?: string;
   reversalOf: string | null;
   reversedBy: string | null;
   loanLinked: boolean;
