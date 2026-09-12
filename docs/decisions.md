@@ -1442,3 +1442,13 @@ names are not an approved data contract.
 server-side export contract. Human-readable household identities require an
 explicit profile/privacy schema and an RLS-tested member-only projection; it
 must not read `auth.users` from the browser.
+
+## 2026-09-12 — Monthly budgeting is a planning ledger, not a money ledger
+
+The first monthly-budget database boundary stores planned income and expense-category
+allocations as immutable, request-idempotent revisions. It intentionally does not create
+financial events, wallet movements, or loan postings. Current values resolve by revision
+identity rather than timestamp; per-currency left-to-allocate subtracts category targets
+and the existing monthly loan reservation from planned income. If a later product decision
+needs actual-spend reporting or UI editing, it must extend the read projections/gateway
+without granting direct writes to plan or financial-history tables.

@@ -29,6 +29,11 @@ or category association. The Wallets gateway invokes it only after the
 protected posting command has returned the event identifier; its independent
 request receipt makes a transport retry safe.
 
+`public.set_monthly_income_plan` and `public.set_monthly_category_target` are
+also non-posting planning commands. They append immutable monthly plan revisions
+only; `public.monthly_budget_currency_summary` reads their per-currency planned
+income, category allocation, loan commitment, and left-to-allocate result.
+
 `public.create_category`, `public.create_subcategory`, and `public.archive_category`
 are protected metadata lifecycle commands, not posting commands. The browser
 entry path for all three lifecycle commands is
