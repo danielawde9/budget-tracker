@@ -165,6 +165,11 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
       onCloseRecord={() => setRecordOpen(false)}
       onSpaceUnavailable={() => void workspace.refresh()}
       onOpenRecord={() => setRecordOpen(true)}
+      userId={props.userId}
+      spaceName={workspace.selectedSpace.name}
+      userEmail={props.userEmail}
+      onLocaleChange={props.onLocaleChange}
+      onSignOut={props.onSignOut}
     />
     </ControlRoomShell>
   </>;

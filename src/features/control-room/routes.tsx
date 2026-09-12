@@ -20,6 +20,7 @@ import { sumMinorAmounts } from '../wallets/money.js';
 import { AmbiguousBanner } from './ambiguous-banner.js';
 import { HomeScreen } from './home-screen.js';
 import { JournalScreen } from './journal-screen.js';
+import { ManageScreen } from './manage-screen.js';
 import { RecordSheet } from './record-sheet.js';
 import type { ControlRoomDestination } from './types.js';
 
@@ -62,6 +63,12 @@ export interface ControlRoomRoutesProps {
   onSpaceUnavailable?(): void;
   /** Opens the record sheet (Task 9 mounts it); the home screen's Record action calls this. */
   onOpenRecord?(): void;
+  /** Manage screen plumbing (Task 11): account, language, and household section wiring. */
+  userId?: string;
+  spaceName?: string;
+  userEmail?: string | null;
+  onLocaleChange?(): void;
+  onSignOut?(): void;
 }
 
 function currentMonthStart(): string {
@@ -325,8 +332,27 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
         month={month}
       />
     );
+  } else if (props.destination === 'manage') {
+    destinationRoutes = (
+      <ManageScreen
+        locale={locale}
+        spaceId={spaceId}
+        spaceName={props.spaceName ?? ''}
+        spaceKind={props.spaceKind}
+        userId={props.userId ?? ''}
+        userEmail={props.userEmail ?? null}
+        gateways={{
+          loans: gateways.loans,
+          categories: gateways.categories,
+          household: gateways.household,
+        }}
+        walletState={wallets}
+        onLocaleChange={() => props.onLocaleChange?.()}
+        onSignOut={() => props.onSignOut?.()}
+        onSpaceUnavailable={props.onSpaceUnavailable}
+      />
+    );
   } else {
-    // TODO(tasks 10-11): plan and manage screens replace these placeholders.
     destinationRoutes = <p>{props.destination} coming soon</p>;
   }
 

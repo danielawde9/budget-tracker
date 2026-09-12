@@ -98,7 +98,7 @@ describe('App', () => {
     expect(await screen.findByText('Could not load the monthly plan.')).toBeInTheDocument();
 
     await user.click(screen.getAllByRole('button', { name: 'Manage' })[0]!);
-    expect(await screen.findByText('manage coming soon')).toBeInTheDocument();
+    expect(await screen.findByRole('navigation', { name: 'Manage sections' })).toBeInTheDocument();
   });
 
   it('record action does not navigate away from the active destination', async () => {
@@ -161,12 +161,12 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'Household space' })).toBeInTheDocument();
 
     await user.click(screen.getAllByRole('button', { name: 'Manage' })[0]!);
-    expect(await screen.findByText('manage coming soon')).toBeInTheDocument();
+    expect(await screen.findByRole('navigation', { name: 'Manage sections' })).toBeInTheDocument();
 
     const nav = rail();
     await user.click(nav.getByRole('button', { name: 'Current space: Home budget' }));
     await user.click(nav.getByRole('menuitem', { name: 'Switch to My money' }));
-    expect(await screen.findByText('manage coming soon')).toBeInTheDocument();
+    expect(await screen.findByRole('navigation', { name: 'Manage sections' })).toBeInTheDocument();
     expect(await nav.findByRole('button', { name: 'Current space: My money' })).toBeInTheDocument();
   });
 

@@ -154,3 +154,9 @@
 .cr-record-summary { font-weight: 700; padding-block: 8px; }
 .cr-type-tile:disabled { opacity: 0.5; cursor: not-allowed; }
 .cr-record-wallet:focus-visible, .cr-record-category:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 2px; }
+
+/* Manage screen */
+.cr-manage-menu { display: flex; flex-direction: column; gap: 6px; padding: 8px; }
+.cr-manage-row { inline-size: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: start; }
+.cr-manage-account { padding-inline: 16px; min-height: 44px; }
+.cr-manage-back { display: inline-flex; align-items: center; gap: 4px; margin-block-end: 8px; }
