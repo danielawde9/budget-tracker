@@ -11,6 +11,24 @@ change if the decision changes.
 
 **If changed:** Editable notes, multiple payees, deletion/merging, attachments, or automatic payee-to-category rules require new history, authorization, concurrency, and search/export behavior; the latter remains a separate milestone.
 
+## 2026-09-12 — USD-to-LBP cash exchange is a dedicated linked ledger event
+
+**Decision:** A USD-to-LBP exchange posts only through
+`public.record_usd_to_lbp_exchange`. The command accepts positive exact minor-unit
+amounts, validates active USD source and LBP destination wallets in one space,
+and appends a single immutable `exchange` event with two linked movements: USD
+out and LBP in. It never represents either leg as income, expense, or a generic
+same-currency transfer.
+
+**Why:** The currencies use different minor units and therefore cannot satisfy
+the generic transfer's same-currency, zero-sum invariant. Keeping both quoted
+amounts in one event preserves atomic reconstruction without inventing earned
+income, spending, or an editable exchange-rate balance.
+
+**If changed:** Supporting LBP-to-USD, another currency pair, fees, a rate
+source, or an application UI requires a separate command/API and its own
+authorization, idempotency, movement-shape, reversal, and user-flow tests.
+
 ## 2026-09-08 — Household authorization is a protected stateful database lifecycle
 
 **Decision:** Household invitations store only versioned keyed recipient digests
