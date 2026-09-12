@@ -335,6 +335,7 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
   } else if (props.destination === 'manage') {
     destinationRoutes = (
       <ManageScreen
+        key={spaceId}
         locale={locale}
         spaceId={spaceId}
         spaceName={props.spaceName ?? ''}

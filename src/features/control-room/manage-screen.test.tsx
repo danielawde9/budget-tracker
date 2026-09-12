@@ -56,7 +56,9 @@ describe('ManageScreen section menu', () => {
   it('shows the Household section only for household spaces', () => {
     renderManage({ spaceKind: 'household' });
     const menu = screen.getByRole('navigation', { name: 'Manage sections' });
-    expect(within(menu).getByRole('button', { name: /Household/ })).toBeInTheDocument();
+    for (const name of ['Wallets', 'Categories', 'Loans', 'Household']) {
+      expect(within(menu).getByRole('button', { name: new RegExp(name) })).toBeInTheDocument();
+    }
   });
 
   it('shows the current locale on the Language row and the email on the Account row', () => {
@@ -112,5 +114,29 @@ describe('ManageScreen section panels', () => {
     renderManage({ spaceKind: 'household' });
     await user.click(screen.getByRole('button', { name: /^Household/ }));
     expect(await screen.findByRole('heading', { name: 'Household access' })).toBeInTheDocument();
+  });
+
+  it('resets to the section menu when the space switches away from a household space', async () => {
+    const user = userEvent.setup();
+    const bag = gateways();
+    const props = {
+      locale: 'en' as const,
+      destination: 'manage' as const,
+      gateways: bag,
+      recordOpen: false,
+      onCloseRecord: () => undefined,
+      userId: householdOwnerId,
+      spaceName: 'Test space',
+      userEmail: 'dana@example.com',
+      onLocaleChange: () => undefined,
+      onSignOut: () => undefined,
+    };
+    const view = render(<ControlRoomRoutes {...props} spaceId="household-space" spaceKind="household" />);
+    await user.click(screen.getByRole('button', { name: /^Household/ }));
+    expect(await screen.findByRole('heading', { name: 'Household access' })).toBeInTheDocument();
+
+    view.rerender(<ControlRoomRoutes {...props} spaceId="personal-space" spaceKind="personal" />);
+    expect(await screen.findByRole('navigation', { name: 'Manage sections' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Household access' })).not.toBeInTheDocument();
   });
 });

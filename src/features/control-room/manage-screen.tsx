@@ -66,7 +66,7 @@ export function ManageScreen(props: ManageScreenProps) {
             <span>{t(locale, 'Language', 'اللغة')}</span>
             <span className="cr-label">{locale === 'ar' ? 'العربية' : 'English'}</span>
           </button>
-          <div className="cr-manage-row cr-manage-account">
+          <div className="cr-manage-row cr-manage-account" role="group" aria-label={t(locale, 'Account', 'الحساب')}>
             <span>{t(locale, 'Account', 'الحساب')}</span>
             <span className="cr-label">{props.userEmail ?? t(locale, 'No email on file', 'لا يوجد بريد مسجّل')}</span>
             <button type="button" className="cr-button" onClick={props.onSignOut}>
