@@ -143,7 +143,8 @@ hosted deployment, or owner acceptance.
 
 | Command | Result |
 | --- | --- |
-| `pnpm test` | PASS, exit 0, with no command output. |
+| `pnpm test` | Unavailable as an application test command: exit 1 because this package has no `test` script. This is command configuration, not a product-test failure. |
+| `pnpm test:ui` | PASS, exit 0: 36 test files and 435 tests passed with `vitest run --config vitest.ui.config.ts`. Vitest emitted its jsdom performance suggestion: environment creation accounted for 42% of tracked time. |
 | `pnpm check` | FAIL, exit 1 before application DB/UI/build gates: `check:ops` reached `tests/ops/supabase-scratch-restore.test.ts`, then Testcontainers reported `Could not find a working container runtime strategy` at `GenericContainer.start`. The completed portion reported 13 test files passed, 253 tests passed, and 9 skipped; `shellcheck unavailable; bash syntax check completed` also emitted. No application, SQL, or ops code was changed for this host prerequisite. |
 | `pnpm build` | PASS, exit 0; 1,965 modules transformed. Vite emitted its existing chunk-size warning: `index-C7xIA-C8.js` is 506.14 kB minified (144.78 kB gzip), over the 500 kB warning threshold. |
 | `pnpm playwright test` | PASS; the Playwright result file records `status: passed` for the 156-test desktop/mobile matrix. The run emitted Node `DEP0205` and repeated `NO_COLOR` ignored because `FORCE_COLOR` is set warnings. Project-specific desktop/mobile exclusions remained skips; they are not passes. |
