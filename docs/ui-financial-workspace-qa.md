@@ -111,3 +111,39 @@ All original fixture, browser-emulation, live-service, and owner-UAT limitations
 still apply. Node DEP0205 and the existing build chunk warning remain; this is
 not a zero-warning or deployed acceptance claim. No financial commands,
 gateways, WalletsState, SQL, or archive behavior changed.
+
+## Compact light/mint shell visual coverage — 2026-09-12
+
+This QA addition covers the approved compact light/mint shell only. It adds
+fixture-backed Home baselines for English mobile (390 × 844 Pixel 7 emulation)
+and Arabic desktop (1440 × 1000 Chrome), plus deterministic assertions for
+document-width containment, light rail and mint selected navigation colors,
+4.5:1-or-better inactive navigation contrast, non-overlap of the rail footer
+and primary navigation, and the RTL desktop rail moving to the right of main
+content. The mobile primary navigation deliberately scrolls horizontally inside
+its rail; clipped nav buttons in that own scroller are not classified as page
+overflow.
+
+| Command | Result |
+| --- | --- |
+| `pnpm exec playwright test e2e/application.visual.spec.ts --project=desktop --project=mobile --grep 'compact light mint shell'` before snapshot approval | Expected baseline failure: the two new snapshot baselines were absent. The assertion run reached both requested cases; the first parallel run timed out while Playwright was finalizing failure artifacts. |
+| `pnpm exec playwright test e2e/application.visual.spec.ts --project=desktop --project=mobile --grep 'compact light mint shell' --update-snapshots --workers=1` | 2 passed, 2 project skips. Created `home-light-mint-mobile-en-mobile-darwin.png`; refreshed the Arabic desktop baseline. Node `DEP0205` and `NO_COLOR`/`FORCE_COLOR` warnings emitted. |
+| `pnpm exec playwright test e2e/application.visual.spec.ts --project=desktop --project=mobile --grep 'compact light mint shell' --workers=1` | 2 passed, 2 project skips. Node `DEP0205` and `NO_COLOR`/`FORCE_COLOR` warnings emitted. |
+
+Visual inspection covered both new approved screenshots. The English mobile
+capture shows the compact rail, scrollable navigation, readable inactive labels,
+and footer controls above the workspace without collision. The Arabic desktop
+capture shows the rail on the right, right-to-left content alignment, readable
+inactive labels, and the mint Home state. These are local fixture/browser
+emulation results only: they do not prove physical-device behavior, Safari,
+screen-reader output, live Supabase authentication or PostgreSQL behavior, RLS,
+hosted deployment, or owner acceptance.
+
+### Required project commands for this QA addition
+
+| Command | Result |
+| --- | --- |
+| `pnpm test` | PASS, exit 0, with no command output. |
+| `pnpm check` | FAIL, exit 1 before application DB/UI/build gates: `check:ops` reached `tests/ops/supabase-scratch-restore.test.ts`, then Testcontainers reported `Could not find a working container runtime strategy` at `GenericContainer.start`. The completed portion reported 13 test files passed, 253 tests passed, and 9 skipped; `shellcheck unavailable; bash syntax check completed` also emitted. No application, SQL, or ops code was changed for this host prerequisite. |
+| `pnpm build` | PASS, exit 0; 1,965 modules transformed. Vite emitted its existing chunk-size warning: `index-C7xIA-C8.js` is 506.14 kB minified (144.78 kB gzip), over the 500 kB warning threshold. |
+| `pnpm playwright test` | PASS; the Playwright result file records `status: passed` for the 156-test desktop/mobile matrix. The run emitted Node `DEP0205` and repeated `NO_COLOR` ignored because `FORCE_COLOR` is set warnings. Project-specific desktop/mobile exclusions remained skips; they are not passes. |

@@ -8,6 +8,37 @@ function screenshotPath(testInfo: TestInfo, name: string) {
     : testInfo.outputPath(name);
 }
 
+async function expectLightMintShell(page: import('@playwright/test').Page) {
+  const rail = page.locator('.app-rail');
+  const active = page.locator('.primary-nav .nav-active');
+  const inactive = page.locator('.primary-nav button:not(.nav-active)');
+  await expect(rail).toHaveClass(/app-rail--light/);
+  await expect(rail).toHaveCSS('background-color', 'rgb(251, 250, 244)');
+  await expect(active).toHaveCSS('background-color', 'rgb(216, 241, 233)');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width);
+
+  const inactiveContrast = await inactive.evaluateAll((buttons) => buttons.map((button) => {
+    const channel = (value: number) => {
+      const normalized = value / 255;
+      return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+    };
+    const luminance = (color: string) => {
+      const [red, green, blue] = color.match(/[\d.]+/g)!.slice(0, 3).map(Number);
+      return channel(red!) * 0.2126 + channel(green!) * 0.7152 + channel(blue!) * 0.0722;
+    };
+    const foreground = luminance(getComputedStyle(button).color);
+    const background = luminance(getComputedStyle(button.closest('.app-rail')!).backgroundColor);
+    return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+  }));
+  for (const contrast of inactiveContrast) expect(contrast).toBeGreaterThanOrEqual(4.5);
+
+  const collision = await rail.locator('.primary-nav, .rail-footer').evaluateAll((elements) => {
+    const [navigation, footer] = elements.map((element) => element.getBoundingClientRect());
+    return navigation!.left < footer!.right && footer!.left < navigation!.right && navigation!.top < footer!.bottom && footer!.top < navigation!.bottom;
+  });
+  expect(collision).toBe(false);
+}
+
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
 });
@@ -28,6 +59,31 @@ test('Home mobile light mint rail coverage', async ({ page }, testInfo) => {
   await page.goto('/');
   await expect(page.locator('.app-rail')).toHaveCSS('background-color', 'rgb(251, 250, 244)');
   await expect(page.locator('.primary-nav .nav-active')).toHaveCSS('background-color', 'rgb(216, 241, 233)');
+});
+
+test('Home English mobile compact light mint shell baseline', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile');
+  await installApplicationFixture(page);
+  await page.goto('/');
+  await expectLightMintShell(page);
+  await expect(page).toHaveScreenshot('home-light-mint-mobile-en.png', { fullPage: true });
+});
+
+test('Home Arabic desktop compact light mint shell mirrors baseline', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop');
+  await installApplicationFixture(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'العربية' }).click();
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await expectLightMintShell(page);
+  const [rail, main] = await Promise.all([
+    page.locator('.app-rail').boundingBox(),
+    page.getByRole('main').boundingBox(),
+  ]);
+  expect(rail).not.toBeNull();
+  expect(main).not.toBeNull();
+  expect(rail!.x).toBeGreaterThan(main!.x);
+  await expect(page).toHaveScreenshot('home-light-mint-desktop-ar.png', { fullPage: true });
 });
 
 test('Home and Loans desktop use equivalent compact header geometry', async ({ page }, testInfo) => {
