@@ -10,9 +10,10 @@ the only thing that existed were the SQL schema. The database layer — protecte
 posting commands, read models, migrations, RLS — **stays untouched**. This is a
 frontend rebuild on top of the existing Supabase backend.
 
-Chosen direction: **C · Control Room** — a dark, data-dense, phone-first
-dashboard for people who *manage* money. Analysis leads; recording is one tap
-away. Bilingual English/Arabic (RTL) from day one.
+Chosen direction: **C · Control Room** — a data-dense, phone-first dashboard
+for people who *manage* money, in a light theme (revised from the original
+dark mockup at user request). Analysis leads; recording is one tap away.
+Bilingual English/Arabic (RTL) from day one.
 
 Decisions locked in during brainstorming:
 
@@ -110,11 +111,13 @@ event id.
 
 ## Visual language
 
-- **Theme:** dark-first. Deep neutral background (`#101418` family), raised
-  surface cards, one accent green for positive/active, amber for
-  over-budget warnings, red reserved for destructive actions (reversal) and
-  negative-overspend states. A light theme is out of scope for this milestone;
-  colors are tokens so one can be added later without touching components.
+- **Theme:** light-first. Warm off-white background (`#f7f6f2` family), white
+  raised cards with subtle borders, ink-dark text, one accent green for
+  positive/active, amber for over-budget warnings, red reserved for
+  destructive actions (reversal) and overspend states. All colors are design
+  tokens (CSS custom properties); a dark theme can be added later by swapping
+  token values only, without touching components. Dark is out of scope for
+  this milestone.
 - **Typography:** system stack, tabular numerals for every amount; amounts are
   the visual heroes. Compact density — this is a dashboard, not a brochure.
 - **Currency display:** minor-unit-safe formatting per currency (USD 2dp,
@@ -154,6 +157,7 @@ event id.
 
 - No database changes (new event shapes, refunds, installments, etc. remain
   deferred per the command inventory)
-- No light theme, no desktop-specific layout system beyond the responsive rail
+- No dark theme (tokens are in place for a later swap), no desktop-specific
+  layout system beyond the responsive rail
 - No offline sync, import, or external integrations
 - No chart library, no new runtime dependencies
