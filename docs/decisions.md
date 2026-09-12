@@ -1396,3 +1396,12 @@ keeping a finance workspace calm, readable, and compact.
 decision and must be reviewed across desktop, mobile, and Arabic RTL. This
 decision does not authorize changes to routes, financial behavior, data, or
 archive flows.
+# 2026-09-12 — Monthly budgeting is a planning ledger, not a money ledger
+
+The first monthly-budget database boundary stores planned income and expense-category
+allocations as immutable, request-idempotent revisions. It intentionally does not create
+financial events, wallet movements, or loan postings. Current values resolve by revision
+identity rather than timestamp; per-currency left-to-allocate subtracts category targets
+and the existing monthly loan reservation from planned income. If a later product decision
+needs actual-spend reporting or UI editing, it must extend the read projections/gateway
+without granting direct writes to plan or financial-history tables.
