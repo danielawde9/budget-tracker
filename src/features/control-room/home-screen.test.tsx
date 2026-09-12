@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { formatMinorAmount } from '../wallets/money.js';
 import type { JournalEvent } from '../wallets/types.js';
@@ -20,6 +21,9 @@ const props = {
     currency: 'USD' as const, actualNetMinor: '21000', budgetMinor: '30000', remainingMinor: '9000',
   }],
   trend: [] as readonly MonthlyCashSummary[],
+  dataStatus: 'ready' as const,
+  dataError: null,
+  onRetryLoad: vi.fn(),
   loansOutstanding: [] as readonly { loanId: string; personName: string; currency: 'USD' | 'LBP'; outstandingMinor: string }[],
   recentEvents: [] as readonly JournalEvent[],
 };
@@ -93,6 +97,17 @@ describe('HomeScreen', () => {
     expect(screen.getByText('Employer')).toBeInTheDocument();
     expect(screen.getByText('$250.00')).toHaveClass('cr-positive');
     expect(screen.queryByText(/Loans/)).not.toBeInTheDocument();
+  });
+
+  it('shows an inline error note with a retry action when data failed to load', async () => {
+    const user = userEvent.setup();
+    const onRetryLoad = vi.fn();
+    render(<HomeScreen {...props} dataStatus="error" dataError="boom" onRetryLoad={onRetryLoad} />);
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('Could not load the latest data.');
+    expect(alert).toHaveTextContent('boom');
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(onRetryLoad).toHaveBeenCalledOnce();
   });
 
   it('shows outstanding loans grouped per currency', () => {

@@ -59,6 +59,9 @@ export interface HomeScreenProps {
   totals: readonly { currency: Currency; balanceMinor: string }[];
   budgets: readonly CategoryBudgetRow[];
   trend: readonly MonthlyCashSummary[];
+  dataStatus: 'loading' | 'ready' | 'error';
+  dataError: string | null;
+  onRetryLoad(): void;
   loansOutstanding: readonly { loanId: string; personName: string; currency: Currency; outstandingMinor: string }[];
   recentEvents: readonly JournalEvent[];
 }
@@ -77,7 +80,8 @@ function BudgetCard({ budgets, locale }: { budgets: readonly CategoryBudgetRow[]
         const over = row.remainingMinor !== null && BigInt(row.remainingMinor) < 0n;
         let width: number | null = null;
         if (row.budgetMinor !== null && BigInt(row.budgetMinor) > 0n) {
-          const pct = (BigInt(row.actualNetMinor) * 100n) / BigInt(row.budgetMinor);
+          const raw = (BigInt(row.actualNetMinor) * 100n) / BigInt(row.budgetMinor);
+          const pct = raw < 0n ? 0n : raw;
           width = Number(pct > 100n ? 100n : pct);
         }
         return (
@@ -215,6 +219,17 @@ export function HomeScreen(props: HomeScreenProps) {
           ))}
         </div>
       </section>
+      {props.dataStatus === 'error' ? (
+        <div className="cr-card" role="alert">
+          <div className="cr-row">
+            <span>{t(locale, 'Could not load the latest data.', 'تعذر تحميل أحدث البيانات.')}</span>
+            <button type="button" className="cr-button" onClick={props.onRetryLoad}>
+              {t(locale, 'Retry', 'إعادة المحاولة')}
+            </button>
+          </div>
+          {props.dataError ? <small>{props.dataError}</small> : null}
+        </div>
+      ) : null}
       <BudgetCard budgets={props.budgets} locale={locale} />
       <TrendCard trend={props.trend} locale={locale} />
       <LoansCard loans={props.loansOutstanding} locale={locale} />

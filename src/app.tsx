@@ -164,6 +164,7 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
       recordOpen={recordOpen}
       onCloseRecord={() => setRecordOpen(false)}
       onSpaceUnavailable={() => void workspace.refresh()}
+      onOpenRecord={() => setRecordOpen(true)}
     />
     </ControlRoomShell>
   </>;

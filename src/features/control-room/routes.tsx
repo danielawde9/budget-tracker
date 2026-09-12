@@ -7,20 +7,12 @@ import type { Currency, Locale, SpaceKind } from '../loans/types.js';
 import type { LoansGateway } from '../loans/types.js';
 import { useLoans } from '../loans/use-loans.js';
 import type { PlanClient } from '../plan/types.js';
-import { usePlan } from '../plan/use-plan.js';
 import type { MonthlyCashSummary, ReportsGateway } from '../reports/types.js';
 import { useWallets } from '../wallets/use-wallets.js';
 import type { WalletsGateway } from '../wallets/types.js';
 import { sumMinorAmounts } from '../wallets/money.js';
 import { HomeScreen } from './home-screen.js';
 import type { ControlRoomDestination } from './types.js';
-
-const unavailablePlanClient: PlanClient = {
-  async loadCurrencySummary() { throw new Error('Planning is unavailable until this browser is connected to its data service.'); },
-  async loadCategoryPage() { throw new Error('Planning is unavailable until this browser is connected to its data service.'); },
-  async setIncomePlan() { throw new Error('Planning is unavailable until this browser is connected to its data service.'); },
-  async setCategoryTarget() { throw new Error('Planning is unavailable until this browser is connected to its data service.'); },
-};
 
 const unavailableInsightsClient: InsightsClient = {
   async walletActivity() { throw new Error('Insights are unavailable until this browser is connected to its data service.'); },
@@ -48,6 +40,8 @@ export interface ControlRoomRoutesProps {
   onCloseRecord(): void;
   /** Restores membership-revocation handling: hooks call this when the active space disappears. */
   onSpaceUnavailable?(): void;
+  /** Opens the record sheet (Task 9 mounts it); the home screen's Record action calls this. */
+  onOpenRecord?(): void;
 }
 
 function currentMonthStart(): string {
@@ -55,29 +49,65 @@ function currentMonthStart(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
 }
 
-export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
-  const { locale, spaceId, spaceKind, destination, gateways } = props;
+function isSpaceUnavailable(cause: unknown): boolean {
+  const message = cause instanceof Error ? cause.message : '';
+  return /active space membership|selected space is not available|permission denied|missing_membership/i.test(message);
+}
+
+interface HomeDataState {
+  status: 'loading' | 'ready' | 'error';
+  budgets: readonly CategoryBudgetRow[];
+  trend: readonly MonthlyCashSummary[];
+  error: string | null;
+}
+
+interface HomeRoutesProps {
+  locale: Locale;
+  spaceId: string;
+  spaceKind: SpaceKind;
+  gateways: ControlRoomGateways;
+  onSpaceUnavailable?: (() => void) | undefined;
+  onOpenRecord?: (() => void) | undefined;
+}
+
+function HomeRoutes(props: HomeRoutesProps) {
+  const { locale, spaceId, spaceKind, gateways } = props;
   const [month, setMonth] = useState(currentMonthStart);
-  const planClient = gateways.plan ?? unavailablePlanClient;
   const insightsClient = gateways.insights ?? unavailableInsightsClient;
 
   const wallets = useWallets(gateways.wallets, spaceId, props.onSpaceUnavailable, undefined, gateways.categories);
-  const plan = usePlan(planClient, spaceId, month);
   const loans = useLoans(gateways.loans, { spaceId, ...(props.onSpaceUnavailable ? { onSpaceUnavailable: props.onSpaceUnavailable } : {}) });
 
-  const [budgets, setBudgets] = useState<readonly CategoryBudgetRow[]>([]);
-  const [trend, setTrend] = useState<readonly MonthlyCashSummary[]>([]);
+  const [data, setData] = useState<HomeDataState>({ status: 'loading', budgets: [], trend: [], error: null });
+  const [attempt, setAttempt] = useState(0);
   const requestSequence = useRef(0);
 
   useEffect(() => {
     const request = ++requestSequence.current;
-    void insightsClient.categoryActualVsBudget(spaceId, month)
-      .then((rows) => { if (requestSequence.current === request) setBudgets(rows); })
-      .catch(() => { if (requestSequence.current === request) setBudgets([]); });
-    void gateways.reports.loadMonthlyComparison(spaceId, month)
-      .then((rows) => { if (requestSequence.current === request) setTrend(rows); })
-      .catch(() => { if (requestSequence.current === request) setTrend([]); });
-  }, [insightsClient, gateways.reports, spaceId, month]);
+    setData((current) => ({ ...current, status: 'loading', error: null }));
+    let failureMessage: string | null = null;
+    let unavailable = false;
+    const capture = (cause: unknown) => {
+      if (failureMessage === null) {
+        failureMessage = cause instanceof Error && cause.message.trim() ? cause.message : 'Could not load this section.';
+      }
+      if (isSpaceUnavailable(cause)) unavailable = true;
+    };
+    void Promise.all([
+      insightsClient.categoryActualVsBudget(spaceId, month)
+        .catch((cause: unknown) => { capture(cause); return [] as readonly CategoryBudgetRow[]; }),
+      gateways.reports.loadMonthlyComparison(spaceId, month)
+        .catch((cause: unknown) => { capture(cause); return [] as readonly MonthlyCashSummary[]; }),
+    ]).then(([budgetRows, trendRows]) => {
+      if (requestSequence.current !== request) return;
+      if (unavailable) props.onSpaceUnavailable?.();
+      if (failureMessage !== null) {
+        setData((current) => ({ ...current, status: 'error', error: failureMessage }));
+      } else {
+        setData({ status: 'ready', budgets: budgetRows, trend: trendRows, error: null });
+      }
+    });
+  }, [insightsClient, gateways.reports, spaceId, month, attempt, props.onSpaceUnavailable]);
 
   const totals = useMemo(() => {
     const byCurrency = new Map<Currency, string>();
@@ -100,28 +130,39 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
     }));
   }, [loans.dashboard]);
 
-  if (destination === 'journal' || destination === 'plan' || destination === 'manage') {
-    // TODO(tasks 8-11): journal, plan, and manage screens replace these placeholders.
-    return <p>{destination} coming soon</p>;
-  }
-
-  // Task 9 mounts the record sheet here when recordOpen is true.
-  void props.recordOpen;
-  void props.onCloseRecord;
-  void plan;
-
   return (
     <HomeScreen
       locale={locale}
       spaceKind={spaceKind}
       month={month}
       onMonthChange={setMonth}
-      onRecord={() => undefined}
+      onRecord={() => props.onOpenRecord?.()}
       totals={totals}
-      budgets={budgets}
-      trend={trend}
+      budgets={data.budgets}
+      trend={data.trend}
+      dataStatus={data.status}
+      dataError={data.error}
+      onRetryLoad={() => setAttempt((current) => current + 1)}
       loansOutstanding={loansOutstanding}
-      recentEvents={wallets.events.slice(0, 5)}
+      recentEvents={wallets.events}
     />
   );
+}
+
+export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
+  if (props.destination === 'home') {
+    return (
+      <HomeRoutes
+        locale={props.locale}
+        spaceId={props.spaceId}
+        spaceKind={props.spaceKind}
+        gateways={props.gateways}
+        onSpaceUnavailable={props.onSpaceUnavailable}
+        onOpenRecord={props.onOpenRecord}
+      />
+    );
+  }
+  // TODO(tasks 8-11): journal, plan, and manage screens replace these placeholders.
+  // Task 9 mounts the record sheet here when recordOpen is true.
+  return <p>{props.destination} coming soon</p>;
 }
