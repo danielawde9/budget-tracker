@@ -117,3 +117,18 @@
 .cr-button--primary:disabled { opacity: 0.5; }
 .cr-button--danger { color: var(--cr-danger); border-color: var(--cr-danger); background: var(--cr-danger-soft); }
 .cr-button--block { inline-size: 100%; }
+.cr-button:disabled { cursor: not-allowed; }
+
+/* Focus and hover states */
+.cr-tab:focus-visible, .cr-fab:focus-visible, .cr-button:focus-visible, .cr-type-tile:focus-visible, .cr-chip:focus-visible, .cr-keypad button:focus-visible {
+  outline: 2px solid var(--cr-accent);
+  outline-offset: 2px;
+}
+.cr-button:hover:not(:disabled) { background: var(--cr-surface-sunken); }
+.cr-button--primary:hover:not(:disabled) { background: var(--cr-accent-strong); border-color: var(--cr-accent-strong); }
+.cr-tab:hover { background: var(--cr-surface-sunken); }
+.cr-rail .cr-tab--active:hover { background: var(--cr-accent-soft); }
+.cr-type-tile:hover { background: var(--cr-surface-sunken); }
+.cr-type-tile[aria-pressed="true"]:hover { background: var(--cr-accent-soft); }
+.cr-chip:hover { background: var(--cr-surface-sunken); }
+.cr-chip--active:hover { background: var(--cr-accent-soft); }
