@@ -20,6 +20,14 @@ Loans gateway uses it to persist planning history only, and it cannot create
 wallet or loan postings. The same gateway reads `public.loan_monthly_plan` and
 `public.loan_monthly_currency_summary` as read-only projections.
 
+`public.describe_financial_event` is a protected descriptive-metadata command,
+not a posting command. It creates or reuses an immutable, space-scoped payee
+and attaches one immutable payee/note association to an already-posted event.
+It cannot create or alter a financial event, movement, loan posting, balance,
+or category association. The Wallets gateway invokes it only after the
+protected posting command has returned the event identifier; its independent
+request receipt makes a transport retry safe.
+
 `public.create_category`, `public.create_subcategory`, and `public.archive_category`
 are protected metadata lifecycle commands, not posting commands. The browser
 entry path for all three lifecycle commands is

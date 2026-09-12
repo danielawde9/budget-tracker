@@ -40,10 +40,13 @@ describe('financial posting boundary coverage', () => {
   it('keeps all financial and planning history tables non-writable by authenticated clients', async () => {
     expect(await financialTableWritePrivileges()).toEqual([
       { table_name: 'financial_event_categories', writable: false },
+      { table_name: 'financial_event_description_requests', writable: false },
+      { table_name: 'financial_event_descriptions', writable: false },
       { table_name: 'financial_events', writable: false },
       { table_name: 'loan_monthly_target_revisions', writable: false },
       { table_name: 'loan_postings', writable: false },
       { table_name: 'loans', writable: false },
+      { table_name: 'payees', writable: false },
       { table_name: 'wallet_command_requests', writable: false },
       { table_name: 'wallet_movements', writable: false },
       { table_name: 'wallets', writable: false },
@@ -53,10 +56,13 @@ describe('financial posting boundary coverage', () => {
   it('keeps all financial and planning history tables non-writable by background clients', async () => {
     expect(await financialTableWritePrivileges('service_role')).toEqual([
       { table_name: 'financial_event_categories', writable: false },
+      { table_name: 'financial_event_description_requests', writable: false },
+      { table_name: 'financial_event_descriptions', writable: false },
       { table_name: 'financial_events', writable: false },
       { table_name: 'loan_monthly_target_revisions', writable: false },
       { table_name: 'loan_postings', writable: false },
       { table_name: 'loans', writable: false },
+      { table_name: 'payees', writable: false },
       { table_name: 'wallet_command_requests', writable: false },
       { table_name: 'wallet_movements', writable: false },
       { table_name: 'wallets', writable: false },

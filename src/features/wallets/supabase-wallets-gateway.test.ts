@@ -121,11 +121,13 @@ describe('Supabase Wallets gateway', () => {
     await gateway.createWallet({ spaceId: 'space-1', name: '  Reserve  ', currency: 'LBP' });
     await gateway.recordEvent({ spaceId: 'space-1', requestId: 'request-1', kind: 'transfer', effectiveDate: '2026-09-08', movements: [{ walletId: 'wallet-1', amountMinor: '-500' }, { walletId: 'wallet-2', amountMinor: '500' }] });
     await gateway.reverseEvent({ spaceId: 'space-1', requestId: 'request-2', eventId: 'event-1', effectiveDate: '2026-09-09' });
+    await gateway.describeEvent({ spaceId: 'space-1', requestId: 'request-3', eventId: 'event-1', payeeName: ' Cedar Market ', note: ' groceries ' });
 
     expect(rpcCalls).toEqual([
       { name: 'create_wallet', args: { p_space_id: 'space-1', p_name: 'Reserve', p_currency: 'LBP' } },
       { name: 'record_financial_event', args: { p_space_id: 'space-1', p_request_id: 'request-1', p_kind: 'transfer', p_effective_date: '2026-09-08', p_movements: [{ walletId: 'wallet-1', amountMinor: '-500' }, { walletId: 'wallet-2', amountMinor: '500' }] } },
       { name: 'reverse_financial_event', args: { p_space_id: 'space-1', p_request_id: 'request-2', p_event_id: 'event-1', p_effective_date: '2026-09-09' } },
+      { name: 'describe_financial_event', args: { p_space_id: 'space-1', p_request_id: 'request-3', p_event_id: 'event-1', p_payee_name: 'Cedar Market', p_note: 'groceries' } },
     ]);
   });
 
@@ -195,7 +197,7 @@ describe('Supabase Wallets gateway', () => {
     expect(source).not.toMatch(/\.(insert|update|delete|upsert|truncate)\s*\(/);
     const rpcNames = [...source.matchAll(/runCommand\('([^']+)'/g)].map((match) => match[1]);
     expect([...new Set(rpcNames)].sort()).toEqual([
-      'archive_wallet', 'create_wallet', 'record_financial_event', 'rename_wallet', 'restore_wallet', 'reverse_financial_event',
+      'archive_wallet', 'create_wallet', 'describe_financial_event', 'record_financial_event', 'rename_wallet', 'restore_wallet', 'reverse_financial_event',
     ]);
   });
 

@@ -4,12 +4,14 @@ import { classifyCategoryError, type CategoryErrorView } from '../categories/err
 import type { CategoriesGateway, CategorizedEventInput, EventCategory } from '../categories/types.js';
 import type {
   CreateWalletInput,
+  DescribeEventInput,
   JournalEvent,
   RecordEventInput,
   RenameWalletInput,
   ReverseEventInput,
   WalletCommandRecord,
   WalletLifecycleInput,
+  Payee,
   WalletProjection,
   WalletsGateway,
   WalletsSnapshot,
@@ -18,12 +20,12 @@ import type {
 export type WalletsStatus = 'loading' | 'ready' | 'error';
 export interface CommandOutcome { status: 'success' | 'ambiguous' | 'refresh-required'; reconciled: boolean }
 
-type RecordDraft = Omit<RecordEventInput, 'spaceId' | 'requestId'> & { categoryId?: string | null };
+type RecordDraft = Omit<RecordEventInput, 'spaceId' | 'requestId'> & { categoryId?: string | null; payeeName?: string | null; note?: string | null };
 type ReverseDraft = Omit<ReverseEventInput, 'spaceId' | 'requestId'>;
 type RenameDraft = Omit<RenameWalletInput, 'spaceId' | 'requestId'>;
 type LifecycleDraft = Omit<WalletLifecycleInput, 'spaceId' | 'requestId'>;
 type RetryCommand =
-  | { kind: 'record'; requestId: string; input: RecordEventInput; categoryId: string | null }
+  | { kind: 'record'; requestId: string; input: RecordEventInput; categoryId: string | null; description: Omit<DescribeEventInput, 'spaceId' | 'eventId'> | null }
   | { kind: 'reverse'; requestId: string; input: ReverseEventInput }
   | { kind: 'rename'; requestId: string; input: RenameWalletInput }
   | { kind: 'archive'; requestId: string; input: WalletLifecycleInput }
@@ -34,6 +36,7 @@ interface WalletsView {
   status: WalletsStatus;
   wallets: readonly WalletProjection[];
   archivedWallets: readonly WalletProjection[];
+  payees: readonly Payee[];
   initialEvents: readonly JournalEvent[];
   events: readonly JournalEvent[];
   nextCursor: string | null;
@@ -51,6 +54,7 @@ const emptyView = (spaceId: string): WalletsView => ({
   status: 'loading',
   wallets: [],
   archivedWallets: [],
+  payees: [],
   initialEvents: [],
   events: [],
   nextCursor: null,
@@ -152,6 +156,7 @@ export function useWallets(
       status: 'ready',
       wallets: snapshot.wallets,
       archivedWallets: snapshot.archivedWallets,
+      payees: snapshot.payees ?? [],
       initialEvents: snapshot.history.events,
       events: snapshot.history.events,
       nextCursor: snapshot.history.nextCursor,
@@ -287,12 +292,13 @@ export function useWallets(
       }
     }
     try {
+      let recordedEventId: string | undefined;
       if (command.kind === 'reverse') {
         await gateway.reverseEvent(command.input);
       } else if (command.categoryId) {
         if (!categoriesGateway) throw new Error('Categorized posting is not available.');
         if (!isCategoryKind(command.input.kind)) throw new Error('Only income and expense events can be categorized.');
-        await categoriesGateway.recordCategorizedEvent({
+        const result = await categoriesGateway.recordCategorizedEvent({
           spaceId: command.input.spaceId,
           requestId: command.input.requestId,
           kind: command.input.kind,
@@ -300,8 +306,17 @@ export function useWallets(
           movements: command.input.movements,
           categoryId: command.categoryId,
         });
+        recordedEventId = result.eventId;
       } else {
-        await gateway.recordEvent(command.input);
+        recordedEventId = (await gateway.recordEvent(command.input)).eventId;
+      }
+      if (command.kind === 'record' && command.description) {
+        if (!recordedEventId) throw new Error('The transaction command did not return an event ID.');
+        await gateway.describeEvent({
+          spaceId: command.input.spaceId,
+          eventId: recordedEventId,
+          ...command.description,
+        });
       }
       const refreshed = await refreshAfterCommand(categorized);
       return { status: categorized && !refreshed ? 'refresh-required' : 'success', reconciled: false };
@@ -320,6 +335,13 @@ export function useWallets(
         if (command.kind === 'record' && command.categoryId && 'categoryId' in event && event.categoryId !== command.categoryId) {
           throw new Error('The request ID resolved to an event with a different category. Refresh before trying again.');
         }
+        if (command.kind === 'record' && command.description) {
+          await gateway.describeEvent({
+            spaceId: command.input.spaceId,
+            eventId: 'eventId' in event ? event.eventId : event.id,
+            ...command.description,
+          });
+        }
         const refreshed = await refreshAfterCommand(categorized);
         return { status: categorized && !refreshed ? 'refresh-required' : 'success', reconciled: true };
       }
@@ -330,12 +352,14 @@ export function useWallets(
 
   const recordEvent = useCallback(async (input: RecordDraft): Promise<CommandOutcome> => {
     const requestId = createRequestId();
-    const { categoryId = null, ...recordInput } = input;
+    const { categoryId = null, payeeName = null, note = null, ...recordInput } = input;
+    const hasDescription = Boolean(payeeName?.trim() || note?.trim());
     const command: RetryCommand = {
       kind: 'record',
       requestId,
       input: { ...recordInput, spaceId, requestId },
       categoryId,
+      description: hasDescription ? { requestId: createRequestId(), payeeName, note } : null,
     };
     setRetry(null);
     return withPending(() => reconcileCommand(command));
@@ -413,6 +437,7 @@ export function useWallets(
     status: visible ? view.status : 'loading' as const,
     wallets: visible ? view.wallets : [],
     archivedWallets: visible ? view.archivedWallets : [],
+    payees: visible ? view.payees : [],
     initialEvents: visible ? view.initialEvents : [],
     events: visible ? view.events : [],
     nextCursor: visible ? view.nextCursor : null,

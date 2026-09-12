@@ -1,5 +1,6 @@
 import type {
   CreateWalletInput,
+  DescribeEventInput,
   JournalEvent,
   JournalPage,
   RecordEventInput,
@@ -108,6 +109,12 @@ export class InMemoryWalletsGateway implements WalletsGateway {
     this.calls.push({ name: 'recordEvent', input });
     this.failIfNeeded();
     return { eventId: 'event-new' };
+  }
+
+  async describeEvent(input: DescribeEventInput) {
+    this.calls.push({ name: 'describeEvent', input });
+    this.failIfNeeded();
+    return { eventId: input.eventId };
   }
 
   async reverseEvent(input: ReverseEventInput) {
