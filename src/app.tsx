@@ -24,6 +24,10 @@ import { WorkspaceRoutes } from './features/home/workspace-routes.js';
 import { createSupabaseReportsGateway } from './features/reports/supabase-reports-gateway.js';
 import type { ReportsGateway } from './features/reports/types.js';
 
+const unavailableReportsGateway: ReportsGateway = {
+  async loadMonthlyComparison() { throw new Error('Reports are unavailable until this browser is connected to its data service.'); },
+};
+
 interface AppProps {
   householdInvitationBootstrap?: HouseholdInvitationBootstrap | null;
   authGateway?: AuthGateway;
@@ -219,10 +223,10 @@ export function App({ householdInvitationBootstrap = null, authGateway, categori
   const activeHouseholdGateway = useMemo(() => householdGateway ?? (client ? createSupabaseHouseholdGateway(client) : null), [householdGateway, client]);
   const activeLoansGateway = useMemo(() => loansGateway ?? (client ? createSupabaseLoansGateway(client) : null), [loansGateway, client]);
   const activeWalletsGateway = useMemo(() => walletsGateway ?? (client ? createSupabaseWalletsGateway(client) : null), [walletsGateway, client]);
-  const activeReportsGateway = useMemo(() => reportsGateway ?? (client ? createSupabaseReportsGateway(client) : null), [reportsGateway, client]);
+  const activeReportsGateway = useMemo(() => reportsGateway ?? (client ? createSupabaseReportsGateway(client) : unavailableReportsGateway), [reportsGateway, client]);
   const activeWorkspaceGateway = useMemo(() => workspaceGateway ?? (client ? createSupabaseWorkspaceGateway(client) : null), [workspaceGateway, client]);
 
-  if (!activeAuthGateway || !activeCategoriesGateway || !activeHouseholdGateway || !activeLoansGateway || !activeWalletsGateway || !activeReportsGateway || !activeWorkspaceGateway) {
+  if (!activeAuthGateway || !activeCategoriesGateway || !activeHouseholdGateway || !activeLoansGateway || !activeWalletsGateway || !activeWorkspaceGateway) {
     return <main className="workspace-state-page configuration-page"><section className="state-panel"><span className="brand">Budget ledger</span><h1>Configuration needed</h1><p>This installation needs its data service before the financial workspace can open.</p><details className="configuration-detail"><summary>Operator setup details</summary><p>Connect this browser to the dedicated Budget development stack before continuing.</p></details></section></main>;
   }
 
