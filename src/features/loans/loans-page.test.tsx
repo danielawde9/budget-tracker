@@ -213,6 +213,29 @@ describe('LoansPage', () => {
     expect(gateway.calls.find((call) => call.name === 'setMonthlyTarget')?.input).toMatchObject({ targetMinor: '0' });
   });
 
+  it.each([
+    ['Record repayment', 'Record repayment to Karim'],
+    ['Change monthly target', 'Monthly target for Karim'],
+    ['Correct borrowing entry from Jun 1, 2026', 'Correct this ledger entry'],
+  ])('preserves the detail opener and keyboard trap through %s', async (action, title) => {
+    const { user } = await renderPage();
+    const loanOpener = screen.getByRole('button', { name: 'Open Karim loan' });
+    await user.click(loanOpener);
+    const detail = screen.getByRole('dialog', { name: 'Karim loan details' });
+    const opener = within(detail).getByRole('button', { name: action });
+    await user.click(opener);
+    const child = screen.getByRole('dialog', { name: title });
+    expect(screen.getAllByRole('dialog')).toEqual([child]);
+    await user.tab({ shift: true });
+    expect(child).toContainElement(document.activeElement as HTMLElement);
+    await user.keyboard('{Escape}');
+    expect(opener).toHaveFocus();
+    expect(screen.getByRole('dialog', { name: 'Karim loan details' })).toBe(detail);
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(loanOpener).toHaveFocus();
+  });
+
   it('records a partial repayment and restores trigger focus after Escape', async () => {
     const { gateway, user } = await renderPage();
     const addLoan = screen.getByRole('button', { name: 'Add loan' });

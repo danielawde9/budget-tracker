@@ -13,6 +13,65 @@ test.beforeEach(async ({ page }) => {
 });
 
 for (const locale of ['en', 'ar'] as const) {
+  test(`Home journal text has readable separation ${locale}`, async ({ page }) => {
+    await installApplicationFixture(page);
+    await page.goto('/');
+    if (locale === 'ar') await page.getByRole('button', { name: 'العربية' }).click();
+    await expect(page.locator('.home-workspace .journal-list > li')).toHaveCount(7);
+    const gaps = await page.locator('.home-workspace .journal-list > li').evaluateAll((rows) => {
+      const separation = (first: Element, second: Element) => {
+        const a = first.getBoundingClientRect();
+        const b = second.getBoundingClientRect();
+        return Math.max(b.left - a.right, a.left - b.right, b.top - a.bottom, a.top - b.bottom);
+      };
+      return rows.flatMap((row) => [
+        separation(row.querySelector('strong')!, row.querySelector('time')!),
+        ...Array.from(row.querySelectorAll('ul > li'), (movement) => separation(movement.children[0]!, movement.children[1]!)),
+      ]);
+    });
+    for (const gap of gaps) expect(gap).toBeGreaterThanOrEqual(8);
+  });
+
+  test(`rail add-space action has readable contrast ${locale}`, async ({ page }) => {
+    await installApplicationFixture(page);
+    await page.goto('/');
+    if (locale === 'ar') await page.getByRole('button', { name: 'العربية' }).click();
+    const action = page.getByRole('button', { name: locale === 'ar' ? 'إضافة مساحة أخرى' : 'Add another space' });
+    for (const hover of [false, true]) {
+      if (hover) await action.hover();
+      const contrast = await action.evaluate((element) => {
+        const luminance = (color: string) => {
+          const channels = color.match(/[\d.]+/g)!.slice(0, 3).map((value) => {
+            const channel = Number(value) / 255;
+            return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+          });
+          return channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722;
+        };
+        const foreground = luminance(getComputedStyle(element).color);
+        let surface: Element | null = element;
+        while (surface && getComputedStyle(surface).backgroundColor === 'rgba(0, 0, 0, 0)') surface = surface.parentElement;
+        const background = luminance(getComputedStyle(surface!).backgroundColor);
+        return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+      });
+      expect(contrast).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  test(`wallet names remain separated from large LBP balances ${locale}`, async ({ page }) => {
+    await installApplicationFixture(page);
+    await page.goto('/');
+    if (locale === 'ar') await page.getByRole('button', { name: 'العربية' }).click();
+    await page.getByRole('navigation').getByRole('button', { name: locale === 'ar' ? 'المحافظ' : 'Wallets', exact: true }).click();
+    const row = page.locator('.wallet-context .wallet-list > li').filter({ has: page.getByText('Home LBP', { exact: true }) });
+    await expect(row).toHaveCount(1);
+    const gap = await row.evaluate((element) => {
+      const name = element.querySelector('div > bdi')!.getBoundingClientRect();
+      const amount = element.querySelector('.wallet-balance')!.getBoundingClientRect();
+      return Math.max(amount.left - name.right, name.left - amount.right, amount.top - name.bottom, name.top - amount.bottom);
+    });
+    expect(gap).toBeGreaterThanOrEqual(8);
+  });
+
   test(`Home default, bounded content, real routes and contained ${locale} controls`, async ({ page }, testInfo) => {
     await installApplicationFixture(page);
     const historyRequest = page.waitForRequest((request) => {

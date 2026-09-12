@@ -16,6 +16,8 @@ bdi, dd, strong { font-variant-numeric: tabular-nums; }
 .rail-space { margin-block: var(--space-7) var(--space-5); padding-block: 0 var(--space-4); border-block-end: 1px solid #496556; }
 .rail-space label { display: grid; gap: var(--space-2); color: #c7d4cc; font-size: .8rem; }
 .rail-space select { inline-size: 100%; border: 1px solid #688174; border-radius: var(--space-2); background: #234b39; color: white; padding-inline: var(--space-3); }
+.rail-space .text-button { color: #f7faf6; }
+.rail-space .text-button:hover { color: var(--ink); }
 .space-current-name { display: grid; gap: var(--space-1); margin-block-start: var(--space-3); }
 .space-current-name bdi { font-weight: 700; }
 .space-current-name span { color: #aebfb5; font-size: .78rem; }
@@ -102,6 +104,14 @@ bdi, dd, strong { font-variant-numeric: tabular-nums; }
 .page-header { align-items: end; }
 .wallets-topbar { align-items: end; }
 .wallet-actions { display: flex; gap: 10px; flex: 0 0 auto; }
+.home-topbar { flex-wrap: wrap; }
+.home-topbar > div { min-inline-size: 0; }
+.home-workspace .journal-list > li { padding-block: 20px; border-block-end: 1px solid #c7cfc7; }
+.home-workspace .journal-list header > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; }
+.home-workspace .journal-list time { color: #68756c; direction: ltr; unicode-bidi: isolate; }
+.home-workspace .journal-list ul { display: grid; gap: 8px; list-style: none; margin-block: 12px 0; padding: 0; }
+.home-workspace .journal-list ul > li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; }
+.home-workspace .journal-list bdi { overflow-wrap: anywhere; }
 .wallet-journal-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, .42fr); align-items: start; gap: clamp(28px, 5vw, 64px); margin-block-start: 42px; }
 .wallet-context { min-inline-size: 0; }
 .section-kicker { display: block; color: #68756c; font-size: .82rem; margin-block-end: 5px; }
@@ -114,6 +124,8 @@ bdi, dd, strong { font-variant-numeric: tabular-nums; }
 .wallet-list li > div bdi { font-size: 1.1rem; font-weight: 750; }
 .wallet-list li > div span { color: #68756c; }
 .wallet-balance { font-size: clamp(1.35rem, 3vw, 2rem); font-weight: 780; font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
+.wallet-context .wallet-list li { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.wallet-context .wallet-list bdi { overflow-wrap: anywhere; }
 .wallet-empty { display: grid; justify-items: start; gap: 8px; }
 .wallet-empty p { margin: 0 0 6px; }
 .journal-column-headings, .journal-movement { display: grid; grid-template-columns: 92px minmax(92px, 1fr) minmax(100px, 1.1fr) minmax(100px, 1fr) minmax(92px, auto); gap: 14px; align-items: center; }
@@ -273,6 +285,7 @@ dd { margin: 8px 0 0; font-weight: 760; white-space: nowrap; }
   .shell-main { padding: var(--space-4) var(--space-3) var(--space-8); }
   .loans-workspace .topbar h1 { font-size: 3.5rem; }
   .wallets-topbar { display: grid; }
+  .home-topbar { display: grid; grid-template-columns: minmax(0, 1fr); }
   .categories-topbar { display: grid; }
   .categories-topbar > button { inline-size: 100%; }
   .household-topbar { display: grid; }

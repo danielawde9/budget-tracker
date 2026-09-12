@@ -1,6 +1,6 @@
 # Financial workspace redesign QA — 2026-09-12
 
-Status: **FAIL — redesign acceptance remains open.** Task 6 adds fixture-backed browser coverage and updates the older route/selectors. It does not change production behavior to satisfy tests. Verified source baseline: `3239f7d`.
+Status: **Reported UI defects resolved in local fixture verification; live/hosted acceptance remains open.** The original Task 6 results below record the failing baseline `3239f7d`. The final-fixes addendum records fresh verification of the subsequent production fixes; it supersedes findings 1–5, while finding 6 remains blocked.
 
 ## Boundary and method
 
@@ -65,3 +65,49 @@ Fresh screenshots for Home, Wallets, Loans, Categories, and Household in both la
 Test-only migrations scope Wallets navigation to its navigation landmark with an exact name, replace old default-Loans assertions with Home's real wallet/journal content, explicitly navigate to Loans in its suite, and use journal rows in the private-UAT reload assertion. No production hook, fake branch, gateway, SQL, or financial calculation changed.
 
 Production fixes and a fresh full verification run remain required. The Task 6 report and raw local command logs are under the ignored `.superpowers/sdd/2026-09-11-financial-workspace-redesign/` handoff directory.
+
+## Final-fixes verification — 2026-09-12
+
+The preceding section is the retained Task 6 history. Production fixes now give
+Home its own responsive header and separated journal rows, stack balances in
+the Wallets folio, and use readable rail add-space colors. Loan detail stays
+mounted but hidden with its keyboard listener suspended during each child
+dialog, preserving the action and the list opener across both close levels.
+
+| Verification | Result |
+| --- | --- |
+| Red focused browser run: retained regressions plus new geometry/contrast checks | 19 failed, 5 passed; journal gap 0px and rail contrast 1.48:1 reproduced |
+| Red nested focus unit run | 3 failed, 19 passed |
+| Green focused browser run, same 24 cases | 24 passed, exit 0 |
+| Full `pnpm test:e2e --trace=off --workers=4` | 95 passed, 51 explicit project skips, exit 0 |
+| `pnpm typecheck` | PASS, exit 0 |
+| `pnpm test:ui` | 36 files, 435 tests passed, exit 0 |
+| `pnpm build` | PASS with unchanged 506.13 kB main-chunk warning, exit 0 |
+
+Home control containment and transaction entry now pass at 390px. All three
+nested loan actions return focus on desktop and mobile. New EN/AR checks assert
+at least 8px between event/date and wallet/amount text, separation of Home LBP
+from its Wallets balance, and at least 4.5:1 add-space contrast in default and
+hover states. These checks do not constitute a whole-app contrast audit.
+
+Fresh captures are in `artifacts/financial-workspace-qa/final-fixes/`; the
+original failing captures remain intact. Visual inspection covered
+[Home EN mobile](../artifacts/financial-workspace-qa/final-fixes/home-en-mobile.png),
+[Home AR desktop](../artifacts/financial-workspace-qa/final-fixes/home-ar-desktop.png),
+[Home AR mobile](../artifacts/financial-workspace-qa/final-fixes/home-ar-mobile.png),
+[Wallets EN desktop](../artifacts/financial-workspace-qa/final-fixes/wallets-en-desktop.png),
+and [Wallets AR desktop](../artifacts/financial-workspace-qa/final-fixes/wallets-ar-desktop.png).
+Text spacing, action legibility, and balance/name separation were visually
+confirmed for those captures. The EN desktop Home capture is retained without
+a separate visual-review claim.
+
+Lesson/detector: containment alone does not detect touching text or contrast;
+the added browser geometry and computed-color assertions cover those separate
+failure classes. DOM opener capture alone cannot survive parent recreation;
+the nested focus unit tests additionally assert node identity, one accessible
+dialog, child keyboard containment, and return to the original loan row.
+
+All original fixture, browser-emulation, live-service, and owner-UAT limitations
+still apply. Node DEP0205 and the existing build chunk warning remain; this is
+not a zero-warning or deployed acceptance claim. No financial commands,
+gateways, WalletsState, SQL, or archive behavior changed.

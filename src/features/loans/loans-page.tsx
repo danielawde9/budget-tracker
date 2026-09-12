@@ -61,7 +61,7 @@ export function LoansPage({ gateway, locale: controlledLocale, spaces: controlle
     </> : null}
 
     {creating && state.dashboard ? <CreateLoanDialog spaceId={state.dashboard.space.id} wallets={state.dashboard.wallets} locale={locale} onClose={() => setCreating(false)} onSave={state.createLoan} /> : null}
-    {selectedLoan && !subdialog && !correctionEventId ? <LoanDetailDialog loan={selectedLoan} locale={locale} onClose={() => setSelectedLoanId(null)} onRepay={() => setSubdialog('repay')} onTarget={() => setSubdialog('target')} onCorrect={setCorrectionEventId} /> : null}
+    {selectedLoan ? <LoanDetailDialog loan={selectedLoan} locale={locale} active={!subdialog && !correctionEventId} onClose={() => setSelectedLoanId(null)} onRepay={() => setSubdialog('repay')} onTarget={() => setSubdialog('target')} onCorrect={setCorrectionEventId} /> : null}
     {selectedLoan && subdialog === 'repay' && state.dashboard ? <RepaymentDialog loan={selectedLoan} wallets={state.dashboard.wallets} locale={locale} onClose={() => setSubdialog(null)} onSave={state.recordRepayment} /> : null}
     {selectedLoan && subdialog === 'target' ? <TargetDialog loan={selectedLoan} month={state.month} locale={locale} onClose={() => setSubdialog(null)} onSave={state.setMonthlyTarget} /> : null}
     {selectedLoan && correctionEventId ? <CorrectionDialog loan={selectedLoan} eventId={correctionEventId} locale={locale} onClose={() => setCorrectionEventId(null)} onSave={state.reverseEvent} /> : null}

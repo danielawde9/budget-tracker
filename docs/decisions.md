@@ -1357,3 +1357,25 @@ important but does not belong in the normal task hierarchy for every user.
 long as email/password autocomplete, confirmation/resend, and session-state
 contracts are unchanged. Promoting backup readiness into primary navigation
 requires a product decision about user-facing operational status and ownership.
+
+## 2026-09-12 — Preserve nested loan focus and fit the financial workspace to its containers
+
+**Decision:** Keep the loan detail mounted but hidden and without its keyboard
+listener while repayment, monthly-target, or correction dialogs are active.
+Closing the child restores its actual action; closing the detail restores its
+list opener. If a successful mutation removes that action, focus falls back to
+the detail panel. Home receives its own wrapping header and spaced journal
+rows. The narrow Wallets balance folio stacks wallet identity above the amount.
+The rail add-space action uses light text on the rail and dark text on hover.
+
+**Why:** Browser QA reproduced mobile Home overflow/action interception,
+detached nested-dialog openers, touching journal text, colliding LBP balances,
+and a 1.48:1 rail action contrast ratio. Dedicated browser geometry/contrast
+checks and retained focus regressions now detect these failures. Unit coverage
+also asserts one exposed dialog, child Tab containment, opener identity, and
+two-level Escape return.
+
+**If changed:** Recreating the detail requires an explicit stable focus target
+and preservation of the original list opener. A side-by-side balance layout
+must prove separation at its actual folio width in both languages. No financial
+command, gateway, derived-state, archive rule, or dialog copy changes are needed.
