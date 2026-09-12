@@ -59,13 +59,17 @@ export function JournalScreen(props: JournalScreenProps) {
   const { locale } = props;
   const [kindFilter, setKindFilter] = useState<KindFilter>('all');
   const [selected, setSelected] = useState<JournalEvent | null>(null);
+  const [reverseError, setReverseError] = useState<string | null>(null);
   const openerRef = useRef<HTMLButtonElement | null>(null);
+  const sheetRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!selected) return;
+    sheetRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setSelected(null);
+        setReverseError(null);
         openerRef.current?.focus();
       }
     };
@@ -75,7 +79,19 @@ export function JournalScreen(props: JournalScreenProps) {
 
   const closeSheet = () => {
     setSelected(null);
+    setReverseError(null);
     openerRef.current?.focus();
+  };
+
+  const reverseSelected = async () => {
+    if (!selected) return;
+    setReverseError(null);
+    try {
+      await props.onReverse(selected.id);
+    } catch (cause) {
+      const message = cause instanceof Error && cause.message.trim() ? cause.message : t(locale, 'Unknown error.', 'خطأ غير معروف.');
+      setReverseError(`${t(locale, 'Could not reverse this entry.', 'تعذر عكس هذا القيد.')} ${message}`);
+    }
   };
 
   const visibleEvents = props.events.filter((event) => matchesFilter(event, kindFilter));
@@ -112,6 +128,7 @@ export function JournalScreen(props: JournalScreenProps) {
               className="cr-journal-row cr-journal-row--button"
               onClick={(click) => {
                 openerRef.current = click.currentTarget;
+                setReverseError(null);
                 setSelected(event);
               }}
             >
@@ -148,9 +165,12 @@ export function JournalScreen(props: JournalScreenProps) {
       {selected ? (
         <div className="cr-sheet-backdrop" onClick={closeSheet}>
           <div
+            ref={sheetRef}
             className="cr-sheet"
             role="dialog"
+            aria-modal="true"
             aria-label={rowLabel(selected, locale)}
+            tabIndex={-1}
             onClick={(click) => click.stopPropagation()}
           >
             <h2>{rowLabel(selected, locale)}</h2>
@@ -183,11 +203,16 @@ export function JournalScreen(props: JournalScreenProps) {
                 {t(locale, `Reversal of ${selected.reversalOf}`, `عكس القيد ${selected.reversalOf}`)}
               </p>
             ) : null}
+            {reverseError ? (
+              <div className="cr-sheet-error" role="alert">
+                <span className="cr-danger-text">{reverseError}</span>
+              </div>
+            ) : null}
             <button
               type="button"
               className="cr-button cr-button--danger cr-button--block"
               disabled={!selectedReversible || props.reversePending}
-              onClick={() => void props.onReverse(selected.id)}
+              onClick={() => void reverseSelected()}
             >
               {t(locale, 'Reverse', 'اعكس القيد')}
             </button>

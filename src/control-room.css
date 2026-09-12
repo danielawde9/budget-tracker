@@ -95,6 +95,8 @@
 .cr-journal-row--button:hover { background: var(--cr-surface-sunken); }
 .cr-journal-row--button > span > span + span { margin-inline-start: 8px; }
 .cr-reversal-text { color: var(--cr-danger); opacity: 0.75; }
+.cr-sheet-error { padding-block: 8px; }
+.cr-sheet:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 2px; }
 .cr-movements { list-style: none; margin: 0; padding: 0; }
 .cr-movements li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-block: 8px; border-block-end: 1px solid var(--cr-border); font-size: 14px; }
 .cr-movements li:last-child { border-block-end: 0; }

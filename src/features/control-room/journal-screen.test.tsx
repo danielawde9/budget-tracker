@@ -168,6 +168,36 @@ describe('JournalScreen', () => {
     expect(onReverse).toHaveBeenCalledWith('evt-1');
   });
 
+  it('shows an inline alert when reversing fails and clears it on retry', async () => {
+    const user = userEvent.setup();
+    const onReverse = vi.fn()
+      .mockRejectedValueOnce(new Error('permission denied'))
+      .mockResolvedValueOnce(undefined);
+    render(<JournalScreen {...baseProps} onReverse={onReverse} events={[event({ id: 'evt-1', payeeName: 'Employer' })]} />);
+    await user.click(screen.getByRole('button', { name: /Employer/ }));
+    await user.click(screen.getByRole('button', { name: 'Reverse' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Could not reverse this entry.');
+    expect(alert).toHaveTextContent('permission denied');
+
+    await user.click(screen.getByRole('button', { name: 'Reverse' }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('marks the sheet as modal and moves focus into it on open', async () => {
+    const user = userEvent.setup();
+    render(<JournalScreen {...baseProps} events={[event({ payeeName: 'Employer' })]} />);
+    await user.click(screen.getByRole('button', { name: /Employer/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Employer' });
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(dialog).toHaveFocus();
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Employer/ })).toHaveFocus();
+  });
+
   it('shows the reversal link and disables Reverse for reversed events', async () => {
     const user = userEvent.setup();
     const onReverse = vi.fn().mockResolvedValue(undefined);
