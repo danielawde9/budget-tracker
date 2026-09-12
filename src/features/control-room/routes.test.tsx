@@ -201,7 +201,7 @@ describe('ControlRoomRoutes plan destination', () => {
     const card = await screen.findByRole('region', { name: 'Planned income USD' });
     expect(within(card).getByText('$3,000.00')).toBeInTheDocument();
 
-    await user.click(within(card).getByRole('button', { name: 'Edit' }));
+    await user.click(within(card).getByRole('button', { name: 'Edit planned income USD' }));
     const dialog = screen.getByRole('dialog');
     await user.clear(within(dialog).getByRole('textbox'));
     await user.type(within(dialog).getByRole('textbox'), '2100.00');
@@ -238,5 +238,63 @@ describe('ControlRoomRoutes plan destination', () => {
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('Could not load the monthly plan.');
     expect(alert).toHaveTextContent('plan backend exploded');
+  });
+});
+
+describe('ControlRoomRoutes plan save failure and retry', () => {
+  it('surfaces a page-level message on failure and a retry after reopening succeeds', async () => {
+    const user = userEvent.setup();
+    const base = new InMemoryPlanClient();
+    base.summaries = [{
+      currency: 'USD', plannedIncomeMinor: '300000', actualIncomeMinor: '0',
+      categoryTargetTotalMinor: '0', categoryActualSpentMinor: '0', uncategorizedSpentMinor: '0',
+      categoryOverspentMinor: '0', actualLoanRepaymentMinor: '0', remainingLoanReservationMinor: '0',
+      loanCommitmentMinor: '0', unallocatedMinor: '300000', overallocatedMinor: '0',
+      incomePlanRevisionId: 'rev-income-1',
+    }];
+    let failSave = true;
+    const plan: ControlRoomGateways['plan'] = new Proxy(base, {
+      get(target, prop, receiver) {
+        if (prop === 'setIncomePlan') {
+          return (input: Parameters<InMemoryPlanClient['setIncomePlan']>[0]) => {
+            if (failSave) return Promise.reject(new Error('Revision conflict detected'));
+            return Reflect.get(target, 'setIncomePlan', receiver).call(target, input);
+          };
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+    const gatewaysBag = gateways({});
+    gatewaysBag.plan = plan;
+    render(
+      <ControlRoomRoutes
+        locale="en"
+        spaceId="personal-space"
+        spaceKind="personal"
+        destination="plan"
+        gateways={gatewaysBag}
+        recordOpen={false}
+        onCloseRecord={() => undefined}
+      />,
+    );
+
+    const card = await screen.findByRole('region', { name: 'Planned income USD' });
+    await user.click(within(card).getByRole('button', { name: 'Edit planned income USD' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(await screen.findByText('The plan changed elsewhere — refreshed, please review')).toBeInTheDocument();
+
+    failSave = false;
+    await user.click(within(card).getByRole('button', { name: 'Edit planned income USD' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByText('The plan changed elsewhere — refreshed, please review')).not.toBeInTheDocument();
+    await waitFor(() => expect(base.calls).toHaveLength(1));
+    expect(base.calls[0]).toEqual({
+      name: 'setIncomePlan',
+      input: expect.objectContaining({ amountMinor: '300000', expectedRevisionId: 'rev-income-1' }),
+    });
   });
 });

@@ -10,6 +10,8 @@ export interface PlanState {
   categoryRows: readonly BudgetCategoryRow[];
   pending: boolean;
   error: string | null;
+  /** Message of the most recent failed save (null after a successful save or before any). */
+  saveError: string | null;
   refresh(): Promise<void>;
   setIncomePlan(input: { currency: Currency; amountMinor: string; expectedRevisionId: string | null }): Promise<boolean>;
   setCategoryTarget(input: { categoryId: string; currency: Currency; amountMinor: string; expectedRevisionId: string | null }): Promise<boolean>;
@@ -26,6 +28,7 @@ export function usePlan(
   const [categoryRows, setCategoryRows] = useState<readonly BudgetCategoryRow[]>([]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const sequence = useRef(0);
 
   const load = useCallback(async () => {
@@ -58,12 +61,20 @@ export function usePlan(
     // request id; callers needing that should invoke client.setIncomePlan or
     // client.setCategoryTarget directly with a reused requestId.
     setPending(true);
+    setSaveError(null);
     try {
       await fn(createRequestId());
       await load();
       return true;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not save the plan.');
+      const message = cause instanceof Error ? cause.message : 'Could not save the plan.';
+      setError(message);
+      // Kept until the next post so callers can classify the failure even after
+      // the best-effort refresh below clears `error` back to null.
+      setSaveError(message);
+      // Best-effort refresh so revision ids (and the rest of the plan) reflect
+      // any change that went through before the failure; callers still get false.
+      void load().catch(() => undefined);
       return false;
     } finally {
       setPending(false);
@@ -82,7 +93,7 @@ export function usePlan(
   );
 
   return {
-    status, summaries, categoryRows, pending, error,
+    status, summaries, categoryRows, pending, error, saveError,
     refresh: load,
     setIncomePlan,
     setCategoryTarget,

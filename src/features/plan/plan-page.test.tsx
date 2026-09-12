@@ -80,7 +80,7 @@ describe('PlanPage', () => {
     setup();
     const card = screen.getByRole('region', { name: 'Planned income USD' });
     expect(within(card).getByText(formatMinorAmount('300000', 'USD', 'en'))).toBeInTheDocument();
-    expect(within(card).getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    expect(within(card).getByRole('button', { name: 'Edit planned income USD' })).toBeInTheDocument();
     expect(screen.getByText('Set planned income')).toBeInTheDocument();
   });
 
@@ -130,7 +130,7 @@ describe('PlanPage', () => {
     const user = userEvent.setup();
     const { onSaveIncome } = setup();
     const card = screen.getByRole('region', { name: 'Planned income USD' });
-    await user.click(within(card).getByRole('button', { name: 'Edit' }));
+    await user.click(within(card).getByRole('button', { name: 'Edit planned income USD' }));
 
     const dialog = screen.getByRole('dialog');
     const input = within(dialog).getByRole('textbox');
@@ -147,7 +147,7 @@ describe('PlanPage', () => {
     const list = screen.getByRole('list', { name: 'Category targets' });
     const row = within(list).getByText('Groceries').closest('li');
     expect(row).not.toBeNull();
-    await user.click(within(row as HTMLElement).getByRole('button', { name: 'Edit' }));
+    await user.click(within(row as HTMLElement).getByRole('button', { name: 'Edit Groceries target' }));
 
     const dialog = screen.getByRole('dialog');
     const input = within(dialog).getByRole('textbox');
@@ -163,15 +163,44 @@ describe('PlanPage', () => {
     });
   });
 
-  it('shows a conflict message when a save returns false', async () => {
+  it('closes the dialog and shows the conflict message when the error indicates a revision conflict', async () => {
     const user = userEvent.setup();
-    setup({ onSaveIncome: vi.fn(async () => false) });
+    setup({ onSaveIncome: vi.fn(async () => false), error: 'Revision conflict: income plan was modified' });
     const card = screen.getByRole('region', { name: 'Planned income USD' });
-    await user.click(within(card).getByRole('button', { name: 'Edit' }));
+    await user.click(within(card).getByRole('button', { name: 'Edit planned income USD' }));
 
     const dialog = screen.getByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
 
-    expect(await within(dialog).findByText('The plan changed elsewhere — refreshed, please review')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(await screen.findByText('The plan changed elsewhere — refreshed, please review')).toBeInTheDocument();
+  });
+
+  it('shows a generic failure message when the error is not a conflict', async () => {
+    const user = userEvent.setup();
+    setup({ onSaveIncome: vi.fn(async () => false), error: 'Network unreachable' });
+    const card = screen.getByRole('region', { name: 'Planned income USD' });
+    await user.click(within(card).getByRole('button', { name: 'Edit planned income USD' }));
+
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(await screen.findByText('Could not save the plan — please try again.')).toBeInTheDocument();
+  });
+
+  it('clears the failure message when the dialog reopens and a retry succeeds', async () => {
+    const user = userEvent.setup();
+    let fail = true;
+    setup({ onSaveIncome: vi.fn(async () => { const ok = !fail; fail = false; return ok; }), error: 'Network unreachable' });
+    const card = screen.getByRole('region', { name: 'Planned income USD' });
+    await user.click(within(card).getByRole('button', { name: 'Edit planned income USD' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Could not save the plan — please try again.')).toBeInTheDocument();
+
+    await user.click(within(card).getByRole('button', { name: 'Edit planned income USD' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByText('Could not save the plan — please try again.')).not.toBeInTheDocument();
   });
 });

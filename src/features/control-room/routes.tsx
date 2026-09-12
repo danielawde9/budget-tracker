@@ -242,7 +242,7 @@ function PlanRoutes(props: PlanRoutesProps) {
       summaries={plan.summaries}
       categoryRows={plan.categoryRows}
       pending={plan.pending}
-      error={plan.error}
+      error={plan.saveError}
       loansSummary={props.loans.dashboard?.summaries ?? []}
       onSaveIncome={plan.setIncomePlan}
       onSaveTarget={plan.setCategoryTarget}

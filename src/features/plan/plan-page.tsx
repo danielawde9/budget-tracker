@@ -8,7 +8,9 @@ const t = (locale: Locale, en: string, ar: string) => (locale === 'ar' ? ar : en
 const PLAN_CURRENCIES: readonly Currency[] = ['USD', 'LBP'];
 
 function monthLabel(month: string, locale: Locale): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(month)) return month;
   const date = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1);
+  if (Number.isNaN(date.getTime())) return month;
   return new Intl.DateTimeFormat(locale === 'ar' ? 'ar-LB' : 'en-US', { month: 'long', year: 'numeric' }).format(date);
 }
 
@@ -55,7 +57,6 @@ function EditDialog(props: EditDialogProps) {
   const { locale } = props;
   const [value, setValue] = useState(props.initialValue);
   const [inputError, setInputError] = useState<string | null>(null);
-  const [conflict, setConflict] = useState(false);
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const openerRef = useRef<HTMLElement | null>(null);
 
@@ -74,12 +75,8 @@ function EditDialog(props: EditDialogProps) {
       return;
     }
     setInputError(null);
-    setConflict(false);
-    if (await props.onSave(amountMinor)) {
-      props.onCancel();
-    } else {
-      setConflict(true);
-    }
+    await props.onSave(amountMinor);
+    props.onCancel();
   };
 
   return (
@@ -101,20 +98,15 @@ function EditDialog(props: EditDialogProps) {
             type="text"
             inputMode="decimal"
             value={value}
+            aria-invalid={inputError ? true : undefined}
+            aria-describedby={inputError ? 'cr-plan-edit-error' : undefined}
             onChange={(event) => setValue(event.target.value.replace(props.currency === 'USD' ? /[^0-9.]/g : /[^0-9]/g, ''))}
           />
         </label>
         <span className="cr-label">{props.currency}</span>
         {inputError ? (
-          <div className="cr-sheet-error" role="alert">
+          <div className="cr-sheet-error" role="alert" id="cr-plan-edit-error">
             <span className="cr-danger-text">{inputError}</span>
-          </div>
-        ) : null}
-        {conflict ? (
-          <div className="cr-sheet-error" role="alert">
-            <span className="cr-danger-text">
-              {t(locale, 'The plan changed elsewhere — refreshed, please review', 'تغيّرت الخطة من مكان آخر — تم التحديث، يرجى المراجعة')}
-            </span>
           </div>
         ) : null}
         <div className="cr-row">
@@ -133,15 +125,25 @@ function EditDialog(props: EditDialogProps) {
 export function PlanPage(props: PlanPageProps) {
   const { locale, month, summaries } = props;
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
+  const [saveFailed, setSaveFailed] = useState(false);
 
   const activeRows = props.categoryRows.filter((row) => row.archivedAt === null);
 
   const summaryFor = (currency: Currency): BudgetCurrencySummary | undefined =>
     summaries.find((summary) => summary.currency === currency);
 
+  const openEdit = (target: EditTarget) => {
+    setSaveFailed(false);
+    setEditTarget(target);
+  };
+
   const editTitle = (target: EditTarget): string => target.kind === 'income'
     ? t(locale, 'Planned income', 'الدخل المخطط')
     : t(locale, `${target.name} target`, `هدف ${target.name}`);
+
+  const failureMessage = props.error && /revision|conflict/i.test(props.error)
+    ? t(locale, 'The plan changed elsewhere — refreshed, please review', 'تغيّرت الخطة من مكان آخر — تم التحديث، يرجى المراجعة')
+    : t(locale, 'Could not save the plan — please try again.', 'تعذر حفظ الخطة — حاول مرة أخرى.');
 
   return (
     <>
@@ -149,9 +151,9 @@ export function PlanPage(props: PlanPageProps) {
         <h1>{t(locale, 'Monthly plan', 'الخطة الشهرية')}</h1>
         <span className="cr-label">{monthLabel(month, locale)}</span>
       </header>
-      {props.error ? (
+      {saveFailed ? (
         <div className="cr-card" role="alert">
-          <span className="cr-danger-text">{props.error}</span>
+          <span className="cr-danger-text">{failureMessage}</span>
         </div>
       ) : null}
       {PLAN_CURRENCIES.map((currency) => {
@@ -159,7 +161,7 @@ export function PlanPage(props: PlanPageProps) {
         if (!summary) {
           return (
             <section key={currency} className="cr-card" aria-label={t(locale, 'Set planned income', 'حدد الدخل المخطط')}>
-              <button type="button" className="cr-button" onClick={() => setEditTarget({ kind: 'income', currency, currentMinor: null, expectedRevisionId: null })}>
+              <button type="button" className="cr-button" onClick={() => openEdit({ kind: 'income', currency, currentMinor: null, expectedRevisionId: null })}>
                 {t(locale, 'Set planned income', 'حدد الدخل المخطط')}
                 {' '}
                 <span className="cr-chip">{currency}</span>
@@ -171,7 +173,12 @@ export function PlanPage(props: PlanPageProps) {
           <section key={currency} className="cr-card" aria-label={t(locale, 'Planned income', 'الدخل المخطط') + ' ' + currency}>
             <div className="cr-row">
               <h2 className="cr-label">{t(locale, 'Planned income', 'الدخل المخطط')}</h2>
-              <button type="button" className="cr-button" onClick={() => setEditTarget({ kind: 'income', currency, currentMinor: summary.plannedIncomeMinor, expectedRevisionId: summary.incomePlanRevisionId })}>
+              <button
+                type="button"
+                className="cr-button"
+                aria-label={t(locale, `Edit planned income ${currency}`, `تعديل الدخل المخطط ${currency}`)}
+                onClick={() => openEdit({ kind: 'income', currency, currentMinor: summary.plannedIncomeMinor, expectedRevisionId: summary.incomePlanRevisionId })}
+              >
                 {t(locale, 'Edit', 'تعديل')}
               </button>
             </div>
@@ -214,7 +221,8 @@ export function PlanPage(props: PlanPageProps) {
                     <button
                       type="button"
                       className="cr-button"
-                      onClick={() => setEditTarget({
+                      aria-label={t(locale, `Edit ${categoryName(row, locale)} target`, `تعديل هدف ${categoryName(row, locale)}`)}
+                      onClick={() => openEdit({
                         kind: 'target',
                         categoryId: row.categoryId,
                         currency: row.currency,
@@ -265,19 +273,23 @@ export function PlanPage(props: PlanPageProps) {
           pending={props.pending}
           onCancel={() => setEditTarget(null)}
           onSave={async (amountMinor) => {
+            let ok: boolean;
             if (editTarget.kind === 'income') {
-              return props.onSaveIncome({
+              ok = await props.onSaveIncome({
+                currency: editTarget.currency,
+                amountMinor,
+                expectedRevisionId: editTarget.expectedRevisionId,
+              });
+            } else {
+              ok = await props.onSaveTarget({
+                categoryId: editTarget.categoryId,
                 currency: editTarget.currency,
                 amountMinor,
                 expectedRevisionId: editTarget.expectedRevisionId,
               });
             }
-            return props.onSaveTarget({
-              categoryId: editTarget.categoryId,
-              currency: editTarget.currency,
-              amountMinor,
-              expectedRevisionId: editTarget.expectedRevisionId,
-            });
+            if (!ok) setSaveFailed(true);
+            return ok;
           }}
         />
       ) : null}
