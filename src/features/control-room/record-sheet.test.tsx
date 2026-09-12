@@ -333,4 +333,62 @@ describe('RecordSheet', () => {
     expect(screen.getByRole('button', { name: 'Expense' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Amount')).not.toBeInTheDocument();
   });
+
+  it('steps back from the amount step to the type grid and can continue forward again', async () => {
+    const user = userEvent.setup();
+    const props = makeProps();
+    render(<RecordSheet {...props} />);
+
+    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    await pressKeys(user, '1 2 . 5');
+    expect(screen.getByLabelText('Amount')).toHaveTextContent('12.5');
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    // Back on the type grid, amount cleared.
+    expect(screen.getByRole('button', { name: 'Income' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Amount')).not.toBeInTheDocument();
+
+    // Forward again works end to end.
+    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    expect(screen.getByLabelText('Amount')).toHaveTextContent('');
+    await enterAmount(user, '3 0');
+    await user.click(screen.getByRole('button', { name: 'Cash USD' }));
+    await user.click(screen.getByRole('button', { name: 'Skip' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(props.onSubmitRecord).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'expense',
+      movements: [{ walletId: 'w-cash', amountMinor: '-3000' }],
+    }));
+  });
+
+  it('steps back from the repayment amount to the loan picker', async () => {
+    const user = userEvent.setup();
+    render(<RecordSheet {...makeProps()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Repay' }));
+    await user.click(screen.getByRole('button', { name: 'Sara $50.00' }));
+    await pressKeys(user, '2 5');
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+
+    // Back at the loan picker, not the keypad.
+    expect(screen.getByRole('button', { name: 'Sara $50.00' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Amount')).not.toBeInTheDocument();
+  });
+
+  it('keeps the transfer confirm disabled until both wallets are picked', async () => {
+    const user = userEvent.setup();
+    render(<RecordSheet {...makeProps()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Transfer' }));
+    await enterAmount(user, '1 0');
+    await user.click(screen.getByRole('button', { name: 'Cash USD' }));
+
+    // Only the source wallet is picked: no confirm yet.
+    expect(screen.queryByRole('button', { name: 'Confirm' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Bank USD' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Bank USD' }));
+    expect(screen.getByRole('button', { name: 'Confirm' })).toBeEnabled();
+  });
 });

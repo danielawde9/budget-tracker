@@ -278,6 +278,7 @@ export function RecordSheet(props: RecordSheetProps) {
         break;
       case 'amount':
         if (kind === 'repay') setLoanId(null);
+        else setKind(null);
         setDisplay('');
         setUsdDisplay('');
         setLbpDisplay('');
