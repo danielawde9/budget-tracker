@@ -20,7 +20,7 @@ describe('ApplicationShell', () => {
     expect(screen.getByText('Household space')).toBeInTheDocument();
     const navigation = screen.getByRole('navigation', { name: 'Primary navigation' });
     expect(screen.getByRole('complementary')).toHaveClass('app-rail', 'app-rail--light');
-    expect(within(navigation).getAllByRole('button').at(0)).toHaveAccessibleName('Home');
+    expect(within(navigation).getAllByRole('button').at(0)).toHaveAccessibleName('Overview');
     expect(within(navigation).getByRole('button', { name: 'Reports' })).toBeInTheDocument();
     expect(within(navigation).getAllByTestId('navigation-icon')).toHaveLength(6);
     for (const icon of within(navigation).getAllByTestId('navigation-icon')) {
@@ -32,7 +32,7 @@ describe('ApplicationShell', () => {
     expect(wallets).not.toBeDisabled();
     expect(categories).not.toBeDisabled();
 
-    await user.click(screen.getByRole('button', { name: 'Home' }));
+    await user.click(screen.getByRole('button', { name: 'Overview' }));
     expect(changeDestination).toHaveBeenCalledWith('home');
     await user.click(wallets);
     expect(changeDestination).toHaveBeenCalledWith('wallets');
@@ -61,6 +61,18 @@ describe('ApplicationShell', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Sign out' }));
     expect(signOut).toHaveBeenCalledOnce();
+  });
+
+  it('groups available destinations by task and exposes Reports', () => {
+    render(<ApplicationShell locale="en" userEmail="owner@example.com" spaces={[householdSpace]} selectedSpace={householdSpace} activeDestination="home" onDestinationChange={vi.fn()} onSpaceChange={vi.fn()} onAddSpace={vi.fn()} onLocaleChange={vi.fn()} onSignOut={vi.fn()}><div>Overview</div></ApplicationShell>);
+
+    const navigation = screen.getByRole('navigation', { name: 'Primary navigation' });
+    expect(within(navigation).getByRole('heading', { name: 'Daily money' })).toBeInTheDocument();
+    expect(within(navigation).getByRole('heading', { name: 'Review' })).toBeInTheDocument();
+    expect(within(navigation).getByRole('heading', { name: 'Setup' })).toBeInTheDocument();
+    expect(within(navigation).getAllByRole('button').map((button) => button.textContent)).toEqual([
+      'Overview', 'Wallets', 'Loans', 'Reports', 'Categories', 'Household',
+    ]);
   });
 
   it('provides equivalent Arabic labels and keeps sourced names isolated', () => {
