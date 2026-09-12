@@ -163,6 +163,7 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
       gateways={{ wallets: props.walletsGateway, loans: props.loansGateway, categories: props.categoriesGateway, reports: props.reportsGateway, household: props.householdGateway, plan: props.planClient, insights: props.insightsClient, exchange: props.exchangeClient }}
       recordOpen={recordOpen}
       onCloseRecord={() => setRecordOpen(false)}
+      onSpaceUnavailable={() => void workspace.refresh()}
     />
     </ControlRoomShell>
   </>;
