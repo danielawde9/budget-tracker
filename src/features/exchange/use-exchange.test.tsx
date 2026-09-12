@@ -101,6 +101,19 @@ describe('useExchange', () => {
     expect(findEventByRequestId).toHaveBeenNthCalledWith(2, 'space-1', 'req-fixed');
   });
 
+  it('propagates an onRecorded refresh error without triggering receipt reconciliation', async () => {
+    const client = new InMemoryExchangeClient();
+    const findEventByRequestId = vi.fn().mockResolvedValue(null);
+    const onRecorded = vi.fn().mockRejectedValue(new Error('an active space membership is required'));
+    const { result } = renderHook(() => useExchange(client, makeReceipts(findEventByRequestId), 'space-1', onRecorded, () => 'req-fixed'));
+
+    await act(async () => {
+      await expect(result.current.recordExchange(draft)).rejects.toThrow('an active space membership is required');
+    });
+    expect(findEventByRequestId).not.toHaveBeenCalled();
+    expect(result.current.ambiguous).toBeNull();
+  });
+
   it('rethrows non-transport errors to the caller', async () => {
     const client = new InMemoryExchangeClient();
     client.error = new Error('an active space membership is required');

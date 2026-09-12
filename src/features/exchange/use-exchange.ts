@@ -50,11 +50,9 @@ export function useExchange(
     requestId: string,
     draft: ExchangeDraft,
   ): Promise<ExchangeOutcome> => {
+    let reconciled = false;
     try {
       await client.recordExchange({ spaceId, requestId, ...draft });
-      await onRecorded();
-      setAmbiguous(null);
-      return { status: 'success', reconciled: false };
     } catch (cause) {
       if (!isAmbiguousTransportFailure(cause)) throw cause;
       let event: unknown | null;
@@ -64,19 +62,21 @@ export function useExchange(
         setAmbiguous({ requestId, draft });
         throw reconciliationCause;
       }
-      if (event) {
-        await onRecorded();
-        setAmbiguous(null);
-        return { status: 'success', reconciled: true };
+      if (!event) {
+        setAmbiguous({ requestId, draft });
+        return { status: 'ambiguous', reconciled: false };
       }
-      setAmbiguous({ requestId, draft });
-      return { status: 'ambiguous', reconciled: false };
+      reconciled = true;
     }
+    await onRecorded();
+    setAmbiguous(null);
+    return { status: 'success', reconciled };
   }, [client, receipts, spaceId, onRecorded]);
 
   const recordExchange = useCallback(async (draft: ExchangeDraft): Promise<ExchangeOutcome> => {
     if (pendingCommand.current) throw new Error('An exchange is already pending.');
     const requestId = createRequestId();
+    setAmbiguous(null);
     setPending(true);
     const command = run(requestId, draft);
     pendingCommand.current = command;
