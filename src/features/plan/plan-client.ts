@@ -98,6 +98,21 @@ function categoryRow(row: unknown): BudgetCategoryRow {
   };
 }
 
+function expectedRevisionArg(value: string | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  if (!/^\d+$/.test(value)) throw new Error('The expected revision id is invalid.');
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed)) throw new Error('The expected revision id is invalid.');
+  return parsed;
+}
+
+function revisionIdValue(row: Row, key: string): string {
+  const result = row[key];
+  if (typeof result === 'number' && Number.isSafeInteger(result)) return String(result);
+  if (typeof result === 'string' && /^\d+$/.test(result)) return result;
+  throw new Error('Unexpected revision id in plan response.');
+}
+
 async function postPlan(client: PlanDataClient, name: string, input: SetIncomePlanInput | SetCategoryTargetInput) {
   const base = {
     p_space_id: input.spaceId,
@@ -105,12 +120,12 @@ async function postPlan(client: PlanDataClient, name: string, input: SetIncomePl
     p_month: input.month,
     p_currency: input.currency,
     p_amount_minor: input.amountMinor,
-    p_expected_revision_id: input.expectedRevisionId ? Number(input.expectedRevisionId) : null,
+    p_expected_revision_id: expectedRevisionArg(input.expectedRevisionId),
   };
   const args = 'categoryId' in input ? { ...base, p_category_id: input.categoryId } : base;
   const data = await call(client, name, args);
   if (!Array.isArray(data) || data.length !== 1) throw new Error('Plan command returned an unexpected result.');
-  return { revisionId: minorValue(asRow(data[0]), 'id') };
+  return { revisionId: revisionIdValue(asRow(data[0]), 'id') };
 }
 
 export function createPlanClient(client: PlanDataClient): PlanClient {

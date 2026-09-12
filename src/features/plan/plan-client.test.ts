@@ -42,6 +42,16 @@ describe('createPlanClient', () => {
     });
   });
 
+  it('rejects a non-numeric expected revision id before calling the rpc', async () => {
+    const rpc = rpcClient(() => ({ data: [{ id: 42, month_start: '2026-09-01' }], error: null }));
+    const client = createPlanClient(rpc);
+    await expect(client.setIncomePlan({
+      spaceId: 'space-1', requestId: 'req-1', month: '2026-09-01',
+      currency: 'USD', amountMinor: '210000', expectedRevisionId: 'abc',
+    })).rejects.toThrow('The expected revision id is invalid.');
+    expect(rpc.rpc).not.toHaveBeenCalled();
+  });
+
   it('posts set_monthly_category_target with null expected revision when omitted', async () => {
     const rpc = rpcClient(() => ({ data: [{ id: 3, month_start: '2026-09-01' }], error: null }));
     const client = createPlanClient(rpc);
