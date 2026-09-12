@@ -1,4 +1,4 @@
-import { expect, test, type TestInfo } from '@playwright/test';
+import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { installApplicationFixture } from './fixtures/application.js';
 import { expectContainedControls } from './workspace-contract.js';
 
@@ -8,12 +8,52 @@ function screenshotPath(testInfo: TestInfo, name: string) {
     : testInfo.outputPath(name);
 }
 
-async function expectLightMintShell(page: import('@playwright/test').Page) {
+function usesMobileNavigation(page: Page) {
+  return page.viewportSize()!.width < 1024;
+}
+
+async function openWorkspaceNavigation(page: Page) {
+  const menu = page.getByRole('button', { name: /^(Menu|القائمة)$/ });
+  if (usesMobileNavigation(page)) {
+    await menu.click();
+    return page.getByRole('dialog', { name: /^(Navigation menu|قائمة التنقل)$/ });
+  }
+  return page.getByRole('navigation', { name: /^(Primary navigation|التنقل الرئيسي)$/ });
+}
+
+async function closeWorkspaceNavigation(page: Page) {
+  const closeMenu = page.getByRole('button', { name: /^(Close menu|إغلاق القائمة)$/ });
+  if (await closeMenu.isVisible()) await closeMenu.click();
+}
+
+async function chooseDestination(page: Page, name: string) {
+  const navigation = await openWorkspaceNavigation(page);
+  await navigation.getByRole('button', { name, exact: true }).click();
+}
+
+async function expectCurrentDestination(page: Page, name: string) {
+  const navigation = await openWorkspaceNavigation(page);
+  await expect(navigation.getByRole('button', { name, exact: true })).toHaveAttribute('aria-current', 'page');
+  await closeWorkspaceNavigation(page);
+}
+
+async function switchToArabic(page: Page) {
+  const language = page.getByRole('button', { name: 'العربية' });
+  if (usesMobileNavigation(page)) await openWorkspaceNavigation(page);
+  await language.click();
+  await closeWorkspaceNavigation(page);
+}
+
+async function expectDesktopTaskRail(page: Page) {
   const rail = page.locator('.app-rail');
-  const active = page.locator('.primary-nav .nav-active');
-  const inactive = page.locator('.primary-nav button:not(.nav-active)');
+  const navigation = rail.getByRole('navigation', { name: 'Primary navigation' });
+  const active = navigation.locator('.nav-active');
+  const inactive = navigation.locator('button:not(.nav-active)');
   await expect(rail).toHaveClass(/app-rail--light/);
   await expect(rail).toHaveCSS('background-color', 'rgb(251, 250, 244)');
+  await expect(navigation.getByRole('heading', { name: 'Daily money' })).toBeVisible();
+  await expect(navigation.getByRole('heading', { name: 'Review' })).toBeVisible();
+  await expect(navigation.getByRole('heading', { name: 'Setup' })).toBeVisible();
   await expect(active).toHaveCSS('background-color', 'rgb(216, 241, 233)');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width);
 
@@ -43,47 +83,46 @@ test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
 });
 
-test('Home desktop light mint shell visual baseline', async ({ page }, testInfo) => {
+test('Overview desktop task rail visual baseline', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop');
   await installApplicationFixture(page);
   await page.goto('/');
-  await expect(page.locator('.app-rail')).toHaveClass(/app-rail--light/);
-  await expect(page.locator('.app-rail')).toHaveCSS('background-color', 'rgb(251, 250, 244)');
-  await expect(page.locator('.primary-nav .nav-active')).toHaveCSS('background-color', 'rgb(216, 241, 233)');
-  await expect(page).toHaveScreenshot('home-light-mint-desktop.png', { fullPage: true });
+  await expectDesktopTaskRail(page);
+  await expect(page).toHaveScreenshot('overview-task-rail-desktop.png', { fullPage: true });
 });
 
-test('Home mobile light mint rail coverage', async ({ page }, testInfo) => {
+test('Overview mobile task drawer is compact and dismissible', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile');
   await installApplicationFixture(page);
   await page.goto('/');
-  await expect(page.locator('.app-rail')).toHaveCSS('background-color', 'rgb(251, 250, 244)');
-  await expect(page.locator('.primary-nav .nav-active')).toHaveCSS('background-color', 'rgb(216, 241, 233)');
+  await expect(page.locator('.app-rail')).toBeHidden();
+  await expect(page.locator('.mobile-shell-bar')).toBeVisible();
+  const navigation = await openWorkspaceNavigation(page);
+  await expect(navigation.getByRole('heading', { name: 'Daily money' })).toBeVisible();
+  await expect(navigation.getByRole('button', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
+  await expect(page).toHaveScreenshot('overview-task-drawer-mobile-en.png', { fullPage: true });
+  await page.keyboard.press('Escape');
+  await expect(navigation).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Menu' })).toBeFocused();
 });
 
-test('Home English mobile compact light mint shell baseline', async ({ page }, testInfo) => {
+test('Overview Arabic mobile drawer mirrors placement and labels', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile');
   await installApplicationFixture(page);
   await page.goto('/');
-  await expectLightMintShell(page);
-  await expect(page).toHaveScreenshot('home-light-mint-mobile-en.png', { fullPage: true });
-});
-
-test('Home Arabic desktop compact light mint shell mirrors baseline', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop');
-  await installApplicationFixture(page);
-  await page.goto('/');
-  await page.getByRole('button', { name: 'العربية' }).click();
+  await switchToArabic(page);
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-  await expectLightMintShell(page);
-  const [rail, main] = await Promise.all([
-    page.locator('.app-rail').boundingBox(),
+  const navigation = await openWorkspaceNavigation(page);
+  await expect(navigation).toHaveAccessibleName('قائمة التنقل');
+  await expect(navigation.getByRole('button', { name: 'النظرة العامة' })).toHaveAttribute('aria-current', 'page');
+  const [drawer, main] = await Promise.all([
+    navigation.boundingBox(),
     page.getByRole('main').boundingBox(),
   ]);
-  expect(rail).not.toBeNull();
+  expect(drawer).not.toBeNull();
   expect(main).not.toBeNull();
-  expect(rail!.x).toBeGreaterThan(main!.x);
-  await expect(page).toHaveScreenshot('home-light-mint-desktop-ar.png', { fullPage: true });
+  expect(drawer!.x + drawer!.width).toBe(page.viewportSize()!.width);
+  await expect(page).toHaveScreenshot('overview-task-drawer-mobile-ar.png', { fullPage: true });
 });
 
 test('Home and Loans desktop use equivalent compact header geometry', async ({ page }, testInfo) => {
@@ -94,7 +133,7 @@ test('Home and Loans desktop use equivalent compact header geometry', async ({ p
     const heading = header.querySelector('h1')!;
     return { fontSize: getComputedStyle(heading).fontSize, paddingBottom: getComputedStyle(header).paddingBottom };
   });
-  await page.getByRole('navigation').getByRole('button', { name: 'Loans', exact: true }).click();
+  await chooseDestination(page, 'Loans');
   const loansHeader = await page.locator('.loans-workspace .topbar').evaluate((header) => {
     const heading = header.querySelector('h1')!;
     return { fontSize: getComputedStyle(heading).fontSize, paddingBottom: getComputedStyle(header).paddingBottom };
@@ -106,7 +145,7 @@ for (const locale of ['en', 'ar'] as const) {
   test(`Home journal text has readable separation ${locale}`, async ({ page }) => {
     await installApplicationFixture(page);
     await page.goto('/');
-    if (locale === 'ar') await page.getByRole('button', { name: 'العربية' }).click();
+    if (locale === 'ar') await switchToArabic(page);
     await expect(page.locator('.home-workspace .journal-list > li')).toHaveCount(7);
     const gaps = await page.locator('.home-workspace .journal-list > li').evaluateAll((rows) => {
       const separation = (first: Element, second: Element) => {
@@ -125,8 +164,9 @@ for (const locale of ['en', 'ar'] as const) {
   test(`rail add-space action has readable contrast ${locale}`, async ({ page }) => {
     await installApplicationFixture(page);
     await page.goto('/');
-    if (locale === 'ar') await page.getByRole('button', { name: 'العربية' }).click();
-    const action = page.getByRole('button', { name: locale === 'ar' ? 'إضافة مساحة أخرى' : 'Add another space' });
+    if (locale === 'ar') await switchToArabic(page);
+    await page.getByRole('button', { name: locale === 'ar' ? 'المساحة الحالية: My money' : 'Current space: My money' }).click();
+    const action = page.getByRole('menuitem', { name: locale === 'ar' ? 'إضافة مساحة أخرى' : 'Add another space' });
     for (const hover of [false, true]) {
       if (hover) await action.hover();
       const contrast = await action.evaluate((element) => {
@@ -150,8 +190,8 @@ for (const locale of ['en', 'ar'] as const) {
   test(`wallet names remain separated from large LBP balances ${locale}`, async ({ page }) => {
     await installApplicationFixture(page);
     await page.goto('/');
-    if (locale === 'ar') await page.getByRole('button', { name: 'العربية' }).click();
-    await page.getByRole('navigation').getByRole('button', { name: locale === 'ar' ? 'المحافظ' : 'Wallets', exact: true }).click();
+    if (locale === 'ar') await switchToArabic(page);
+    await chooseDestination(page, locale === 'ar' ? 'المحافظ' : 'Wallets');
     const row = page.locator('.wallet-context .wallet-list > li').filter({ has: page.getByText('Home LBP', { exact: true }) });
     await expect(row).toHaveCount(1);
     const gap = await row.evaluate((element) => {
@@ -172,13 +212,14 @@ for (const locale of ['en', 'ar'] as const) {
     const historyUrl = new URL((await historyRequest).url());
     expect(historyUrl.searchParams.get('offset')).toBe('0');
     expect(historyUrl.searchParams.get('limit')).toBe('21');
-    if (locale === 'ar') await page.getByRole('button', { name: 'العربية' }).click();
+    if (locale === 'ar') await switchToArabic(page);
     const ar = locale === 'ar';
-    const navigation = page.getByRole('navigation');
     await expect(page.locator('html')).toHaveAttribute('dir', ar ? 'rtl' : 'ltr');
-    await expect(navigation.getByRole('button', { name: ar ? 'الرئيسية' : 'Home', exact: true })).toHaveAttribute('aria-current', 'page');
-    await expect(navigation.getByRole('button', { name: /Reports|التقارير/ })).toHaveCount(0);
+    await expectCurrentDestination(page, ar ? 'النظرة العامة' : 'Overview');
+    const navigation = await openWorkspaceNavigation(page);
+    await expect(navigation.getByRole('button', { name: ar ? 'التقارير' : 'Reports', exact: true })).toHaveCount(1);
     await expect(navigation.locator('button:disabled')).toHaveCount(0);
+    await closeWorkspaceNavigation(page);
     const balances = page.getByRole('region', { name: ar ? 'الأرصدة الفعالة' : 'Active balances' });
     await expect(balances.getByRole('listitem')).toHaveCount(3);
     await expect(balances.getByText('Daily USD', { exact: true })).toBeVisible();
@@ -189,16 +230,16 @@ for (const locale of ['en', 'ar'] as const) {
 
     await page.getByRole('button', { name: ar ? 'عرض المحافظ' : 'View wallets', exact: true }).click();
     await expect(page.getByRole('heading', { name: ar ? 'المحافظ' : 'Wallets', exact: true })).toBeVisible();
-    await expect(navigation.getByRole('button', { name: ar ? 'المحافظ' : 'Wallets', exact: true })).toHaveAttribute('aria-current', 'page');
+    await expectCurrentDestination(page, ar ? 'المحافظ' : 'Wallets');
   });
 
   test(`Wallets, Loans and Categories ${locale} primary routes remain contained`, async ({ page }, testInfo) => {
     await installApplicationFixture(page);
     await page.goto('/');
     const ar = locale === 'ar';
-    if (ar) await page.getByRole('button', { name: 'العربية' }).click();
+    if (ar) await switchToArabic(page);
     for (const [name, destination] of [['wallets', ar ? 'المحافظ' : 'Wallets'], ['loans', ar ? 'القروض' : 'Loans'], ['categories', ar ? 'الفئات' : 'Categories']] as const) {
-      await page.getByRole('navigation').getByRole('button', { name: destination, exact: true }).click();
+      await chooseDestination(page, destination);
       await expect(page.getByRole('heading', { name: destination, exact: true })).toBeVisible();
       await expectContainedControls(page);
       await page.screenshot({ path: screenshotPath(testInfo, `${name}-${locale}-${testInfo.project.name}.png`), fullPage: true });
@@ -212,9 +253,9 @@ test('Home transaction action enters the real Wallets transaction dialog', async
   await page.getByRole('button', { name: 'Record transaction', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Add a transaction' });
   await expect(dialog).toBeVisible();
-  await expect(page.getByRole('navigation').getByRole('button', { name: 'Wallets', exact: true })).toHaveAttribute('aria-current', 'page');
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
+  await expectCurrentDestination(page, 'Wallets');
 });
 
 test('empty Home explains the prerequisite and routes to wallet creation', async ({ page }) => {
@@ -224,6 +265,14 @@ test('empty Home explains the prerequisite and routes to wallet creation', async
   await expect(page.getByText('Create an active wallet before recording a transaction.')).toBeVisible();
   await page.getByRole('button', { name: 'Create a wallet', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Create first wallet' })).toBeVisible();
+});
+
+test('Wallets load failure keeps task navigation available', async ({ page }) => {
+  await installApplicationFixture(page, { failWallets: true });
+  await page.goto('/');
+  await chooseDestination(page, 'Wallets');
+  await expect(page.getByRole('alert')).toContainText('Wallets are unavailable');
+  await expectCurrentDestination(page, 'Wallets');
 });
 
 test('signed-out desktop keeps financial content private', async ({ page }, testInfo) => {
@@ -295,8 +344,9 @@ test('existing user switches spaces without retaining old content', async ({ pag
   await installApplicationFixture(page);
   await page.goto('/');
   await expect(page.getByRole('region', { name: 'Active balances' }).getByText('Daily USD')).toBeVisible();
-  await page.getByRole('combobox', { name: 'Current space' }).selectOption('household-space');
-  await expect(page.locator('.space-current-name bdi')).toHaveText('Home budget');
+  await page.getByRole('button', { name: 'Current space: My money' }).click();
+  await page.getByRole('menuitem', { name: 'Switch to Home budget' }).click();
+  await expect(page.getByRole('button', { name: 'Current space: Home budget' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Active balances' }).getByText('Household USD')).toBeVisible();
   await expect(page.getByText('Daily USD')).toHaveCount(0);
   await expect(page.getByText('No transactions yet')).toBeVisible();
@@ -320,9 +370,9 @@ test('Arabic mobile shell mirrors global and Home controls', async ({ page }, te
   test.skip(testInfo.project.name !== 'mobile');
   await installApplicationFixture(page);
   await page.goto('/');
-  await page.getByRole('button', { name: 'العربية' }).click();
+  await switchToArabic(page);
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-  await expect(page.getByRole('combobox', { name: 'المساحة الحالية' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'المساحة الحالية: My money' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'الأرصدة الفعالة' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'الأرصدة الفعالة' }).getByText('Daily USD')).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'arabic-shell-mobile.png'), fullPage: true });

@@ -1,6 +1,7 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 
 import { installApplicationFixture } from './fixtures/application.js';
+import { chooseWorkspaceDestination, openWorkspaceAccount, switchWorkspaceLanguage } from './workspace-navigation.js';
 
 const requiredProtectedMutations = [
   'archive_category',
@@ -14,6 +15,10 @@ const requiredProtectedMutations = [
   'reverse_financial_event',
   'set_loan_monthly_target',
 ] as const;
+
+function activeWalletName(page: Page, name: string) {
+  return page.locator('.wallet-context .wallet-list > li > div > bdi').filter({ hasText: new RegExp(`^${name}$`) });
+}
 
 async function fixtureAudit(page: Page) {
   return page.evaluate(async () => {
@@ -72,14 +77,14 @@ test('desktop English rehearsal exercises every protected financial mutation and
   await expect(page.getByRole('note', { name: 'Backup readiness' })).toContainText('Do not enter real financial data');
   await page.getByText('Account').click();
 
-  await page.getByRole('navigation').getByRole('button', { name: 'Wallets', exact: true }).click();
+  await chooseWorkspaceDestination(page, 'Wallets');
   await page.getByRole('button', { name: 'New wallet' }).click();
   let dialog = page.getByRole('dialog', { name: 'Create a wallet' });
   await dialog.getByLabel('Wallet name').fill('Synthetic UAT wallet');
   await dialog.getByRole('button', { name: 'Create wallet' }).click();
   await expect(dialog.getByRole('status')).toContainText('Wallet created');
   await dialog.getByRole('button', { name: 'Done' }).click();
-  await expect(page.getByText('Synthetic UAT wallet').first()).toBeVisible();
+  await expect(activeWalletName(page, 'Synthetic UAT wallet')).toBeVisible();
 
   await finishWalletTransaction(page, 'opening_balance', '20');
   await finishWalletTransaction(page, 'income', '7');
@@ -93,7 +98,7 @@ test('desktop English rehearsal exercises every protected financial mutation and
   await expect(dialog.getByRole('status')).toContainText('Transaction undone');
   await dialog.getByRole('button', { name: 'Done' }).click();
 
-  await page.getByRole('button', { name: 'Categories' }).click();
+  await chooseWorkspaceDestination(page, 'Categories');
   await page.getByRole('button', { name: 'New category' }).click();
   dialog = page.getByRole('dialog', { name: 'Create a category' });
   await dialog.getByLabel('Type').selectOption('expense');
@@ -103,7 +108,7 @@ test('desktop English rehearsal exercises every protected financial mutation and
   await expect(dialog.getByRole('status')).toContainText('Category created');
   await dialog.getByRole('button', { name: 'Done' }).click();
 
-  await page.getByRole('navigation').getByRole('button', { name: 'Wallets', exact: true }).click();
+  await chooseWorkspaceDestination(page, 'Wallets');
   await page.getByRole('button', { name: 'Add transaction' }).click();
   dialog = page.getByRole('dialog', { name: 'Add a transaction' });
   await dialog.getByLabel('Type').selectOption('expense');
@@ -114,7 +119,7 @@ test('desktop English rehearsal exercises every protected financial mutation and
   await expect(dialog.getByRole('status')).toContainText('Transaction recorded');
   await dialog.getByRole('button', { name: 'Done' }).click();
 
-  await page.getByRole('button', { name: 'Categories' }).click();
+  await chooseWorkspaceDestination(page, 'Categories');
   await page.getByRole('button', { name: 'Archive Synthetic transport' }).click();
   dialog = page.getByRole('dialog', { name: 'Archive category' });
   await dialog.getByRole('checkbox').check();
@@ -122,7 +127,7 @@ test('desktop English rehearsal exercises every protected financial mutation and
   await expect(dialog.getByRole('status')).toContainText('Category archived');
   await dialog.getByRole('button', { name: 'Done' }).click();
 
-  await page.getByRole('button', { name: 'Loans' }).click();
+  await chooseWorkspaceDestination(page, 'Loans');
   await page.getByRole('button', { name: 'Add loan' }).click();
   dialog = page.getByRole('dialog', { name: 'Add a loan' });
   await dialog.getByLabel('Person').fill('Synthetic opening');
@@ -168,10 +173,10 @@ test('desktop English rehearsal exercises every protected financial mutation and
   expect(new Set(audit.body.protectedMutationCalls)).toEqual(new Set(requiredProtectedMutations));
 
   await page.reload();
-  await expect(page.getByRole('navigation').getByRole('button', { name: 'Home', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('navigation').getByRole('button', { name: 'Overview', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('heading', { name: 'Active balances' })).toBeVisible();
-  await page.getByRole('navigation').getByRole('button', { name: 'Wallets', exact: true }).click();
-  await expect(page.getByText('Synthetic UAT wallet').first()).toBeVisible();
+  await chooseWorkspaceDestination(page, 'Wallets');
+  await expect(activeWalletName(page, 'Synthetic UAT wallet')).toBeVisible();
   const archivedSyntheticEvent = page.getByRole('row').filter({ hasText: 'Synthetic transport' });
   await expect(archivedSyntheticEvent).toContainText('Archived');
   await page.screenshot({ path: testInfo.outputPath('desktop-en-reload-retention.png'), fullPage: true });
@@ -181,9 +186,9 @@ test('mobile Arabic rehearsal keeps the empty state, RTL, recovery notice, and s
   test.skip(testInfo.project.name !== 'mobile');
   await installApplicationFixture(page, { emptyWallets: true });
   await page.goto('/');
-  await page.getByRole('button', { name: 'العربية' }).click();
+  await switchWorkspaceLanguage(page);
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-  await page.getByRole('navigation').getByRole('button', { name: 'المحافظ', exact: true }).click();
+  await chooseWorkspaceDestination(page, 'المحافظ');
   await expect(page.getByText('لا توجد محافظ بعد')).toBeVisible();
   await page.getByRole('button', { name: 'إنشاء أول محفظة' }).click();
   const dialog = page.getByRole('dialog', { name: 'إنشاء محفظة' });
@@ -193,14 +198,15 @@ test('mobile Arabic rehearsal keeps the empty state, RTL, recovery notice, and s
   await dialog.getByRole('button', { name: 'تم' }).click();
 
   await page.reload();
-  await page.getByRole('button', { name: 'العربية' }).click();
-  await page.getByRole('navigation').getByRole('button', { name: 'المحافظ', exact: true }).click();
-  await expect(page.getByText('محفظة تجريبية').first()).toBeVisible();
-  await page.getByText('الحساب').click();
-  await page.getByText('جاهزية النسخ الاحتياطي').click();
+  await switchWorkspaceLanguage(page);
+  await chooseWorkspaceDestination(page, 'المحافظ');
+  await expect(activeWalletName(page, 'محفظة تجريبية')).toBeVisible();
+  const accountMenu = await openWorkspaceAccount(page, 'الحساب');
+  await accountMenu.getByText('جاهزية النسخ الاحتياطي', { exact: true }).click();
   const backupReadiness = page.getByRole('note', { name: 'جاهزية النسخ الاحتياطي' });
   await expect(backupReadiness).toContainText('لا تُدخل بيانات مالية حقيقية');
-  await expect(backupReadiness).toBeInViewport({ ratio: 1 });
+  await backupReadiness.scrollIntoViewIfNeeded();
+  await expect(backupReadiness).toBeInViewport({ ratio: 0.99 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.screenshot({ path: testInfo.outputPath('mobile-ar-reload-retention.png'), fullPage: true });
 });

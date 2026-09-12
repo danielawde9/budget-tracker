@@ -148,3 +148,35 @@ hosted deployment, or owner acceptance.
 | `pnpm check` | FAIL, exit 1 before application DB/UI/build gates: `check:ops` reached `tests/ops/supabase-scratch-restore.test.ts`, then Testcontainers reported `Could not find a working container runtime strategy` at `GenericContainer.start`. The completed portion reported 13 test files passed, 253 tests passed, and 9 skipped; `shellcheck unavailable; bash syntax check completed` also emitted. No application, SQL, or ops code was changed for this host prerequisite. |
 | `pnpm build` | PASS, exit 0; 1,965 modules transformed. Vite emitted its existing chunk-size warning: `index-C7xIA-C8.js` is 506.14 kB minified (144.78 kB gzip), over the 500 kB warning threshold. |
 | `pnpm playwright test` | PASS; the Playwright result file records `status: passed` for the 156-test desktop/mobile matrix. The run emitted Node `DEP0205` and repeated `NO_COLOR` ignored because `FORCE_COLOR` is set warnings. Project-specific desktop/mobile exclusions remained skips; they are not passes. |
+
+## Task-oriented navigation replacement verification — 2026-09-12
+
+This addendum supersedes the compact light/mint shell description above for the
+current authenticated application shell. It replaces the scrolling mobile rail
+with a compact product-and-space bar plus a modal Menu drawer, and replaces the
+desktop flat navigation with a persistent task-grouped rail. The current groups
+are Daily money (Overview, Wallets), Review (Loans, Reports), and Setup
+(Categories plus Household for household spaces only).
+
+| Verification | Result |
+| --- | --- |
+| `pnpm exec playwright test e2e/application.visual.spec.ts` | PASS: 39 passed, 13 explicit viewport skips, exit 0. |
+| Wallets feature-error route in the same suite | PASS: Wallets presents its error alert while the current destination remains available through the task navigation. |
+| `pnpm exec playwright test --workers=4` | PASS: 101 passed, 55 explicit project skips, exit 0. |
+| `pnpm test:ui` | PASS: 39 files and 451 tests, exit 0. |
+| `pnpm typecheck` | PASS: worker type check plus both TypeScript projects, exit 0. |
+| `pnpm build` | PASS: 1,971 modules transformed, exit 0; Vite retained its 514.94 kB main-chunk warning. |
+
+Local browser-emulation review covered the new Overview desktop rail, English
+mobile drawer, and Arabic mobile drawer snapshots. The rail visibly groups
+destinations and keeps space/account utilities together; both drawers overlay
+content cleanly, restore focus to Menu after Escape, and the Arabic drawer is
+flush to the logical start edge. The tests also exercise desktop and mobile
+destination selection, language switching from the mobile drawer, the
+space-switcher menu, and the retained shell on a Wallets load failure.
+
+The fixture repair adds missing read endpoints and the required event actor id
+so browser data is accepted by the existing gateway validation. It does not
+alter production financial commands, gateways, SQL, or live data. These are
+local fixture/browser results only; they are not physical-device, assistive
+technology, live Supabase/PostgreSQL, hosted deployment, or owner-UAT proof.

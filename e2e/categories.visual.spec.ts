@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page, type Route, type TestInfo } from
 
 import { installCategoriesApiFixture, type CategoriesFixtureOptions } from './fixtures/categories.js';
 import { expectDialogReturnsFocus } from './workspace-contract.js';
+import { chooseWorkspaceDestination, switchWorkspaceLanguage } from './workspace-navigation.js';
 
 function screenshotPath(testInfo: TestInfo, name: string) {
   return process.env['UPDATE_VISUAL_ARTIFACTS'] === '1'
@@ -13,13 +14,12 @@ async function openSettledHome(page: Page, options: CategoriesFixtureOptions = {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await installCategoriesApiFixture(page, options);
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Categories' })).toBeVisible();
   await expect(page.getByRole('status', { name: 'Loading financial overview' })).toHaveCount(0);
 }
 
 async function openCategories(page: Page, options: CategoriesFixtureOptions = {}) {
   await openSettledHome(page, options);
-  await page.getByRole('button', { name: 'Categories' }).click();
+  await chooseWorkspaceDestination(page, 'Categories');
   await expect(page.getByRole('heading', { name: 'Categories', exact: true })).toBeVisible();
   if (!options.failCategoriesOnce) {
     await expect(page.getByRole('status', { name: 'Loading categories' })).toHaveCount(0);
@@ -149,7 +149,7 @@ test('category rejection preserves safe bilingual form values', async ({ page },
 test('categorized and uncategorized income preserve exact history labels', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop');
   await openCategories(page);
-  await page.getByRole('navigation').getByRole('button', { name: 'Wallets', exact: true }).click();
+  await chooseWorkspaceDestination(page, 'Wallets');
   await page.getByRole('button', { name: 'Add transaction' }).click();
   let dialog = page.getByRole('dialog', { name: 'Add a transaction' });
   await dialog.getByLabel('Type').selectOption('income');
@@ -180,7 +180,7 @@ test('categorized and uncategorized income preserve exact history labels', async
 test('a child category posts its exact identity without changing signed minor units', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop');
   await openCategories(page);
-  await page.getByRole('navigation').getByRole('button', { name: 'Wallets', exact: true }).click();
+  await chooseWorkspaceDestination(page, 'Wallets');
   await page.getByRole('button', { name: 'Add transaction' }).click();
   const dialog = page.getByRole('dialog', { name: 'Add a transaction' });
   await dialog.getByLabel('Type').selectOption('expense');
@@ -202,7 +202,7 @@ test('a child category posts its exact identity without changing signed minor un
 test('archived historical label remains while ambiguity reconciles without duplicate posts', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop');
   await openCategories(page, { ambiguousCategorizedEventOnce: true });
-  await page.getByRole('navigation').getByRole('button', { name: 'Wallets', exact: true }).click();
+  await chooseWorkspaceDestination(page, 'Wallets');
   await expect(page.getByText('Archived travel')).toBeVisible();
   await expect(page.getByText('Archived', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Add transaction' }).click();
@@ -227,7 +227,7 @@ test('category load failure offers a deterministic manager retry', async ({ page
     body: JSON.stringify({ message: 'category register temporarily unavailable' }),
   });
   await page.route(categoryPath, failCategories);
-  await page.getByRole('button', { name: 'Categories' }).click();
+  await chooseWorkspaceDestination(page, 'Categories');
   const error = page.getByRole('alert');
   await expect(error).toContainText('Categories are unavailable', { timeout: 15_000 });
   await page.unroute(categoryPath, failCategories);
@@ -257,7 +257,7 @@ test('mobile category tabs and dialog remain contained with accessible targets',
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.screenshot({ path: screenshotPath(testInfo, 'mobile-create-subcategory.png') });
   await page.keyboard.press('Escape');
-  await page.getByRole('navigation').getByRole('button', { name: 'Wallets', exact: true }).click();
+  await chooseWorkspaceDestination(page, 'Wallets');
   await page.getByRole('button', { name: 'Add transaction' }).click();
   const transactionDialog = page.getByRole('dialog', { name: 'Add a transaction' });
   await expectMinimumControlSize(transactionDialog);
@@ -267,14 +267,14 @@ test('mobile category tabs and dialog remain contained with accessible targets',
 test('Arabic RTL mirrors management and categorized history with isolated names', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile');
   await openCategories(page);
-  await page.getByRole('button', { name: 'العربية' }).click();
+  await switchWorkspaceLanguage(page);
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await expect(page.getByRole('heading', { name: 'الفئات' })).toBeVisible();
   await expect(page.getByText('راتب').locator('xpath=ancestor-or-self::bdi')).toBeVisible();
   await page.getByRole('button', { name: 'المصروف', exact: true }).click();
   await expect(page.getByRole('list', { name: 'الفئات الفرعية ضمن الأساسيات' })).toContainText('بقالة');
   await page.screenshot({ path: screenshotPath(testInfo, 'mobile-arabic-category-register.png') });
-  await page.getByRole('navigation').getByRole('button', { name: 'المحافظ', exact: true }).click();
+  await chooseWorkspaceDestination(page, 'المحافظ');
   const historyHeading = page.getByRole('heading', { name: 'سجل المعاملات' });
   await expect(historyHeading).toBeVisible();
   const archivedCategory = page.getByText('سفر مؤرشف').locator('xpath=ancestor-or-self::bdi');

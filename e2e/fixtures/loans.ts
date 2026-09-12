@@ -6,6 +6,7 @@ export interface ApplicationFixtureOptions {
   failFirstSignIn?: boolean;
   ambiguousSpaceOnce?: boolean;
   emptyWallets?: boolean;
+  failWallets?: boolean;
   ambiguousEventOnce?: boolean;
   failCategoriesOnce?: boolean;
   ambiguousCategoryOnce?: boolean;
@@ -17,6 +18,7 @@ export interface ApplicationFixtureOptions {
 interface VisualEvent {
   id: string;
   space_id: string;
+  actor_id: string;
   request_id: string;
   kind: string;
   effective_date: string;
@@ -86,6 +88,7 @@ const essentialsCategoryId = '44444444-4444-4444-8444-444444444444';
 const groceriesCategoryId = '22222222-2222-4222-8222-222222222222';
 const archivedTravelCategoryId = '33333333-3333-4333-8333-333333333333';
 const generalIncomeEventId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const fixtureActorId = '11111111-1111-4111-8111-111111111111';
 
 const categoryRows: VisualCategory[] = [
   { id: salaryCategoryId, space_id: 'personal-space', kind: 'income', name_en: 'Salary', name_ar: 'راتب', parent_category_id: null, created_at: '2026-01-01T08:00:00Z', archived_at: null },
@@ -111,13 +114,13 @@ const balances = [
 ];
 
 const events: VisualEvent[] = [
-  { id: generalIncomeEventId, space_id: 'personal-space', request_id: 'request-general-income', kind: 'income', effective_date: '2026-09-07', created_at: '2026-09-07T14:00:00Z', reversal_of: null },
-  { id: 'maya-opening', space_id: 'personal-space', request_id: 'request-maya-opening', kind: 'loan_lend', effective_date: '2026-07-01', created_at: '2026-07-01T12:00:00Z', reversal_of: null },
-  { id: 'maya-payment', space_id: 'personal-space', request_id: 'request-maya-payment', kind: 'loan_receive_repayment', effective_date: '2026-09-05', created_at: '2026-09-05T12:00:00Z', reversal_of: null },
-  { id: 'karim-opening', space_id: 'personal-space', request_id: 'request-karim-opening', kind: 'loan_borrow', effective_date: '2026-06-01', created_at: '2026-06-01T12:00:00Z', reversal_of: null },
-  { id: 'karim-payment', space_id: 'personal-space', request_id: 'request-karim-payment', kind: 'loan_repay_borrowing', effective_date: '2026-09-03', created_at: '2026-09-03T12:00:00Z', reversal_of: null },
-  { id: 'rana-opening', space_id: 'personal-space', request_id: 'request-rana-opening', kind: 'loan_opening', effective_date: '2026-05-01', created_at: '2026-05-01T12:00:00Z', reversal_of: null },
-  { id: 'rana-payment', space_id: 'personal-space', request_id: 'request-rana-payment', kind: 'loan_receive_repayment', effective_date: '2026-06-01', created_at: '2026-06-01T12:00:00Z', reversal_of: null },
+  { id: generalIncomeEventId, space_id: 'personal-space', actor_id: fixtureActorId, request_id: 'request-general-income', kind: 'income', effective_date: '2026-09-07', created_at: '2026-09-07T14:00:00Z', reversal_of: null },
+  { id: 'maya-opening', space_id: 'personal-space', actor_id: fixtureActorId, request_id: 'request-maya-opening', kind: 'loan_lend', effective_date: '2026-07-01', created_at: '2026-07-01T12:00:00Z', reversal_of: null },
+  { id: 'maya-payment', space_id: 'personal-space', actor_id: fixtureActorId, request_id: 'request-maya-payment', kind: 'loan_receive_repayment', effective_date: '2026-09-05', created_at: '2026-09-05T12:00:00Z', reversal_of: null },
+  { id: 'karim-opening', space_id: 'personal-space', actor_id: fixtureActorId, request_id: 'request-karim-opening', kind: 'loan_borrow', effective_date: '2026-06-01', created_at: '2026-06-01T12:00:00Z', reversal_of: null },
+  { id: 'karim-payment', space_id: 'personal-space', actor_id: fixtureActorId, request_id: 'request-karim-payment', kind: 'loan_repay_borrowing', effective_date: '2026-09-03', created_at: '2026-09-03T12:00:00Z', reversal_of: null },
+  { id: 'rana-opening', space_id: 'personal-space', actor_id: fixtureActorId, request_id: 'request-rana-opening', kind: 'loan_opening', effective_date: '2026-05-01', created_at: '2026-05-01T12:00:00Z', reversal_of: null },
+  { id: 'rana-payment', space_id: 'personal-space', actor_id: fixtureActorId, request_id: 'request-rana-payment', kind: 'loan_receive_repayment', effective_date: '2026-06-01', created_at: '2026-06-01T12:00:00Z', reversal_of: null },
 ];
 
 const postings = [
@@ -360,7 +363,7 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       const body = request.postDataJSON() as { p_space_id: string; p_request_id: string; p_kind: 'income' | 'expense'; p_effective_date: string; p_movements: Array<{ walletId: string; amountMinor: string }>; p_category_id: string };
       eventSequence += 1;
       const id = `e0000000-0000-4000-8000-${String(eventSequence).padStart(12, '0')}`;
-      visibleEvents.unshift({ id, space_id: body.p_space_id, request_id: body.p_request_id, kind: body.p_kind, effective_date: body.p_effective_date, created_at: `2026-09-08T11:${String(eventSequence).padStart(2, '0')}:00Z`, reversal_of: null });
+      visibleEvents.unshift({ id, space_id: body.p_space_id, actor_id: fixtureActorId, request_id: body.p_request_id, kind: body.p_kind, effective_date: body.p_effective_date, created_at: `2026-09-08T11:${String(eventSequence).padStart(2, '0')}:00Z`, reversal_of: null });
       visibleEventCategories.push({ event_id: id, space_id: body.p_space_id, category_id: body.p_category_id, category_kind: body.p_kind, created_at: `2026-09-08T11:${String(eventSequence).padStart(2, '0')}:00Z` });
       for (const movement of body.p_movements) {
         visibleMovements.push({ event_id: id, space_id: body.p_space_id, wallet_id: movement.walletId, amount_minor: movement.amountMinor });
@@ -377,7 +380,7 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       const body = request.postDataJSON() as { p_space_id: string; p_request_id: string; p_kind: string; p_effective_date: string; p_movements: Array<{ walletId: string; amountMinor: string }> };
       eventSequence += 1;
       const id = `e1000000-0000-4000-8000-${String(eventSequence).padStart(12, '0')}`;
-      visibleEvents.unshift({ id, space_id: body.p_space_id, request_id: body.p_request_id, kind: body.p_kind, effective_date: body.p_effective_date, created_at: `2026-09-08T12:${String(eventSequence).padStart(2, '0')}:00Z`, reversal_of: null });
+      visibleEvents.unshift({ id, space_id: body.p_space_id, actor_id: fixtureActorId, request_id: body.p_request_id, kind: body.p_kind, effective_date: body.p_effective_date, created_at: `2026-09-08T12:${String(eventSequence).padStart(2, '0')}:00Z`, reversal_of: null });
       for (const movement of body.p_movements) {
         visibleMovements.push({ event_id: id, space_id: body.p_space_id, wallet_id: movement.walletId, amount_minor: movement.amountMinor });
         const balance = visibleWalletBalances.find((item) => item.wallet_id === movement.walletId && item.space_id === body.p_space_id);
@@ -400,7 +403,7 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       }
       eventSequence += 1;
       const id = `e2000000-0000-4000-8000-${String(eventSequence).padStart(12, '0')}`;
-      visibleEvents.unshift({ id, space_id: body.p_space_id, request_id: body.p_request_id, kind: 'reversal', effective_date: body.p_effective_date, created_at: `2026-09-08T13:${String(eventSequence).padStart(2, '0')}:00Z`, reversal_of: original.id });
+      visibleEvents.unshift({ id, space_id: body.p_space_id, actor_id: fixtureActorId, request_id: body.p_request_id, kind: 'reversal', effective_date: body.p_effective_date, created_at: `2026-09-08T13:${String(eventSequence).padStart(2, '0')}:00Z`, reversal_of: original.id });
       for (const movement of visibleMovements.filter((item) => item.event_id === original.id)) {
         const amountMinor = (-BigInt(movement.amount_minor)).toString();
         visibleMovements.push({ event_id: id, space_id: body.p_space_id, wallet_id: movement.wallet_id, amount_minor: amountMinor });
@@ -441,6 +444,9 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       ));
     }
     if (path.endsWith('/wallets')) {
+      if (options.failWallets) {
+        return json(route, { message: 'wallet register is unavailable' }, 400);
+      }
       const spaceId = equalValue('space_id');
       return json(route, visibleWallets.filter((wallet) => !spaceId || wallet.space_id === spaceId));
     }
@@ -448,6 +454,7 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       const spaceId = equalValue('space_id');
       return json(route, visibleWalletBalances.filter((balance) => !spaceId || balance.space_id === spaceId));
     }
+    if (path.endsWith('/payees')) return json(route, []);
     if (path.endsWith('/loans')) {
       const spaceId = equalValue('space_id');
       return json(route, loans.filter((loan) => !spaceId || loan.space_id === spaceId));
@@ -466,6 +473,7 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
         && (!reversalIds || (event.reversal_of !== null && reversalIds.has(event.reversal_of))),
       ));
     }
+    if (path.endsWith('/financial_event_descriptions')) return json(route, []);
     if (path.endsWith('/loan_postings')) {
       const spaceId = equalValue('space_id');
       const eventIds = includedValues('event_id');
