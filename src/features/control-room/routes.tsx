@@ -234,6 +234,8 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
       }));
   }, [categories.incomeCategories, categories.expenseCategories]);
 
+  const [sheetError, setSheetError] = useState<string | null>(null);
+
   let destinationRoutes: ReactNode;
   if (props.destination === 'home') {
     destinationRoutes = (
@@ -273,17 +275,28 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
         categoryTree={categoryTree}
         exchangeAvailable={gateways.exchange !== null}
         pending={wallets.pending || exchange.pending}
-        error={null}
+        error={sheetError}
         walletAmbiguous={wallets.ambiguous}
         exchangeAmbiguous={exchange.ambiguous}
         onRetryWalletAmbiguous={() => void wallets.retryAmbiguous()}
         onDismissWalletAmbiguous={wallets.clearAmbiguous}
         onRetryExchangeAmbiguous={() => void exchange.retryAmbiguous()}
         onDismissExchangeAmbiguous={exchange.clearAmbiguous}
-        onClose={props.onCloseRecord}
+        onClose={() => {
+          setSheetError(null);
+          props.onCloseRecord();
+        }}
         onSubmitRecord={async (draft) => {
+          setSheetError(null);
           const outcome = await wallets.recordEvent(draft);
-          if (outcome.status !== 'ambiguous') props.onCloseRecord();
+          if (outcome.status === 'ambiguous') return;
+          if (outcome.status === 'refresh-required') {
+            setSheetError(props.locale === 'ar'
+              ? 'تم التسجيل لكن تعذر تحديث الأرصدة — تحقق من الاتصال.'
+              : 'Recorded, but refreshing balances failed — check your connection.');
+            return;
+          }
+          props.onCloseRecord();
         }}
         onSubmitExchange={async (draft) => {
           const outcome = await exchange.recordExchange(draft);

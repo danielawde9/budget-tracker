@@ -23,11 +23,16 @@ function reports(implementation: ReportsGateway['loadMonthlyComparison']): Repor
   return { loadMonthlyComparison: vi.fn(implementation) };
 }
 
-function gateways(overrides: { insights?: InsightsClient; reports?: ReportsGateway }): ControlRoomGateways {
+function gateways(overrides: {
+  insights?: InsightsClient;
+  reports?: ReportsGateway;
+  wallets?: ControlRoomGateways['wallets'];
+  categories?: ControlRoomGateways['categories'];
+}): ControlRoomGateways {
   return {
-    wallets: new InMemoryWalletsGateway(),
+    wallets: overrides.wallets ?? new InMemoryWalletsGateway(),
     loans: new InMemoryLoansGateway(),
-    categories: new InMemoryCategoriesGateway(),
+    categories: overrides.categories ?? new InMemoryCategoriesGateway(),
     reports: overrides.reports ?? reports(async () => []),
     household: new InMemoryHouseholdGateway(),
     plan: null,
@@ -124,5 +129,45 @@ describe('ControlRoomRoutes record sheet', () => {
   it('disables the Exchange tile when no exchange client is configured', async () => {
     renderHome(gateways({}), { recordOpen: true });
     expect(await screen.findByRole('button', { name: 'Exchange' })).toBeDisabled();
+  });
+
+  it('keeps the sheet open with a message when the event records but refreshing balances fails', async () => {
+    const user = userEvent.setup();
+    const onCloseRecord = vi.fn();
+    const base = new InMemoryWalletsGateway();
+    let snapshotCalls = 0;
+    const wallets: ControlRoomGateways['wallets'] = new Proxy(base, {
+      get(target, prop, receiver) {
+        if (prop === 'loadSnapshot') {
+          return (spaceId: string) => {
+            snapshotCalls += 1;
+            if (snapshotCalls > 1) return Promise.reject(new Error('network down'));
+            return target.loadSnapshot(spaceId);
+          };
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+    // refresh-required is only reported for categorized events, so seed a category.
+    const categories = new InMemoryCategoriesGateway();
+    categories.categories = [{
+      id: 'category-groceries', spaceId: 'personal-space', kind: 'expense',
+      nameEn: 'Groceries', nameAr: 'بقالة', parentCategoryId: null,
+      createdAt: '2026-09-08T10:00:00Z', archivedAt: null,
+    }];
+    renderHome(gateways({ wallets, categories }), { recordOpen: true, onCloseRecord });
+
+    await user.click(await screen.findByRole('button', { name: 'Expense' }));
+    for (const key of ['1', '0']) await user.click(screen.getByRole('button', { name: key }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: /Daily USD/ }));
+    await user.click(screen.getByRole('button', { name: 'Groceries' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Recorded, but refreshing balances failed — check your connection.');
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(onCloseRecord).not.toHaveBeenCalled();
   });
 });

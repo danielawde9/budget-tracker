@@ -134,7 +134,7 @@ function Keypad(props: KeypadProps) {
   const { locale, value, onChange } = props;
   const press = (key: string) => {
     if (key === 'back') onChange(value.slice(0, -1));
-    else if (key === '.') { if (!value.includes('.')) onChange(`${value}.`); }
+    else if (key === '.') { if (value && !value.includes('.')) onChange(`${value}.`); }
     else onChange(value + key);
   };
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', 'back'];
@@ -188,10 +188,9 @@ export function RecordSheet(props: RecordSheetProps) {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [walletPickError, setWalletPickError] = useState<string | null>(null);
   const sheetRef = useRef<HTMLDivElement | null>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
 
-  useEffect(() => {
-    if (!props.open) return;
-    setKind(null);
+  const resetFlow = () => {
     setDisplay('');
     setUsdDisplay('');
     setLbpDisplay('');
@@ -211,12 +210,21 @@ export function RecordSheet(props: RecordSheetProps) {
     setSubmitting(false);
     setSubmitError(null);
     setWalletPickError(null);
-  }, [props.open]);
+  };
 
   useEffect(() => {
     if (!props.open) return;
+    openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setKind(null);
+    resetFlow();
     sheetRef.current?.focus();
+    return () => { openerRef.current?.focus(); };
   }, [props.open]);
+
+  const pickKind = (next: RecordKind) => {
+    resetFlow();
+    setKind(next);
+  };
 
   const wallet = useMemo(
     () => props.wallets.find((candidate) => candidate.id === walletId) ?? null,
@@ -266,18 +274,24 @@ export function RecordSheet(props: RecordSheetProps) {
         else setDestWalletId(null);
         break;
       case 'details':
-        setDetailsDone(false);
+        if (isCategorizedKind(kind!)) {
+          setCategoryChosen(false);
+          setCategoryId(null);
+        } else {
+          setWalletId(null);
+        }
         break;
       case 'category':
-        setCategoryChosen(false);
-        setCategoryId(null);
+        setWalletId(null);
+        setDestWalletId(null);
         break;
       case 'wallet':
         setWalletId(null);
         setDestWalletId(null);
+        setAmountDone(false);
         break;
       case 'amount':
-        if (kind === 'repay') setLoanId(null);
+        if (kind === 'repay' && loanId !== null) setLoanId(null);
         else setKind(null);
         setDisplay('');
         setUsdDisplay('');
@@ -313,6 +327,13 @@ export function RecordSheet(props: RecordSheetProps) {
 
   const parseAmount = (currency: Currency): string => parsePositiveMinorAmount(display, currency);
 
+  const flowReady = (): boolean => {
+    if (!kind || !wallet) return false;
+    if (kind === 'transfer' || kind === 'exchange') return destWallet !== null;
+    if (kind === 'repay') return loan !== null;
+    return true;
+  };
+
   const buildMovements = (): readonly { walletId: string; amountMinor: string }[] => {
     if (kind === 'transfer') {
       const minor = parseAmount(wallet!.currency);
@@ -327,31 +348,33 @@ export function RecordSheet(props: RecordSheetProps) {
 
   const summary = (): string => {
     const label = t(locale, KIND_LABELS[kind!].en, KIND_LABELS[kind!].ar);
+    if (!wallet) return label;
     if (kind === 'exchange') {
+      if (!destWallet) return label;
       const usdMinor = parsePositiveMinorAmount(usdDisplay, 'USD');
       const lbpMinor = parsePositiveMinorAmount(lbpDisplay, 'LBP');
-      return `${label} · ${formatMinorAmount(usdMinor, 'USD', locale)} → ${formatMinorAmount(lbpMinor, 'LBP', locale)} · ${wallet!.name} → ${destWallet!.name}`;
+      return `${label} · ${formatMinorAmount(usdMinor, 'USD', locale)} → ${formatMinorAmount(lbpMinor, 'LBP', locale)} · ${wallet.name} → ${destWallet.name}`;
     }
-    const minor = parseAmount(wallet!.currency);
-    const amount = formatMinorAmount(minor, wallet!.currency, locale);
+    const minor = parseAmount(wallet.currency);
+    const amount = formatMinorAmount(minor, wallet.currency, locale);
     if (kind === 'transfer') {
-      return `${label} · ${amount} · ${wallet!.name} → ${destWallet!.name}`;
+      return destWallet ? `${label} · ${amount} · ${wallet.name} → ${destWallet.name}` : label;
     }
     if (isLoanKind(kind!)) {
-      return `${label} · ${amount} · ${wallet!.name} · ${personName.trim()}`;
+      return `${label} · ${amount} · ${wallet.name} · ${personName.trim()}`;
     }
     if (kind === 'repay') {
-      return `${label} · ${amount} · ${wallet!.name} · ${loan!.personName}`;
+      return loan ? `${label} · ${amount} · ${wallet.name} · ${loan.personName}` : label;
     }
     const category = props.categoryTree
       .flatMap((root) => [root, ...root.children])
       .find((node) => node.id === categoryId);
     const categoryLabel = category ? ` · ${categoryName(category, locale)}` : '';
-    return `${label} · ${amount} · ${wallet!.name}${categoryLabel}`;
+    return `${label} · ${amount} · ${wallet.name}${categoryLabel}`;
   };
 
   const submit = async () => {
-    if (!kind || submitting || props.pending) return;
+    if (!kind || !flowReady() || submitting || props.pending) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -435,7 +458,7 @@ export function RecordSheet(props: RecordSheetProps) {
         <div>
           <h3>{t(locale, 'To', 'إلى')}</h3>
           {renderWalletList(props.wallets.filter((candidate) =>
-            candidate.id !== walletId && candidate.currency === wallet!.currency))}
+            candidate.id !== walletId && candidate.currency === wallet?.currency))}
         </div>
       );
     }
@@ -461,6 +484,7 @@ export function RecordSheet(props: RecordSheetProps) {
                 <button
                   type="button"
                   className="cr-record-category"
+                  aria-pressed={categoryId === root.id}
                   onClick={() => { setCategoryId(root.id); setCategoryChosen(true); }}
                 >
                   {categoryName(root, locale)}
@@ -484,6 +508,7 @@ export function RecordSheet(props: RecordSheetProps) {
                       <button
                         type="button"
                         className="cr-record-category"
+                        aria-pressed={categoryId === child.id}
                         onClick={() => { setCategoryId(child.id); setCategoryChosen(true); }}
                       >
                         {categoryName(child, locale)}
@@ -585,7 +610,7 @@ export function RecordSheet(props: RecordSheetProps) {
                   title={disabled
                     ? t(locale, 'Connect this browser to its data service to record exchanges.', 'اربط هذا المتصفح بخدمة البيانات لتسجيل الصرافة.')
                     : undefined}
-                  onClick={() => setKind(tile.kind)}
+                  onClick={() => pickKind(tile.kind)}
                 >
                   <Icon size={20} aria-hidden="true" />
                   {t(locale, tile.en, tile.ar)}

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -390,5 +391,147 @@ describe('RecordSheet', () => {
 
     await user.click(screen.getByRole('button', { name: 'Bank USD' }));
     expect(screen.getByRole('button', { name: 'Confirm' })).toBeEnabled();
+  });
+
+  it('walks back through every expense step boundary one press at a time', async () => {
+    const user = userEvent.setup();
+    render(<RecordSheet {...makeProps()} />);
+
+    // Walk forward to confirm.
+    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    await enterAmount(user, '1 2 . 5');
+    await user.click(screen.getByRole('button', { name: 'Cash USD' }));
+    await user.click(screen.getByRole('button', { name: 'Groceries' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByText('Expense · $12.50 · Cash · Groceries')).toBeInTheDocument();
+
+    // confirm -> details
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByLabelText('Payee')).toBeInTheDocument();
+    // details -> category (previous choice still marked)
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByRole('button', { name: 'Skip' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Groceries' })).toHaveAttribute('aria-pressed', 'false');
+    // category -> wallet
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByRole('button', { name: 'Cash USD' })).toBeInTheDocument();
+    // wallet -> amount
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByLabelText('Amount')).toHaveTextContent('12.5');
+    // amount -> type grid
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByRole('button', { name: 'Income' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Amount')).not.toBeInTheDocument();
+  });
+
+  it('walks back through the transfer step boundaries', async () => {
+    const user = userEvent.setup();
+    render(<RecordSheet {...makeProps()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Transfer' }));
+    await enterAmount(user, '1 0');
+    await user.click(screen.getByRole('button', { name: 'Cash USD' }));
+    await user.click(screen.getByRole('button', { name: 'Bank USD' }));
+    expect(screen.getByRole('button', { name: 'Confirm' })).toBeInTheDocument();
+
+    // confirm -> wallet (destination pick)
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByRole('button', { name: 'Bank USD' })).toBeInTheDocument();
+    // wallet -> amount
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByLabelText('Amount')).toHaveTextContent('10');
+    // amount -> type grid
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByRole('button', { name: 'Transfer' })).toBeInTheDocument();
+  });
+
+  it('walks back through the loan flow step boundaries', async () => {
+    const user = userEvent.setup();
+    render(<RecordSheet {...makeProps()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Lend' }));
+    await enterAmount(user, '2 0');
+    await user.click(screen.getByRole('button', { name: 'Cash USD' }));
+    await user.type(screen.getByLabelText('Person'), 'Sara');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByRole('button', { name: 'Confirm' })).toBeInTheDocument();
+
+    // confirm -> details
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByLabelText('Person')).toHaveValue('Sara');
+    // details -> wallet (loans have no category step)
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByRole('button', { name: 'Cash USD' })).toBeInTheDocument();
+    // wallet -> amount
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByLabelText('Amount')).toHaveTextContent('20');
+  });
+
+  it('steps back from the repay loan chooser to the type grid', async () => {
+    const user = userEvent.setup();
+    render(<RecordSheet {...makeProps()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Repay' }));
+    expect(screen.getByRole('button', { name: 'Sara $50.00' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByRole('button', { name: 'Expense' })).toBeInTheDocument();
+  });
+
+  it('ignores a leading decimal separator on the keypad', async () => {
+    const user = userEvent.setup();
+    render(<RecordSheet {...makeProps()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    await user.click(screen.getByRole('button', { name: '.' }));
+    expect(screen.getByLabelText('Amount')).toHaveTextContent('');
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
+    await pressKeys(user, '5 .');
+    expect(screen.getByLabelText('Amount')).toHaveTextContent('5.');
+  });
+
+  it('clears kind-specific fields when the record kind changes mid-session', async () => {
+    const user = userEvent.setup();
+    render(<RecordSheet {...makeProps()} />);
+
+    // Partially fill an expense, then back out to the type grid and switch to a loan.
+    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    await enterAmount(user, '1 0');
+    await user.click(screen.getByRole('button', { name: 'Cash USD' }));
+    await user.click(screen.getByRole('button', { name: 'Skip' }));
+    await user.type(screen.getByLabelText('Payee'), 'Market');
+    await user.type(screen.getByLabelText('Note'), 'stale note');
+    for (let index = 0; index < 4; index += 1) {
+      await user.click(screen.getByRole('button', { name: 'Back' }));
+    }
+    expect(screen.getByRole('button', { name: 'Lend' })).toBeInTheDocument();
+
+    // Lend details must not inherit the expense payee/note.
+    await user.click(screen.getByRole('button', { name: 'Lend' }));
+    await enterAmount(user, '3 0');
+    await user.click(screen.getByRole('button', { name: 'Cash USD' }));
+    expect(screen.getByLabelText('Person')).toHaveValue('');
+    expect(screen.getByLabelText('Note')).toHaveValue('');
+  });
+
+  it('restores focus to the invoking control when the sheet closes', async () => {
+    const user = userEvent.setup();
+
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>Trigger</button>
+          <RecordSheet {...makeProps({ open, onClose: () => setOpen(false) })} />
+        </>
+      );
+    }
+
+    render(<Harness />);
+    await user.click(screen.getByRole('button', { name: 'Trigger' }));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Trigger' })).toHaveFocus();
   });
 });
