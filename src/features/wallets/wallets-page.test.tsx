@@ -52,6 +52,16 @@ async function openArabicCategorizedIncome(user: ReturnType<typeof userEvent.set
 }
 
 describe('WalletsPage', () => {
+  it('repeats an eligible journal entry as a new reviewed draft without posting it', async () => {
+    const { gateway, user } = await renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'Repeat as new' }));
+    const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+    expect(within(dialog).getByLabelText('Type')).toHaveValue('income');
+    expect(within(dialog).getByLabelText('Amount')).toHaveValue('250.50');
+    expect(gateway.calls.filter((call) => call.name === 'recordEvent')).toHaveLength(0);
+  });
+
   it('presents one primary transaction action, compact active balances, and a labelled journal in row order', async () => {
     await renderPage();
 

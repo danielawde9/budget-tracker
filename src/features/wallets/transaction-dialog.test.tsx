@@ -3,6 +3,7 @@ import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Category } from '../categories/types.js';
+import type { JournalEvent } from './types.js';
 import { TransactionDialog } from './transaction-dialog.js';
 
 const categories: readonly Category[] = [
@@ -91,5 +92,38 @@ describe('TransactionDialog category hierarchy', () => {
     await user.selectOptions(within(dialog).getByLabelText('النوع'), 'expense');
     const children = within(dialog).getByRole('group', { name: 'الفئات الفرعية ضمن الأساسيات' });
     expect(within(children).getByText('بقالة').closest('bdi')).not.toBeNull();
+  });
+});
+
+describe('TransactionDialog Quick Entry', () => {
+  it('opens a repeat-as-new draft with its remembered wallet, category, payee, and amount', () => {
+    const onSubmit = vi.fn(async () => ({ status: 'success' as const, reconciled: false }));
+    render(<TransactionDialog
+      locale="en"
+      wallets={[{ id: 'wallet-1', spaceId: 'space-1', name: 'Daily USD', currency: 'USD', archivedAt: null, balanceMinor: '0' }]}
+      categories={categories}
+      quickEntryDefaults={{ kind: 'expense', walletId: 'wallet-1', categoryId: 'category-groceries', payeeName: 'Cedar Market', amount: '12.50' }}
+      pending={false} ambiguous={false} onClose={vi.fn()} onClearAmbiguous={vi.fn()} onRetry={vi.fn()} onRefresh={vi.fn()} onSubmit={onSubmit}
+    />);
+
+    const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+    expect(within(dialog).getByLabelText('Amount')).toHaveValue('12.50');
+    expect(within(dialog).getByLabelText('Payee')).toHaveValue('Cedar Market');
+    expect(within(dialog).getByRole('radio', { name: 'Groceries' })).toBeChecked();
+  });
+
+  it('shows an overridable category suggestion only after two of the last three payee entries agree', async () => {
+    const recentEvents: readonly JournalEvent[] = ['1', '2', '3'].map((id, index) => ({
+      id, spaceId: 'space-1', requestId: id, kind: 'expense', effectiveDate: '2026-09-10', createdAt: `2026-09-10T0${index}:00:00Z`, reversalOf: null, reversedBy: null, loanLinked: false,
+      movements: [{ walletId: 'wallet-1', walletName: 'Daily USD', currency: 'USD', amountMinor: '-1250', walletArchived: false }],
+      category: { id: index === 1 ? 'category-essentials' : 'category-groceries', kind: 'expense', nameEn: 'Category', nameAr: null, archivedAt: null }, payeeName: 'Cedar Market',
+    }));
+    const user = userEvent.setup();
+    render(<TransactionDialog locale="en" wallets={[{ id: 'wallet-1', spaceId: 'space-1', name: 'Daily USD', currency: 'USD', archivedAt: null, balanceMinor: '0' }]} categories={categories} recentEvents={recentEvents} pending={false} ambiguous={false} onClose={vi.fn()} onClearAmbiguous={vi.fn()} onRetry={vi.fn()} onRefresh={vi.fn()} onSubmit={vi.fn()} />);
+    const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
+    await user.type(within(dialog).getByLabelText('Payee'), 'Cedar Market');
+
+    expect(within(dialog).getByRole('radio', { name: 'Groceries' })).toBeChecked();
+    expect(within(dialog).getByRole('status')).toHaveTextContent('Category suggested from 2 of your last 3 entries');
   });
 });

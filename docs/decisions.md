@@ -1452,3 +1452,23 @@ identity rather than timestamp; per-currency left-to-allocate subtracts category
 and the existing monthly loan reservation from planned income. If a later product decision
 needs actual-spend reporting or UI editing, it must extend the read projections/gateway
 without granting direct writes to plan or financial-history tables.
+
+## 2026-09-12 — Quick Entry reuses only reviewed, active transaction context
+
+**Decision:** Quick Entry opens an editable transaction draft. The normal entry
+action remembers the latest eligible expense wallet and active category but
+leaves amount and payee empty. “Repeat as new” copies an eligible income or
+expense event’s wallet, active category, payee, and exact minor-unit amount
+into a new draft; it never posts or reuses the old request ID. A typed payee
+suggests a category only when two of that payee’s last three eligible entries
+agree, and the member can replace the suggestion before review. Archived
+categories and reversed, loan-linked, and non-general events are excluded.
+
+**Why:** Repetition removes daily-entry friction without allowing a remembered
+choice to become an unreviewed posting. The 2-of-3 threshold keeps the visible
+payee rule predictable while avoiding a single accidental category change.
+
+**If changed:** Persisting preferences beyond the loaded bounded journal,
+auto-posting, or supporting transfers as repeatable requires a new product and
+ledger-safety decision. Changing the agreement threshold requires corresponding
+unit coverage for the new history rule.
