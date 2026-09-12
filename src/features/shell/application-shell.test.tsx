@@ -19,6 +19,7 @@ describe('ApplicationShell', () => {
     expect(screen.getAllByText('Home budget').some((element) => element.closest('bdi') !== null)).toBe(true);
     expect(screen.getByText('Household space')).toBeInTheDocument();
     const navigation = screen.getByRole('navigation', { name: 'Primary navigation' });
+    expect(screen.getByRole('complementary')).toHaveClass('app-rail', 'app-rail--light');
     expect(within(navigation).getAllByRole('button').at(0)).toHaveAccessibleName('Home');
     expect(within(navigation).queryByRole('button', { name: /Reports/i })).not.toBeInTheDocument();
     expect(within(navigation).getAllByTestId('navigation-icon')).toHaveLength(5);

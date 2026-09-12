@@ -41,7 +41,7 @@ export function ApplicationShell(props: ApplicationShellProps) {
   const text = copy[props.locale];
   const activeDestination = props.activeDestination ?? 'home';
   return <div className="budget-layout">
-    <aside className="app-rail">
+    <aside className="app-rail app-rail--light">
       <div className="product-lockup"><span className="product-mark" aria-hidden="true">B</span><strong>{text.product}</strong></div>
       <div className="rail-space">
         <label>{text.currentSpace}<select value={props.selectedSpace.id} onChange={(event) => props.onSpaceChange(event.target.value)}>{props.spaces.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}</select></label>
