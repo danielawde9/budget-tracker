@@ -137,7 +137,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Wallets' }));
     await user.click(await screen.findByRole('button', { name: 'Load older entries' }));
     expect(await screen.findByText('2026-09-01')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Home' }));
+    await user.click(screen.getByRole('button', { name: 'Overview' }));
 
     expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
     expect(screen.getByText('2026-09-07')).toBeInTheDocument();
@@ -159,7 +159,8 @@ describe('App', () => {
     render(<App authGateway={authGateway({ id: 'user-1', email: 'owner@example.com' })} workspaceGateway={gateway} householdGateway={new InMemoryHouseholdGateway()} loansGateway={new InMemoryLoansGateway()} walletsGateway={new InMemoryWalletsGateway()} categoriesGateway={new InMemoryCategoriesGateway()} />);
     expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Add another space' }));
+    await user.click(screen.getByRole('button', { name: 'Current space: My money' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Add another space' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add another space' });
     await user.click(within(dialog).getByRole('radio', { name: 'Household space' }));
     await user.type(within(dialog).getByLabelText('Space name'), 'Our home');
@@ -169,7 +170,7 @@ describe('App', () => {
 
     expect(gateway.createSpace).toHaveBeenCalledWith({ name: 'Our home', kind: 'household' });
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add another space' })).not.toBeInTheDocument());
-    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Current space' })).toHaveValue('household-space'));
+    expect(await screen.findByRole('button', { name: 'Current space: Our home' })).toBeInTheDocument();
   });
 
   it('shows onboarding instead of a Loans membership error when no spaces are visible', async () => {
@@ -190,7 +191,8 @@ describe('App', () => {
     />);
     await user.click(await screen.findByRole('button', { name: 'Household' }));
     expect(await screen.findByRole('heading', { name: 'Household access' })).toBeInTheDocument();
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Current space' }), personalSpace.id);
+    await user.click(screen.getByRole('button', { name: 'Current space: Home budget' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Switch to My money' }));
     expect(await screen.findByRole('heading', { name: 'Loans' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Household' })).not.toBeInTheDocument();
   });
@@ -226,7 +228,7 @@ describe('App', () => {
     expect(document.body).not.toHaveTextContent(token);
     expect(screen.queryByRole('dialog', { name: 'Create your first space' })).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Accept invitation' }));
-    expect(await screen.findByRole('combobox', { name: 'Current space' })).toHaveValue(householdSpace.id);
+    expect(await screen.findByRole('button', { name: 'Current space: Home budget' })).toBeInTheDocument();
     expect(screen.getAllByText('Home budget').some((element) => element.closest('bdi') !== null)).toBe(true);
   });
 

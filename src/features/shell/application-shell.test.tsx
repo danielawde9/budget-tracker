@@ -14,8 +14,8 @@ describe('ApplicationShell', () => {
     render(<ApplicationShell locale="en" userEmail="owner@example.com" spaces={[personalSpace, householdSpace]} selectedSpace={householdSpace} activeDestination="loans" onDestinationChange={changeDestination} onSpaceChange={changeSpace} onAddSpace={addSpace} onLocaleChange={vi.fn()} onSignOut={signOut}><div>Loans workspace</div></ApplicationShell>);
 
     expect(screen.getByText('Budget ledger')).toBeInTheDocument();
-    const space = screen.getByRole('combobox', { name: 'Current space' });
-    expect(within(space).getByRole('option', { name: 'Home budget' })).toBeInTheDocument();
+    const space = screen.getByRole('button', { name: 'Current space: Home budget' });
+    expect(space).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getAllByText('Home budget').some((element) => element.closest('bdi') !== null)).toBe(true);
     expect(screen.getByText('Household space')).toBeInTheDocument();
     const navigation = screen.getByRole('navigation', { name: 'Primary navigation' });
@@ -41,9 +41,11 @@ describe('ApplicationShell', () => {
     await user.click(screen.getByRole('button', { name: 'Reports' }));
     expect(changeDestination).toHaveBeenCalledWith('reports');
 
-    await user.selectOptions(space, personalSpace.id);
+    await user.click(space);
+    await user.click(screen.getByRole('menuitem', { name: 'Switch to My money' }));
     expect(changeSpace).toHaveBeenCalledWith(personalSpace.id);
-    await user.click(screen.getByRole('button', { name: 'Add another space' }));
+    await user.click(space);
+    await user.click(screen.getByRole('menuitem', { name: 'Add another space' }));
     expect(addSpace).toHaveBeenCalledOnce();
     await user.click(screen.getByText('Account'));
     expect(screen.getByText('owner@example.com').closest('bdi')).not.toBeNull();
@@ -75,9 +77,21 @@ describe('ApplicationShell', () => {
     ]);
   });
 
+  it('uses one space switcher for changing the selected space', async () => {
+    const user = userEvent.setup();
+    const changeSpace = vi.fn();
+    render(<ApplicationShell locale="en" userEmail="owner@example.com" spaces={[personalSpace, householdSpace]} selectedSpace={householdSpace} activeDestination="home" onDestinationChange={vi.fn()} onSpaceChange={changeSpace} onAddSpace={vi.fn()} onLocaleChange={vi.fn()} onSignOut={vi.fn()}><div>Overview</div></ApplicationShell>);
+
+    const switcher = screen.getByRole('button', { name: /Current space: Home budget/ });
+    await user.click(switcher);
+    await user.click(screen.getByRole('menuitem', { name: 'Switch to My money' }));
+    expect(changeSpace).toHaveBeenCalledWith(personalSpace.id);
+    expect(screen.getAllByText('Home budget').filter((element) => element.closest('bdi'))).toHaveLength(1);
+  });
+
   it('provides equivalent Arabic labels and keeps sourced names isolated', () => {
     render(<ApplicationShell locale="ar" userEmail="owner@example.com" spaces={[householdSpace]} selectedSpace={householdSpace} activeDestination="wallets" onDestinationChange={vi.fn()} onSpaceChange={vi.fn()} onAddSpace={vi.fn()} onLocaleChange={vi.fn()} onSignOut={vi.fn()}><div>مساحة المحافظ</div></ApplicationShell>);
-    expect(screen.getByRole('combobox', { name: 'المساحة الحالية' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'المساحة الحالية: Home budget' })).toBeInTheDocument();
     expect(screen.getByText('مساحة منزلية')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'المحافظ' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('button', { name: 'القروض' })).not.toHaveAttribute('aria-current');

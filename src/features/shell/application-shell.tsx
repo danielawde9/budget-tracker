@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { CircleUserRound, Languages } from 'lucide-react';
 import type { Locale, Space } from '../loans/types.js';
+import { SpaceSwitcher } from './space-switcher.js';
 import { WorkspaceNavigation, type ApplicationDestination } from './workspace-navigation.js';
 
 export type { ApplicationDestination } from './workspace-navigation.js';
@@ -21,7 +22,7 @@ interface ApplicationShellProps {
 
 const copy = {
   en: {
-    product: 'Budget ledger', currentSpace: 'Current space', addSpace: 'Add another space', personal: 'Personal space', household: 'Household space',
+    product: 'Budget ledger',
     language: 'العربية',
     account: 'Account', signOut: 'Sign out', navigation: 'Primary navigation', workspace: 'Workspace',
     backupReadiness: 'Backup readiness',
@@ -29,7 +30,7 @@ const copy = {
     backupRunbookReference: 'Operator repository reference',
   },
   ar: {
-    product: 'دفتر الميزانية', currentSpace: 'المساحة الحالية', addSpace: 'إضافة مساحة أخرى', personal: 'مساحة شخصية', household: 'مساحة منزلية',
+    product: 'دفتر الميزانية',
     language: 'English',
     account: 'الحساب', signOut: 'تسجيل الخروج', navigation: 'التنقل الرئيسي', workspace: 'مساحة العمل',
     backupReadiness: 'جاهزية النسخ الاحتياطي',
@@ -44,11 +45,7 @@ export function ApplicationShell(props: ApplicationShellProps) {
   return <div className="budget-layout">
     <aside className="app-rail app-rail--light">
       <div className="product-lockup"><span className="product-mark" aria-hidden="true">B</span><strong>{text.product}</strong></div>
-      <div className="rail-space">
-        <label>{text.currentSpace}<select value={props.selectedSpace.id} onChange={(event) => props.onSpaceChange(event.target.value)}>{props.spaces.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}</select></label>
-        <div className="space-current-name"><bdi>{props.selectedSpace.name}</bdi><span>{props.selectedSpace.kind === 'personal' ? text.personal : text.household}</span></div>
-        <button type="button" className="text-button" onClick={props.onAddSpace}>{text.addSpace}</button>
-      </div>
+      <SpaceSwitcher locale={props.locale} spaces={props.spaces} selectedSpace={props.selectedSpace} onSpaceChange={props.onSpaceChange} onAddSpace={props.onAddSpace} />
       <WorkspaceNavigation activeDestination={activeDestination} idPrefix="desktop-navigation" locale={props.locale} spaceKind={props.selectedSpace.kind} onDestinationChange={(destination) => props.onDestinationChange?.(destination)} />
       <div className="rail-footer">
         <button type="button" className="locale-button" onClick={props.onLocaleChange}><Languages aria-hidden="true" />{text.language}</button>
