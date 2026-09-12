@@ -19,12 +19,14 @@ describe('usePlan', () => {
     const client = new InMemoryPlanClient();
     const { result } = renderHook(() => usePlan(client, 'space-1', '2026-09-01', () => 'req-fixed'));
     await waitFor(() => expect(result.current.status).toBe('ready'));
+    client.summaries = [{ ...client.summaries[0]!, plannedIncomeMinor: '999000' }];
     await act(async () => {
       await result.current.setIncomePlan({ currency: 'USD', amountMinor: '100000', expectedRevisionId: null });
     });
     expect(client.calls[0]).toMatchObject({ name: 'setIncomePlan' });
     expect((client.calls[0]?.input as { requestId: string }).requestId).toBe('req-fixed');
     expect(result.current.status).toBe('ready');
+    expect(result.current.summaries[0]?.plannedIncomeMinor).toBe('999000');
   });
 
   it('surfaces load errors with retry', async () => {

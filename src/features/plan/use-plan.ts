@@ -53,8 +53,10 @@ export function usePlan(
   }, [load]);
 
   const post = useCallback(async (fn: (requestId: string) => Promise<unknown>): Promise<boolean> => {
-    // Plan commands replay idempotently by request id, so a caller may retry this
-    // promise after an ambiguous transport failure without double-posting.
+    // Each call generates a fresh request id, so retrying this promise is a new
+    // command. The RPC replays idempotently only for retries carrying the same
+    // request id; callers needing that should invoke client.setIncomePlan or
+    // client.setCategoryTarget directly with a reused requestId.
     setPending(true);
     try {
       await fn(createRequestId());
@@ -68,10 +70,21 @@ export function usePlan(
     }
   }, [createRequestId, load]);
 
+  const setIncomePlan = useCallback(
+    (input: { currency: Currency; amountMinor: string; expectedRevisionId: string | null }) =>
+      post((requestId) => client.setIncomePlan({ spaceId, requestId, month, ...input })),
+    [post, client, spaceId, month],
+  );
+  const setCategoryTarget = useCallback(
+    (input: { categoryId: string; currency: Currency; amountMinor: string; expectedRevisionId: string | null }) =>
+      post((requestId) => client.setCategoryTarget({ spaceId, requestId, month, ...input })),
+    [post, client, spaceId, month],
+  );
+
   return {
     status, summaries, categoryRows, pending, error,
     refresh: load,
-    setIncomePlan: (input) => post((requestId) => client.setIncomePlan({ spaceId, requestId, month, ...input })),
-    setCategoryTarget: (input) => post((requestId) => client.setCategoryTarget({ spaceId, requestId, month, ...input })),
+    setIncomePlan,
+    setCategoryTarget,
   };
 }
