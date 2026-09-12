@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { afterAll, describe, expect, it } from 'vitest';
 
-import { asUser, closeDatabase, queryAsUser } from './test-database.js';
+import { asUser, closeDatabase, databaseQuery, queryAsUser } from './test-database.js';
 
 const ownerId = '00000000-0000-4000-8000-000000000001';
 
@@ -33,16 +33,41 @@ describe('monthly budgeting boundary', () => {
       'select * from public.set_monthly_category_target($1, $2, $3, $4::date, $5::public.currency_code, $6, null)',
       [space.id, randomUUID(), category.id, '2026-09-28', 'USD', '3500'],
     );
+    expect(await owner.walletBalance(wallet.id)).toBe(before);
+    await owner.recordCategorizedEvent({
+      spaceId: space.id,
+      requestId: randomUUID(),
+      kind: 'expense',
+      effectiveDate: '2026-09-14',
+      movements: [{ walletId: wallet.id, amountMinor: '-2500' }],
+      categoryId: category.id,
+    });
+    await owner.recordEvent({
+      spaceId: space.id,
+      requestId: randomUUID(),
+      kind: 'expense',
+      effectiveDate: '2026-09-15',
+      movements: [{ walletId: wallet.id, amountMinor: '-500' }],
+    });
 
     expect(income).toHaveLength(1);
     expect(target).toHaveLength(1);
-    expect(await owner.walletBalance(wallet.id)).toBe(before);
+    await expect(databaseQuery(
+      `insert into public.monthly_budget_plan_revisions (
+         space_id, request_id, request_fingerprint, plan_kind, month_start, currency,
+         category_id, category_kind, amount_minor, actor_id
+       ) values ($1, $2, decode('00', 'hex'), 'expense_category', '2026-09-01', 'USD', $3, null, 1, $4)`,
+      [space.id, randomUUID(), category.id, ownerId],
+    )).rejects.toMatchObject({ code: '23514', constraint: 'monthly_budget_plan_revisions_shape_check' });
     await expect(queryAsUser(
       ownerId,
-      'select currency::text, planned_income_minor::text, category_target_total_minor::text, unallocated_minor::text from public.monthly_budget_currency_summary($1, $2::date)',
+      `select currency::text, planned_income_minor::text, category_target_total_minor::text,
+              category_actual_spent_minor::text, uncategorized_spent_minor::text, unallocated_minor::text
+       from public.monthly_budget_currency_summary($1, $2::date)`,
       [space.id, '2026-09-05'],
     )).resolves.toEqual([{
-      currency: 'USD', planned_income_minor: '10000', category_target_total_minor: '3500', unallocated_minor: '6500',
+      currency: 'USD', planned_income_minor: '10000', category_target_total_minor: '3500',
+      category_actual_spent_minor: '2500', uncategorized_spent_minor: '500', unallocated_minor: '6500',
     }]);
     await expect(queryAsUser(
       ownerId,
@@ -54,8 +79,8 @@ describe('monthly budgeting boundary', () => {
       category_id: category.id,
       currency: 'USD',
       target_minor: '3500',
-      actual_spent_minor: '0',
-      remaining_minor: '3500',
+      actual_spent_minor: '2500',
+      remaining_minor: '1000',
       overspent_minor: '0',
       target_revision_id: target[0]?.id,
     }, {
