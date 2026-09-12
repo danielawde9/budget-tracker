@@ -23,6 +23,7 @@ describe('financial posting boundary coverage', () => {
       'record_categorized_financial_event',
       'record_financial_event',
       'record_loan_repayment',
+      'record_usd_to_lbp_exchange',
       'reverse_financial_event',
     ]);
 

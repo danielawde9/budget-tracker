@@ -9,6 +9,7 @@ access only; they do not receive direct financial-table write privileges.
 | Command | Current entry path | Posted effects |
 | --- | --- | --- |
 | `public.record_financial_event` | Foundation integration client and `src/features/wallets/supabase-wallets-gateway.ts` | Opening cash, income, expense, and transfer wallet movements. |
+| `public.record_usd_to_lbp_exchange` | Foundation integration client; no application UI entry path yet. | One immutable `exchange` event with linked negative USD and positive LBP wallet movements; neither leg is income or expense. |
 | `public.record_categorized_financial_event` | Categories integration client and `src/features/categories/supabase-categories-gateway.ts`, selected from the Wallets income/expense dialog only. | Income or expense wallet movements plus one immutable event-category association. |
 | `public.reverse_financial_event` | Foundation/Loans integration clients, `src/features/loans/supabase-loans-gateway.ts`, and `src/features/wallets/supabase-wallets-gateway.ts` | Linked inverse wallet and loan postings when valid. |
 | `public.open_loan_outstanding` | Loans integration client and `src/features/loans/supabase-loans-gateway.ts` | Opening outstanding principal only; no wallet movement. |
@@ -56,8 +57,8 @@ target history table directly.
 
 ## Deferred financial features
 
-Refunds, exchanges, savings, assets, contributions, interest, fees,
-installments, forgiveness, reminders, and cross-currency settlement are not
-implemented by this milestone. They require their own event shapes, command
-inventory row, database rejection coverage, and balance reconstruction proof
-before they can post.
+Refunds, savings, assets, contributions, interest, fees, installments,
+forgiveness, reminders, and cross-currency settlement other than the protected
+USD-to-LBP exchange command are not implemented by this milestone. They require
+their own event shapes, command inventory row, database rejection coverage, and
+balance reconstruction proof before they can post.
