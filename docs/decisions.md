@@ -3,6 +3,14 @@
 Append-only project decisions and assumptions. Each entry records what would
 change if the decision changes.
 
+## 2026-09-12 — Authenticated navigation is task-oriented and fully replaced
+
+**Decision:** Replace the current authenticated navigation presentation with a task-oriented structure: Daily money (Overview, Wallets), Review (Loans, Reports), and Setup (Categories plus Household only in household spaces). Use a persistent labelled desktop rail and a labelled modal mobile drawer; do not use an icon-only rail or horizontally scrolling mobile primary navigation. The existing internal destinations, callbacks, feature pages, and conditional Household fallback remain unchanged.
+
+**Why:** Grouping actual destinations by user purpose makes the financial workspace easier to scan without adding routes or weakening the protected financial boundary. Full labels avoid icon ambiguity, especially in bilingual and RTL use.
+
+**If changed:** Adding destinations, URL routing, user-customized navigation, a global transaction action, or a different household fallback requires a separate product, accessibility, state-transition, and financial-flow design.
+
 ## 2026-09-12 — Event notes and reusable payees are immutable metadata
 
 **Decision:** Notes and one optional reusable payee attach to an existing financial event through immutable association tables. Existing protected financial posting signatures remain unchanged. A narrow, idempotent metadata command canonicalizes payee names per space, creates a payee only when needed, and refuses to overwrite an event's description. The Wallets flow posts money first, then persists the description using its own retry-safe request receipt.
