@@ -11,6 +11,7 @@ import { householdSpace, personalSpace } from './test/in-memory-loans-gateway.js
 import { InMemoryWalletsGateway } from './test/in-memory-wallets-gateway.js';
 import { householdMemberId, householdOwnerId, InMemoryHouseholdGateway } from './test/in-memory-household-gateway.js';
 import { createHouseholdInvitationBootstrap } from './features/household/invitation-fragment.js';
+import { InMemoryPlanClient } from './test/in-memory-plan-client.js';
 
 function authGateway(initial: AuthUser | null, session?: Promise<AuthUser | null>): AuthGateway {
   return {
@@ -32,6 +33,12 @@ function workspaceGateway(spaces = [personalSpace]): WorkspaceGateway {
   };
 }
 
+function unconfiguredPlanClient(): InMemoryPlanClient {
+  const client = new InMemoryPlanClient();
+  client.error = new Error('plan backend not configured for this test shell');
+  return client;
+}
+
 function renderApp(props: Parameters<typeof App>[0] = {}) {
   return render(<App
     authGateway={authGateway({ id: 'user-1', email: 'owner@example.com' })}
@@ -40,6 +47,7 @@ function renderApp(props: Parameters<typeof App>[0] = {}) {
     loansGateway={new InMemoryLoansGateway()}
     walletsGateway={new InMemoryWalletsGateway()}
     categoriesGateway={new InMemoryCategoriesGateway()}
+    planClient={unconfiguredPlanClient()}
     {...props}
   />);
 }
