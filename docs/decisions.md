@@ -1561,3 +1561,23 @@ new deduplication examples; arbitrary import formats require mapping evidence.
 Keep already-applied migrations forward-only. Current validation is documented
 in [the plan-pack review](verification/future-planning/plan-pack-review.md);
 parser/helper checks are not PostgreSQL integration or live-product proof.
+
+## 2026-09-13 — Carry-over concerns are independent future packets
+
+**Decision:** Keep the reporting `currency` ambiguity, direct journal currency
+filter, sheet focus containment, i18n consolidation, and planner-statistics
+failure as explicitly named future work. Reporting starts with a real-engine
+reproducer and adds a timestamped forward migration only if the ambiguity is
+confirmed. Journal filtering is an extension of the bounded search contract,
+not a client-side loaded-history filter. Focus containment and translation
+consolidation are separate shared-UI packets. The planner failure is diagnosed
+against its old-main baseline and fixed for determinism, not skipped or waived.
+
+**Why:** These items span database correctness, search semantics, accessibility,
+shared UI infrastructure, and test reliability. Combining them would obscure
+which gate failed and risks changing UAT-frozen behavior under unrelated work.
+
+**If changed:** A request to fix any item immediately still starts with its
+packet's red reproduction and affects only that packet's declared layer. A
+decision to accept a known failing DB gate requires an explicit replacement
+completion rule; it is not implied by this planning record.
