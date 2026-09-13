@@ -1,7 +1,7 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { installApplicationFixture } from './fixtures/application.js';
 import { expectContainedControls } from './workspace-contract.js';
-import { chooseWorkspaceDestination, switchWorkspaceLanguage } from './workspace-navigation.js';
+import { chooseWorkspaceDestination, openWorkspaceNavigation, switchWorkspaceLanguage } from './workspace-navigation.js';
 
 function screenshotPath(testInfo: TestInfo, name: string) {
   return process.env['UPDATE_VISUAL_ARTIFACTS'] === '1'
@@ -186,6 +186,41 @@ test('Manage menu lists sections, language, and account', async ({ page }, testI
   await expectContainedControls(page);
   await page.screenshot({ path: screenshotPath(testInfo, `manage-${testInfo.project.name}.png`), fullPage: true });
 });
+
+test('wallet load failure keeps workspace navigation available', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await installApplicationFixture(page, { failWallets: true });
+  await page.goto('/');
+  await chooseWorkspaceDestination(page, 'Wallets');
+  await expect(page.getByRole('alert')).toContainText('Wallets are unavailable');
+  await chooseWorkspaceDestination(page, 'Journal');
+  await expect(page.getByRole('heading', { name: 'Journal' })).toBeVisible();
+});
+
+for (const locale of ['en', 'ar'] as const) {
+  test(`workspace navigation labels keep readable contrast ${locale}`, async ({ page }) => {
+    await openSeededHome(page);
+    if (locale === 'ar') await switchWorkspaceLanguage(page);
+    const navigation = await openWorkspaceNavigation(page);
+    const ratios = await navigation.locator('.cr-tab').evaluateAll((tabs) => tabs.map((tab) => {
+      const channel = (value: number) => {
+        const normalized = value / 255;
+        return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+      };
+      const luminance = (color: string) => {
+        const [red, green, blue] = color.match(/[\d.]+/g)!.slice(0, 3).map(Number);
+        return channel(red!) * 0.2126 + channel(green!) * 0.7152 + channel(blue!) * 0.0722;
+      };
+      const foreground = luminance(getComputedStyle(tab).color);
+      let surface: Element | null = tab;
+      while (surface && getComputedStyle(surface).backgroundColor === 'rgba(0, 0, 0, 0)') surface = surface.parentElement;
+      const background = luminance(getComputedStyle(surface!).backgroundColor);
+      return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+    }));
+    expect(ratios.length).toBeGreaterThan(0);
+    for (const ratio of ratios) expect(ratio).toBeGreaterThanOrEqual(4.5);
+  });
+}
 
 test('Arabic RTL mirrors Home and the Record type grid', async ({ page }, testInfo) => {
   await openSeededHome(page);

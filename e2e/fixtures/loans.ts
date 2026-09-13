@@ -458,7 +458,9 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       return json(route, cloneRows(options.trendRows ?? defaultTrendRows));
     }
     if (path.endsWith('/rpc/record_usd_to_lbp_exchange')) {
-      return json(route, [{ id: crypto.randomUUID() }]);
+      // The gateway only checks that the returned id is a UUID; keep it fixed
+      // so runs stay deterministic.
+      return json(route, [{ id: 'f4000000-0000-4000-8000-000000000001' }]);
     }
     if (path.endsWith('/spaces')) return json(route, visibleSpaces);
     if (path.endsWith('/categories')) {

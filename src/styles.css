@@ -236,6 +236,7 @@ dd { margin: 8px 0 0; font-weight: 760; white-space: nowrap; }
 .status-settled { background: #d8eadf; color: #155438; }
 .status-overdue { background: #f1d9d2; color: #8a2f22; }
 .empty, .state-panel { border-bottom: 1px solid #c7cfc7; padding: 28px 4px; color: #5d6a61; }
+/* Must stay above the Control Room tab bar (z-index 30) and sheet backdrop (z-index 40). */
 .overlay { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 28px; background: rgba(20, 32, 25, .58); backdrop-filter: blur(4px); }
 .dialog { width: min(580px, 100%); max-height: calc(100vh - 56px); overflow: auto; background: #fbfcf8; border-radius: 14px; box-shadow: 0 24px 80px rgba(8, 18, 12, .24); padding: 26px; }
 .dialog-wide { width: min(920px, 100%); }
