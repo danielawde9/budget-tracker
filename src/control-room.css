@@ -1,10 +1,17 @@
 /* ==========================================================================
-   Control Room — light-first dashboard theme (tokens only on :root so a
-   future dark theme swaps this block without touching components).
+   Control Room — light-first "control room" dashboard theme.
+   All colors live as tokens on :root so a future dark theme swaps this
+   block only. Logical properties throughout (RTL-safe by construction);
+   physical values appear only in border-radius corner lists, the keypad's
+   `direction: ltr`, and env(safe-area-inset-*) fallbacks.
    ========================================================================== */
 
 :root {
   color-scheme: light;
+
+  /* Typography — one system stack covering Latin + Arabic */
+  --cr-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Tahoma,
+    "Helvetica Neue", Arial, sans-serif;
 
   /* Surfaces & ink */
   --cr-bg: #f7f6f2;
@@ -20,7 +27,7 @@
   --cr-accent-strong: #0f5a36;
   --cr-accent-soft: #e2f1e9;
   --cr-accent-ink: #ffffff;
-  --cr-warn: #9a6206;
+  --cr-warn: #b97a0f;
   --cr-warn-strong: #7c4d03;
   --cr-warn-soft: #faf0da;
   --cr-danger: #b3261e;
@@ -52,28 +59,103 @@
 
   /* Layout */
   --cr-tabbar-h: 64px;
-  --cr-rail-w: 244px;
+  --cr-rail-w: 240px;
   --cr-content-w: 720px;
   --cr-content-w-wide: 960px;
 }
 
 /* ==========================================================================
-   Base (scoped to the Control Room shell — legacy styles.css may leak in,
-   so cr- selectors below override rather than rely on globals)
+   Scoped reset — neutralize UA styles AND the legacy global stylesheet
+   (styles.css sets display fonts, giant h1, green buttons, etc.)
    ========================================================================== */
 
 .cr-shell {
   min-height: 100dvh;
   background: var(--cr-bg);
   color: var(--cr-ink);
-  font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans Arabic", "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--cr-font);
   font-variant-numeric: tabular-nums;
+  line-height: 1.35;
   display: flex;
   flex-direction: column;
   -webkit-font-smoothing: antialiased;
 }
 
-.cr-shell button { background: transparent; color: inherit; border-radius: var(--cr-radius-sm); }
+/* Zero default margins inside the shell (UA + legacy leaks) */
+.cr-shell :where(h1, h2, h3, p, ul, ol, figure, small, output, label, fieldset) {
+  margin: 0;
+}
+
+/* Buttons: legacy styles.css paints every button green — take back control */
+.cr-shell button {
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  border-radius: var(--cr-radius-sm);
+}
+
+/* ==========================================================================
+   Page header — compact title row: page title inline-start, field controls
+   inline-end, baseline aligned
+   ========================================================================== */
+
+.cr-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--cr-space-3);
+  margin-block: var(--cr-space-2) var(--cr-space-4);
+}
+.cr-title {
+  font-size: 21px;
+  font-weight: 750;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+}
+
+/* Small field: small-caps label stacked over a designed control */
+.cr-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--cr-space-1);
+}
+
+/* Designed select — native appearance replaced by token styling; chevron
+   flips sides under [dir='rtl'] */
+.cr-select {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 36px;
+  padding-block: 6px;
+  padding-inline: var(--cr-space-3) 34px;
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius-sm);
+  background-color: var(--cr-surface);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b675c' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  color: var(--cr-ink);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: border-color var(--cr-duration) var(--cr-ease), background-color var(--cr-duration) var(--cr-ease);
+}
+.cr-select:hover { border-color: var(--cr-ink-soft); }
+.cr-select:focus-visible {
+  outline: 2px solid var(--cr-accent);
+  outline-offset: 2px;
+  border-color: var(--cr-accent);
+}
+[dir="rtl"] .cr-select {
+  padding-inline: 34px var(--cr-space-3);
+  background-position: left 12px center;
+}
+
+/* ==========================================================================
+   Shell layout
+   ========================================================================== */
 
 .cr-main {
   flex: 1;
@@ -98,8 +180,9 @@
 }
 
 /* ==========================================================================
-   Navigation — phone-first bottom tab bar; ≥1024px becomes a left rail
-   (right rail in RTL automatically, everything is logical)
+   Navigation — phone-first bottom tab bar with raised center FAB;
+   ≥1024px: left rail (right rail in RTL), space switcher on top, prominent
+   Record action, then the four destinations in natural flow
    ========================================================================== */
 
 .cr-tabbar {
@@ -132,6 +215,7 @@
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.01em;
+  cursor: pointer;
   transition: background-color var(--cr-duration) var(--cr-ease), color var(--cr-duration) var(--cr-ease);
 }
 .cr-tab--active { color: var(--cr-accent-strong); }
@@ -159,6 +243,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
   box-shadow: var(--cr-shadow-fab);
   transition: background-color var(--cr-duration) var(--cr-ease), transform var(--cr-duration) var(--cr-ease);
 }
@@ -172,12 +257,12 @@
   .cr-rail {
     display: flex;
     flex-direction: column;
+    justify-content: flex-start;
     gap: var(--cr-space-1);
     flex: 0 0 var(--cr-rail-w);
     padding: var(--cr-space-5) var(--cr-space-3);
     background: var(--cr-surface);
     border-inline-end: 1px solid var(--cr-border);
-    box-shadow: none;
     position: sticky;
     inset-block-start: 0;
     block-size: 100dvh;
@@ -199,15 +284,100 @@
     font-weight: 700;
   }
   .cr-tabbar { display: none; }
-  .cr-fab { margin-block-start: 0; border-width: 0; }
-  .cr-main { padding: var(--cr-space-6) var(--cr-space-6); padding-block-end: var(--cr-space-6); }
+  .cr-main { padding: var(--cr-space-6); }
 }
 
+/* Prominent full-width Record action at the top of the rail */
+.cr-rail-record {
+  display: none;
+}
+@media (min-width: 1024px) {
+  .cr-rail-record {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--cr-space-2);
+    inline-size: 100%;
+    min-height: 48px;
+    margin-block: var(--cr-space-3) var(--cr-space-4);
+    padding-inline: var(--cr-space-4);
+    border: 1px solid var(--cr-accent);
+    border-radius: var(--cr-radius-sm);
+    background: var(--cr-accent);
+    color: var(--cr-accent-ink);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: var(--cr-shadow-fab);
+    transition: background-color var(--cr-duration) var(--cr-ease), border-color var(--cr-duration) var(--cr-ease);
+  }
+  .cr-rail-record:hover { background: var(--cr-accent-strong); border-color: var(--cr-accent-strong); }
+  .cr-rail-record:active { background: var(--cr-accent-strong); }
+}
+
+/* Space switcher (legacy component) re-skinned to control-room tokens —
+   it renders only inside .cr-rail */
+.cr-rail .space-switcher {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  border-block-end: 0;
+}
+.cr-rail .space-switcher-trigger {
+  inline-size: 100%;
+  display: grid;
+  gap: 2px;
+  padding: var(--cr-space-3);
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius-sm);
+  background: var(--cr-surface-sunken);
+  color: var(--cr-ink);
+  text-align: start;
+  cursor: pointer;
+  transition: background-color var(--cr-duration) var(--cr-ease);
+}
+.cr-rail .space-switcher-trigger:hover { background: var(--cr-border); }
+.cr-rail .space-switcher-trigger span,
+.cr-rail .space-switcher-trigger small {
+  color: var(--cr-ink-soft);
+  font-size: 11px;
+  font-weight: 650;
+}
+.cr-rail .space-switcher-trigger bdi { font-weight: 750; font-variant-numeric: tabular-nums; }
+.cr-rail .space-switcher-menu {
+  position: absolute;
+  inset-block-start: calc(100% + var(--cr-space-1));
+  inset-inline: 0;
+  z-index: 20;
+  display: grid;
+  gap: 2px;
+  padding: var(--cr-space-2);
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius-sm);
+  background: var(--cr-surface);
+  color: var(--cr-ink);
+  box-shadow: var(--cr-shadow-backdrop);
+}
+.cr-rail .space-switcher-menu button {
+  min-height: 40px;
+  padding-inline: var(--cr-space-2);
+  background: transparent;
+  color: var(--cr-ink);
+  text-align: start;
+  cursor: pointer;
+  border-radius: var(--cr-radius-sm);
+}
+.cr-rail .space-switcher-menu button:hover { background: var(--cr-accent-soft); color: var(--cr-accent-strong); }
+
 /* ==========================================================================
-   Cards — the core visual unit: white, raised, tidy
+   Cards — the core visual unit: white, raised, tidy. Rhythm comes from a
+   consistent column gap, never from default element margins
    ========================================================================== */
 
 .cr-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-2);
   background: var(--cr-surface);
   border: 1px solid var(--cr-border);
   border-radius: var(--cr-radius);
@@ -358,7 +528,6 @@
   box-shadow: var(--cr-shadow-sunken);
   animation: cr-shimmer 1.4s var(--cr-ease) infinite;
 }
-
 @keyframes cr-shimmer {
   from { background-position: 100% 0, 0 0; }
   to { background-position: -100% 0, 0 0; }
@@ -460,7 +629,7 @@
 .cr-type-tile:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ==========================================================================
-   Keypad — numbers never mirror (LTR even in RTL)
+   Keypad — numbers never mirror (LTR even in RTL), thumb-friendly targets
    ========================================================================== */
 
 .cr-keypad {
@@ -518,6 +687,14 @@
 .cr-button--danger:hover:not(:disabled) { background: var(--cr-danger); color: var(--cr-accent-ink); }
 
 .cr-button--block { inline-size: 100%; }
+
+/* Compact inline action (card headers, rows) */
+.cr-button--sm {
+  min-height: 32px;
+  padding-inline: var(--cr-space-3);
+  font-size: 13px;
+  border-radius: var(--cr-radius-sm);
+}
 
 .cr-button:disabled { cursor: not-allowed; opacity: 0.5; }
 
@@ -582,6 +759,7 @@
   border-radius: var(--cr-radius-sm);
   background: var(--cr-surface);
   color: var(--cr-ink);
+  font-family: inherit;
 }
 .cr-record-details input:focus-visible {
   outline: 2px solid var(--cr-accent);
@@ -622,6 +800,7 @@
 
 .cr-tab:focus-visible,
 .cr-fab:focus-visible,
+.cr-rail-record:focus-visible,
 .cr-button:focus-visible,
 .cr-type-tile:focus-visible,
 .cr-chip:focus-visible,
@@ -637,7 +816,7 @@
 @media (prefers-reduced-motion: reduce) {
   .cr-sheet-backdrop, .cr-sheet, .cr-skeleton { animation: none; }
   .cr-skeleton { background: var(--cr-surface-sunken); }
-  .cr-tab, .cr-fab, .cr-button, .cr-chip, .cr-type-tile, .cr-keypad button,
+  .cr-tab, .cr-fab, .cr-rail-record, .cr-button, .cr-chip, .cr-type-tile, .cr-keypad button,
   .cr-journal-row--button, .cr-record-wallet, .cr-record-category,
   .cr-progress > span, .cr-bars > span { transition: none; }
 }

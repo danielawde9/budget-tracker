@@ -38,6 +38,17 @@ export function ControlRoomShell(props: ControlRoomShellProps) {
       {DESTINATIONS.slice(2).map(renderTab)}
     </>
   );
+  const railRecord = (
+    <button
+      type="button"
+      className="cr-rail-record"
+      aria-label={t(locale, 'Record', 'سجل')}
+      onClick={onRecord}
+    >
+      <Plus aria-hidden size={18} />
+      {t(locale, 'Record', 'سجل')}
+    </button>
+  );
   function renderTab({ id, icon: Icon, en, ar }: (typeof DESTINATIONS)[number]) {
     const active = activeDestination === id;
     return (
@@ -57,7 +68,8 @@ export function ControlRoomShell(props: ControlRoomShellProps) {
     <div className="cr-shell">
       <nav className="cr-rail" aria-label={t(locale, 'Workspace', 'مساحة العمل')}>
         {props.spaceControls}
-        {tabs}
+        {railRecord}
+        {DESTINATIONS.map(renderTab)}
       </nav>
       <main className="cr-main">{props.children}</main>
       <nav className="cr-tabbar" aria-label={t(locale, 'Workspace', 'مساحة العمل')}>{tabs}</nav>

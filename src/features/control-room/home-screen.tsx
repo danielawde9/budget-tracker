@@ -168,7 +168,7 @@ function RecentActivity({ events, locale, onRecord }: { events: readonly Journal
     <section className="cr-card" aria-label={t(locale, 'Recent activity', 'النشاط الأخير')}>
       <div className="cr-row">
         <h2 className="cr-label">{t(locale, 'Recent activity', 'النشاط الأخير')}</h2>
-        <button type="button" className="cr-button" onClick={onRecord}>{t(locale, 'Record', 'سجل')}</button>
+        <button type="button" className="cr-button cr-button--primary cr-button--sm" onClick={onRecord}>{t(locale, 'Record', 'سجل')}</button>
       </div>
       {events.length === 0 ? (
         <p>{t(locale, 'No transactions yet', 'لا توجد معاملات بعد')}</p>
@@ -196,11 +196,11 @@ export function HomeScreen(props: HomeScreenProps) {
     : t(locale, 'Personal space', 'مساحة شخصية');
   return (
     <>
-      <header className="cr-row">
-        <h1>{spaceLabel}</h1>
-        <label className="cr-label">
-          {t(locale, 'Month', 'الشهر')}
-          <select value={month} onChange={(event) => onMonthChange(event.target.value)}>
+      <header className="cr-header">
+        <h1 className="cr-title">{spaceLabel}</h1>
+        <label className="cr-field">
+          <span className="cr-label">{t(locale, 'Month', 'الشهر')}</span>
+          <select className="cr-select" value={month} onChange={(event) => onMonthChange(event.target.value)}>
             {monthOptions(month).map((option) => (
               <option key={option} value={option}>{monthLabel(option, locale)}</option>
             ))}
