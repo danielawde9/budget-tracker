@@ -99,7 +99,7 @@ interface HomeRoutesProps {
   spaceKind: SpaceKind;
   gateways: ControlRoomGateways;
   wallets: WalletsState;
-  loans: ReturnType<typeof useLoans>;
+  loansOutstanding: readonly { loanId: string; personName: string; currency: Currency; outstandingMinor: string }[];
   month: string;
   onMonthChange(month: string): void;
   onSpaceUnavailable?: (() => void) | undefined;
@@ -112,7 +112,6 @@ function HomeRoutes(props: HomeRoutesProps) {
   const insightsClient = gateways.insights ?? unavailableInsightsClient;
 
   const wallets = props.wallets;
-  const loans = props.loans;
 
   const [data, setData] = useState<HomeDataState>({ status: 'loading', budgets: [], trend: [], error: null });
   const [attempt, setAttempt] = useState(0);
@@ -156,16 +155,6 @@ function HomeRoutes(props: HomeRoutesProps) {
     return [...byCurrency.entries()].map(([currency, balanceMinor]) => ({ currency, balanceMinor }));
   }, [wallets.wallets]);
 
-  const loansOutstanding = useMemo(() => {
-    const active = (loans.dashboard?.loans ?? []).filter((loan) => BigInt(loan.outstandingMinor) > 0n);
-    return active.map((loan) => ({
-      loanId: loan.id,
-      personName: loan.personName,
-      currency: loan.currency,
-      outstandingMinor: loan.outstandingMinor,
-    }));
-  }, [loans.dashboard]);
-
   return (
     <HomeScreen
       locale={locale}
@@ -179,7 +168,7 @@ function HomeRoutes(props: HomeRoutesProps) {
       dataStatus={data.status}
       dataError={data.error}
       onRetryLoad={() => setAttempt((current) => current + 1)}
-      loansOutstanding={loansOutstanding}
+      loansOutstanding={props.loansOutstanding}
       recentEvents={wallets.events}
     />
   );
@@ -310,62 +299,65 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
   const [sheetError, setSheetError] = useState<string | null>(null);
 
   let destinationRoutes: ReactNode;
-  if (props.destination === 'home') {
-    destinationRoutes = (
-      <HomeRoutes
-        locale={locale}
-        spaceId={spaceId}
-        spaceKind={props.spaceKind}
-        gateways={gateways}
-        wallets={wallets}
-        loans={loans}
-        month={month}
-        onMonthChange={setMonth}
-        onSpaceUnavailable={props.onSpaceUnavailable}
-        onOpenRecord={props.onOpenRecord}
-      />
-    );
-  } else if (props.destination === 'journal') {
-    destinationRoutes = (
-      <JournalRoutes
-        locale={locale}
-        wallets={wallets}
-        onSpaceUnavailable={props.onSpaceUnavailable}
-      />
-    );
-  } else if (props.destination === 'plan') {
-    destinationRoutes = (
-      <PlanRoutes
-        locale={locale}
-        spaceId={spaceId}
-        gateways={gateways}
-        loans={loans}
-        month={month}
-      />
-    );
-  } else if (props.destination === 'manage') {
-    destinationRoutes = (
-      <ManageScreen
-        key={spaceId}
-        locale={locale}
-        spaceId={spaceId}
-        spaceName={props.spaceName ?? ''}
-        spaceKind={props.spaceKind}
-        userId={props.userId ?? ''}
-        userEmail={props.userEmail ?? null}
-        gateways={{
-          loans: gateways.loans,
-          categories: gateways.categories,
-          household: gateways.household,
-        }}
-        walletState={wallets}
-        onLocaleChange={() => props.onLocaleChange?.()}
-        onSignOut={() => props.onSignOut?.()}
-        onSpaceUnavailable={props.onSpaceUnavailable}
-      />
-    );
-  } else {
-    destinationRoutes = <p>{props.destination} coming soon</p>;
+  switch (props.destination) {
+    case 'home':
+      destinationRoutes = (
+        <HomeRoutes
+          locale={locale}
+          spaceId={spaceId}
+          spaceKind={props.spaceKind}
+          gateways={gateways}
+          wallets={wallets}
+          loansOutstanding={loansOutstanding}
+          month={month}
+          onMonthChange={setMonth}
+          onSpaceUnavailable={props.onSpaceUnavailable}
+          onOpenRecord={props.onOpenRecord}
+        />
+      );
+      break;
+    case 'journal':
+      destinationRoutes = (
+        <JournalRoutes
+          locale={locale}
+          wallets={wallets}
+          onSpaceUnavailable={props.onSpaceUnavailable}
+        />
+      );
+      break;
+    case 'plan':
+      destinationRoutes = (
+        <PlanRoutes
+          locale={locale}
+          spaceId={spaceId}
+          gateways={gateways}
+          loans={loans}
+          month={month}
+        />
+      );
+      break;
+    case 'manage':
+      destinationRoutes = (
+        <ManageScreen
+          key={spaceId}
+          locale={locale}
+          spaceId={spaceId}
+          spaceName={props.spaceName ?? ''}
+          spaceKind={props.spaceKind}
+          userId={props.userId ?? ''}
+          userEmail={props.userEmail ?? null}
+          gateways={{
+            loans: gateways.loans,
+            categories: gateways.categories,
+            household: gateways.household,
+          }}
+          walletState={wallets}
+          onLocaleChange={() => props.onLocaleChange?.()}
+          onSignOut={() => props.onSignOut?.()}
+          onSpaceUnavailable={props.onSpaceUnavailable}
+        />
+      );
+      break;
   }
 
   return (
