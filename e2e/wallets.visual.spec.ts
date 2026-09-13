@@ -129,6 +129,7 @@ test('space switching clears the prior wallet projection before the next read', 
   await openWallets(page);
   await expect(activeWalletName(page, 'Daily USD')).toBeVisible();
   await switchWorkspaceSpace(page, 'Current space: My money', 'Switch to Home budget');
+  await chooseWorkspaceDestination(page, 'Wallets');
   await expect(activeWalletName(page, 'Daily USD')).toHaveCount(0);
   await expect(activeWalletName(page, 'Household USD')).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-space-switch.png'), fullPage: true });
@@ -153,6 +154,7 @@ test('Arabic RTL Wallets mirrors overview and history', async ({ page }, testInf
   await openWallets(page);
   await switchWorkspaceLanguage(page);
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await chooseWorkspaceDestination(page, 'المحافظ');
   await expect(page.getByRole('heading', { name: 'المحافظ' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'سجل المعاملات' })).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'mobile-arabic-wallet-history.png'), fullPage: true });
@@ -245,6 +247,7 @@ test('Arabic mobile archived wallets disclosure and restore render right-to-left
   test.skip(testInfo.project.name !== 'mobile');
   await openWallets(page);
   await switchWorkspaceLanguage(page);
+  await chooseWorkspaceDestination(page, 'المحافظ');
   await page.getByRole('button', { name: 'أرشفة Home LBP' }).click();
   const archiveDialog = page.getByRole('dialog', { name: 'أرشفة المحفظة' });
   await expect(archiveDialog.getByRole('button', { name: 'أرشفة المحفظة' })).toHaveCount(0);

@@ -72,10 +72,9 @@ test('desktop English rehearsal exercises every protected financial mutation and
   await installApplicationFixture(page);
   await page.goto('/');
 
-  await page.getByText('Account').click();
-  await page.getByText('Backup readiness').click();
-  await expect(page.getByRole('note', { name: 'Backup readiness' })).toContainText('Do not enter real financial data');
-  await page.getByText('Account').click();
+  const account = await openWorkspaceAccount(page, 'Account');
+  await expect(account).toContainText('manager@example.test');
+  await expect(account.getByRole('button', { name: 'Sign out' })).toBeVisible();
 
   await chooseWorkspaceDestination(page, 'Wallets');
   await page.getByRole('button', { name: 'New wallet' }).click();
@@ -173,8 +172,8 @@ test('desktop English rehearsal exercises every protected financial mutation and
   expect(new Set(audit.body.protectedMutationCalls)).toEqual(new Set(requiredProtectedMutations));
 
   await page.reload();
-  await expect(page.getByRole('navigation').getByRole('button', { name: 'Overview', exact: true })).toHaveAttribute('aria-current', 'page');
-  await expect(page.getByRole('heading', { name: 'Active balances' })).toBeVisible();
+  await expect(page.getByRole('navigation').getByRole('button', { name: 'Home', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('region', { name: 'Net position' })).toBeVisible();
   await chooseWorkspaceDestination(page, 'Wallets');
   await expect(activeWalletName(page, 'Synthetic UAT wallet')).toBeVisible();
   const archivedSyntheticEvent = page.getByRole('row').filter({ hasText: 'Synthetic transport' });
@@ -201,12 +200,11 @@ test('mobile Arabic rehearsal keeps the empty state, RTL, recovery notice, and s
   await switchWorkspaceLanguage(page);
   await chooseWorkspaceDestination(page, 'المحافظ');
   await expect(activeWalletName(page, 'محفظة تجريبية')).toBeVisible();
-  const accountMenu = await openWorkspaceAccount(page, 'الحساب');
-  await accountMenu.getByText('جاهزية النسخ الاحتياطي', { exact: true }).click();
-  const backupReadiness = page.getByRole('note', { name: 'جاهزية النسخ الاحتياطي' });
-  await expect(backupReadiness).toContainText('لا تُدخل بيانات مالية حقيقية');
-  await backupReadiness.scrollIntoViewIfNeeded();
-  await expect(backupReadiness).toBeInViewport({ ratio: 0.99 });
+  const account = await openWorkspaceAccount(page, 'الحساب');
+  await expect(account).toContainText('manager@example.test');
+  await expect(account.getByRole('button', { name: 'تسجيل الخروج' })).toBeVisible();
+  await account.scrollIntoViewIfNeeded();
+  await expect(account).toBeInViewport({ ratio: 0.99 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.screenshot({ path: testInfo.outputPath('mobile-ar-reload-retention.png'), fullPage: true });
 });

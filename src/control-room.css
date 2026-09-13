@@ -1,0 +1,896 @@
+/* ==========================================================================
+   Control Room — "quiet ledger" editorial theme.
+   Content sits directly on a warm cream background; separation comes from
+   hairline dividers and whitespace, never raised cards. Serif display
+   type (system stack) for titles and hero amounts; sans for UI chrome.
+   All colors live as tokens on :root so a future dark theme swaps this
+   block only. Logical properties throughout (RTL-safe by construction);
+   physical values appear only in border-radius corner lists, the keypad's
+   `direction: ltr`, and env(safe-area-inset-*) fallbacks.
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* Typography — sans UI stack covering Latin + Arabic; Arabic glyphs fall
+     back per-glyph from the Latin-only display serif to the sans stack */
+  --cr-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Tahoma,
+    "Helvetica Neue", Arial, sans-serif;
+  --cr-font-display: Georgia, "Times New Roman", "Noto Serif", "Songti SC",
+    var(--cr-font), serif;
+
+  /* Surfaces & ink */
+  --cr-bg: #f8f6ef;
+  --cr-surface-sunken: #eeebe1;
+  --cr-border: #e6e2d5;
+  --cr-hairline: #e6e2d5;
+  --cr-ink: #1d1b15;
+  --cr-ink-soft: #6f6a5c;
+
+  /* Semantic: one accent (positive/active), amber for warnings, red for
+     destructive + overspend only */
+  --cr-accent: #1a7a4a;
+  --cr-accent-strong: #0f5a36;
+  --cr-accent-soft: #e2f1e9;
+  --cr-accent-ink: #ffffff;
+  --cr-warn: #b97a0f;
+  --cr-warn-strong: #7c4d03;
+  --cr-danger: #b3261e;
+  --cr-danger-soft: #fbe9e7;
+
+  /* Spacing scale */
+  --cr-space-1: 4px;
+  --cr-space-2: 8px;
+  --cr-space-3: 12px;
+  --cr-space-4: 16px;
+  --cr-space-5: 24px;
+  --cr-space-6: 32px;
+
+  /* Radius scale */
+  --cr-radius-sm: 10px;
+  --cr-radius: 14px;
+  --cr-radius-full: 999px;
+
+  /* Elevation: sheets > FAB; the ledger is flat — no card/tab-bar shadow */
+  --cr-shadow-sunken: inset 0 1px 2px rgb(29 27 21 / 0.05);
+  --cr-shadow-backdrop: 0 12px 40px rgb(29 27 21 / 0.22);
+  --cr-shadow-fab: 0 3px 8px rgb(26 122 74 / 0.28), 0 6px 18px rgb(29 27 21 / 0.16);
+
+  /* Motion */
+  --cr-duration: 160ms;
+  --cr-ease: ease-out;
+
+  /* Layout */
+  --cr-tabbar-h: 64px;
+  --cr-rail-w: 240px;
+  --cr-content-w: 720px;
+  --cr-content-w-wide: 960px;
+}
+
+/* ==========================================================================
+   Scoped reset — neutralize UA styles AND the legacy global stylesheet
+   (styles.css sets display fonts, giant h1, green buttons, etc.)
+   ========================================================================== */
+
+.cr-shell {
+  min-height: 100dvh;
+  background: var(--cr-bg);
+  color: var(--cr-ink);
+  font-family: var(--cr-font);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Zero default margins inside the shell (UA + legacy leaks) */
+.cr-shell :where(h1, h2, h3, p, ul, ol, figure, small, output, label, fieldset) {
+  margin: 0;
+}
+
+/* Buttons: legacy styles.css paints every button green — take back control */
+.cr-shell button {
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  border-radius: var(--cr-radius-sm);
+}
+
+/* ==========================================================================
+   Page header — compact title row: page title inline-start, field controls
+   inline-end, baseline aligned
+   ========================================================================== */
+
+.cr-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--cr-space-3);
+  margin-block: var(--cr-space-2) var(--cr-space-4);
+}
+.cr-title {
+  font-family: var(--cr-font-display);
+  font-size: 23px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+
+/* Bare headings inside screens (journal/manage titles, sheet step titles)
+   inherit the display serif — Arabic glyphs fall back to the sans stack.
+   Section labels (.cr-label) stay small-caps sans even as h2 elements. */
+.cr-shell :where(h1, h2):not(.cr-label) {
+  font-family: var(--cr-font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+.cr-shell h1 { font-size: 23px; }
+.cr-shell h2 { font-size: 19px; }
+
+/* Small field: small-caps label stacked over a designed control */
+.cr-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--cr-space-1);
+}
+
+/* Designed select — native appearance replaced by token styling; chevron
+   flips sides under [dir='rtl'] */
+.cr-select {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 36px;
+  padding-block: 6px;
+  padding-inline: var(--cr-space-3) 34px;
+  border: 0;
+  border-block-end: 1px solid var(--cr-hairline);
+  border-radius: 0;
+  background-color: transparent;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236f6a5c' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  color: var(--cr-ink);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: border-color var(--cr-duration) var(--cr-ease), background-color var(--cr-duration) var(--cr-ease);
+}
+.cr-select:hover { border-block-end-color: var(--cr-ink-soft); }
+.cr-select:focus-visible {
+  outline: 2px solid var(--cr-accent);
+  outline-offset: 2px;
+  border-block-end-color: var(--cr-accent);
+}
+[dir="rtl"] .cr-select {
+  padding-inline: 34px var(--cr-space-3);
+  background-position: left 12px center;
+}
+
+/* ==========================================================================
+   Shell layout
+   ========================================================================== */
+
+.cr-main {
+  flex: 1;
+  inline-size: 100%;
+  max-inline-size: var(--cr-content-w);
+  margin-inline: auto;
+  padding: var(--cr-space-4);
+  padding-block-end: calc(var(--cr-tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--cr-space-5));
+}
+.cr-main--wide { max-inline-size: var(--cr-content-w-wide); }
+
+.cr-visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ==========================================================================
+   Navigation — phone-first bottom tab bar with raised center FAB;
+   ≥1024px: left rail (right rail in RTL), space switcher on top, prominent
+   Record action, then the four destinations in natural flow
+   ========================================================================== */
+
+.cr-tabbar {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: 0;
+  z-index: 30;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  min-height: calc(var(--cr-tabbar-h) + env(safe-area-inset-bottom, 0px));
+  padding-block-end: env(safe-area-inset-bottom, 0px);
+  background: var(--cr-bg);
+  border-block-start: 1px solid var(--cr-hairline);
+}
+
+.cr-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: var(--cr-tabbar-h);
+  padding: 0 var(--cr-space-2);
+  border: 0;
+  background: none;
+  color: var(--cr-ink-soft);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background-color var(--cr-duration) var(--cr-ease), color var(--cr-duration) var(--cr-ease);
+}
+.cr-tab--active { color: var(--cr-accent-strong); }
+.cr-tab:hover { background: var(--cr-surface-sunken); }
+.cr-rail .cr-tab--active:hover { background: var(--cr-accent-soft); }
+.cr-tab:active { background: var(--cr-border); }
+
+.cr-tab-fab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 0;
+}
+
+.cr-shell .cr-fab {
+  inline-size: 56px;
+  block-size: 56px;
+  margin-block-start: -20px;
+  border: 3px solid var(--cr-bg);
+  border-radius: 50%;
+  background: var(--cr-accent);
+  color: var(--cr-accent-ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--cr-shadow-fab);
+  transition: background-color var(--cr-duration) var(--cr-ease), transform var(--cr-duration) var(--cr-ease);
+}
+.cr-shell .cr-fab:hover { background: var(--cr-accent-strong); transform: translateY(-1px); }
+.cr-shell .cr-fab:active { background: var(--cr-accent-strong); transform: translateY(0) scale(0.97); }
+
+.cr-rail { display: none; }
+
+@media (min-width: 1024px) {
+  .cr-shell { flex-direction: row; }
+  .cr-rail {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: var(--cr-space-1);
+    flex: 0 0 var(--cr-rail-w);
+    padding: var(--cr-space-5) var(--cr-space-3);
+    background: var(--cr-bg);
+    border-inline-end: 1px solid var(--cr-hairline);
+    position: sticky;
+    inset-block-start: 0;
+    block-size: 100dvh;
+    overflow-y: auto;
+  }
+  .cr-rail .cr-tab {
+    flex: none;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: var(--cr-space-3);
+    min-height: 44px;
+    padding-inline: var(--cr-space-3);
+    border-radius: var(--cr-radius-full);
+    font-size: 14px;
+  }
+  .cr-rail .cr-tab--active {
+    background: var(--cr-accent-soft);
+    color: var(--cr-accent-strong);
+    font-weight: 700;
+  }
+  .cr-tabbar { display: none; }
+  .cr-main { padding: var(--cr-space-6); }
+}
+
+/* Prominent full-width Record action at the top of the rail */
+.cr-shell .cr-rail-record {
+  display: none;
+}
+@media (min-width: 1024px) {
+  .cr-shell .cr-rail-record {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--cr-space-2);
+    inline-size: 100%;
+    min-height: 46px;
+    margin-block: var(--cr-space-4);
+    padding-inline: var(--cr-space-4);
+    border: 0;
+    border-radius: var(--cr-radius-full);
+    background: var(--cr-accent);
+    color: var(--cr-accent-ink);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color var(--cr-duration) var(--cr-ease);
+  }
+  .cr-shell .cr-rail-record:hover { background: var(--cr-accent-strong); }
+  .cr-shell .cr-rail-record:active { background: var(--cr-accent-strong); }
+}
+
+/* Space switcher (legacy component) re-skinned to control-room tokens —
+   it renders only inside .cr-rail */
+.cr-rail .space-switcher {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  border-block-end: 0;
+}
+.cr-rail .space-switcher-trigger {
+  inline-size: 100%;
+  display: grid;
+  gap: 2px;
+  margin-block-end: var(--cr-space-3);
+  padding: var(--cr-space-2) var(--cr-space-1);
+  border: 0;
+  border-block-end: 1px solid var(--cr-hairline);
+  border-radius: 0;
+  background: transparent;
+  color: var(--cr-ink);
+  text-align: start;
+  cursor: pointer;
+  transition: border-color var(--cr-duration) var(--cr-ease);
+}
+.cr-rail .space-switcher-trigger:hover { border-block-end-color: var(--cr-ink-soft); }
+.cr-rail .space-switcher-trigger span,
+.cr-rail .space-switcher-trigger small {
+  color: var(--cr-ink-soft);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.cr-rail .space-switcher-trigger bdi {
+  font-family: var(--cr-font-display);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--cr-ink);
+  font-variant-numeric: tabular-nums;
+}
+.cr-rail .space-switcher-menu {
+  position: absolute;
+  inset-block-start: calc(100% + var(--cr-space-1));
+  inset-inline: 0;
+  z-index: 20;
+  display: grid;
+  gap: 2px;
+  padding: var(--cr-space-2);
+  border: 1px solid var(--cr-hairline);
+  border-radius: var(--cr-radius-sm);
+  background: var(--cr-bg);
+  color: var(--cr-ink);
+  box-shadow: var(--cr-shadow-backdrop);
+}
+.cr-rail .space-switcher-menu button {
+  min-height: 40px;
+  padding-inline: var(--cr-space-2);
+  background: transparent;
+  color: var(--cr-ink);
+  text-align: start;
+  cursor: pointer;
+  border-radius: var(--cr-radius-sm);
+}
+.cr-rail .space-switcher-menu button:hover { background: var(--cr-accent-soft); color: var(--cr-accent-strong); }
+
+/* ==========================================================================
+   Sections — flat on the cream canvas. Separation is a hairline above the
+   section plus generous whitespace; no boxes, no borders, no shadows.
+   The .cr-card name is kept as the layout contract for screens/tests.
+   ========================================================================== */
+
+.cr-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-3);
+  background: transparent;
+  border: 0;
+  border-block-start: 1px solid var(--cr-hairline);
+  border-radius: 0;
+  padding: var(--cr-space-4) 0;
+  box-shadow: none;
+}
+.cr-card + .cr-card { margin-block-start: var(--cr-space-3); }
+
+/* Section labels: small caps, letter-spaced — always sans, even on headings */
+.cr-label {
+  font-family: var(--cr-font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cr-ink-soft);
+}
+
+/* Amounts are the heroes — display serif at rest (hero, plan summaries),
+   tabular sans inside dense data rows */
+.cr-amount {
+  font-family: var(--cr-font-display);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.cr-journal-row .cr-amount,
+.cr-movements .cr-amount {
+  font-family: var(--cr-font);
+  font-size: inherit;
+  font-weight: 700;
+}
+.cr-amount--hero {
+  font-size: clamp(32px, 8vw, 40px);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.1;
+}
+
+.cr-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--cr-space-3);
+}
+
+.cr-chips { display: flex; gap: var(--cr-space-1); flex-wrap: wrap; }
+.cr-shell .cr-chip {
+  border: 0;
+  border-radius: var(--cr-radius-full);
+  padding: var(--cr-space-1) var(--cr-space-3);
+  font-size: 12px;
+  font-weight: 650;
+  background: transparent;
+  color: var(--cr-ink-soft);
+  transition: background-color var(--cr-duration) var(--cr-ease), color var(--cr-duration) var(--cr-ease);
+}
+.cr-shell .cr-chip--active {
+  background: var(--cr-accent-soft);
+  color: var(--cr-accent-strong);
+}
+.cr-shell .cr-chip:hover { background: var(--cr-surface-sunken); }
+.cr-shell .cr-chip--active:hover { background: var(--cr-accent-soft); }
+
+/* Semantic text tones */
+.cr-positive { color: var(--cr-accent-strong); }
+.cr-warn-text { color: var(--cr-warn-strong); }
+.cr-danger-text { color: var(--cr-danger); }
+
+/* ==========================================================================
+   Data instruments — budget progress + hand-rolled trend bars
+   ========================================================================== */
+
+.cr-progress {
+  block-size: 4px;
+  border-radius: var(--cr-radius-full);
+  background: var(--cr-surface-sunken);
+  overflow: hidden;
+  box-shadow: var(--cr-shadow-sunken);
+}
+.cr-progress > span {
+  display: block;
+  block-size: 100%;
+  border-radius: inherit;
+  background: var(--cr-accent);
+  transition: inline-size 200ms var(--cr-ease);
+}
+.cr-progress--over > span { background: var(--cr-warn); }
+
+.cr-bars { display: flex; align-items: flex-end; gap: var(--cr-space-1); block-size: 64px; }
+.cr-bars > span {
+  flex: 1;
+  min-block-size: 2px;
+  background: var(--cr-accent);
+  opacity: 0.85;
+  border-radius: var(--cr-radius-sm) var(--cr-radius-sm) 0 0;
+  transition: block-size 200ms var(--cr-ease);
+}
+.cr-bars > span[data-role="previous"] { opacity: 0.3; }
+
+/* ==========================================================================
+   Journal feed & movements
+   ========================================================================== */
+
+.cr-journal-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--cr-space-3);
+  padding-block: var(--cr-space-3);
+  border-block-end: 1px solid var(--cr-border);
+  font-size: 14px;
+}
+.cr-journal-row:last-child { border-block-end: 0; }
+.cr-journal-row--button {
+  inline-size: 100%;
+  background: none;
+  border: 0;
+  border-radius: var(--cr-radius-sm);
+  padding-inline: var(--cr-space-1);
+  margin-inline: calc(var(--cr-space-1) * -1);
+  color: var(--cr-ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color var(--cr-duration) var(--cr-ease);
+}
+.cr-journal-row--button:hover { background: var(--cr-surface-sunken); }
+.cr-journal-row--button > span > span + span { margin-inline-start: var(--cr-space-2); }
+
+.cr-reversal-text { color: var(--cr-danger); opacity: 0.75; }
+
+.cr-movements { list-style: none; margin: 0; padding: 0; }
+.cr-movements li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--cr-space-3);
+  padding-block: var(--cr-space-2);
+  border-block-end: 1px solid var(--cr-border);
+  font-size: 14px;
+}
+.cr-movements li:last-child { border-block-end: 0; }
+
+/* Alert banners (ambiguous sync, load failures) — quiet inline notice with
+   an amber edge, never a boxed callout */
+.cr-banner {
+  margin-block: var(--cr-space-3);
+  padding-block: var(--cr-space-2);
+  padding-inline-start: var(--cr-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-2);
+  border-inline-start: 2px solid var(--cr-warn);
+  background: transparent;
+  color: var(--cr-warn-strong);
+}
+
+/* ==========================================================================
+   Skeletons — sunken placeholders with a slow shimmer sweep while data loads
+   ========================================================================== */
+
+.cr-skeleton {
+  display: block;
+  border-radius: var(--cr-radius-sm);
+  background:
+    linear-gradient(90deg, transparent, rgb(255 255 255 / 0.45), transparent) 0 0 / 200% 100% no-repeat,
+    var(--cr-surface-sunken);
+  box-shadow: var(--cr-shadow-sunken);
+  animation: cr-shimmer 1.4s var(--cr-ease) infinite;
+}
+@keyframes cr-shimmer {
+  from { background-position: 100% 0, 0 0; }
+  to { background-position: -100% 0, 0 0; }
+}
+
+/* Shape modifiers */
+.cr-skeleton--hero { block-size: clamp(30px, 8vw, 40px); inline-size: 55%; border-radius: var(--cr-radius-sm); }
+.cr-skeleton--line { block-size: 14px; inline-size: 100%; }
+.cr-skeleton--line-short { block-size: 14px; inline-size: 45%; }
+.cr-skeleton--card { border-radius: var(--cr-radius); block-size: 120px; }
+.cr-skeleton--row { block-size: 45px; border-radius: var(--cr-radius-sm); }
+.cr-skeleton--chip { inline-size: 64px; block-size: 26px; border-radius: var(--cr-radius-full); }
+.cr-skeleton--bar { block-size: 64px; border-radius: var(--cr-radius-sm); }
+
+/* Skeleton compositions mirror real flat sections */
+.cr-skeleton-card {
+  background: transparent;
+  border: 0;
+  border-block-start: 1px solid var(--cr-hairline);
+  border-radius: 0;
+  padding: var(--cr-space-4) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-3);
+}
+.cr-skeleton-card + .cr-skeleton-card { margin-block-start: var(--cr-space-3); }
+.cr-skeleton-chips { display: flex; gap: var(--cr-space-1); }
+
+/* ==========================================================================
+   Bottom sheets — mobile: full-width rounded-top over dimmed backdrop;
+   desktop (≥1024px): centered dialog, full rounding
+   ========================================================================== */
+
+.cr-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgb(28 26 21 / 0.42);
+  animation: cr-fade-in var(--cr-duration) var(--cr-ease);
+}
+.cr-sheet {
+  background: var(--cr-bg);
+  inline-size: 100%;
+  max-inline-size: 560px;
+  max-block-size: 88dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--cr-radius) var(--cr-radius) 0 0;
+  border: 0;
+  padding: var(--cr-space-5) var(--cr-space-4);
+  box-shadow: var(--cr-shadow-backdrop);
+  animation: cr-sheet-up var(--cr-duration) var(--cr-ease);
+}
+/* Sheet titles: display serif with a hairline header separation */
+.cr-sheet :where(h2) {
+  padding-block-end: var(--cr-space-3);
+  border-block-end: 1px solid var(--cr-hairline);
+}
+@keyframes cr-fade-in { from { opacity: 0; } }
+@keyframes cr-sheet-up { from { transform: translateY(16px); } }
+
+.cr-sheet-error { padding-block: var(--cr-space-2); }
+
+@media (min-width: 1024px) {
+  .cr-sheet-backdrop { align-items: center; padding: var(--cr-space-6); }
+  .cr-sheet {
+    border-radius: var(--cr-radius);
+    animation-name: cr-sheet-pop;
+  }
+  @keyframes cr-sheet-pop { from { opacity: 0; transform: translateY(8px) scale(0.99); } }
+}
+
+/* Record type grid — tappable tiles */
+.cr-type-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: var(--cr-space-2);
+}
+.cr-shell .cr-type-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--cr-space-2);
+  padding: var(--cr-space-3) var(--cr-space-2);
+  border: 1px solid var(--cr-hairline);
+  border-radius: var(--cr-radius-sm);
+  background: transparent;
+  color: var(--cr-ink);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--cr-duration) var(--cr-ease), border-color var(--cr-duration) var(--cr-ease);
+}
+.cr-shell .cr-type-tile[aria-pressed="true"] {
+  border-color: var(--cr-accent);
+  background: var(--cr-accent-soft);
+  color: var(--cr-accent-strong);
+}
+.cr-shell .cr-type-tile:hover { background: var(--cr-surface-sunken); }
+.cr-shell .cr-type-tile[aria-pressed="true"]:hover { background: var(--cr-accent-soft); }
+.cr-shell .cr-type-tile:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ==========================================================================
+   Keypad — numbers never mirror (LTR even in RTL), thumb-friendly targets
+   ========================================================================== */
+
+.cr-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--cr-space-2);
+  direction: ltr;
+}
+.cr-keypad button {
+  min-height: 52px;
+  border: 0;
+  border-radius: var(--cr-radius-sm);
+  background: var(--cr-surface-sunken);
+  color: var(--cr-ink);
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background-color var(--cr-duration) var(--cr-ease), transform var(--cr-duration) var(--cr-ease);
+}
+.cr-keypad button:hover { background: var(--cr-border); }
+.cr-keypad button:active { background: var(--cr-border); transform: scale(0.96); }
+
+/* ==========================================================================
+   Buttons
+   ========================================================================== */
+
+.cr-shell .cr-button {
+  min-height: 44px;
+  padding-inline: var(--cr-space-4);
+  border: 1px solid var(--cr-hairline);
+  border-radius: var(--cr-radius-full);
+  background: transparent;
+  color: var(--cr-ink);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color var(--cr-duration) var(--cr-ease), border-color var(--cr-duration) var(--cr-ease), color var(--cr-duration) var(--cr-ease);
+}
+.cr-shell .cr-button:hover:not(:disabled) { background: var(--cr-surface-sunken); }
+.cr-shell .cr-button:active:not(:disabled) { background: var(--cr-border); }
+
+.cr-shell .cr-button--primary {
+  background: var(--cr-accent);
+  border-color: var(--cr-accent);
+  color: var(--cr-accent-ink);
+}
+.cr-shell .cr-button--primary:hover:not(:disabled) { background: var(--cr-accent-strong); border-color: var(--cr-accent-strong); }
+.cr-shell .cr-button--primary:active:not(:disabled) { background: var(--cr-accent-strong); }
+
+.cr-shell .cr-button--danger {
+  background: transparent;
+  border-color: var(--cr-danger);
+  color: var(--cr-danger);
+}
+.cr-shell .cr-button--danger:hover:not(:disabled) { background: var(--cr-danger-soft); color: var(--cr-danger); }
+
+.cr-shell .cr-button--block { inline-size: 100%; }
+
+/* Compact inline action (card headers, rows) */
+.cr-shell .cr-button--sm {
+  min-height: 32px;
+  padding-inline: var(--cr-space-3);
+  font-size: 13px;
+  border-radius: var(--cr-radius-sm);
+}
+
+.cr-shell .cr-button:disabled { cursor: not-allowed; opacity: 0.5; }
+
+/* ==========================================================================
+   Record sheet internals
+   ========================================================================== */
+
+.cr-record-amount {
+  display: block;
+  text-align: center;
+  font-family: var(--cr-font-display);
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  padding-block: var(--cr-space-3);
+  min-block-size: 48px;
+}
+
+.cr-record-wallets,
+.cr-record-categories,
+.cr-record-subcategories {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cr-record-subcategories { margin-inline-start: var(--cr-space-5); }
+
+/* Pickers are flat hairline row lists, not boxed buttons */
+.cr-record-wallet,
+.cr-record-category {
+  inline-size: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--cr-space-2);
+  min-height: 44px;
+  padding-inline: var(--cr-space-1);
+  border: 0;
+  border-block-end: 1px solid var(--cr-hairline);
+  border-radius: 0;
+  background: transparent;
+  color: var(--cr-ink);
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color var(--cr-duration) var(--cr-ease), color var(--cr-duration) var(--cr-ease);
+}
+.cr-record-wallet:hover,
+.cr-record-category:hover { background: var(--cr-surface-sunken); }
+.cr-record-wallet[aria-pressed="true"],
+.cr-record-category[aria-pressed="true"] {
+  background: transparent;
+  color: var(--cr-accent-strong);
+  font-weight: 700;
+}
+
+.cr-record-details { display: flex; flex-direction: column; gap: var(--cr-space-3); }
+.cr-record-details input {
+  inline-size: 100%;
+  min-height: 44px;
+  padding-inline: var(--cr-space-1);
+  border: 0;
+  border-block-end: 1px solid var(--cr-hairline);
+  border-radius: 0;
+  background: transparent;
+  color: var(--cr-ink);
+  font-family: inherit;
+}
+.cr-record-details input:focus-visible {
+  outline: 2px solid var(--cr-accent);
+  outline-offset: 2px;
+  border-block-end-color: var(--cr-accent);
+}
+/* Confirm summary — editorial block with a hairline top, like a receipt total */
+.cr-record-summary {
+  font-weight: 700;
+  padding-block: var(--cr-space-3);
+  border-block-start: 1px solid var(--cr-hairline);
+}
+
+/* ==========================================================================
+   Manage screen
+   ========================================================================== */
+
+.cr-shell .cr-manage-menu {
+  display: flex;
+  flex-direction: column;
+  padding-block: var(--cr-space-2);
+  border-block-start: 1px solid var(--cr-hairline);
+}
+.cr-shell .cr-manage-row {
+  inline-size: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cr-space-2);
+  min-height: 48px;
+  padding-inline: var(--cr-space-1);
+  border: 0;
+  border-block-end: 1px solid var(--cr-hairline);
+  border-radius: 0;
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color var(--cr-duration) var(--cr-ease);
+}
+.cr-shell .cr-manage-row:hover { background: var(--cr-surface-sunken); }
+.cr-shell .cr-manage-account { padding-inline: var(--cr-space-1); }
+.cr-manage-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cr-space-1);
+  margin-block-end: var(--cr-space-2);
+}
+
+/* ==========================================================================
+   Focus & interaction states (single source for the accent ring)
+   ========================================================================== */
+
+.cr-tab:focus-visible,
+.cr-fab:focus-visible,
+.cr-rail-record:focus-visible,
+.cr-button:focus-visible,
+.cr-type-tile:focus-visible,
+.cr-chip:focus-visible,
+.cr-keypad button:focus-visible,
+.cr-journal-row--button:focus-visible,
+.cr-record-wallet:focus-visible,
+.cr-record-category:focus-visible,
+.cr-sheet:focus-visible {
+  outline: 2px solid var(--cr-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cr-sheet-backdrop, .cr-sheet, .cr-skeleton { animation: none; }
+  .cr-skeleton { background: var(--cr-surface-sunken); }
+  .cr-tab, .cr-fab, .cr-rail-record, .cr-button, .cr-chip, .cr-type-tile, .cr-keypad button,
+  .cr-journal-row--button, .cr-record-wallet, .cr-record-category,
+  .cr-progress > span, .cr-bars > span { transition: none; }
+}

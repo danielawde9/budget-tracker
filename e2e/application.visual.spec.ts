@@ -1,6 +1,7 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { installApplicationFixture } from './fixtures/application.js';
 import { expectContainedControls } from './workspace-contract.js';
+import { chooseWorkspaceDestination, openWorkspaceAccount, openWorkspaceNavigation, switchWorkspaceLanguage } from './workspace-navigation.js';
 
 function screenshotPath(testInfo: TestInfo, name: string) {
   return process.env['UPDATE_VISUAL_ARTIFACTS'] === '1'
@@ -8,271 +9,42 @@ function screenshotPath(testInfo: TestInfo, name: string) {
     : testInfo.outputPath(name);
 }
 
-function usesMobileNavigation(page: Page) {
-  return page.viewportSize()!.width < 1024;
-}
-
-async function openWorkspaceNavigation(page: Page) {
-  const menu = page.getByRole('button', { name: /^(Menu|القائمة)$/ });
-  if (usesMobileNavigation(page)) {
-    await menu.click();
-    return page.getByRole('dialog', { name: /^(Navigation menu|قائمة التنقل)$/ });
-  }
-  return page.getByRole('navigation', { name: /^(Primary navigation|التنقل الرئيسي)$/ });
-}
-
-async function closeWorkspaceNavigation(page: Page) {
-  const closeMenu = page.getByRole('button', { name: /^(Close menu|إغلاق القائمة)$/ });
-  if (await closeMenu.isVisible()) await closeMenu.click();
-}
-
-async function chooseDestination(page: Page, name: string) {
-  const navigation = await openWorkspaceNavigation(page);
-  await navigation.getByRole('button', { name, exact: true }).click();
-}
-
-async function expectCurrentDestination(page: Page, name: string) {
-  const navigation = await openWorkspaceNavigation(page);
-  await expect(navigation.getByRole('button', { name, exact: true })).toHaveAttribute('aria-current', 'page');
-  await closeWorkspaceNavigation(page);
-}
-
-async function switchToArabic(page: Page) {
-  const language = page.getByRole('button', { name: 'العربية' });
-  if (usesMobileNavigation(page)) await openWorkspaceNavigation(page);
-  await language.click();
-  await closeWorkspaceNavigation(page);
-}
-
-async function expectDesktopTaskRail(page: Page) {
-  const rail = page.locator('.app-rail');
-  const navigation = rail.getByRole('navigation', { name: 'Primary navigation' });
-  const active = navigation.locator('.nav-active');
-  const inactive = navigation.locator('button:not(.nav-active)');
-  await expect(rail).toHaveClass(/app-rail--light/);
-  await expect(rail).toHaveCSS('background-color', 'rgb(251, 250, 244)');
-  await expect(navigation.getByRole('heading', { name: 'Daily money' })).toBeVisible();
-  await expect(navigation.getByRole('heading', { name: 'Review' })).toBeVisible();
-  await expect(navigation.getByRole('heading', { name: 'Setup' })).toBeVisible();
-  await expect(active).toHaveCSS('background-color', 'rgb(216, 241, 233)');
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width);
-
-  const inactiveContrast = await inactive.evaluateAll((buttons) => buttons.map((button) => {
-    const channel = (value: number) => {
-      const normalized = value / 255;
-      return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
-    };
-    const luminance = (color: string) => {
-      const [red, green, blue] = color.match(/[\d.]+/g)!.slice(0, 3).map(Number);
-      return channel(red!) * 0.2126 + channel(green!) * 0.7152 + channel(blue!) * 0.0722;
-    };
-    const foreground = luminance(getComputedStyle(button).color);
-    const background = luminance(getComputedStyle(button.closest('.app-rail')!).backgroundColor);
-    return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
-  }));
-  for (const contrast of inactiveContrast) expect(contrast).toBeGreaterThanOrEqual(4.5);
-
-  const collision = await rail.locator('.primary-nav, .rail-footer').evaluateAll((elements) => {
-    const [navigation, footer] = elements.map((element) => element.getBoundingClientRect());
-    return navigation!.left < footer!.right && footer!.left < navigation!.right && navigation!.top < footer!.bottom && footer!.top < navigation!.bottom;
-  });
-  expect(collision).toBe(false);
-}
-
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
 });
 
-test('Overview desktop task rail visual baseline', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop');
-  await installApplicationFixture(page);
-  await page.goto('/');
-  await expectDesktopTaskRail(page);
-  await expect(page).toHaveScreenshot('overview-task-rail-desktop.png', { fullPage: true });
-});
-
-test('Overview mobile task drawer is compact and dismissible', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'mobile');
-  await installApplicationFixture(page);
-  await page.goto('/');
-  await expect(page.locator('.app-rail')).toBeHidden();
-  await expect(page.locator('.mobile-shell-bar')).toBeVisible();
+async function expectCurrentDestination(page: Page, name: string) {
   const navigation = await openWorkspaceNavigation(page);
-  await expect(navigation.getByRole('heading', { name: 'Daily money' })).toBeVisible();
-  await expect(navigation.getByRole('button', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
-  await expect(page).toHaveScreenshot('overview-task-drawer-mobile-en.png', { fullPage: true });
-  await page.keyboard.press('Escape');
-  await expect(navigation).toBeHidden();
-  await expect(page.getByRole('button', { name: 'Menu' })).toBeFocused();
-});
-
-test('Overview Arabic mobile drawer mirrors placement and labels', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'mobile');
-  await installApplicationFixture(page);
-  await page.goto('/');
-  await switchToArabic(page);
-  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-  const navigation = await openWorkspaceNavigation(page);
-  await expect(navigation).toHaveAccessibleName('قائمة التنقل');
-  await expect(navigation.getByRole('button', { name: 'النظرة العامة' })).toHaveAttribute('aria-current', 'page');
-  const [drawer, main] = await Promise.all([
-    navigation.boundingBox(),
-    page.getByRole('main').boundingBox(),
-  ]);
-  expect(drawer).not.toBeNull();
-  expect(main).not.toBeNull();
-  expect(drawer!.x + drawer!.width).toBe(page.viewportSize()!.width);
-  await expect(page).toHaveScreenshot('overview-task-drawer-mobile-ar.png', { fullPage: true });
-});
-
-test('Home and Loans desktop use equivalent compact header geometry', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop');
-  await installApplicationFixture(page);
-  await page.goto('/');
-  const homeHeader = await page.locator('.home-workspace .topbar').evaluate((header) => {
-    const heading = header.querySelector('h1')!;
-    return { fontSize: getComputedStyle(heading).fontSize, paddingBottom: getComputedStyle(header).paddingBottom };
-  });
-  await chooseDestination(page, 'Loans');
-  const loansHeader = await page.locator('.loans-workspace .topbar').evaluate((header) => {
-    const heading = header.querySelector('h1')!;
-    return { fontSize: getComputedStyle(heading).fontSize, paddingBottom: getComputedStyle(header).paddingBottom };
-  });
-  expect(loansHeader).toEqual(homeHeader);
-});
-
-for (const locale of ['en', 'ar'] as const) {
-  test(`Home journal text has readable separation ${locale}`, async ({ page }) => {
-    await installApplicationFixture(page);
-    await page.goto('/');
-    if (locale === 'ar') await switchToArabic(page);
-    await expect(page.locator('.home-workspace .journal-list > li')).toHaveCount(7);
-    const gaps = await page.locator('.home-workspace .journal-list > li').evaluateAll((rows) => {
-      const separation = (first: Element, second: Element) => {
-        const a = first.getBoundingClientRect();
-        const b = second.getBoundingClientRect();
-        return Math.max(b.left - a.right, a.left - b.right, b.top - a.bottom, a.top - b.bottom);
-      };
-      return rows.flatMap((row) => [
-        separation(row.querySelector('strong')!, row.querySelector('time')!),
-        ...Array.from(row.querySelectorAll('ul > li'), (movement) => separation(movement.children[0]!, movement.children[1]!)),
-      ]);
-    });
-    for (const gap of gaps) expect(gap).toBeGreaterThanOrEqual(8);
-  });
-
-  test(`rail add-space action has readable contrast ${locale}`, async ({ page }) => {
-    await installApplicationFixture(page);
-    await page.goto('/');
-    if (locale === 'ar') await switchToArabic(page);
-    await page.getByRole('button', { name: locale === 'ar' ? 'المساحة الحالية: My money' : 'Current space: My money' }).click();
-    const action = page.getByRole('menuitem', { name: locale === 'ar' ? 'إضافة مساحة أخرى' : 'Add another space' });
-    for (const hover of [false, true]) {
-      if (hover) await action.hover();
-      const contrast = await action.evaluate((element) => {
-        const luminance = (color: string) => {
-          const channels = color.match(/[\d.]+/g)!.slice(0, 3).map((value) => {
-            const channel = Number(value) / 255;
-            return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
-          });
-          return channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722;
-        };
-        const foreground = luminance(getComputedStyle(element).color);
-        let surface: Element | null = element;
-        while (surface && getComputedStyle(surface).backgroundColor === 'rgba(0, 0, 0, 0)') surface = surface.parentElement;
-        const background = luminance(getComputedStyle(surface!).backgroundColor);
-        return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
-      });
-      expect(contrast).toBeGreaterThanOrEqual(4.5);
-    }
-  });
-
-  test(`wallet names remain separated from large LBP balances ${locale}`, async ({ page }) => {
-    await installApplicationFixture(page);
-    await page.goto('/');
-    if (locale === 'ar') await switchToArabic(page);
-    await chooseDestination(page, locale === 'ar' ? 'المحافظ' : 'Wallets');
-    const row = page.locator('.wallet-context .wallet-list > li').filter({ has: page.getByText('Home LBP', { exact: true }) });
-    await expect(row).toHaveCount(1);
-    const gap = await row.evaluate((element) => {
-      const name = element.querySelector('div > bdi')!.getBoundingClientRect();
-      const amount = element.querySelector('.wallet-balance')!.getBoundingClientRect();
-      return Math.max(amount.left - name.right, name.left - amount.right, amount.top - name.bottom, name.top - amount.bottom);
-    });
-    expect(gap).toBeGreaterThanOrEqual(8);
-  });
-
-  test(`Home default, bounded content, real routes and contained ${locale} controls`, async ({ page }, testInfo) => {
-    await installApplicationFixture(page);
-    const historyRequest = page.waitForRequest((request) => {
-      const url = new URL(request.url());
-      return url.pathname.endsWith('/financial_events') && url.searchParams.has('offset');
-    });
-    await page.goto('/');
-    const historyUrl = new URL((await historyRequest).url());
-    expect(historyUrl.searchParams.get('offset')).toBe('0');
-    expect(historyUrl.searchParams.get('limit')).toBe('21');
-    if (locale === 'ar') await switchToArabic(page);
-    const ar = locale === 'ar';
-    await expect(page.locator('html')).toHaveAttribute('dir', ar ? 'rtl' : 'ltr');
-    await expectCurrentDestination(page, ar ? 'النظرة العامة' : 'Overview');
-    const navigation = await openWorkspaceNavigation(page);
-    await expect(navigation.getByRole('button', { name: ar ? 'التقارير' : 'Reports', exact: true })).toHaveCount(1);
-    await expect(navigation.locator('button:disabled')).toHaveCount(0);
-    await closeWorkspaceNavigation(page);
-    const balances = page.getByRole('region', { name: ar ? 'الأرصدة الفعالة' : 'Active balances' });
-    await expect(balances.getByRole('listitem')).toHaveCount(3);
-    await expect(balances.getByText('Daily USD', { exact: true })).toBeVisible();
-    const activity = page.getByRole('region', { name: ar ? 'النشاط الأخير' : 'Recent activity' });
-    await expect(activity.locator('ol > li')).toHaveCount(7);
-    await page.screenshot({ path: screenshotPath(testInfo, `home-${locale}-${testInfo.project.name}.png`), fullPage: true });
-    await expectContainedControls(page);
-
-    await page.getByRole('button', { name: ar ? 'عرض المحافظ' : 'View wallets', exact: true }).click();
-    await expect(page.getByRole('heading', { name: ar ? 'المحافظ' : 'Wallets', exact: true })).toBeVisible();
-    await expectCurrentDestination(page, ar ? 'المحافظ' : 'Wallets');
-  });
-
-  test(`Wallets, Loans and Categories ${locale} primary routes remain contained`, async ({ page }, testInfo) => {
-    await installApplicationFixture(page);
-    await page.goto('/');
-    const ar = locale === 'ar';
-    if (ar) await switchToArabic(page);
-    for (const [name, destination] of [['wallets', ar ? 'المحافظ' : 'Wallets'], ['loans', ar ? 'القروض' : 'Loans'], ['categories', ar ? 'الفئات' : 'Categories']] as const) {
-      await chooseDestination(page, destination);
-      await expect(page.getByRole('heading', { name: destination, exact: true })).toBeVisible();
-      await expectContainedControls(page);
-      await page.screenshot({ path: screenshotPath(testInfo, `${name}-${locale}-${testInfo.project.name}.png`), fullPage: true });
-    }
-  });
+  await expect(navigation.getByRole('button', { name, exact: true })).toHaveAttribute('aria-current', 'page');
 }
 
-test('Home transaction action enters the real Wallets transaction dialog', async ({ page }) => {
+test('Home is the default destination with bounded, contained content', async ({ page }, testInfo) => {
+  await installApplicationFixture(page);
+  const historyRequest = page.waitForRequest((request) => {
+    const url = new URL(request.url());
+    return url.pathname.endsWith('/financial_events') && url.searchParams.has('offset');
+  });
+  await page.goto('/');
+  const historyUrl = new URL((await historyRequest).url());
+  expect(historyUrl.searchParams.get('offset')).toBe('0');
+  expect(historyUrl.searchParams.get('limit')).toBe('21');
+  await expect(page.getByRole('heading', { name: 'Personal space' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Net position' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Recent activity' })).toBeVisible();
+  await expectCurrentDestination(page, 'Home');
+  await expectContainedControls(page);
+  await page.screenshot({ path: screenshotPath(testInfo, `home-default-${testInfo.project.name}.png`), fullPage: true });
+});
+
+test('Record action opens the real record sheet and closes with Escape', async ({ page }) => {
   await installApplicationFixture(page);
   await page.goto('/');
-  await page.getByRole('button', { name: 'Record transaction', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Add a transaction' });
-  await expect(dialog).toBeVisible();
+  await page.getByRole('button', { name: 'Record' }).first().click();
+  const sheet = page.getByRole('dialog', { name: 'Record', exact: true });
+  await expect(sheet).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(dialog).toHaveCount(0);
-  await expectCurrentDestination(page, 'Wallets');
-});
-
-test('empty Home explains the prerequisite and routes to wallet creation', async ({ page }) => {
-  await installApplicationFixture(page, { emptyWallets: true });
-  await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Record transaction', exact: true })).toBeDisabled();
-  await expect(page.getByText('Create an active wallet before recording a transaction.')).toBeVisible();
-  await page.getByRole('button', { name: 'Create a wallet', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Create first wallet' })).toBeVisible();
-});
-
-test('Wallets load failure keeps task navigation available', async ({ page }) => {
-  await installApplicationFixture(page, { failWallets: true });
-  await page.goto('/');
-  await chooseDestination(page, 'Wallets');
-  await expect(page.getByRole('alert')).toContainText('Wallets are unavailable');
-  await expectCurrentDestination(page, 'Wallets');
+  await expect(sheet).toHaveCount(0);
+  await expectCurrentDestination(page, 'Home');
 });
 
 test('signed-out desktop keeps financial content private', async ({ page }, testInfo) => {
@@ -316,8 +88,8 @@ test('sign-in failure preserves email and a later retry opens Home', async ({ pa
   await page.screenshot({ path: screenshotPath(testInfo, 'sign-in-error-desktop.png'), fullPage: true });
   await page.getByLabel('Password').fill('correct-password');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('heading', { name: 'Active balances' })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Active balances' }).getByText('Daily USD')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Personal space' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Net position' })).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'sign-in-recovery-desktop.png'), fullPage: true });
 });
 
@@ -332,8 +104,7 @@ test('first-time onboarding creates a personal space and first wallet', async ({
   await expect(page.getByRole('heading', { name: 'Add your first wallet' })).toBeVisible();
   await page.getByLabel('Wallet name').fill('Daily USD');
   await page.getByRole('button', { name: 'Create USD wallet' }).click();
-  await expect(page.getByRole('heading', { name: 'Active balances' })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Active balances' }).getByText('Daily USD')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Personal space' })).toBeVisible();
   await expect(page.getByText('No transactions yet')).toBeVisible();
   await expect(page.getByText('Maya')).toHaveCount(0);
   await page.screenshot({ path: screenshotPath(testInfo, 'onboarding-complete-desktop.png'), fullPage: true });
@@ -343,11 +114,11 @@ test('existing user switches spaces without retaining old content', async ({ pag
   test.skip(testInfo.project.name !== 'desktop');
   await installApplicationFixture(page);
   await page.goto('/');
-  await expect(page.getByRole('region', { name: 'Active balances' }).getByText('Daily USD')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Net position' })).toBeVisible();
   await page.getByRole('button', { name: 'Current space: My money' }).click();
   await page.getByRole('menuitem', { name: 'Switch to Home budget' }).click();
   await expect(page.getByRole('button', { name: 'Current space: Home budget' })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Active balances' }).getByText('Household USD')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Household space' })).toBeVisible();
   await expect(page.getByText('Daily USD')).toHaveCount(0);
   await expect(page.getByText('No transactions yet')).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'multi-space-desktop.png'), fullPage: true });
@@ -366,16 +137,16 @@ test('mobile onboarding is full-screen, trapped, and not dismissible before setu
   await page.screenshot({ path: screenshotPath(testInfo, 'onboarding-mobile.png') });
 });
 
-test('Arabic mobile shell mirrors global and Home controls', async ({ page }, testInfo) => {
+test('Arabic mobile home mirrors labels in RTL', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile');
   await installApplicationFixture(page);
   await page.goto('/');
-  await switchToArabic(page);
+  await switchWorkspaceLanguage(page);
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-  await expect(page.getByRole('button', { name: 'المساحة الحالية: My money' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'الأرصدة الفعالة' })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'الأرصدة الفعالة' }).getByText('Daily USD')).toBeVisible();
-  await page.screenshot({ path: screenshotPath(testInfo, 'arabic-shell-mobile.png'), fullPage: true });
+  await expect(page.getByRole('heading', { name: 'مساحة شخصية' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'صافي المركز' })).toBeVisible();
+  await expectContainedControls(page);
+  await page.screenshot({ path: screenshotPath(testInfo, 'arabic-home-mobile.png'), fullPage: true });
 });
 
 test('ambiguous space creation reconciles before continuing to wallet', async ({ page }, testInfo) => {
@@ -391,19 +162,18 @@ test('ambiguous space creation reconciles before continuing to wallet', async ({
   await page.screenshot({ path: screenshotPath(testInfo, 'ambiguous-space-recovered-mobile.png') });
 });
 
-test('sign-out followed by another user starts a fresh authenticated shell', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop');
+test('sign-out followed by another user starts a fresh authenticated shell', async ({ page }) => {
   await installApplicationFixture(page);
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Active balances' })).toBeVisible();
-  await page.getByText('Account').click();
+  await expect(page.getByRole('heading', { name: 'Personal space' })).toBeVisible();
+  await chooseWorkspaceDestination(page, 'Manage');
   await page.getByRole('button', { name: 'Sign out' }).click();
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
   await expect(page.getByText('Daily USD')).toHaveCount(0);
   await page.getByLabel('Email').fill('second@example.test');
   await page.getByLabel('Password').fill('second-password');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('heading', { name: 'Active balances' })).toBeVisible();
-  await page.getByText('Account').click();
-  await expect(page.getByText('second@example.test').locator('xpath=ancestor-or-self::bdi')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Personal space' })).toBeVisible();
+  const account = await openWorkspaceAccount(page, 'Account');
+  await expect(account).toContainText('second@example.test');
 });
