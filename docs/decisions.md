@@ -1632,3 +1632,33 @@ historical instructions and evidence commits for regression work.
 packet. Restoring an archived document to the active index requires evidence
 that its implementation boundary is genuinely unfinished, not merely that a
 later deployment or acceptance gate remains open.
+
+## 2026-09-13 — Live migration journal extends to the 38-migration release
+
+**Decision:** Daniel explicitly approved extending the forward-only, hash-pinned
+migration journal from 33 to 38 migrations, adding financial event notes and
+payees, USD-to-LBP exchange, monthly budget planning (plus its row-shape
+hardening), and reporting read models. `ops/budget-migrations.sha256` and
+`scripts/ops/apply-live-migrations.sh` (`LIVE_MANIFEST_SOURCE_SHA`, the exact
+`supabase_migrations.schema_migrations` array, and one new `to_regclass`
+sanity check on `public.monthly_budget_plan_revisions`) are retargeted to
+source commit `e2764f084dd9b364daba24b7bde36c6dac8b1a1b` — the tip commit that
+touches `supabase/migrations` for this batch and is an ancestor of `main`.
+`tests/ops/migration-manifest.test.ts` and `tests/ops/live-migrations.test.ts`
+were updated to match. This commit only reconciles the local gate; it does not
+itself run `pnpm migrate:live` against the live `Budget Production` project
+(`hqblhzqitrbvpyoxtmew`), which still requires a human to supply a Supabase
+personal access token, database password, and the exact typed confirmation
+interactively.
+
+**Why:** These 5 migrations were merged into `supabase/migrations` on
+2026-09-12 without a corresponding manifest update, leaving `pnpm check` red
+(`tests/ops/migration-manifest.test.ts` failing) and the live runner unable to
+apply them (its own manifest/project/branch gates would otherwise refuse).
+Reconciling the pinned manifest is the documented prerequisite from the
+2026-09-10 and 2026-09-11 entries above before any live application.
+
+**If changed:** Any further migration, additional schema check, restored
+source database, imported data, or expanded journal requires a new review and
+explicit owner approval, plus a matching update to this manifest and the two
+ops tests, mirroring this same procedure.

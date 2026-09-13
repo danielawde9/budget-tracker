@@ -9,7 +9,7 @@ readonly LIVE_REPO_ROOT="$(cd "${LIVE_SCRIPT_DIR}/../.." && pwd -P)"
 source "${LIVE_SCRIPT_DIR}/budget-common.sh"
 
 readonly LIVE_PROJECT_REF='hqblhzqitrbvpyoxtmew'
-readonly LIVE_MANIFEST_SOURCE_SHA='e5bfd7441043a5d2c1672d5545f7fb34cb7e4741'
+readonly LIVE_MANIFEST_SOURCE_SHA='e2764f084dd9b364daba24b7bde36c6dac8b1a1b'
 readonly LIVE_CONFIRMATION="APPLY LIVE MIGRATIONS TO ${LIVE_PROJECT_REF}"
 readonly LIVE_MAX_PROJECT_LIST_BYTES=1048576
 readonly LIVE_SUPABASE_BIN="${BUDGET_SUPABASE_BIN:-$(command -v supabase || true)}"
@@ -25,6 +25,7 @@ readonly LIVE_VERIFY_SQL="select case when
   and to_regclass('public.household_invitations') is not null
   and to_regprocedure('public.create_subcategory(uuid,uuid,uuid,text,text)') is not null
   and to_regprocedure('public.archive_wallet(uuid,uuid,uuid)') is not null
+  and to_regclass('public.monthly_budget_plan_revisions') is not null
   and (select array_agg(version order by version) from supabase_migrations.schema_migrations)
     = array[
       '20260907100000','20260907110000','20260907120000','20260907130000',
@@ -35,7 +36,8 @@ readonly LIVE_VERIFY_SQL="select case when
       '20260908171100','20260908172000','20260908173000','20260908173100',
       '20260908174000','20260908175000','20260908176000','20260908177000',
       '20260908178000','20260908179000','20260908180000','20260910100000',
-      '20260911100000'
+      '20260911100000','20260912090000','20260912100000','20260912101000',
+      '20260912101500','20260912102000'
     ]::text[]
   then 'budget_schema_ready'
   else 'budget_schema_incomplete'
