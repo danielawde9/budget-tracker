@@ -67,6 +67,11 @@ Independent daily-entry, money-event and household work is routed through
 one concrete work file. Research-dependent items have an executable evidence
 task with exact output criteria, not permission to invent an integration.
 
+Additional owner-requested future work: [MCP1 — private-account Claude/Codex
+connector](../2026-09-13-private-account-mcp-connector.md). Start with its M0
+client/auth design milestone. Its later DB/server/UI milestones require that
+evidence first; this addition does not change the allocation/goals priority order.
+
 ## What is exact, and what still requires proof?
 
 Exact here: schema shapes, public signatures/payloads, state transitions,

@@ -50,6 +50,12 @@ Start with [00-start-here.md](00-start-here.md). All files below are proposals.
 
 ## Additional retained work
 
+- **MCP1 — private-account Claude/Codex connector:**
+  [future connector plan](../2026-09-13-private-account-mcp-connector.md).
+  Added at the owner's request on September 13, outside the 39 original IDs.
+  Proposed personal-space income/expense drafts, explicit Budget approval and
+  receipts; M0 establishes actual-client/auth compatibility before separate
+  DB/server/UI work. No unattended posting or account connection is activated.
 - Cash refunds/reimbursements: [34c](34-split-refund-db.md) defines partial cash
   refunds and goal restoration. Store credit and another member's reimbursement
   require the ownership model in [55](55-settlement-evidence.md); neither is Undo.

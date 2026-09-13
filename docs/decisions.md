@@ -1581,3 +1581,34 @@ which gate failed and risks changing UAT-frozen behavior under unrelated work.
 packet's red reproduction and affects only that packet's declared layer. A
 decision to accept a known failing DB gate requires an explicit replacement
 completion rule; it is not implied by this planning record.
+
+## 2026-09-13 — Plan a private-account Claude/Codex connector for later
+
+**Scope:** The owner requested a future plan for entering personal Budget records
+from Claude/Codex. Saved [MCP1](superpowers/plans/2026-09-13-private-account-mcp-connector.md)
+and linked it from the roadmap/index. This is documentation only; it authorizes
+no implementation, infrastructure, account connection, live posting or deployment.
+
+**Proposed defaults:** One existing personal space per revocable client grant;
+income/expense only; minimum wallet/category context; optional category, payee
+and note; exact USD/LBP minor-unit strings. A remote MCP service prepares durable
+drafts and returns receipts. Budget's authenticated review screen approves the
+exact payload through an atomic wrapper around existing financial commands.
+The connector runtime role cannot post, approve, execute arbitrary RPCs or write
+financial tables. M0 must establish client compatibility and the vetted
+authorization-to-database identity mapping before executable auth/SQL packets.
+
+**Why:** This captures the requested integration without interpreting the older
+AI deferral as a permanent ban or silently enabling an autonomous account agent.
+Owner-session review makes approval independent of a model-supplied flag; durable
+requests/receipts prevent duplicate expenses after retries or response loss.
+It remains independent of goals, future POS integration and public SaaS work.
+
+**If the owner chooses differently:** Conversation-only approval requires a
+verifiable approval contract for each selected client before enabling posting.
+Household or multiple-space access changes consent and authorization tests;
+transfers/loans/corrections require additional individually classified tools;
+history/balance reporting needs separate scopes. A local-only adapter changes
+installation and supported surfaces. Proposed 10-minute draft expiry, payload
+cleanup within 24 hours, 10,000 receipts per grant and receipt retention through
+30 days after revocation are M0 policy defaults, not existing runtime behavior.

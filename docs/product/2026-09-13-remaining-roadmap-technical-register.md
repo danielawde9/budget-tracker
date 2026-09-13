@@ -101,6 +101,15 @@ are missing. This avoids a smaller model inventing data formats or policies.
 
 ## Additional day-to-day gaps retained explicitly
 
+**MCP1 — private-account Claude/Codex connector (added September 13):** The owner
+requested [a plan for later](../superpowers/plans/2026-09-13-private-account-mcp-connector.md)
+to add income/expense entries from an AI client to their personal Budget space.
+Proposed v1 uses scoped context/draft tools and explicit approval in Budget,
+with existing protected posting commands and durable receipts. M0 must prove
+the selected clients and authorization boundary before implementation packets.
+This is separate from E5 and narrows the older blanket AI deferral for future
+planning only; unattended posting and general account agents remain deferred.
+
 Refunds/reimbursements: distinguish genuine returned cash from Undo. A refund
 should link the original expense, cap cumulative refunded value, keep merchant
 cash as a current-date event, preserve currency and category allocation, and
