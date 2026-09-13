@@ -1,5 +1,8 @@
 /* ==========================================================================
-   Control Room — light-first "control room" dashboard theme.
+   Control Room — "quiet ledger" editorial theme.
+   Content sits directly on a warm cream background; separation comes from
+   hairline dividers and whitespace, never raised cards. Serif display
+   type (system stack) for titles and hero amounts; sans for UI chrome.
    All colors live as tokens on :root so a future dark theme swaps this
    block only. Logical properties throughout (RTL-safe by construction);
    physical values appear only in border-radius corner lists, the keypad's
@@ -9,17 +12,20 @@
 :root {
   color-scheme: light;
 
-  /* Typography — one system stack covering Latin + Arabic */
+  /* Typography — sans UI stack covering Latin + Arabic; Arabic glyphs fall
+     back per-glyph from the Latin-only display serif to the sans stack */
   --cr-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Tahoma,
     "Helvetica Neue", Arial, sans-serif;
+  --cr-font-display: Georgia, "Times New Roman", "Noto Serif", "Songti SC",
+    var(--cr-font), serif;
 
   /* Surfaces & ink */
-  --cr-bg: #f7f6f2;
-  --cr-surface: #ffffff;
-  --cr-surface-sunken: #efede6;
-  --cr-border: #e3e0d7;
-  --cr-ink: #1c1a15;
-  --cr-ink-soft: #6b675c;
+  --cr-bg: #f8f6ef;
+  --cr-surface-sunken: #eeebe1;
+  --cr-border: #e6e2d5;
+  --cr-hairline: #e6e2d5;
+  --cr-ink: #1d1b15;
+  --cr-ink-soft: #6f6a5c;
 
   /* Semantic: one accent (positive/active), amber for warnings, red for
      destructive + overspend only */
@@ -29,7 +35,6 @@
   --cr-accent-ink: #ffffff;
   --cr-warn: #b97a0f;
   --cr-warn-strong: #7c4d03;
-  --cr-warn-soft: #faf0da;
   --cr-danger: #b3261e;
   --cr-danger-soft: #fbe9e7;
 
@@ -46,12 +51,10 @@
   --cr-radius: 14px;
   --cr-radius-full: 999px;
 
-  /* Elevation: tab bar > backdrop > cards > sunken */
-  --cr-shadow-sunken: inset 0 1px 2px rgb(28 26 21 / 0.05);
-  --cr-shadow-card: 0 1px 2px rgb(28 26 21 / 0.05), 0 4px 14px rgb(28 26 21 / 0.06);
-  --cr-shadow-backdrop: 0 12px 40px rgb(28 26 21 / 0.22);
-  --cr-shadow-tabbar: 0 -2px 12px rgb(28 26 21 / 0.08), 0 -1px 0 rgb(28 26 21 / 0.04);
-  --cr-shadow-fab: 0 3px 8px rgb(26 122 74 / 0.28), 0 6px 18px rgb(28 26 21 / 0.16);
+  /* Elevation: sheets > FAB; the ledger is flat — no card/tab-bar shadow */
+  --cr-shadow-sunken: inset 0 1px 2px rgb(29 27 21 / 0.05);
+  --cr-shadow-backdrop: 0 12px 40px rgb(29 27 21 / 0.22);
+  --cr-shadow-fab: 0 3px 8px rgb(26 122 74 / 0.28), 0 6px 18px rgb(29 27 21 / 0.16);
 
   /* Motion */
   --cr-duration: 160ms;
@@ -107,11 +110,24 @@
   margin-block: var(--cr-space-2) var(--cr-space-4);
 }
 .cr-title {
-  font-size: 21px;
-  font-weight: 750;
-  letter-spacing: -0.015em;
+  font-family: var(--cr-font-display);
+  font-size: 23px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   line-height: 1.15;
 }
+
+/* Bare headings inside screens (journal/manage titles, sheet step titles)
+   inherit the display serif — Arabic glyphs fall back to the sans stack.
+   Section labels (.cr-label) stay small-caps sans even as h2 elements. */
+.cr-shell :where(h1, h2):not(.cr-label) {
+  font-family: var(--cr-font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+.cr-shell h1 { font-size: 23px; }
+.cr-shell h2 { font-size: 19px; }
 
 /* Small field: small-caps label stacked over a designed control */
 .cr-field {
@@ -129,24 +145,25 @@
   min-height: 36px;
   padding-block: 6px;
   padding-inline: var(--cr-space-3) 34px;
-  border: 1px solid var(--cr-border);
-  border-radius: var(--cr-radius-sm);
-  background-color: var(--cr-surface);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b675c' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  border: 0;
+  border-block-end: 1px solid var(--cr-hairline);
+  border-radius: 0;
+  background-color: transparent;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236f6a5c' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
   color: var(--cr-ink);
   font-family: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
   cursor: pointer;
   transition: border-color var(--cr-duration) var(--cr-ease), background-color var(--cr-duration) var(--cr-ease);
 }
-.cr-select:hover { border-color: var(--cr-ink-soft); }
+.cr-select:hover { border-block-end-color: var(--cr-ink-soft); }
 .cr-select:focus-visible {
   outline: 2px solid var(--cr-accent);
   outline-offset: 2px;
-  border-color: var(--cr-accent);
+  border-block-end-color: var(--cr-accent);
 }
 [dir="rtl"] .cr-select {
   padding-inline: 34px var(--cr-space-3);
@@ -195,9 +212,8 @@
   justify-content: space-around;
   min-height: calc(var(--cr-tabbar-h) + env(safe-area-inset-bottom, 0px));
   padding-block-end: env(safe-area-inset-bottom, 0px);
-  background: var(--cr-surface);
-  border-block-start: 1px solid var(--cr-border);
-  box-shadow: var(--cr-shadow-tabbar);
+  background: var(--cr-bg);
+  border-block-start: 1px solid var(--cr-hairline);
 }
 
 .cr-tab {
@@ -232,7 +248,7 @@
   border: 0;
 }
 
-.cr-fab {
+.cr-shell .cr-fab {
   inline-size: 56px;
   block-size: 56px;
   margin-block-start: -20px;
@@ -247,8 +263,8 @@
   box-shadow: var(--cr-shadow-fab);
   transition: background-color var(--cr-duration) var(--cr-ease), transform var(--cr-duration) var(--cr-ease);
 }
-.cr-fab:hover { background: var(--cr-accent-strong); transform: translateY(-1px); }
-.cr-fab:active { background: var(--cr-accent-strong); transform: translateY(0) scale(0.97); }
+.cr-shell .cr-fab:hover { background: var(--cr-accent-strong); transform: translateY(-1px); }
+.cr-shell .cr-fab:active { background: var(--cr-accent-strong); transform: translateY(0) scale(0.97); }
 
 .cr-rail { display: none; }
 
@@ -261,8 +277,8 @@
     gap: var(--cr-space-1);
     flex: 0 0 var(--cr-rail-w);
     padding: var(--cr-space-5) var(--cr-space-3);
-    background: var(--cr-surface);
-    border-inline-end: 1px solid var(--cr-border);
+    background: var(--cr-bg);
+    border-inline-end: 1px solid var(--cr-hairline);
     position: sticky;
     inset-block-start: 0;
     block-size: 100dvh;
@@ -275,7 +291,7 @@
     gap: var(--cr-space-3);
     min-height: 44px;
     padding-inline: var(--cr-space-3);
-    border-radius: var(--cr-radius-sm);
+    border-radius: var(--cr-radius-full);
     font-size: 14px;
   }
   .cr-rail .cr-tab--active {
@@ -288,31 +304,30 @@
 }
 
 /* Prominent full-width Record action at the top of the rail */
-.cr-rail-record {
+.cr-shell .cr-rail-record {
   display: none;
 }
 @media (min-width: 1024px) {
-  .cr-rail-record {
+  .cr-shell .cr-rail-record {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: var(--cr-space-2);
     inline-size: 100%;
-    min-height: 48px;
-    margin-block: var(--cr-space-3) var(--cr-space-4);
+    min-height: 46px;
+    margin-block: var(--cr-space-4);
     padding-inline: var(--cr-space-4);
-    border: 1px solid var(--cr-accent);
-    border-radius: var(--cr-radius-sm);
+    border: 0;
+    border-radius: var(--cr-radius-full);
     background: var(--cr-accent);
     color: var(--cr-accent-ink);
     font-size: 14px;
     font-weight: 700;
     cursor: pointer;
-    box-shadow: var(--cr-shadow-fab);
-    transition: background-color var(--cr-duration) var(--cr-ease), border-color var(--cr-duration) var(--cr-ease);
+    transition: background-color var(--cr-duration) var(--cr-ease);
   }
-  .cr-rail-record:hover { background: var(--cr-accent-strong); border-color: var(--cr-accent-strong); }
-  .cr-rail-record:active { background: var(--cr-accent-strong); }
+  .cr-shell .cr-rail-record:hover { background: var(--cr-accent-strong); }
+  .cr-shell .cr-rail-record:active { background: var(--cr-accent-strong); }
 }
 
 /* Space switcher (legacy component) re-skinned to control-room tokens —
@@ -327,23 +342,34 @@
   inline-size: 100%;
   display: grid;
   gap: 2px;
-  padding: var(--cr-space-3);
-  border: 1px solid var(--cr-border);
-  border-radius: var(--cr-radius-sm);
-  background: var(--cr-surface-sunken);
+  margin-block-end: var(--cr-space-3);
+  padding: var(--cr-space-2) var(--cr-space-1);
+  border: 0;
+  border-block-end: 1px solid var(--cr-hairline);
+  border-radius: 0;
+  background: transparent;
   color: var(--cr-ink);
   text-align: start;
   cursor: pointer;
-  transition: background-color var(--cr-duration) var(--cr-ease);
+  transition: border-color var(--cr-duration) var(--cr-ease);
 }
-.cr-rail .space-switcher-trigger:hover { background: var(--cr-border); }
+.cr-rail .space-switcher-trigger:hover { border-block-end-color: var(--cr-ink-soft); }
 .cr-rail .space-switcher-trigger span,
 .cr-rail .space-switcher-trigger small {
   color: var(--cr-ink-soft);
   font-size: 11px;
   font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
 }
-.cr-rail .space-switcher-trigger bdi { font-weight: 750; font-variant-numeric: tabular-nums; }
+.cr-rail .space-switcher-trigger bdi {
+  font-family: var(--cr-font-display);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--cr-ink);
+  font-variant-numeric: tabular-nums;
+}
 .cr-rail .space-switcher-menu {
   position: absolute;
   inset-block-start: calc(100% + var(--cr-space-1));
@@ -352,9 +378,9 @@
   display: grid;
   gap: 2px;
   padding: var(--cr-space-2);
-  border: 1px solid var(--cr-border);
+  border: 1px solid var(--cr-hairline);
   border-radius: var(--cr-radius-sm);
-  background: var(--cr-surface);
+  background: var(--cr-bg);
   color: var(--cr-ink);
   box-shadow: var(--cr-shadow-backdrop);
 }
@@ -370,34 +396,55 @@
 .cr-rail .space-switcher-menu button:hover { background: var(--cr-accent-soft); color: var(--cr-accent-strong); }
 
 /* ==========================================================================
-   Cards — the core visual unit: white, raised, tidy. Rhythm comes from a
-   consistent column gap, never from default element margins
+   Sections — flat on the cream canvas. Separation is a hairline above the
+   section plus generous whitespace; no boxes, no borders, no shadows.
+   The .cr-card name is kept as the layout contract for screens/tests.
    ========================================================================== */
 
 .cr-card {
   display: flex;
   flex-direction: column;
-  gap: var(--cr-space-2);
-  background: var(--cr-surface);
-  border: 1px solid var(--cr-border);
-  border-radius: var(--cr-radius);
-  padding: var(--cr-space-3) var(--cr-space-4);
-  box-shadow: var(--cr-shadow-card);
+  gap: var(--cr-space-3);
+  background: transparent;
+  border: 0;
+  border-block-start: 1px solid var(--cr-hairline);
+  border-radius: 0;
+  padding: var(--cr-space-4) 0;
+  box-shadow: none;
 }
 .cr-card + .cr-card { margin-block-start: var(--cr-space-3); }
 
-/* Section labels: small caps, letter-spaced */
+/* Section labels: small caps, letter-spaced — always sans, even on headings */
 .cr-label {
+  font-family: var(--cr-font);
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--cr-ink-soft);
 }
 
-/* Amounts are the heroes */
-.cr-amount { font-variant-numeric: tabular-nums; font-weight: 750; letter-spacing: -0.01em; }
-.cr-amount--hero { font-size: clamp(30px, 8vw, 40px); font-weight: 800; }
+/* Amounts are the heroes — display serif at rest (hero, plan summaries),
+   tabular sans inside dense data rows */
+.cr-amount {
+  font-family: var(--cr-font-display);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.cr-journal-row .cr-amount,
+.cr-movements .cr-amount {
+  font-family: var(--cr-font);
+  font-size: inherit;
+  font-weight: 700;
+}
+.cr-amount--hero {
+  font-size: clamp(32px, 8vw, 40px);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.1;
+}
 
 .cr-row {
   display: flex;
@@ -407,23 +454,22 @@
 }
 
 .cr-chips { display: flex; gap: var(--cr-space-1); flex-wrap: wrap; }
-.cr-chip {
-  border: 1px solid var(--cr-border);
+.cr-shell .cr-chip {
+  border: 0;
   border-radius: var(--cr-radius-full);
   padding: var(--cr-space-1) var(--cr-space-3);
   font-size: 12px;
-  font-weight: 600;
-  background: var(--cr-surface);
+  font-weight: 650;
+  background: transparent;
   color: var(--cr-ink-soft);
-  transition: background-color var(--cr-duration) var(--cr-ease), border-color var(--cr-duration) var(--cr-ease), color var(--cr-duration) var(--cr-ease);
+  transition: background-color var(--cr-duration) var(--cr-ease), color var(--cr-duration) var(--cr-ease);
 }
-.cr-chip--active {
+.cr-shell .cr-chip--active {
   background: var(--cr-accent-soft);
-  border-color: var(--cr-accent);
   color: var(--cr-accent-strong);
 }
-.cr-chip:hover { background: var(--cr-surface-sunken); }
-.cr-chip--active:hover { background: var(--cr-accent-soft); }
+.cr-shell .cr-chip:hover { background: var(--cr-surface-sunken); }
+.cr-shell .cr-chip--active:hover { background: var(--cr-accent-soft); }
 
 /* Semantic text tones */
 .cr-positive { color: var(--cr-accent-strong); }
@@ -435,7 +481,7 @@
    ========================================================================== */
 
 .cr-progress {
-  block-size: 6px;
+  block-size: 4px;
   border-radius: var(--cr-radius-full);
   background: var(--cr-surface-sunken);
   overflow: hidden;
@@ -505,14 +551,18 @@
 }
 .cr-movements li:last-child { border-block-end: 0; }
 
-/* Alert banners (ambiguous sync, load failures) */
+/* Alert banners (ambiguous sync, load failures) — quiet inline notice with
+   an amber edge, never a boxed callout */
 .cr-banner {
   margin-block: var(--cr-space-3);
+  padding-block: var(--cr-space-2);
+  padding-inline-start: var(--cr-space-3);
   display: flex;
   flex-direction: column;
   gap: var(--cr-space-2);
-  border-inline-start: 3px solid var(--cr-danger);
-  background: var(--cr-danger-soft);
+  border-inline-start: 2px solid var(--cr-warn);
+  background: transparent;
+  color: var(--cr-warn-strong);
 }
 
 /* ==========================================================================
@@ -523,7 +573,7 @@
   display: block;
   border-radius: var(--cr-radius-sm);
   background:
-    linear-gradient(90deg, transparent, rgb(255 255 255 / 0.65), transparent) 0 0 / 200% 100% no-repeat,
+    linear-gradient(90deg, transparent, rgb(255 255 255 / 0.45), transparent) 0 0 / 200% 100% no-repeat,
     var(--cr-surface-sunken);
   box-shadow: var(--cr-shadow-sunken);
   animation: cr-shimmer 1.4s var(--cr-ease) infinite;
@@ -542,13 +592,13 @@
 .cr-skeleton--chip { inline-size: 64px; block-size: 26px; border-radius: var(--cr-radius-full); }
 .cr-skeleton--bar { block-size: 64px; border-radius: var(--cr-radius-sm); }
 
-/* Skeleton compositions mirror real card layouts */
+/* Skeleton compositions mirror real flat sections */
 .cr-skeleton-card {
-  background: var(--cr-surface);
-  border: 1px solid var(--cr-border);
-  border-radius: var(--cr-radius);
-  padding: var(--cr-space-3) var(--cr-space-4);
-  box-shadow: var(--cr-shadow-card);
+  background: transparent;
+  border: 0;
+  border-block-start: 1px solid var(--cr-hairline);
+  border-radius: 0;
+  padding: var(--cr-space-4) 0;
   display: flex;
   flex-direction: column;
   gap: var(--cr-space-3);
@@ -572,17 +622,22 @@
   animation: cr-fade-in var(--cr-duration) var(--cr-ease);
 }
 .cr-sheet {
-  background: var(--cr-surface);
+  background: var(--cr-bg);
   inline-size: 100%;
   max-inline-size: 560px;
   max-block-size: 88dvh;
   overflow-y: auto;
   overscroll-behavior: contain;
   border-radius: var(--cr-radius) var(--cr-radius) 0 0;
-  border: 1px solid var(--cr-border);
+  border: 0;
   padding: var(--cr-space-5) var(--cr-space-4);
   box-shadow: var(--cr-shadow-backdrop);
   animation: cr-sheet-up var(--cr-duration) var(--cr-ease);
+}
+/* Sheet titles: display serif with a hairline header separation */
+.cr-sheet :where(h2) {
+  padding-block-end: var(--cr-space-3);
+  border-block-end: 1px solid var(--cr-hairline);
 }
 @keyframes cr-fade-in { from { opacity: 0; } }
 @keyframes cr-sheet-up { from { transform: translateY(16px); } }
@@ -604,29 +659,29 @@
   grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
   gap: var(--cr-space-2);
 }
-.cr-type-tile {
+.cr-shell .cr-type-tile {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--cr-space-2);
   padding: var(--cr-space-3) var(--cr-space-2);
-  border: 1px solid var(--cr-border);
+  border: 1px solid var(--cr-hairline);
   border-radius: var(--cr-radius-sm);
-  background: var(--cr-surface);
+  background: transparent;
   color: var(--cr-ink);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: background-color var(--cr-duration) var(--cr-ease), border-color var(--cr-duration) var(--cr-ease);
 }
-.cr-type-tile[aria-pressed="true"] {
+.cr-shell .cr-type-tile[aria-pressed="true"] {
   border-color: var(--cr-accent);
   background: var(--cr-accent-soft);
   color: var(--cr-accent-strong);
 }
-.cr-type-tile:hover { background: var(--cr-surface-sunken); }
-.cr-type-tile[aria-pressed="true"]:hover { background: var(--cr-accent-soft); }
-.cr-type-tile:disabled { opacity: 0.5; cursor: not-allowed; }
+.cr-shell .cr-type-tile:hover { background: var(--cr-surface-sunken); }
+.cr-shell .cr-type-tile[aria-pressed="true"]:hover { background: var(--cr-accent-soft); }
+.cr-shell .cr-type-tile:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ==========================================================================
    Keypad — numbers never mirror (LTR even in RTL), thumb-friendly targets
@@ -657,46 +712,46 @@
    Buttons
    ========================================================================== */
 
-.cr-button {
+.cr-shell .cr-button {
   min-height: 44px;
   padding-inline: var(--cr-space-4);
-  border: 1px solid var(--cr-border);
-  border-radius: var(--cr-radius-sm);
-  background: var(--cr-surface);
+  border: 1px solid var(--cr-hairline);
+  border-radius: var(--cr-radius-full);
+  background: transparent;
   color: var(--cr-ink);
   font-weight: 700;
   cursor: pointer;
   transition: background-color var(--cr-duration) var(--cr-ease), border-color var(--cr-duration) var(--cr-ease), color var(--cr-duration) var(--cr-ease);
 }
-.cr-button:hover:not(:disabled) { background: var(--cr-surface-sunken); }
-.cr-button:active:not(:disabled) { background: var(--cr-border); }
+.cr-shell .cr-button:hover:not(:disabled) { background: var(--cr-surface-sunken); }
+.cr-shell .cr-button:active:not(:disabled) { background: var(--cr-border); }
 
-.cr-button--primary {
+.cr-shell .cr-button--primary {
   background: var(--cr-accent);
   border-color: var(--cr-accent);
   color: var(--cr-accent-ink);
 }
-.cr-button--primary:hover:not(:disabled) { background: var(--cr-accent-strong); border-color: var(--cr-accent-strong); }
-.cr-button--primary:active:not(:disabled) { background: var(--cr-accent-strong); }
+.cr-shell .cr-button--primary:hover:not(:disabled) { background: var(--cr-accent-strong); border-color: var(--cr-accent-strong); }
+.cr-shell .cr-button--primary:active:not(:disabled) { background: var(--cr-accent-strong); }
 
-.cr-button--danger {
-  background: var(--cr-danger-soft);
+.cr-shell .cr-button--danger {
+  background: transparent;
   border-color: var(--cr-danger);
   color: var(--cr-danger);
 }
-.cr-button--danger:hover:not(:disabled) { background: var(--cr-danger); color: var(--cr-accent-ink); }
+.cr-shell .cr-button--danger:hover:not(:disabled) { background: var(--cr-danger-soft); color: var(--cr-danger); }
 
-.cr-button--block { inline-size: 100%; }
+.cr-shell .cr-button--block { inline-size: 100%; }
 
 /* Compact inline action (card headers, rows) */
-.cr-button--sm {
+.cr-shell .cr-button--sm {
   min-height: 32px;
   padding-inline: var(--cr-space-3);
   font-size: 13px;
   border-radius: var(--cr-radius-sm);
 }
 
-.cr-button:disabled { cursor: not-allowed; opacity: 0.5; }
+.cr-shell .cr-button:disabled { cursor: not-allowed; opacity: 0.5; }
 
 /* ==========================================================================
    Record sheet internals
@@ -705,11 +760,13 @@
 .cr-record-amount {
   display: block;
   text-align: center;
-  font-size: 32px;
-  font-weight: 750;
+  font-family: var(--cr-font-display);
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
   padding-block: var(--cr-space-3);
-  min-block-size: 44px;
+  min-block-size: 48px;
 }
 
 .cr-record-wallets,
@@ -720,10 +777,10 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--cr-space-2);
 }
-.cr-record-subcategories { margin-inline-start: var(--cr-space-5); margin-block-start: var(--cr-space-2); }
+.cr-record-subcategories { margin-inline-start: var(--cr-space-5); }
 
+/* Pickers are flat hairline row lists, not boxed buttons */
 .cr-record-wallet,
 .cr-record-category {
   inline-size: 100%;
@@ -732,61 +789,78 @@
   align-items: center;
   gap: var(--cr-space-2);
   min-height: 44px;
-  padding-inline: var(--cr-space-3);
-  border: 1px solid var(--cr-border);
-  border-radius: var(--cr-radius-sm);
-  background: var(--cr-surface);
+  padding-inline: var(--cr-space-1);
+  border: 0;
+  border-block-end: 1px solid var(--cr-hairline);
+  border-radius: 0;
+  background: transparent;
   color: var(--cr-ink);
   font-weight: 600;
   text-align: start;
   cursor: pointer;
-  transition: background-color var(--cr-duration) var(--cr-ease), border-color var(--cr-duration) var(--cr-ease);
+  transition: background-color var(--cr-duration) var(--cr-ease), color var(--cr-duration) var(--cr-ease);
 }
 .cr-record-wallet:hover,
 .cr-record-category:hover { background: var(--cr-surface-sunken); }
-.cr-record-wallet[aria-pressed="true"] {
-  border-color: var(--cr-accent);
-  background: var(--cr-accent-soft);
+.cr-record-wallet[aria-pressed="true"],
+.cr-record-category[aria-pressed="true"] {
+  background: transparent;
   color: var(--cr-accent-strong);
+  font-weight: 700;
 }
 
 .cr-record-details { display: flex; flex-direction: column; gap: var(--cr-space-3); }
 .cr-record-details input {
   inline-size: 100%;
   min-height: 44px;
-  padding-inline: var(--cr-space-3);
-  border: 1px solid var(--cr-border);
-  border-radius: var(--cr-radius-sm);
-  background: var(--cr-surface);
+  padding-inline: var(--cr-space-1);
+  border: 0;
+  border-block-end: 1px solid var(--cr-hairline);
+  border-radius: 0;
+  background: transparent;
   color: var(--cr-ink);
   font-family: inherit;
 }
 .cr-record-details input:focus-visible {
   outline: 2px solid var(--cr-accent);
-  outline-offset: 1px;
-  border-color: var(--cr-accent);
+  outline-offset: 2px;
+  border-block-end-color: var(--cr-accent);
 }
-.cr-record-summary { font-weight: 700; padding-block: var(--cr-space-2); }
+/* Confirm summary — editorial block with a hairline top, like a receipt total */
+.cr-record-summary {
+  font-weight: 700;
+  padding-block: var(--cr-space-3);
+  border-block-start: 1px solid var(--cr-hairline);
+}
 
 /* ==========================================================================
    Manage screen
    ========================================================================== */
 
-.cr-manage-menu {
+.cr-shell .cr-manage-menu {
   display: flex;
   flex-direction: column;
-  gap: var(--cr-space-2);
-  padding: var(--cr-space-2);
+  padding-block: var(--cr-space-2);
+  border-block-start: 1px solid var(--cr-hairline);
 }
-.cr-manage-row {
+.cr-shell .cr-manage-row {
   inline-size: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--cr-space-2);
+  min-height: 48px;
+  padding-inline: var(--cr-space-1);
+  border: 0;
+  border-block-end: 1px solid var(--cr-hairline);
+  border-radius: 0;
+  background: transparent;
   text-align: start;
+  cursor: pointer;
+  transition: background-color var(--cr-duration) var(--cr-ease);
 }
-.cr-manage-account { padding-inline: var(--cr-space-4); min-height: 44px; }
+.cr-shell .cr-manage-row:hover { background: var(--cr-surface-sunken); }
+.cr-shell .cr-manage-account { padding-inline: var(--cr-space-1); }
 .cr-manage-back {
   display: inline-flex;
   align-items: center;
