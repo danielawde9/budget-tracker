@@ -1,5 +1,11 @@
 # Budget tracker
 
+For future work, give the implementer one file from the
+[SQL-first task index](docs/superpowers/plans/future-planning/00-start-here.md).
+It contains separate database, gateway and UI instructions, a
+[39-item roadmap map](docs/superpowers/plans/future-planning/40-roadmap-coverage.md),
+exact financial rules and required verification. These are plans, not implemented features.
+
 The [future-planning master](docs/product/2026-09-13-future-planning-master.md)
 contains the proposed income-percentage budgets, goals and milestones, daily
 comparisons, technical roadmap, and bounded implementation packets. It is a

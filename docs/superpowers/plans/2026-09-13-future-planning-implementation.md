@@ -1,5 +1,10 @@
 # Future planning implementation packets
 
+> **Superseded execution instructions:** Start with [the separate actionable task files](future-planning/00-start-here.md).
+> The [coverage map](future-planning/40-roadmap-coverage.md) routes every roadmap ID.
+> Keep this older packet for rationale; use the new task's exact schema/RPC contract
+> when details differ. No implementation or database application occurred here.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans
 > when a packet is explicitly requested. Use superpowers:systematic-debugging
 > for any failure and superpowers:test-driven-development for implementation.

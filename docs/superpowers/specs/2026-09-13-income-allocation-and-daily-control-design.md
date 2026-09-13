@@ -1,5 +1,10 @@
 # Income allocation and daily control — proposed design
 
+> **Implementation handoff:** [The actionable task index](../plans/future-planning/00-start-here.md)
+> contains the later SQL/gateway/UI instructions. Its explicit refinements—full
+> snapshot children, actor-owned receipts, stable funding heads and exact settlement
+> rules—take precedence over shorthand relation/command sketches in this proposal.
+
 **Status:** owner-review proposal, 2026-09-13. No application or database change
 is authorized by this document. Read the [master](../../product/2026-09-13-future-planning-master.md)
 and execute only a subsequently requested packet in the [plan](../plans/2026-09-13-future-planning-implementation.md).

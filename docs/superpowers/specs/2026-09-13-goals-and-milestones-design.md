@@ -1,5 +1,10 @@
 # Short- and long-term goals with milestones — proposed design
 
+> **Implementation handoff:** [The actionable task index](../plans/future-planning/00-start-here.md)
+> contains the later SQL/gateway/UI instructions. Its explicit refinements—full
+> snapshot children, actor-owned receipts, stable funding heads and exact settlement
+> rules—take precedence over shorthand relation/command sketches in this proposal.
+
 **Status:** planning only, prepared 2026-09-13. Depends on the
 [allocation design](2026-09-13-income-allocation-and-daily-control-design.md).
 Implement only after a request names G1, G2 or G3 from the

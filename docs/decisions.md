@@ -1515,3 +1515,49 @@ per-member private plans require a new RLS contract; child-level budgets require
 an anti-double-counting rule; automatic rollover requires signed carry and
 restatement history. Revise the affected proposed specification before its
 packet is requested. This entry does not retroactively approve any of them.
+
+
+## 2026-09-13 — Convert the future roadmap into separate executable task files
+
+**Scope:** The owner explicitly requested actionable Markdown for a smaller
+implementation model, especially SQL. Created the execution pack at
+[future-planning/00-start-here.md](superpowers/plans/future-planning/00-start-here.md)
+and mapped all39 roadmap IDs. This remains documentation-only work. No runtime
+code, applied migration, account seed, deployment or external delivery was performed.
+A task file is a proposed implementation contract, not evidence its feature exists.
+
+**Documented defaults/refinements:** New planning commands serialize per space,
+recheck membership after locking, replay actor-owned receipts before stale-head
+validation, and publish complete immutable snapshots with declared child counts.
+Group definitions belong to template snapshots; milestone definitions belong to
+goal snapshots. Funding-head hashes include financial reversals. Goal earmarks
+are advisory claims, never protected wallet balances. Recurring occurrence identity
+is schedule+due date, independent of definition revision. Settlement/goal links
+consume an expense once; refunds restore linked goal funding without fictitious
+contributions. Available cash removes overlap between budgeted bills and earmarks.
+Export manifests capture payloads in one statement snapshot; month closes freeze
+totals and detect later fact changes by digest. Rollover is explicit and signed.
+Fixed CSV template has nine columns; quick text is a deterministic reviewed draft.
+
+**Why:** The previous coarse packets left enough schema, replay, rounding,
+concurrency and integration decisions open that a smaller model could implement
+plausible but inconsistent money behavior. Separate DB/gateway/UI steps, real
+rejection fixtures, exact helper examples and stop/commit boundaries make the
+repository the resumable handoff. Existing source-present features get a
+verification task instead of duplicate implementations. Provider/domain-dependent
+features get bounded evidence tasks with missing inputs stated, not invented rules.
+
+**Exceptions made explicit:** Operational export/recap queues have constrained
+mutable lifecycle/cleanup rather than financial-history immutability. Recap may
+need a narrow NOLOGIN worker capability role, never a broad app-owner role. No
+real sending follows from queue implementation. Interest, savings circles,
+settle-up and valuation policies still need their named factual inputs.
+
+**If the owner chooses differently:** Change the affected task contract before
+its layer begins, including numerical fixtures, relational invariants, public
+RPCs, typed DTOs and downstream comparisons together. Binding holds require a
+posting architecture change; alternate pay/bill/savings ownership rules require
+new deduplication examples; arbitrary import formats require mapping evidence.
+Keep already-applied migrations forward-only. Current validation is documented
+in [the plan-pack review](verification/future-planning/plan-pack-review.md);
+parser/helper checks are not PostgreSQL integration or live-product proof.

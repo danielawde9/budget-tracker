@@ -1,5 +1,11 @@
 # Remaining roadmap: technical direction and execution gates
 
+> **Execution update, 2026-09-13:** Use the [actionable task index](../superpowers/plans/future-planning/00-start-here.md)
+> and [all-roadmap coverage map](../superpowers/plans/future-planning/40-roadmap-coverage.md)
+> for later implementation. These split the proposal into SQL, gateway, UI and
+> evidence tasks. Their explicit contracts refine the earlier shorthand below;
+> they remain documentation, not applied SQL or permission to deploy.
+
 2026-09-13 proposal. This preserves every identifier in the
 [September 11 research](2026-09-11-competitor-research-and-roadmap.md).
 The [master plan](2026-09-13-future-planning-master.md) routes the detailed

@@ -1,5 +1,11 @@
 # Budget future plan: everyday control and life goals
 
+> **Execution update, 2026-09-13:** Use the [actionable task index](../superpowers/plans/future-planning/00-start-here.md)
+> and [all-roadmap coverage map](../superpowers/plans/future-planning/40-roadmap-coverage.md)
+> for later implementation. These split the proposal into SQL, gateway, UI and
+> evidence tasks. Their explicit contracts refine the earlier shorthand below;
+> they remain documentation, not applied SQL or permission to deploy.
+
 Prepared 2026-09-13 against local `main` at `59af39a`.
 
 **Status: proposed planning package for owner review. Documentation only.**
