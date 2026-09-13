@@ -13,7 +13,23 @@ export interface ApplicationFixtureOptions {
   ambiguousSubcategoryOnce?: boolean;
   ambiguousCategorizedEventOnce?: boolean;
   rejectCategoryCreateOnce?: boolean;
+  /** Control Room plan screen: rows for `monthly_budget_currency_summary`. */
+  planSummary?: readonly Record<string, unknown>[];
+  /** Control Room plan/home screens: rows for `monthly_budget_category_page` and
+   *  `report_category_actual_vs_budget` (a merged key set satisfies both parsers). */
+  budgetRows?: readonly Record<string, unknown>[];
+  /** Control Room insights: rows for `report_wallet_activity`. */
+  activityRows?: readonly Record<string, unknown>[];
+  /** Home trend card: rows for `report_monthly_cash_summary` (needs exactly four). */
+  trendRows?: readonly Record<string, unknown>[];
 }
+
+const defaultTrendRows: Record<string, unknown>[] = [
+  { period_month: '2025-10-01', period_role: 'previous', currency: 'USD', income_net_minor: '200000', expense_net_minor: '-120000', wallet_delta_net_minor: '80000' },
+  { period_month: '2025-11-01', period_role: 'current', currency: 'USD', income_net_minor: '250050', expense_net_minor: '-150075', wallet_delta_net_minor: '99975' },
+  { period_month: '2025-10-01', period_role: 'previous', currency: 'LBP', income_net_minor: '3000000', expense_net_minor: '-2500000', wallet_delta_net_minor: '500000' },
+  { period_month: '2025-11-01', period_role: 'current', currency: 'LBP', income_net_minor: '0', expense_net_minor: '-1200000', wallet_delta_net_minor: '-1200000' },
+];
 
 interface VisualEvent {
   id: string;
@@ -56,8 +72,8 @@ const protectedMutationNames = new Set([
 ]);
 
 const spaces = [
-  { id: 'personal-space', name: 'My money', kind: 'personal', created_at: '2026-01-01T00:00:00Z' },
-  { id: 'household-space', name: 'Home budget', kind: 'household', created_at: '2026-01-02T00:00:00Z' },
+  { id: 'aaaa0000-0000-4000-8000-000000000001', name: 'My money', kind: 'personal', created_at: '2026-01-01T00:00:00Z' },
+  { id: 'aaaa0000-0000-4000-8000-000000000002', name: 'Home budget', kind: 'household', created_at: '2026-01-02T00:00:00Z' },
 ];
 
 interface VisualWallet {
@@ -70,17 +86,17 @@ interface VisualWallet {
 }
 
 const wallets: VisualWallet[] = [
-  { id: 'usd-wallet', space_id: 'personal-space', name: 'Daily USD', currency: 'USD', archived_at: null, created_at: '2026-01-01T00:00:00Z' },
-  { id: 'reserve-usd-wallet', space_id: 'personal-space', name: 'Reserve USD', currency: 'USD', archived_at: null, created_at: '2026-01-02T00:00:00Z' },
-  { id: 'lbp-wallet', space_id: 'personal-space', name: 'Home LBP', currency: 'LBP', archived_at: null, created_at: '2026-01-03T00:00:00Z' },
-  { id: 'household-usd-wallet', space_id: 'household-space', name: 'Household USD', currency: 'USD', archived_at: null, created_at: '2026-01-04T00:00:00Z' },
+  { id: 'usd-wallet', space_id: 'aaaa0000-0000-4000-8000-000000000001', name: 'Daily USD', currency: 'USD', archived_at: null, created_at: '2026-01-01T00:00:00Z' },
+  { id: 'reserve-usd-wallet', space_id: 'aaaa0000-0000-4000-8000-000000000001', name: 'Reserve USD', currency: 'USD', archived_at: null, created_at: '2026-01-02T00:00:00Z' },
+  { id: 'lbp-wallet', space_id: 'aaaa0000-0000-4000-8000-000000000001', name: 'Home LBP', currency: 'LBP', archived_at: null, created_at: '2026-01-03T00:00:00Z' },
+  { id: 'household-usd-wallet', space_id: 'aaaa0000-0000-4000-8000-000000000002', name: 'Household USD', currency: 'USD', archived_at: null, created_at: '2026-01-04T00:00:00Z' },
 ];
 
 const walletBalances = [
-  { wallet_id: 'usd-wallet', space_id: 'personal-space', currency: 'USD', amount_minor: '125050' },
-  { wallet_id: 'reserve-usd-wallet', space_id: 'personal-space', currency: 'USD', amount_minor: '50000' },
-  { wallet_id: 'lbp-wallet', space_id: 'personal-space', currency: 'LBP', amount_minor: '2500000' },
-  { wallet_id: 'household-usd-wallet', space_id: 'household-space', currency: 'USD', amount_minor: '30000' },
+  { wallet_id: 'usd-wallet', space_id: 'aaaa0000-0000-4000-8000-000000000001', currency: 'USD', amount_minor: '125050' },
+  { wallet_id: 'reserve-usd-wallet', space_id: 'aaaa0000-0000-4000-8000-000000000001', currency: 'USD', amount_minor: '50000' },
+  { wallet_id: 'lbp-wallet', space_id: 'aaaa0000-0000-4000-8000-000000000001', currency: 'LBP', amount_minor: '2500000' },
+  { wallet_id: 'household-usd-wallet', space_id: 'aaaa0000-0000-4000-8000-000000000002', currency: 'USD', amount_minor: '30000' },
 ];
 
 const salaryCategoryId = '11111111-1111-4111-8111-111111111111';
@@ -91,53 +107,53 @@ const generalIncomeEventId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const fixtureActorId = '11111111-1111-4111-8111-111111111111';
 
 const categoryRows: VisualCategory[] = [
-  { id: salaryCategoryId, space_id: 'personal-space', kind: 'income', name_en: 'Salary', name_ar: 'راتب', parent_category_id: null, created_at: '2026-01-01T08:00:00Z', archived_at: null },
-  { id: essentialsCategoryId, space_id: 'personal-space', kind: 'expense', name_en: 'Essentials', name_ar: 'الأساسيات', parent_category_id: null, created_at: '2026-01-02T08:00:00Z', archived_at: null },
-  { id: groceriesCategoryId, space_id: 'personal-space', kind: 'expense', name_en: 'Groceries', name_ar: 'بقالة', parent_category_id: essentialsCategoryId, created_at: '2026-01-03T08:00:00Z', archived_at: null },
-  { id: archivedTravelCategoryId, space_id: 'personal-space', kind: 'income', name_en: 'Archived travel', name_ar: 'سفر مؤرشف', parent_category_id: null, created_at: '2026-01-04T08:00:00Z', archived_at: '2026-08-01T00:00:00Z' },
+  { id: salaryCategoryId, space_id: 'aaaa0000-0000-4000-8000-000000000001', kind: 'income', name_en: 'Salary', name_ar: 'راتب', parent_category_id: null, created_at: '2026-01-01T08:00:00Z', archived_at: null },
+  { id: essentialsCategoryId, space_id: 'aaaa0000-0000-4000-8000-000000000001', kind: 'expense', name_en: 'Essentials', name_ar: 'الأساسيات', parent_category_id: null, created_at: '2026-01-02T08:00:00Z', archived_at: null },
+  { id: groceriesCategoryId, space_id: 'aaaa0000-0000-4000-8000-000000000001', kind: 'expense', name_en: 'Groceries', name_ar: 'بقالة', parent_category_id: essentialsCategoryId, created_at: '2026-01-03T08:00:00Z', archived_at: null },
+  { id: archivedTravelCategoryId, space_id: 'aaaa0000-0000-4000-8000-000000000001', kind: 'income', name_en: 'Archived travel', name_ar: 'سفر مؤرشف', parent_category_id: null, created_at: '2026-01-04T08:00:00Z', archived_at: '2026-08-01T00:00:00Z' },
 ];
 
 const eventCategoryRows = [
-  { event_id: generalIncomeEventId, space_id: 'personal-space', category_id: archivedTravelCategoryId, category_kind: 'income', created_at: '2026-09-07T14:00:00Z' },
+  { event_id: generalIncomeEventId, space_id: 'aaaa0000-0000-4000-8000-000000000001', category_id: archivedTravelCategoryId, category_kind: 'income', created_at: '2026-09-07T14:00:00Z' },
 ];
 
 const loans = [
-  { id: 'maya-loan', space_id: 'personal-space', direction: 'they_owe_me', person_name: 'Maya', currency: 'USD', effective_date: '2026-07-01', due_date: '2026-09-30', note: 'Shared trip' },
-  { id: 'karim-loan', space_id: 'personal-space', direction: 'i_owe_them', person_name: 'Karim', currency: 'USD', effective_date: '2026-06-01', due_date: '2026-09-01', note: null },
-  { id: 'rana-loan', space_id: 'personal-space', direction: 'they_owe_me', person_name: 'Rana', currency: 'LBP', effective_date: '2026-05-01', due_date: null, note: null },
+  { id: 'maya-loan', space_id: 'aaaa0000-0000-4000-8000-000000000001', direction: 'they_owe_me', person_name: 'Maya', currency: 'USD', effective_date: '2026-07-01', due_date: '2026-09-30', note: 'Shared trip' },
+  { id: 'karim-loan', space_id: 'aaaa0000-0000-4000-8000-000000000001', direction: 'i_owe_them', person_name: 'Karim', currency: 'USD', effective_date: '2026-06-01', due_date: '2026-09-01', note: null },
+  { id: 'rana-loan', space_id: 'aaaa0000-0000-4000-8000-000000000001', direction: 'they_owe_me', person_name: 'Rana', currency: 'LBP', effective_date: '2026-05-01', due_date: null, note: null },
 ];
 
 const balances = [
-  { loan_id: 'maya-loan', space_id: 'personal-space', direction: 'they_owe_me', currency: 'USD', outstanding_minor: '75000' },
-  { loan_id: 'karim-loan', space_id: 'personal-space', direction: 'i_owe_them', currency: 'USD', outstanding_minor: '120000' },
-  { loan_id: 'rana-loan', space_id: 'personal-space', direction: 'they_owe_me', currency: 'LBP', outstanding_minor: '0' },
+  { loan_id: 'maya-loan', space_id: 'aaaa0000-0000-4000-8000-000000000001', direction: 'they_owe_me', currency: 'USD', outstanding_minor: '75000' },
+  { loan_id: 'karim-loan', space_id: 'aaaa0000-0000-4000-8000-000000000001', direction: 'i_owe_them', currency: 'USD', outstanding_minor: '120000' },
+  { loan_id: 'rana-loan', space_id: 'aaaa0000-0000-4000-8000-000000000001', direction: 'they_owe_me', currency: 'LBP', outstanding_minor: '0' },
 ];
 
 const events: VisualEvent[] = [
-  { id: generalIncomeEventId, space_id: 'personal-space', actor_id: fixtureActorId, request_id: 'request-general-income', kind: 'income', effective_date: '2026-09-07', created_at: '2026-09-07T14:00:00Z', reversal_of: null },
-  { id: 'maya-opening', space_id: 'personal-space', actor_id: fixtureActorId, request_id: 'request-maya-opening', kind: 'loan_lend', effective_date: '2026-07-01', created_at: '2026-07-01T12:00:00Z', reversal_of: null },
-  { id: 'maya-payment', space_id: 'personal-space', actor_id: fixtureActorId, request_id: 'request-maya-payment', kind: 'loan_receive_repayment', effective_date: '2026-09-05', created_at: '2026-09-05T12:00:00Z', reversal_of: null },
-  { id: 'karim-opening', space_id: 'personal-space', actor_id: fixtureActorId, request_id: 'request-karim-opening', kind: 'loan_borrow', effective_date: '2026-06-01', created_at: '2026-06-01T12:00:00Z', reversal_of: null },
-  { id: 'karim-payment', space_id: 'personal-space', actor_id: fixtureActorId, request_id: 'request-karim-payment', kind: 'loan_repay_borrowing', effective_date: '2026-09-03', created_at: '2026-09-03T12:00:00Z', reversal_of: null },
-  { id: 'rana-opening', space_id: 'personal-space', actor_id: fixtureActorId, request_id: 'request-rana-opening', kind: 'loan_opening', effective_date: '2026-05-01', created_at: '2026-05-01T12:00:00Z', reversal_of: null },
-  { id: 'rana-payment', space_id: 'personal-space', actor_id: fixtureActorId, request_id: 'request-rana-payment', kind: 'loan_receive_repayment', effective_date: '2026-06-01', created_at: '2026-06-01T12:00:00Z', reversal_of: null },
+  { id: generalIncomeEventId, space_id: 'aaaa0000-0000-4000-8000-000000000001', actor_id: fixtureActorId, request_id: 'request-general-income', kind: 'income', effective_date: '2026-09-07', created_at: '2026-09-07T14:00:00Z', reversal_of: null },
+  { id: 'maya-opening', space_id: 'aaaa0000-0000-4000-8000-000000000001', actor_id: fixtureActorId, request_id: 'request-maya-opening', kind: 'loan_lend', effective_date: '2026-07-01', created_at: '2026-07-01T12:00:00Z', reversal_of: null },
+  { id: 'maya-payment', space_id: 'aaaa0000-0000-4000-8000-000000000001', actor_id: fixtureActorId, request_id: 'request-maya-payment', kind: 'loan_receive_repayment', effective_date: '2026-09-05', created_at: '2026-09-05T12:00:00Z', reversal_of: null },
+  { id: 'karim-opening', space_id: 'aaaa0000-0000-4000-8000-000000000001', actor_id: fixtureActorId, request_id: 'request-karim-opening', kind: 'loan_borrow', effective_date: '2026-06-01', created_at: '2026-06-01T12:00:00Z', reversal_of: null },
+  { id: 'karim-payment', space_id: 'aaaa0000-0000-4000-8000-000000000001', actor_id: fixtureActorId, request_id: 'request-karim-payment', kind: 'loan_repay_borrowing', effective_date: '2026-09-03', created_at: '2026-09-03T12:00:00Z', reversal_of: null },
+  { id: 'rana-opening', space_id: 'aaaa0000-0000-4000-8000-000000000001', actor_id: fixtureActorId, request_id: 'request-rana-opening', kind: 'loan_opening', effective_date: '2026-05-01', created_at: '2026-05-01T12:00:00Z', reversal_of: null },
+  { id: 'rana-payment', space_id: 'aaaa0000-0000-4000-8000-000000000001', actor_id: fixtureActorId, request_id: 'request-rana-payment', kind: 'loan_receive_repayment', effective_date: '2026-06-01', created_at: '2026-06-01T12:00:00Z', reversal_of: null },
 ];
 
 const postings = [
-  { event_id: 'maya-opening', loan_id: 'maya-loan', space_id: 'personal-space', principal_delta_minor: '100000', repayment_effect_minor: '0' },
-  { event_id: 'maya-payment', loan_id: 'maya-loan', space_id: 'personal-space', principal_delta_minor: '-25000', repayment_effect_minor: '25000' },
-  { event_id: 'karim-opening', loan_id: 'karim-loan', space_id: 'personal-space', principal_delta_minor: '200000', repayment_effect_minor: '0' },
-  { event_id: 'karim-payment', loan_id: 'karim-loan', space_id: 'personal-space', principal_delta_minor: '-80000', repayment_effect_minor: '80000' },
-  { event_id: 'rana-opening', loan_id: 'rana-loan', space_id: 'personal-space', principal_delta_minor: '5000000', repayment_effect_minor: '0' },
-  { event_id: 'rana-payment', loan_id: 'rana-loan', space_id: 'personal-space', principal_delta_minor: '-5000000', repayment_effect_minor: '5000000' },
+  { event_id: 'maya-opening', loan_id: 'maya-loan', space_id: 'aaaa0000-0000-4000-8000-000000000001', principal_delta_minor: '100000', repayment_effect_minor: '0' },
+  { event_id: 'maya-payment', loan_id: 'maya-loan', space_id: 'aaaa0000-0000-4000-8000-000000000001', principal_delta_minor: '-25000', repayment_effect_minor: '25000' },
+  { event_id: 'karim-opening', loan_id: 'karim-loan', space_id: 'aaaa0000-0000-4000-8000-000000000001', principal_delta_minor: '200000', repayment_effect_minor: '0' },
+  { event_id: 'karim-payment', loan_id: 'karim-loan', space_id: 'aaaa0000-0000-4000-8000-000000000001', principal_delta_minor: '-80000', repayment_effect_minor: '80000' },
+  { event_id: 'rana-opening', loan_id: 'rana-loan', space_id: 'aaaa0000-0000-4000-8000-000000000001', principal_delta_minor: '5000000', repayment_effect_minor: '0' },
+  { event_id: 'rana-payment', loan_id: 'rana-loan', space_id: 'aaaa0000-0000-4000-8000-000000000001', principal_delta_minor: '-5000000', repayment_effect_minor: '5000000' },
 ];
 
 const movements = [
-  { event_id: generalIncomeEventId, space_id: 'personal-space', wallet_id: 'usd-wallet', amount_minor: '25050' },
-  { event_id: 'maya-opening', space_id: 'personal-space', wallet_id: 'usd-wallet', amount_minor: '-100000' },
-  { event_id: 'maya-payment', space_id: 'personal-space', wallet_id: 'usd-wallet', amount_minor: '25000' },
-  { event_id: 'karim-opening', space_id: 'personal-space', wallet_id: 'usd-wallet', amount_minor: '200000' },
-  { event_id: 'karim-payment', space_id: 'personal-space', wallet_id: 'usd-wallet', amount_minor: '-80000' },
+  { event_id: generalIncomeEventId, space_id: 'aaaa0000-0000-4000-8000-000000000001', wallet_id: 'usd-wallet', amount_minor: '25050' },
+  { event_id: 'maya-opening', space_id: 'aaaa0000-0000-4000-8000-000000000001', wallet_id: 'usd-wallet', amount_minor: '-100000' },
+  { event_id: 'maya-payment', space_id: 'aaaa0000-0000-4000-8000-000000000001', wallet_id: 'usd-wallet', amount_minor: '25000' },
+  { event_id: 'karim-opening', space_id: 'aaaa0000-0000-4000-8000-000000000001', wallet_id: 'usd-wallet', amount_minor: '200000' },
+  { event_id: 'karim-payment', space_id: 'aaaa0000-0000-4000-8000-000000000001', wallet_id: 'usd-wallet', amount_minor: '-80000' },
 ];
 
 const plan = [
@@ -425,6 +441,24 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
     }
     if (path.endsWith('/rpc/set_loan_monthly_target')) {
       return json(route, [{ id: 'f3000000-0000-4000-8000-000000000001' }]);
+    }
+    if (path.endsWith('/rpc/monthly_budget_currency_summary')) {
+      return json(route, cloneRows(options.planSummary ?? []));
+    }
+    if (path.endsWith('/rpc/monthly_budget_category_page')) {
+      return json(route, cloneRows(options.budgetRows ?? []));
+    }
+    if (path.endsWith('/rpc/report_wallet_activity')) {
+      return json(route, cloneRows(options.activityRows ?? []));
+    }
+    if (path.endsWith('/rpc/report_category_actual_vs_budget')) {
+      return json(route, cloneRows(options.budgetRows ?? []));
+    }
+    if (path.endsWith('/rpc/report_monthly_cash_summary')) {
+      return json(route, cloneRows(options.trendRows ?? defaultTrendRows));
+    }
+    if (path.endsWith('/rpc/record_usd_to_lbp_exchange')) {
+      return json(route, [{ id: crypto.randomUUID() }]);
     }
     if (path.endsWith('/spaces')) return json(route, visibleSpaces);
     if (path.endsWith('/categories')) {

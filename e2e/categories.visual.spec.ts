@@ -269,6 +269,7 @@ test('Arabic RTL mirrors management and categorized history with isolated names'
   await openCategories(page);
   await switchWorkspaceLanguage(page);
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await chooseWorkspaceDestination(page, 'الفئات');
   await expect(page.getByRole('heading', { name: 'الفئات' })).toBeVisible();
   await expect(page.getByText('راتب').locator('xpath=ancestor-or-self::bdi')).toBeVisible();
   await page.getByRole('button', { name: 'المصروف', exact: true }).click();

@@ -13,7 +13,10 @@ const TOKEN = 'A'.repeat(43);
 for (const locale of ['en', 'ar'] as const) {
   test(`household ${locale} register and invitation controls fit the viewport`, async ({ page }, testInfo) => {
     await openHousehold(page);
-    if (locale === 'ar') await switchWorkspaceLanguage(page);
+    if (locale === 'ar') {
+      await switchWorkspaceLanguage(page);
+      await chooseWorkspaceDestination(page, 'المنزل');
+    }
     await expect(page.locator('html')).toHaveAttribute('dir', locale === 'ar' ? 'rtl' : 'ltr');
     await expectContainedControls(page);
     await page.screenshot({ path: screenshotPath(testInfo, `household-${locale}-${testInfo.project.name}.png`), fullPage: true });
@@ -149,6 +152,7 @@ test('mobile Arabic register mirrors safely without horizontal overflow', async 
   await openHousehold(page);
   await switchWorkspaceLanguage(page);
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await chooseWorkspaceDestination(page, 'المنزل');
   await expect(page.getByRole('heading', { name: 'إدارة المنزل' })).toBeVisible();
   await expect(page.getByText(householdFixtureIds.member).locator('xpath=ancestor-or-self::bdi')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
@@ -163,6 +167,6 @@ test('fragment acceptance clears the secret and selects the new household', asyn
   await expect(page).toHaveURL('/');
   const dialog = page.getByRole('dialog', { name: 'Accept household invitation' });
   await dialog.getByRole('button', { name: 'Accept invitation' }).click();
-  await expect(page.getByRole('button', { name: 'Current space: Home budget' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Household space' })).toBeVisible();
   await expect(page).toHaveURL('/');
 });

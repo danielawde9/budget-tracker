@@ -54,6 +54,7 @@ test('loan history correction actions name borrowing repayments in English and A
 
   await switchWorkspaceLanguage(page);
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await chooseWorkspaceDestination(page, 'القروض');
   await page.getByRole('button', { name: 'فتح قرض Karim' }).click();
   detail = page.getByRole('dialog', { name: 'تفاصيل قرض Karim' });
   await expect(detail.getByRole('button', { name: 'تصحيح قرض اقتراض بتاريخ ١ حزيران ٢٠٢٦' })).toBeVisible();
@@ -80,6 +81,7 @@ test('desktop Arabic household workspace mirrors the ledger', async ({ page }, t
   test.skip(testInfo.project.name !== 'desktop');
   await switchWorkspaceLanguage(page);
   await switchWorkspaceSpace(page, 'المساحة الحالية: My money', 'التبديل إلى Home budget');
+  await chooseWorkspaceDestination(page, 'القروض');
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await expect(page.getByRole('button', { name: 'المساحة الحالية: Home budget' })).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-ar-household.png'), fullPage: true });
@@ -88,6 +90,7 @@ test('desktop Arabic household workspace mirrors the ledger', async ({ page }, t
 test('mobile Arabic overdue correction rejection explains recovery', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile');
   await switchWorkspaceLanguage(page);
+  await chooseWorkspaceDestination(page, 'القروض');
   await page.getByRole('button', { name: 'فتح قرض Karim' }).click();
   await page.getByRole('button', { name: /تصحيح قرض/ }).click();
   const correction = page.getByRole('dialog', { name: 'تصحيح هذا القيد' });
