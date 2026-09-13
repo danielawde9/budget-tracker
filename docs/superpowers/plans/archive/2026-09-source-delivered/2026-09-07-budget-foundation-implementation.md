@@ -675,7 +675,7 @@ git commit -m "docs: record budget foundation verification"
 
 ## Approved follow-on: Loans and whole-app ledger coverage
 
-Daniel approved the [Loans and ledger coverage direction](../specs/2026-09-07-loans-and-ledger-coverage-design.md)
+Daniel approved the [Loans and ledger coverage direction](../../../specs/2026-09-07-loans-and-ledger-coverage-design.md)
 on 2026-09-07 for delivery after this foundation. It includes both "they owe me"
 and "I owe them," partial/full repayments, loan history, optional due dates,
 and monthly repayment targets integrated into the budget plan.

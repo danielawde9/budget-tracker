@@ -1612,3 +1612,23 @@ history/balance reporting needs separate scopes. A local-only adapter changes
 installation and supported surfaces. Proposed 10-minute draft expiry, payload
 cleanup within 24 hours, 10,000 receipts per grant and receipt retention through
 30 days after revocation are M0 policy defaults, not existing runtime behavior.
+
+## 2026-09-13 — Archive source-delivered plans without promoting release status
+
+**Decision:** Move the 18 plan documents with implementation evidence reachable
+from `main` to `docs/superpowers/plans/archive/2026-09-source-delivered/` and
+use `docs/superpowers/plans/README.md` as the current selectable-work index.
+Keep deployment, UAT, future-planning, and MCP evidence work outside that
+archive. The archive label means source delivery only; it does not collapse
+source, migration, hosted deployment, authenticated UAT, and product acceptance
+into one status.
+
+**Why:** Historical unchecked checklists were obscuring the executable roadmap
+even where their code and focused verification commits had long been merged.
+Separating them makes the next packet unambiguous while retaining the full
+historical instructions and evidence commits for regression work.
+
+**If changed:** A later failure starts a new current-source verification/fix
+packet. Restoring an archived document to the active index requires evidence
+that its implementation boundary is genuinely unfinished, not merely that a
+later deployment or acceptance gate remains open.
