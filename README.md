@@ -1,5 +1,11 @@
 # Budget tracker
 
+The [future-planning master](docs/product/2026-09-13-future-planning-master.md)
+contains the proposed income-percentage budgets, goals and milestones, daily
+comparisons, technical roadmap, and bounded implementation packets. It is a
+planning document; source existence, tested behavior and deployed status are
+tracked separately.
+
 The current application milestone provides a bilingual authenticated shell
 with verified Loans, Wallets, and Categories workspaces. It supports Supabase
 email/password sessions, safe first-space and first-wallet onboarding, switching

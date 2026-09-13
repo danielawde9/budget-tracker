@@ -1,5 +1,11 @@
 # Competitor research and feature roadmap
 
+> **2026-09-13 continuation:** See the [future-planning master](2026-09-13-future-planning-master.md)
+> for a refreshed local source inventory and detailed proposed income allocation,
+> short-/long-term goals, milestones, SQL contracts and implementation packets.
+> This document remains the original September 11 research snapshot; its
+> built/missing labels are not a current implementation-status report.
+
 ## Status
 
 Research and proposal only, prepared on 2026-09-11 against repository commit

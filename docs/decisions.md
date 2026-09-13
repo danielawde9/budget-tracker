@@ -1480,3 +1480,38 @@ payee rule predictable while avoiding a single accidental category change.
 auto-posting, or supporting transfers as repeatable requires a new product and
 ledger-safety decision. Changing the agreement threshold requires corresponding
 unit coverage for the new history rule.
+
+## 2026-09-13 — Future planning is a documented proposal with isolated implementation packets
+
+**Decision about this session's scope:** Produce documentation only for the
+owner's brainstorming request: percentage income allocation, actual-spending
+comparisons, short-/long-term goals and milestones, and the remaining roadmap.
+The entry point is [the future-planning master](product/2026-09-13-future-planning-master.md).
+No application implementation, SQL application, seed data, push, deployment or
+external communication is authorized by this document.
+
+**Proposed defaults, not approved product changes:** Per-space, per-currency
+percentage policies use integer basis points and expected net income. Saved
+month snapshots retain mappings and exact monetary allocations. Root categories
+roll up children once. Goals use a separate non-posting earmark history with
+current cash coverage; short-term means a deadline within 12 months of goal
+creation, long-term later, and no deadline is open-ended. Monthly contributions
+and milestone checkpoints never create income or expense. No automatic
+rollover, auto-posting, mandatory category seeds or chart dependency is selected.
+Existing explicit gateway parsers remain the default; adopting a validation
+package is a separate dependency decision.
+
+**Why:** The earlier roadmap named goals and an editable percentage lens but
+did not specify the financial semantics a smaller implementation model needs.
+Separating database, gateway and UI packets preserves verified journal and
+authorization boundaries. Current source now contains monthly plan and report
+SQL, so future work must verify and extend it rather than recreate it from a
+stale missing-feature list. V0 names reproducible checks, not confirmed live
+defects; this documentation session did not run database or live-product tests.
+
+**If the owner chooses differently:** Received-cash-only allocation adds explicit
+funding batches; binding savings holds require a new posting architecture;
+per-member private plans require a new RLS contract; child-level budgets require
+an anti-double-counting rule; automatic rollover requires signed carry and
+restatement history. Revise the affected proposed specification before its
+packet is requested. This entry does not retroactively approve any of them.
