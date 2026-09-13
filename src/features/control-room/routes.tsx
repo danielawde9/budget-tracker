@@ -22,6 +22,7 @@ import { HomeScreen } from './home-screen.js';
 import { JournalScreen } from './journal-screen.js';
 import { ManageScreen } from './manage-screen.js';
 import { RecordSheet } from './record-sheet.js';
+import { HomeSkeleton, JournalSkeleton, PlanSkeleton } from './skeletons.js';
 import type { ControlRoomDestination } from './types.js';
 
 const unavailableInsightsClient: InsightsClient = {
@@ -193,6 +194,16 @@ interface JournalRoutesProps {
 function JournalRoutes(props: JournalRoutesProps) {
   const { locale } = props;
   const wallets = props.wallets;
+  if (wallets.status === 'loading') {
+    return (
+      <>
+        <header className="cr-row">
+          <h1>{locale === 'ar' ? 'القيود' : 'Journal'}</h1>
+        </header>
+        <JournalSkeleton locale={locale} />
+      </>
+    );
+  }
   return (
     <>
       <JournalScreen
@@ -227,7 +238,7 @@ function PlanRoutes(props: PlanRoutesProps) {
   const plan = usePlan(gateways.plan ?? unavailablePlanClient, spaceId, props.month);
 
   if (plan.status === 'loading') {
-    return <p className="cr-label">{locale === 'ar' ? 'جارٍ تحميل الخطة…' : 'Loading the plan…'}</p>;
+    return <PlanSkeleton locale={locale} />;
   }
   if (plan.status === 'error') {
     return (

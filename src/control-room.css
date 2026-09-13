@@ -85,6 +85,18 @@
 }
 .cr-main--wide { max-inline-size: var(--cr-content-w-wide); }
 
+.cr-visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ==========================================================================
    Navigation — phone-first bottom tab bar; ≥1024px becomes a left rail
    (right rail in RTL automatically, everything is logical)
@@ -334,6 +346,48 @@
 }
 
 /* ==========================================================================
+   Skeletons — sunken placeholders with a slow shimmer sweep while data loads
+   ========================================================================== */
+
+.cr-skeleton {
+  display: block;
+  border-radius: var(--cr-radius-sm);
+  background:
+    linear-gradient(90deg, transparent, rgb(255 255 255 / 0.65), transparent) 0 0 / 200% 100% no-repeat,
+    var(--cr-surface-sunken);
+  box-shadow: var(--cr-shadow-sunken);
+  animation: cr-shimmer 1.4s var(--cr-ease) infinite;
+}
+
+@keyframes cr-shimmer {
+  from { background-position: 100% 0, 0 0; }
+  to { background-position: -100% 0, 0 0; }
+}
+
+/* Shape modifiers */
+.cr-skeleton--hero { block-size: clamp(30px, 8vw, 40px); inline-size: 55%; border-radius: var(--cr-radius-sm); }
+.cr-skeleton--line { block-size: 14px; inline-size: 100%; }
+.cr-skeleton--line-short { block-size: 14px; inline-size: 45%; }
+.cr-skeleton--card { border-radius: var(--cr-radius); block-size: 120px; }
+.cr-skeleton--row { block-size: 45px; border-radius: var(--cr-radius-sm); }
+.cr-skeleton--chip { inline-size: 64px; block-size: 26px; border-radius: var(--cr-radius-full); }
+.cr-skeleton--bar { block-size: 64px; border-radius: var(--cr-radius-sm); }
+
+/* Skeleton compositions mirror real card layouts */
+.cr-skeleton-card {
+  background: var(--cr-surface);
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius);
+  padding: var(--cr-space-3) var(--cr-space-4);
+  box-shadow: var(--cr-shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-3);
+}
+.cr-skeleton-card + .cr-skeleton-card { margin-block-start: var(--cr-space-3); }
+.cr-skeleton-chips { display: flex; gap: var(--cr-space-1); }
+
+/* ==========================================================================
    Bottom sheets — mobile: full-width rounded-top over dimmed backdrop;
    desktop (≥1024px): centered dialog, full rounding
    ========================================================================== */
@@ -581,7 +635,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cr-sheet-backdrop, .cr-sheet { animation: none; }
+  .cr-sheet-backdrop, .cr-sheet, .cr-skeleton { animation: none; }
+  .cr-skeleton { background: var(--cr-surface-sunken); }
   .cr-tab, .cr-fab, .cr-button, .cr-chip, .cr-type-tile, .cr-keypad button,
   .cr-journal-row--button, .cr-record-wallet, .cr-record-category,
   .cr-progress > span, .cr-bars > span { transition: none; }

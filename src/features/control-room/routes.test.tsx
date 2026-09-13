@@ -97,6 +97,106 @@ describe('ControlRoomRoutes home data loading', () => {
   });
 });
 
+describe('ControlRoomRoutes skeleton loading states', () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((res) => { resolve = res; });
+    return { promise, resolve };
+  }
+
+  it('home shows an aria-hidden skeleton with visually-hidden loading text, then swaps to content', async () => {
+    const gate = deferred<readonly CategoryBudgetRow[]>();
+    renderHome(gateways({ insights: insights(() => gate.promise) }));
+
+    expect(screen.getByRole('status')).toHaveTextContent('Loading…');
+    const skeletons = document.querySelectorAll('.cr-skeleton');
+    expect(skeletons.length).toBeGreaterThan(0);
+    for (const block of skeletons) expect(block).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.queryByRole('region', { name: 'Net position' })).not.toBeInTheDocument();
+
+    gate.resolve([BUDGET_ROW]);
+    expect(await screen.findByRole('region', { name: 'Net position' })).toBeInTheDocument();
+    expect(screen.getByText('Groceries')).toBeInTheDocument();
+    expect(document.querySelector('.cr-skeleton')).toBeNull();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('journal shows skeleton rows while the wallet snapshot loads, then renders entries', async () => {
+    const base = new InMemoryWalletsGateway();
+    const gate = deferred<unknown>();
+    const wallets: ControlRoomGateways['wallets'] = new Proxy(base, {
+      get(target, prop, receiver) {
+        if (prop === 'loadSnapshot') {
+          return (spaceId: string) => gate.promise.then(() => target.loadSnapshot(spaceId));
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+    render(
+      <ControlRoomRoutes
+        locale="en"
+        spaceId="personal-space"
+        spaceKind="personal"
+        destination="journal"
+        gateways={gateways({ wallets })}
+        recordOpen={false}
+        onCloseRecord={() => undefined}
+      />,
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent('Loading…');
+    expect(document.querySelectorAll('.cr-skeleton--row').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: /Load more|All/ })).not.toBeInTheDocument();
+
+    gate.resolve(null);
+    expect(await screen.findByRole('group', { name: 'Filter by type' })).toBeInTheDocument();
+    expect(document.querySelector('.cr-skeleton')).toBeNull();
+  });
+
+  it('plan shows a skeleton while the plan loads, then renders the plan page', async () => {
+    const base = new InMemoryPlanClient();
+    base.summaries = [{
+      currency: 'USD', plannedIncomeMinor: '300000', actualIncomeMinor: '0',
+      categoryTargetTotalMinor: '0', categoryActualSpentMinor: '0', uncategorizedSpentMinor: '0',
+      categoryOverspentMinor: '0', actualLoanRepaymentMinor: '0', remainingLoanReservationMinor: '0',
+      loanCommitmentMinor: '0', unallocatedMinor: '300000', overallocatedMinor: '0',
+      incomePlanRevisionId: 'rev-income-1',
+    }];
+    const gate = deferred<unknown>();
+    const plan: ControlRoomGateways['plan'] = new Proxy(base, {
+      get(target, prop, receiver) {
+        if (prop === 'loadCurrencySummary') {
+          return () => gate.promise.then(() => target.loadCurrencySummary());
+        }
+        if (prop === 'loadCategoryPage') {
+          return () => gate.promise.then(() => target.loadCategoryPage());
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+    const gatewaysBag = gateways({});
+    gatewaysBag.plan = plan;
+    render(
+      <ControlRoomRoutes
+        locale="en"
+        spaceId="personal-space"
+        spaceKind="personal"
+        destination="plan"
+        gateways={gatewaysBag}
+        recordOpen={false}
+        onCloseRecord={() => undefined}
+      />,
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent('Loading…');
+    expect(document.querySelectorAll('.cr-skeleton').length).toBeGreaterThan(0);
+
+    gate.resolve(null);
+    expect(await screen.findByRole('region', { name: 'Planned income USD' })).toBeInTheDocument();
+    expect(document.querySelector('.cr-skeleton')).toBeNull();
+  });
+});
+
 describe('ControlRoomRoutes record sheet', () => {
   it('mounts the record sheet when recordOpen is true', async () => {
     renderHome(gateways({}), { recordOpen: true });

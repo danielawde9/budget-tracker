@@ -4,6 +4,7 @@ import type { CategoryBudgetRow } from '../insights/types.js';
 import type { Currency, Locale, SpaceKind } from '../loans/types.js';
 import { formatMinorAmount, sumMinorAmounts } from '../wallets/money.js';
 import type { JournalEvent, JournalEventKind } from '../wallets/types.js';
+import { HomeSkeleton } from './skeletons.js';
 
 const t = (locale: Locale, en: string, ar: string) => (locale === 'ar' ? ar : en);
 
@@ -206,34 +207,40 @@ export function HomeScreen(props: HomeScreenProps) {
           </select>
         </label>
       </header>
-      <section className="cr-card" aria-label={t(locale, 'Net position', 'صافي المركز')}>
-        <h2 className="cr-label">{t(locale, 'Net position', 'صافي المركز')}</h2>
-        {props.totals.map((total) => (
-          <p key={total.currency} className="cr-amount cr-amount--hero">
-            {formatMinorAmount(total.balanceMinor, total.currency, locale)}
-          </p>
-        ))}
-        <div className="cr-chips">
-          {props.totals.map((total) => (
-            <span key={total.currency} className="cr-chip">{total.currency}</span>
-          ))}
-        </div>
-      </section>
-      {props.dataStatus === 'error' ? (
-        <div className="cr-card" role="alert">
-          <div className="cr-row">
-            <span>{t(locale, 'Could not load the latest data.', 'تعذر تحميل أحدث البيانات.')}</span>
-            <button type="button" className="cr-button" onClick={props.onRetryLoad}>
-              {t(locale, 'Retry', 'إعادة المحاولة')}
-            </button>
-          </div>
-          {props.dataError ? <small>{props.dataError}</small> : null}
-        </div>
-      ) : null}
-      <BudgetCard budgets={props.budgets} locale={locale} />
-      <TrendCard trend={props.trend} locale={locale} />
-      <LoansCard loans={props.loansOutstanding} locale={locale} />
-      <RecentActivity events={props.recentEvents.slice(0, 5)} locale={locale} onRecord={props.onRecord} />
+      {props.dataStatus === 'loading' ? (
+        <HomeSkeleton locale={locale} />
+      ) : (
+        <>
+          <section className="cr-card" aria-label={t(locale, 'Net position', 'صافي المركز')}>
+            <h2 className="cr-label">{t(locale, 'Net position', 'صافي المركز')}</h2>
+            {props.totals.map((total) => (
+              <p key={total.currency} className="cr-amount cr-amount--hero">
+                {formatMinorAmount(total.balanceMinor, total.currency, locale)}
+              </p>
+            ))}
+            <div className="cr-chips">
+              {props.totals.map((total) => (
+                <span key={total.currency} className="cr-chip">{total.currency}</span>
+              ))}
+            </div>
+          </section>
+          {props.dataStatus === 'error' ? (
+            <div className="cr-card" role="alert">
+              <div className="cr-row">
+                <span>{t(locale, 'Could not load the latest data.', 'تعذر تحميل أحدث البيانات.')}</span>
+                <button type="button" className="cr-button" onClick={props.onRetryLoad}>
+                  {t(locale, 'Retry', 'إعادة المحاولة')}
+                </button>
+              </div>
+              {props.dataError ? <small>{props.dataError}</small> : null}
+            </div>
+          ) : null}
+          <BudgetCard budgets={props.budgets} locale={locale} />
+          <TrendCard trend={props.trend} locale={locale} />
+          <LoansCard loans={props.loansOutstanding} locale={locale} />
+          <RecentActivity events={props.recentEvents.slice(0, 5)} locale={locale} onRecord={props.onRecord} />
+        </>
+      )}
     </>
   );
 }
