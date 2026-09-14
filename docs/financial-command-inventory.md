@@ -33,6 +33,18 @@ request receipt makes a transport retry safe.
 also non-posting planning commands. They append immutable monthly plan revisions
 only; `public.monthly_budget_currency_summary` reads their per-currency planned
 income, category allocation, loan commitment, and left-to-allocate result.
+`private.set_monthly_budget_plan` now takes the shared `public.spaces` row
+lock via `private.lock_planning_actor` before its own advisory locks; it
+posts no financial row and its return shape/fingerprint are unchanged.
+
+`public.find_planning_command` is a protected, read-only idempotency lookup
+introduced as shared foundation for later planning commands
+(`docs/superpowers/plans/future-planning/03-planning-foundation-db.md`). It
+returns only the calling actor's own receipt from `public.planning_command_receipts`
+(never another actor's) and creates or alters no financial row. No planning
+command writes through this table yet; `private.planning_replay` and the
+receipt table are internal to future command implementations, not called by
+any command in this repository today.
 
 `public.create_category`, `public.create_subcategory`, and `public.archive_category`
 are protected metadata lifecycle commands, not posting commands. The browser

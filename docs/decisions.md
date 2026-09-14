@@ -1707,3 +1707,37 @@ on real network latency, not a code fault); that file's one pre-existing,
 unrelated failure (`uses the selective membership and invitation indexes
 after representative ANALYZE`) is not fixed here and needs a session with
 reliable full-suite network access.
+
+## 2026-09-14 — Planning command foundation adds a shared lock ahead of existing advisory locks
+
+**Decision:** Added shared, not-yet-called-by-any-command infrastructure for
+future planning commands per
+`docs/superpowers/plans/future-planning/03-planning-foundation-db.md`:
+`private.planning_minor`/`planning_fingerprint`/`planning_replay`/
+`planning_child_request`, the append-only `public.planning_command_receipts`
+table (RLS enabled, no API write policy, all direct table/sequence privileges
+revoked, an owner-only `SECURITY INVOKER` insert guard, and a statement-level
+immutability trigger), and the read-only `public.find_planning_command`
+lookup (execute granted to `authenticated` only, returns only the caller's
+own receipt). `private.set_monthly_budget_plan` was redefined, unchanged
+except for one new `perform private.lock_planning_actor(p_space_id);` call
+taking the `public.spaces` row lock before its two existing advisory locks.
+Full evidence: `docs/verification/future-planning/03.md`.
+
+**Why:** Later planning commands (allocation, goals, recurring obligations)
+need one shared idempotency/authorization boundary instead of each
+reinventing fingerprinting and replay, and `01-sql-contract.md`'s lock
+protocol requires the space row lock ahead of any advisory lock so a future
+publish wrapper can hold one space lock across several planning writes
+without inverting lock order. Proved with `orderedAuthenticatedRace`: an
+income-plan write and an expense-category-target write for the same space
+use different existing advisory-lock keys, so nothing serialized them before
+this change.
+
+**If changed:** No command writes through `planning_command_receipts` yet —
+the first command that does must reuse `private.planning_replay`/
+`private.lock_planning_actor` rather than re-implementing fingerprinting, and
+must not create a public "insert receipt" RPC (only a domain command may
+write one, after its own validation). Changing `private.planning_child_request`'s
+digest/encoding after any wrapper can have outstanding requests would break
+existing pending idempotency keys.
