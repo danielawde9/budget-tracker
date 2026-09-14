@@ -2174,3 +2174,37 @@ enforced here — it is a count invariant only a command (task 10's
 `create_goal`, holding the space lock) can meaningfully check before
 inserting, the same way allocation's per-template group/root caps live in
 its command layer, not its schema layer.
+
+## 2026-09-14 — Live migration journal extends to the 44-migration release (deploy pending, second time)
+
+**Decision:** Daniel's `pnpm migrate:live` refused again with the same
+`unmanifested migration file` error, this time because task 09's own
+migration (`20260914140000_goals_schema.sql`) landed *after* the previous
+43-migration release-prep commit and was never manifested either. Retargeted
+`ops/budget-migrations.sha256` and `apply-live-migrations.sh` to source
+commit `e1d250468d7bd213ecbf561b25a3a814b0f7cd25` (task 09's own commit),
+added `to_regclass('public.goals')`/`to_regclass('public.goal_earmark_events')`
+existence checks, and extended the `schema_migrations` array/manifest to 44
+rows. Same offline `create-manifest`/`verify-manifest` process as the prior
+release-prep; same two ops test files updated to match.
+
+**Why this happened twice:** The first release-prep entry already named the
+fix ("extend the manifest in the same commit that adds a migration file")
+but task 09's own commit didn't apply it — the lesson was recorded, not yet
+practiced. Recording it a second time without changing behavior would just
+produce a third recurrence at task 10.
+
+**If changed — binding this time, not just documented:** Starting with task
+10, every commit in this session that adds a `supabase/migrations/*.sql`
+file must regenerate `ops/budget-migrations.sha256` and retarget
+`LIVE_MANIFEST_SOURCE_SHA`/`LIVE_VERIFY_SQL` in the *same* commit, before
+calling that task done — not as a follow-up "release prep" commit
+discovered only when Daniel's own deploy attempt fails. Verify with
+`bash scripts/ops/migrate-budget.sh verify-manifest <migrations-dir>
+ops/budget-migrations.sha256 <(printf '') <new-commit-sha>` before
+committing (it will fail until the commit exists, so run it once locally
+right after `git commit` and amend forward with a follow-up fix commit if
+it doesn't pass — never amend the original commit once anything depends on
+it). Deploying still requires Daniel to run
+`set -a && source .env.ops.local && set +a && scripts/ops/docker-ssh-bridge.sh run -- pnpm migrate:live`
+himself.

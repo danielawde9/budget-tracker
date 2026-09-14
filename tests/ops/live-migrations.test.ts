@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest';
 const script = join(process.cwd(), 'scripts/ops/apply-live-migrations.sh');
 const projectRef = 'hqblhzqitrbvpyoxtmew';
 const fixtureProjectRef = projectRef;
-const releaseHead = '882703bfd3ae8e8250096f639fbaa38873d8b75c';
+const releaseHead = 'e1d250468d7bd213ecbf561b25a3a814b0f7cd25';
 const liveRunnerCommit = 'b9537efa69216a42189cbb878c4bfa849a5b52f5';
 const subprocessTimeoutMillis = 10_000;
 const defaultProjects = JSON.stringify([{ id: fixtureProjectRef, name: 'Budget' }]);
@@ -187,14 +187,14 @@ describe('one-time live Supabase migration runner', () => {
     expect(source).not.toContain('SERVICE_ROLE_KEY:?');
   });
 
-  it('verifies the exact 43-row journal and merged schema after application', () => {
+  it('verifies the exact 44-row journal and merged schema after application', () => {
     const source = readFileSync(script, 'utf8');
     const verificationSql = source.slice(
       source.indexOf('readonly LIVE_VERIFY_SQL='),
       source.indexOf('\n\nlive_fail()'),
     );
 
-    expect(verificationSql.match(/'20[0-9]{12}'/g)).toHaveLength(43);
+    expect(verificationSql.match(/'20[0-9]{12}'/g)).toHaveLength(44);
     expect(verificationSql).toContain("'20260908170000'");
     expect(verificationSql).toContain("'20260910100000'");
     expect(verificationSql).toContain("'20260911100000'");
@@ -203,6 +203,7 @@ describe('one-time live Supabase migration runner', () => {
     expect(verificationSql).toContain("'20260914110000'");
     expect(verificationSql).toContain("'20260914120000'");
     expect(verificationSql).toContain("'20260914130000'");
+    expect(verificationSql).toContain("'20260914140000'");
     expect(verificationSql).toContain("to_regclass('public.household_invitations')");
     expect(verificationSql).toContain(
       "to_regprocedure('public.create_subcategory(uuid,uuid,uuid,text,text)')",
@@ -217,6 +218,8 @@ describe('one-time live Supabase migration runner', () => {
     expect(verificationSql).toContain(
       "to_regprocedure('public.allocation_month_state(uuid,date,public.currency_code,bigint)')",
     );
+    expect(verificationSql).toContain("to_regclass('public.goals')");
+    expect(verificationSql).toContain("to_regclass('public.goal_earmark_events')");
     expect(verificationSql).not.toContain("to_regclass('public.subcategories')");
   });
 
