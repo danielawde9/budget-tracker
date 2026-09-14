@@ -230,6 +230,8 @@ declare
   v_prior_action text;
   v_settled numeric;
   v_skipped boolean;
+  v_eligible numeric;
+  v_total_allocated numeric;
 begin
   select * into v_event from public.occurrence_events where id = p_event_id for update;
   if not found then
@@ -266,6 +268,30 @@ begin
   elsif v_event.action in ('link','confirm') then
     if v_prior_action = 'skip' then
       raise exception using errcode='23514', message='occurrence_skipped_rejects_settlement';
+    end if;
+
+    -- Recompute the same allocation-sum cap link_scheduled_payment/
+    -- confirm_scheduled_occurrence already enforce at command time, purely
+    -- from the linked financial event's own kind and postings -- defense in
+    -- depth against a privileged direct insert bypassing the command,
+    -- mirroring the skip-invariant recheck above.
+    if v_event.linked_event_id is not null then
+      select case fe.kind
+        when 'expense' then coalesce((select -sum(m.amount_minor) from public.wallet_movements m where m.event_id = fe.id), 0)
+        when 'income' then coalesce((select sum(m.amount_minor) from public.wallet_movements m where m.event_id = fe.id), 0)
+        when 'loan_repay_borrowing' then coalesce((select abs(lp.principal_delta_minor) from public.loan_postings lp where lp.event_id = fe.id), 0)
+        when 'loan_receive_repayment' then coalesce((select abs(lp.principal_delta_minor) from public.loan_postings lp where lp.event_id = fe.id), 0)
+        else 0
+      end into v_eligible
+      from public.financial_events fe where fe.id = v_event.linked_event_id;
+
+      select coalesce(sum(oe.link_amount_minor), 0) into v_total_allocated
+        from public.occurrence_events oe
+        where oe.linked_event_id = v_event.linked_event_id and oe.action in ('link','confirm');
+
+      if v_total_allocated > coalesce(v_eligible, 0) then
+        raise exception using errcode='23514', message='occurrence_allocation_exceeds_eligible_amount';
+      end if;
     end if;
   end if;
 end;
@@ -498,6 +524,8 @@ declare
   v_cadence text; v_interval_count integer;
   v_category_id uuid; v_loan_id uuid; v_funding_goal_id uuid; v_preferred_wallet_id uuid;
   v_current_head bigint;
+  v_previous_state text;
+  v_schedule_exists boolean;
   v_active_count integer;
   v_revision_id bigint;
   v_result jsonb;
@@ -599,26 +627,37 @@ begin
   end if;
 
   select * into v_schedule from public.schedules where id = p_schedule_id and space_id = p_space_id;
-  if found then
+  v_schedule_exists := found;
+  if v_schedule_exists then
     if v_kind is distinct from v_schedule.kind or v_currency is distinct from v_schedule.currency then
       raise exception using errcode='P0001', message='a schedule revision cannot change its kind or currency';
     end if;
-    select id into v_current_head from public.schedule_revisions where schedule_id = p_schedule_id order by id desc limit 1;
+    select id, state into v_current_head, v_previous_state
+      from public.schedule_revisions where schedule_id = p_schedule_id order by id desc limit 1;
   else
     v_current_head := null;
+    v_previous_state := null;
   end if;
 
   if v_current_head is distinct from p_expected_revision_id then
     raise exception using errcode='40001', message='planning_stale_revision';
   end if;
 
-  if not found then
+  -- The 200-active-schedule cap must bound every transition INTO 'active'
+  -- (creation, or an existing paused/ended schedule reactivated), not just
+  -- creation -- otherwise a schedule created paused and later flipped
+  -- active would never be counted. A schedule that is already active and
+  -- stays active does not need to be recounted.
+  if v_state = 'active' and v_previous_state is distinct from 'active' then
     select count(*) into v_active_count from public.schedules s
-      where s.space_id = p_space_id
+      where s.space_id = p_space_id and s.id <> p_schedule_id
         and (select state from public.schedule_revisions where schedule_id = s.id order by id desc limit 1) = 'active';
     if v_active_count >= 200 then
       raise exception using errcode='P0001', message='this space already has 200 active schedules';
     end if;
+  end if;
+
+  if not v_schedule_exists then
     insert into public.schedules (id, space_id, currency, kind, actor_id)
       values (p_schedule_id, p_space_id, v_currency, v_kind, v_actor);
   end if;
@@ -821,6 +860,9 @@ begin
   if p_space_id is null or p_request_id is null or p_occurrence_id is null
     or p_actual_amount_minor is null or p_effective_date is null or p_wallet_id is null then
     raise exception using errcode='22023', message='planning_invalid_input';
+  end if;
+  if p_effective_date > v_today then
+    raise exception using errcode='P0001', message='a payment cannot be confirmed before its effective date has occurred';
   end if;
   v_amount_minor := private.planning_minor(p_actual_amount_minor, true);
 

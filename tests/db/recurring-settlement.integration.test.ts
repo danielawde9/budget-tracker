@@ -4,6 +4,7 @@ import {
   bootstrapCompatibilityObjects, createDisposableDatabase,
   disposeDisposableDatabase, migrationFiles, replayMigrations,
   withAuthenticatedTransaction, withRollback, orderedAuthenticatedRace,
+  expectSavepointRejection,
   type DisposableDatabase,
 } from './disposable-database.js';
 
@@ -153,6 +154,14 @@ function daysFromToday(offsetDays: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+// SET CONSTRAINTS ALL IMMEDIATE checks now, but it also switches every
+// deferrable constraint's MODE to immediate for the rest of the transaction;
+// re-defer immediately after so later inserts in the same block stay deferred.
+async function forceDeferred(): Promise<void> {
+  await db().client.query('set constraints all immediate');
+  await db().client.query('set constraints all deferred');
+}
+
 async function financialDigest(client: DisposableDatabase['client'], spaceId: string): Promise<unknown> {
   const result = await client.query(
     `select 'events' as relation_name, count(*)::text as row_count,
@@ -259,6 +268,84 @@ describe('set_occurrence_state', () => {
 });
 
 describe('confirm_scheduled_occurrence', () => {
+  it('rejects an effective date in the future, before any posting happens', async () => {
+    const spaceId = await freshSpace('Confirm future effective date rejected');
+    const walletId = await freshWallet(spaceId);
+    await fundWallet(spaceId, walletId, '1000000');
+    const schedule = await saveSchedule(spaceId, { expectedMinor: '50000' });
+    await materialize(spaceId, '2026-01-01', '2026-01-31');
+    const occurrence = await firstOccurrence(schedule.scheduleId);
+    const before = await financialDigest(db().client, spaceId);
+
+    await expect(confirm({
+      spaceId, occurrenceId: occurrence.id, expectedEventId: null, amountMinor: '20000',
+      effectiveDate: daysFromToday(30), walletId,
+    })).rejects.toMatchObject({ code: 'P0001' });
+
+    const after = await financialDigest(db().client, spaceId);
+    expect(after).toEqual(before); // no money posted, no occurrence_events row either
+    const state = await settlement(occurrence.id);
+    expect(state.settled_minor).toBe('0');
+    expect(state.skipped).toBe(false);
+
+    // Without the bound, this would have posted for real and left the
+    // occurrence readable as pending-today (settled=0 as of today, since
+    // schedule_occurrence_settlement filters by effective_date <= as_of),
+    // which would have wrongly let a same-day skip through. Prove that
+    // path is closed: the occurrence is still a normal, unskippable-because-
+    // untouched pending row, not stuck in any bad state.
+    const skipped = await withAuthenticatedTransaction(db().client, actor, async () => {
+      const result = await db().client.query('select public.set_occurrence_state($1,$2,$3,$4,$5)',
+        [spaceId, randomUUID(), occurrence.id, null, 'skip']);
+      return result.rows[0].set_occurrence_state;
+    });
+    expect(skipped.occurrenceId).toBe(occurrence.id); // a genuinely untouched occurrence can still be skipped
+  });
+
+  it('goal-funded confirm at a valid date still posts the payment when the goal cannot be funded, never rolling back', async () => {
+    const spaceId = await freshSpace('Confirm goal funded closed goal');
+    const walletId = await freshWallet(spaceId);
+    await fundWallet(spaceId, walletId, '1000000');
+    // save_schedule's own deferred validator requires an active purchase
+    // goal at DEFINITION time, so the goal must start active; then it's
+    // closed (an empty earmark, so revise_goal_plan itself allows the
+    // transition) *after* the schedule already references it, matching the
+    // scenario the fix targets: a funding goal whose lifecycle changed
+    // between scheduling and payment, not an invalid definition up front.
+    const goalId = randomUUID();
+    await db().client.query('insert into public.goals (id, space_id, currency, kind, actor_id) values ($1,$2,$3,$4,$5)',
+      [goalId, spaceId, 'USD', 'purchase', actor]);
+    const goalRevisionId = await db().client.query<{ id: string }>(
+      `insert into public.goal_revisions
+         (goal_id, space_id, currency, expected_revision_id, name_en, target_minor, contribution_mode, monthly_minor,
+          priority, state, milestone_count, request_id, actor_id)
+       values ($1,$2,'USD',null,'Later-closed goal',50000,'manual_monthly',0,0,'active',0,$3,$4) returning id::text`,
+      [goalId, spaceId, randomUUID(), actor],
+    );
+    const schedule = await saveSchedule(spaceId, { expectedMinor: '50000', fundingGoalId: goalId });
+    await withAuthenticatedTransaction(db().client, actor, () =>
+      db().client.query('select public.revise_goal_plan($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7)', [
+        spaceId, randomUUID(), goalId, goalRevisionId.rows[0]!.id,
+        JSON.stringify({
+          kind: 'purchase', currency: 'USD', nameEn: 'Later-closed goal', nameAr: null, note: null,
+          targetMinor: '50000', deadline: null, contributionMode: 'manual_monthly', monthlyAmountMinor: '0', priority: 0,
+        }),
+        '[]', 'closed',
+      ]));
+    await materialize(spaceId, '2026-01-01', '2026-01-31');
+    const occurrence = await firstOccurrence(schedule.scheduleId);
+
+    const walletBefore = await walletBalance(walletId);
+    const confirmed = await confirm({ spaceId, occurrenceId: occurrence.id, expectedEventId: null, amountMinor: '50000', effectiveDate: '2026-01-01', walletId });
+    expect(confirmed.financialEventId).toEqual(expect.any(String));
+    const walletAfter = await walletBalance(walletId);
+    expect(BigInt(walletBefore) - BigInt(walletAfter)).toBe(50000n); // posted, not rolled back
+    const state = await settlement(occurrence.id);
+    expect(state.settled_minor).toBe('50000'); // paid...
+    const links = await db().client.query('select count(*)::text as n from public.goal_purchase_links where goal_id = $1', [goalId]);
+    expect(links.rows[0]!.n).toBe('0'); // ...but unfunded, never blocked
+  });
+
   it('confirms a partial payment then a second payment to full settlement', async () => {
     const spaceId = await freshSpace('Confirm partial then settle');
     const walletId = await freshWallet(spaceId);
@@ -319,6 +406,21 @@ describe('confirm_scheduled_occurrence', () => {
     expect(second).toEqual(first);
     const events = await db().client.query("select count(*)::text as n from public.financial_events where space_id = $1 and kind <> 'opening_balance'", [spaceId]);
     expect(events.rows[0]!.n).toBe('1');
+  });
+
+  it('rejects a request id reused with a different payload, without disclosing the original result', async () => {
+    const spaceId = await freshSpace('Confirm idempotency conflict payload');
+    const walletId = await freshWallet(spaceId);
+    await fundWallet(spaceId, walletId, '1000000');
+    const schedule = await saveSchedule(spaceId, { expectedMinor: '50000' });
+    await materialize(spaceId, '2026-01-01', '2026-01-31');
+    const occurrence = await firstOccurrence(schedule.scheduleId);
+    const requestId = randomUUID();
+    await confirm({ spaceId, occurrenceId: occurrence.id, expectedEventId: null, amountMinor: '20000', effectiveDate: '2026-01-01', walletId, requestId });
+    await expect(confirm({
+      spaceId, occurrenceId: occurrence.id, expectedEventId: null, amountMinor: '30000',
+      effectiveDate: '2026-01-01', walletId, requestId,
+    })).rejects.toMatchObject({ code: 'P0001', message: 'planning_idempotency_conflict' });
   });
 
   it('rejects confirming a skipped occurrence', async () => {
@@ -528,6 +630,45 @@ describe('link_scheduled_payment', () => {
     expect(linked.financialEventId).toBe(posted);
   });
 
+  it('the deferred validator independently recomputes and rejects the same allocation-sum cap, even bypassing link_scheduled_payment entirely', async () => {
+    // link_scheduled_payment's own body already enforces "sum of allocations
+    // across all occurrences <= the event's eligible amount." This proves
+    // the invariant is layered, not single-point: a privileged direct
+    // INSERT into occurrence_events (as the table owner, skipping the
+    // command function's own check completely) is still caught at commit
+    // by private.check_occurrence_event, the same way it already recomputes
+    // the skip invariant instead of trusting the command layer alone.
+    const spaceId = await freshSpace('Link allocation cap deferred defense');
+    const walletId = await freshWallet(spaceId);
+    await fundWallet(spaceId, walletId, '1000000');
+    const posted = await withAuthenticatedTransaction(db().client, actor, async () => {
+      const result = await db().client.query(
+        "select * from public.record_financial_event($1,$2,'expense','2026-01-01'::date,$3::jsonb)",
+        [spaceId, randomUUID(), JSON.stringify([{ walletId, amountMinor: '-30000' }])],
+      );
+      return result.rows[0].id as string;
+    });
+    const scheduleA = await saveSchedule(spaceId, { expectedMinor: '30000', nameEn: 'Bill A' });
+    const scheduleB = await saveSchedule(spaceId, { expectedMinor: '30000', nameEn: 'Bill B' });
+    await materialize(spaceId, '2026-01-01', '2026-01-31');
+    const occurrenceA = await firstOccurrence(scheduleA.scheduleId);
+    const occurrenceB = await firstOccurrence(scheduleB.scheduleId);
+    await withAuthenticatedTransaction(db().client, actor, () =>
+      db().client.query('select public.link_scheduled_payment($1,$2,$3,$4,$5,$6)',
+        [spaceId, randomUUID(), occurrenceA.id, posted, '30000', null]));
+
+    await withRollback(db().client, async () => {
+      await db().client.query(
+        `insert into public.occurrence_events
+           (occurrence_id, space_id, expected_event_id, action, linked_event_id, link_amount_minor, request_id, actor_id)
+         values ($1,$2,null,'link',$3,'20000',$4,$5)`,
+        [occurrenceB.id, spaceId, posted, randomUUID(), actor],
+      );
+      await expectSavepointRejection(db().client, forceDeferred,
+        { code: '23514', message: 'occurrence_allocation_exceeds_eligible_amount' });
+    });
+  });
+
   it('rejects linking a skipped occurrence', async () => {
     const spaceId = await freshSpace('Link skipped rejects');
     const walletId = await freshWallet(spaceId);
@@ -688,5 +829,57 @@ describe('scheduled_occurrence_page', () => {
     const row = page.rows.find((r: { id: string }) => r.id === occurrence.id);
     expect(row.overdue).toBe(true);
     expect(row.state).toBe('pending');
+  });
+
+  async function pageRow(spaceId: string, fromDate: string, toDate: string, occurrenceId: string) {
+    const page = await withAuthenticatedTransaction(db().client, actor, async () => {
+      const result = await db().client.query('select public.scheduled_occurrence_page($1,$2,$3,null,null,25)',
+        [spaceId, fromDate, toDate]);
+      return result.rows[0].scheduled_occurrence_page;
+    });
+    return page.rows.find((r: { id: string }) => r.id === occurrenceId);
+  }
+
+  it('derives partial, settled, and skipped states (and remainingMinor) for the reader task 15 consumes directly', async () => {
+    const spaceId = await freshSpace('Page derived states');
+    const walletId = await freshWallet(spaceId);
+    await fundWallet(spaceId, walletId, '1000000');
+
+    // Partial.
+    const partialSchedule = await saveSchedule(spaceId, { expectedMinor: '50000', nameEn: 'Partial bill' });
+    await materialize(spaceId, '2026-01-01', '2026-01-31');
+    const partialOccurrence = await firstOccurrence(partialSchedule.scheduleId);
+    await confirm({ spaceId, occurrenceId: partialOccurrence.id, expectedEventId: null, amountMinor: '20000', effectiveDate: '2026-01-01', walletId });
+    const partialRow = await pageRow(spaceId, '2026-01-01', '2026-01-31', partialOccurrence.id);
+    expect(partialRow.state).toBe('partial');
+    expect(partialRow.remainingMinor).toBe('30000');
+
+    // Settled (exactly, and the overpayment case: remaining floors at 0).
+    const settledSchedule = await saveSchedule(spaceId, { expectedMinor: '50000', nameEn: 'Settled bill' });
+    await materialize(spaceId, '2026-01-01', '2026-01-31');
+    const settledOccurrence = await firstOccurrence(settledSchedule.scheduleId);
+    await confirm({ spaceId, occurrenceId: settledOccurrence.id, expectedEventId: null, amountMinor: '50000', effectiveDate: '2026-01-01', walletId });
+    const settledRow = await pageRow(spaceId, '2026-01-01', '2026-01-31', settledOccurrence.id);
+    expect(settledRow.state).toBe('settled');
+    expect(settledRow.remainingMinor).toBe('0');
+
+    const overpaidSchedule = await saveSchedule(spaceId, { expectedMinor: '50000', nameEn: 'Overpaid bill' });
+    await materialize(spaceId, '2026-01-01', '2026-01-31');
+    const overpaidOccurrence = await firstOccurrence(overpaidSchedule.scheduleId);
+    await confirm({ spaceId, occurrenceId: overpaidOccurrence.id, expectedEventId: null, amountMinor: '60000', effectiveDate: '2026-01-01', walletId });
+    const overpaidRow = await pageRow(spaceId, '2026-01-01', '2026-01-31', overpaidOccurrence.id);
+    expect(overpaidRow.state).toBe('settled');
+    expect(overpaidRow.remainingMinor).toBe('0');
+
+    // Skipped: only legal while unpaid.
+    const skippedSchedule = await saveSchedule(spaceId, { expectedMinor: '50000', nameEn: 'Skipped bill' });
+    await materialize(spaceId, '2026-01-01', '2026-01-31');
+    const skippedOccurrence = await firstOccurrence(skippedSchedule.scheduleId);
+    await withAuthenticatedTransaction(db().client, actor, () =>
+      db().client.query('select public.set_occurrence_state($1,$2,$3,$4,$5)',
+        [spaceId, randomUUID(), skippedOccurrence.id, null, 'skip']));
+    const skippedRow = await pageRow(spaceId, '2026-01-01', '2026-01-31', skippedOccurrence.id);
+    expect(skippedRow.state).toBe('skipped');
+    expect(skippedRow.remainingMinor).toBe('50000'); // expected is untouched by a skip
   });
 });

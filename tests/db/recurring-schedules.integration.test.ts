@@ -259,6 +259,49 @@ describe('save_schedule', () => {
     expect(second).toEqual(first);
   });
 
+  it('rejects a request UUID reused with a different payload', async () => {
+    const spaceId = await freshSpace('Save schedule idempotency conflict payload');
+    const scheduleId = randomUUID();
+    const requestId = randomUUID();
+    await withAuthenticatedTransaction(db().client, actor, () =>
+      db().client.query('select public.save_schedule($1,$2,$3,$4,$5::jsonb)',
+        [spaceId, requestId, scheduleId, null, JSON.stringify(definition())]));
+    await expect(withAuthenticatedTransaction(db().client, actor, () =>
+      db().client.query('select public.save_schedule($1,$2,$3,$4,$5::jsonb)',
+        [spaceId, requestId, randomUUID(), null, JSON.stringify(definition({ expectedMinor: '99999' }))]),
+    )).rejects.toMatchObject({ code: 'P0001', message: 'planning_idempotency_conflict' });
+  });
+
+  it('rejects a request UUID reused by a different actor in the same space, without disclosing the original result', async () => {
+    // A 'personal' space enforces exactly one member; use 'household' so a
+    // second real, active member can be added directly (bypassing the
+    // invitation flow, which is not what this test is about).
+    const spaceId = await withAuthenticatedTransaction(db().client, actor, async () => {
+      const space = await db().client.query<{ id: string }>(
+        "select id from public.create_space($1, 'household') limit 2", ['Save schedule idempotency conflict actor'],
+      );
+      return space.rows[0]!.id;
+    });
+    const secondMember = randomUUID();
+    await db().client.query(
+      `insert into auth.users(id, email, email_confirmed_at) values ($1, 'second-member@budget.invalid', now())`,
+      [secondMember],
+    );
+    await db().client.query(
+      "insert into public.space_memberships(space_id, user_id, role) values ($1,$2,'member'::public.member_role)",
+      [spaceId, secondMember],
+    );
+    const scheduleId = randomUUID();
+    const requestId = randomUUID();
+    await withAuthenticatedTransaction(db().client, actor, () =>
+      db().client.query('select public.save_schedule($1,$2,$3,$4,$5::jsonb)',
+        [spaceId, requestId, scheduleId, null, JSON.stringify(definition())]));
+    await expect(withAuthenticatedTransaction(db().client, secondMember, () =>
+      db().client.query('select public.save_schedule($1,$2,$3,$4,$5::jsonb)',
+        [spaceId, requestId, randomUUID(), null, JSON.stringify(definition())]),
+    )).rejects.toMatchObject({ code: 'P0001', message: 'planning_idempotency_conflict' });
+  });
+
   it('denies an outsider', async () => {
     const spaceId = await freshSpace('Save schedule outsider');
     await expect(withAuthenticatedTransaction(db().client, outsider, () =>
@@ -375,6 +418,32 @@ describe('save_schedule', () => {
       db().client.query('select public.save_schedule($1,$2,$3,$4,$5::jsonb)',
         [spaceId, randomUUID(), randomUUID(), null, JSON.stringify(definition({ kind: 'income', categoryId: null }))]),
     )).rejects.toMatchObject({ code: 'P0001' });
+  });
+
+  it('rejects reactivating a paused schedule once the space already has 200 active schedules (the cap bounds every transition into active, not just creation)', async () => {
+    const spaceId = await freshSpace('Save schedule cap reactivation');
+    await db().client.query(
+      `with seeded as (
+         insert into public.schedules (id, space_id, currency, kind, actor_id)
+         select gen_random_uuid(), $1, 'USD', 'income', $2 from generate_series(1,200)
+         returning id, space_id, currency
+       )
+       insert into public.schedule_revisions (
+         schedule_id, space_id, currency, expected_revision_id, state, name_en, expected_minor,
+         starts_on, cadence, interval_count, request_id, actor_id
+       )
+       select id, space_id, currency, null, 'active', 'Cap fixture', 1000, '2026-01-01', 'monthly', 1, gen_random_uuid(), $2
+       from seeded`,
+      [spaceId, actor],
+    );
+    // Created paused -- the cap does not apply to creation here, so this
+    // must succeed even though the space already has 200 active schedules.
+    const paused = await saveSchedule({ spaceId, definition: definition({ state: 'paused' }) });
+    // Flipping it to active must now be bounded by the same 200 cap.
+    await expect(saveSchedule({
+      spaceId, scheduleId: paused.scheduleId, expectedRevisionId: paused.revisionId,
+      definition: definition({ state: 'active' }),
+    })).rejects.toMatchObject({ code: 'P0001' });
   });
 
   it('never changes the financial journal', async () => {

@@ -2548,3 +2548,54 @@ genuinely green," not a live/production migration.
 for this task instead, revert these four files' diffs and land them in a
 follow-up `chore(db): prepare 47-migration live release` commit before the
 live migration is actually run (still by the human, never the agent).
+
+## 2026-09-14 — Task 14 fix round 1 (post-commit review): six findings, one interpretation worth recording
+
+A fresh-context review of `7f6117b` (task 14) found six Important issues, all
+fixed in the same follow-up commit that owns this entry. Five are
+straightforward corrections (bound `confirm_scheduled_occurrence`'s
+`p_effective_date` the same way `link_scheduled_payment` already bounds it;
+add a deferred-validator recheck of the link/confirm allocation-sum cap,
+mirroring the existing skip-invariant recheck; bound the 200-active-schedule
+cap on every transition into `active`, not just creation; add
+changed-payload/changed-actor replay-refusal tests for `save_schedule` and
+`confirm_scheduled_occurrence`; add `scheduled_occurrence_page`-level
+`state`/`remainingMinor` assertions for partial/settled/skipped). One needed
+a judgment call, recorded here:
+
+**Decision:** the reviewer's finding #1 also asked for "a regression test
+proving skip is rejected on an occurrence with a future-dated pending
+settlement." No such test was added *as a raw-SQL-constructed scenario*.
+Reasoning: before this fix, `confirm_scheduled_occurrence` had no bound on
+`p_effective_date`, so a future-dated posting could exist, and
+`schedule_occurrence_settlement`'s `fe.effective_date <= p_as_of` filter
+would then (correctly, for *reporting*) show `settled=0` as of today — which
+`set_occurrence_state`'s skip check also reads, wrongly permitting a skip on
+a bill that is, in fact, already paid (just not yet effective). Fixing the
+input bound closes the *only* two paths (`confirm_scheduled_occurrence`,
+`link_scheduled_payment`) that can ever attach a `linked_event_id` to an
+occurrence, so after this fix no legitimate command can ever create a
+future-dated settlement again — the scenario the extra test would simulate
+has no reachable path except a hand-crafted `INSERT` as the table owner
+bypassing both commands entirely, which is a different (privileged-bypass)
+threat model than "confirm posted a real payment for a real future date."
+The regression test added instead proves the actual fix directly (confirm
+rejects `p_effective_date > today`, before any posting, with the digest and
+settlement state unchanged) and confirms a genuinely untouched occurrence
+remains normally skippable — which is the fix's specific promise, without
+adding a settlement-semantics test around data that can no longer exist.
+
+**Why:** testing an input bound by trying to prove something built from data
+the bound now makes impossible would be testing a stale hypothesis, not the
+shipped fix; the direct test is both stronger evidence and cheaper to
+maintain.
+
+**If changed:** if a future task deliberately reintroduces a path that can
+attach a future-dated `linked_event_id` to an occurrence (there is none
+today), `schedule_occurrence_settlement`'s date-filtered definition of
+"settled" would need re-examining against the skip invariant at that time,
+not before.
+
+Full before/after test detail and the exact command run for each fix is in
+`docs/verification/future-planning/14.md` and
+`.superpowers/sdd/release-3-bills-paycycle/task-14-report.md`.
