@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import type { Locale } from '../loans/types.js';
 import { formatMinorAmount } from '../wallets/money.js';
-import { chartPercent } from './chart-ratio.js';
 import { OccurrenceDetail, occurrenceBucket, occurrenceBucketLabel, type OccurrenceBucket } from './occurrence-detail.js';
 import { ScheduleEditor } from './schedule-editor.js';
+import { settlementProgress } from './settlement-progress.js';
 import type { RecurringState } from './use-recurring.js';
 import { SkeletonStatus } from '../control-room/skeletons.js';
 
@@ -118,12 +118,7 @@ export function UpcomingPage(props: UpcomingPageProps) {
               {filteredRows.map((row) => {
                 const name = props.locale === 'ar' ? (row.nameAr ?? row.nameEn) : (row.nameEn ?? row.nameAr);
                 const bucket = occurrenceBucket(row);
-                const expected = BigInt(row.expectedMinor);
-                const settled = BigInt(row.settledMinor);
-                const settledNegative = settled < 0n;
-                const hasTarget = expected > 0n;
-                const percent = hasTarget ? chartPercent(settledNegative ? '0' : row.settledMinor, row.expectedMinor) : 0;
-                const over = hasTarget && settled > expected;
+                const { hasTarget, percent, over, overageMinor } = settlementProgress(row.expectedMinor, row.settledMinor);
                 return <tr key={row.id} className="rec-bar-row">
                   <th scope="row" className="rec-bar-label">
                     <bdi>{name}</bdi>
@@ -137,7 +132,7 @@ export function UpcomingPage(props: UpcomingPageProps) {
                   <td data-label={t(props.locale, 'Remaining', 'المتبقي')}><bdi>{formatMinorAmount(row.remainingMinor, row.currency, props.locale)}</bdi></td>
                   <td className="rec-bar-visual">
                     {hasTarget && <div className="rec-progress" data-over={over ? 'true' : undefined} aria-hidden="true"><span style={{ inlineSize: `${percent}%` }} /></div>}
-                    {over && <span className="rec-overage-text">+{formatMinorAmount((settled - expected).toString(), row.currency, props.locale)}</span>}
+                    {over && overageMinor && <span className="rec-overage-text">+<bdi>{formatMinorAmount(overageMinor, row.currency, props.locale)}</bdi></span>}
                   </td>
                   <td>
                     <button type="button" className="cr-button rec-drilldown-button"

@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import type { Currency, Locale } from '../loans/types.js';
 import { formatMinorAmount } from '../wallets/money.js';
-import { chartPercent } from './chart-ratio.js';
 import { ConfirmPaymentDialog } from './confirm-payment-dialog.js';
 import { classifyRecurringError, localizeRecurringError, type RecurringErrorView } from './errors.js';
+import { settlementProgress } from './settlement-progress.js';
 import type { ScheduledOccurrenceRow } from './types.js';
 import type { RecurringState } from './use-recurring.js';
 
@@ -49,22 +49,11 @@ export function occurrenceBucketLabel(locale: Locale, bucket: OccurrenceBucket):
 /** Expected/settled/remaining as an accessible table with a bar-chart
  * equivalent, matching `allocation-bars.tsx`'s own table+bar shape. Reads
  * only the row's own checked DTO fields; overage is computed from the
- * original `BigInt` values, never the clamped `chartPercent` coordinate.
- * `expectedMinor` is contractually positive (`save_schedule` rejects a
- * non-positive expected amount, `parsePositiveMinorAmount` enforces it
- * client-side too), so the "no expected amount" branch below is a defensive
- * guard against a malformed DTO, not a state a normal user flow reaches --
- * unlike allocation/goals' `hasPlan`/nullable-target fields, a schedule's
- * occurrence is never genuinely target-less. */
+ * original `BigInt` values, never the clamped `chartPercent` coordinate
+ * (see `settlementProgress`, shared with `upcoming-page.tsx`'s own per-row
+ * bar so this math can't silently drift between the two call sites). */
 export function OccurrenceAmountsTable({ locale, currency, row }: { locale: Locale; currency: Currency; row: ScheduledOccurrenceRow }) {
-  const expected = BigInt(row.expectedMinor);
-  const settled = BigInt(row.settledMinor);
-  const settledNegative = settled < 0n;
-  const settledForBar = settledNegative ? '0' : row.settledMinor;
-  const hasTarget = expected > 0n;
-  const percent = hasTarget ? chartPercent(settledForBar, row.expectedMinor) : 0;
-  const over = hasTarget && settled > expected;
-  const overageMinor = over ? (settled - expected).toString() : null;
+  const { hasTarget, settledNegative, percent, over, overageMinor } = settlementProgress(row.expectedMinor, row.settledMinor);
 
   return <div className="rec-amounts-block">
     <table className="rec-amounts-table">
@@ -85,7 +74,7 @@ export function OccurrenceAmountsTable({ locale, currency, row }: { locale: Loca
     {hasTarget
       ? <div className="rec-progress" data-over={over ? 'true' : undefined} aria-hidden="true"><span style={{ inlineSize: `${percent}%` }} /></div>
       : <p className="rec-label-muted">{t(locale, 'No expected amount set', 'لا يوجد مبلغ متوقع محدد')}</p>}
-    {over && overageMinor && <span className="rec-overage-text">+{formatMinorAmount(overageMinor, currency, locale)} {t(locale, 'over expected', 'فوق المتوقع')}</span>}
+    {over && overageMinor && <span className="rec-overage-text">+<bdi>{formatMinorAmount(overageMinor, currency, locale)}</bdi> {t(locale, 'over expected', 'فوق المتوقع')}</span>}
   </div>;
 }
 

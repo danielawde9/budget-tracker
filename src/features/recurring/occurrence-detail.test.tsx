@@ -51,7 +51,7 @@ describe('OccurrenceDetail', () => {
     render(<OccurrenceDetail locale="en"
       recurring={fakeRecurringState({ page: page([row({ expectedMinor: '10000', settledMinor: '15000', remainingMinor: '0', state: 'settled' })]) })}
       occurrenceId={OCCURRENCE_ID} onBack={vi.fn()} />);
-    expect(screen.getByText('+$50.00 over expected')).toBeInTheDocument();
+    expect(screen.getByText('$50.00').closest('.rec-overage-text')).toHaveTextContent('+$50.00 over expected');
   });
 
   it('offers Skip only for a pending occurrence, and calls setOccurrenceState with the row\'s own currentEventId', async () => {

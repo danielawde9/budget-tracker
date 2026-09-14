@@ -116,7 +116,7 @@ describe('UpcomingPage', () => {
     render(<UpcomingPage locale="en" recurring={fakeRecurringState({
       page: page([row({ expectedMinor: '10000', settledMinor: '15000', remainingMinor: '0', state: 'settled' })]),
     })} fromDate="2026-09-01" toDate="2026-11-30" />);
-    expect(screen.getByText('+$50.00')).toBeInTheDocument();
+    expect(screen.getByText('$50.00').closest('.rec-overage-text')).toHaveTextContent('+$50.00');
   });
 
   it('opens the schedule editor and creates a schedule', async () => {
