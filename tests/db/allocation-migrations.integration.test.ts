@@ -40,9 +40,9 @@ describe('allocation schema migration replay and upgrade', () => {
          where table_schema = 'public' and table_name like 'allocation_%' order by table_name`,
       );
       expect(tables.rows.map((row) => row.table_name)).toEqual([
-        'allocation_groups', 'allocation_month_commitments', 'allocation_month_groups',
-        'allocation_month_roots', 'allocation_month_snapshots', 'allocation_template_lines',
-        'allocation_template_revisions', 'allocation_template_roots',
+        'allocation_groups', 'allocation_month_commitments', 'allocation_month_goal_lines',
+        'allocation_month_groups', 'allocation_month_roots', 'allocation_month_snapshots',
+        'allocation_template_lines', 'allocation_template_revisions', 'allocation_template_roots',
       ].sort());
     } finally {
       await disposeDisposableDatabase(database);

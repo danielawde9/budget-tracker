@@ -2254,3 +2254,59 @@ computation into its own projection function. Per the binding practice
 above, `ops/budget-migrations.sha256` and `apply-live-migrations.sh` are
 updated in this same commit (45-migration release, source SHA = this
 commit).
+
+## 2026-09-14 — Goal projections expose cash coverage and fold goal targets into the monthly plan (task 11)
+
+**Decision:** `goal_relevant_set`/`goal_coverage_set` stayed `private`
+(task 11 answers the "if changed" question above by wrapping them in three
+new *public* RPCs — `goal_page`, `goal_detail`, `goal_history_page` —
+rather than exposing the private helpers themselves, matching
+`allocation_category_page`/`allocation_history_page`'s precedent of a
+dedicated read RPC per view rather than a raw table/function grant).
+`publish_allocation_month_v2` is a distinct function, never an overload of
+v1 with a default argument, exactly as the task file requires — old
+clients keep calling `publish_allocation_month` (now forward-fixed to
+refuse a month with an existing positive goal target it cannot represent,
+so it can never silently erase one) and new clients call v2. Full evidence:
+`docs/verification/future-planning/11.md`.
+
+Real-Postgres testing caught three defects before commit, all in the
+monthly-integration stage: `v_entry->'groupId' is null` (jsonb extraction)
+never matches an explicit JSON `null` the way `v_entry->>'groupId' is null`
+(text extraction) does — a standalone goal target was wrongly rejected as
+"must link to an included group" until fixed; a call meant to mirror
+`select id into … from public.set_monthly_category_target(…)` copied that
+shape onto `set_goal_monthly_target`, which (unlike the category/income
+setters) returns a single `jsonb` value, not a `table(id bigint, …)`, so it
+raised "column \"id\" does not exist" until fixed to unwrap the jsonb
+result explicitly; and a new correlated subquery inside the forward-fixed
+`check_allocation_month`'s over-allocation check referenced an
+outer, non-grouped column under its `GROUP BY`, which Postgres correctly
+refused ("subquery uses ungrouped column") until the subquery was
+rewritten to reference `p_snapshot_id` directly instead.
+
+**Why:** `jsonb -> key` vs `jsonb ->> key` returning different answers for
+a JSON `null` is a easy, recurring Postgres trap (this session had not hit
+it before task 11); it is worth naming explicitly here so a future SQL
+author scanning this ledger for "jsonb null" recognizes the pattern instead
+of re-deriving it. The `set_goal_monthly_target` return-shape mismatch is a
+reminder that not every `set_*` command in this codebase returns the same
+shape — task 10's goal commands return `jsonb`, task 03's
+category/income/allocation commands return typed tables — copying a call
+site's shape without checking the callee's actual signature reintroduces
+exactly the kind of exact-schema mismatch this session has now hit three
+times (`goal_financing_state`'s own `max(id)` bug in task 10, `space_memberships`'
+`user_id` vs `member_id` column name in task 10's own tests, and now this).
+
+**If changed:** Task 12 (goals gateway) is the TypeScript client layer over
+`goal_page`/`goal_detail`/`goal_history_page`, mirroring the allocation
+gateway's `AllocationGateway`/`useAllocation` shape from Release 1. Per the
+binding practice, `ops/budget-migrations.sha256` and
+`apply-live-migrations.sh` are updated in this same commit (46-migration
+release, source SHA = the prior commit — a valid ancestor of this one, not
+this commit's own not-yet-known hash; `migrate-budget.sh verify-manifest`
+only checks the manifest's internal `source_sha=` consistency and that the
+per-file hashes match the files on disk, never that `source_sha` equals
+`HEAD` exactly, so pinning it to the immediate parent commit satisfies the
+"same commit as the migration" rule without the commit-hash chicken-and-egg
+problem a literal self-reference would create).
