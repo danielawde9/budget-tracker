@@ -90,6 +90,53 @@ describe('createPlanClient', () => {
     });
   });
 
+  it('maps a category row with no Arabic name to a null nameAr instead of throwing', async () => {
+    const rpc = rpcClient(() => ({
+      data: [{
+        category_id: 'cat-1', name_en: 'Cleaning', name_ar: null, archived_at: null,
+        currency: 'USD', target_minor: null, actual_spent_minor: 3000,
+        remaining_minor: null, overspent_minor: 0, target_revision_id: null,
+      }],
+      error: null,
+    }));
+    const client = createPlanClient(rpc);
+    const page = await client.loadCategoryPage('space-1', '2026-09-01', {
+      afterCreatedAt: '2026-09-01T00:00:00Z', afterCategoryId: 'cat-0', afterCurrency: 'USD',
+    });
+    expect(page.rows[0]).toMatchObject({ categoryId: 'cat-1', nameEn: 'Cleaning', nameAr: null });
+  });
+
+  it('maps a category row with no English name to a null nameEn instead of throwing', async () => {
+    const rpc = rpcClient(() => ({
+      data: [{
+        category_id: 'cat-2', name_en: null, name_ar: 'تنظيف', archived_at: null,
+        currency: 'USD', target_minor: null, actual_spent_minor: 3000,
+        remaining_minor: null, overspent_minor: 0, target_revision_id: null,
+      }],
+      error: null,
+    }));
+    const client = createPlanClient(rpc);
+    const page = await client.loadCategoryPage('space-1', '2026-09-01', {
+      afterCreatedAt: '2026-09-01T00:00:00Z', afterCategoryId: 'cat-0', afterCurrency: 'USD',
+    });
+    expect(page.rows[0]).toMatchObject({ categoryId: 'cat-2', nameEn: null, nameAr: 'تنظيف' });
+  });
+
+  it('throws when a category row has neither an English nor an Arabic name', async () => {
+    const rpc = rpcClient(() => ({
+      data: [{
+        category_id: 'cat-3', name_en: null, name_ar: null, archived_at: null,
+        currency: 'USD', target_minor: null, actual_spent_minor: 0,
+        remaining_minor: null, overspent_minor: 0, target_revision_id: null,
+      }],
+      error: null,
+    }));
+    const client = createPlanClient(rpc);
+    await expect(client.loadCategoryPage('space-1', '2026-09-01', {
+      afterCreatedAt: '2026-09-01T00:00:00Z', afterCategoryId: 'cat-0', afterCurrency: 'USD',
+    })).rejects.toThrow('The database row has no display name.');
+  });
+
   it('throws on rpc error and on malformed rows', async () => {
     const failing = createPlanClient(rpcClient(() => ({ data: null, error: { message: 'an active space membership is required' } })));
     await expect(failing.loadCurrencySummary('space-1', '2026-09-01')).rejects.toThrow('an active space membership is required');

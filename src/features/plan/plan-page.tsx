@@ -24,7 +24,9 @@ function minorToMajorInput(amountMinor: string | null, currency: Currency): stri
 }
 
 function categoryName(row: BudgetCategoryRow, locale: Locale): string {
-  return locale === 'ar' ? row.nameAr : row.nameEn;
+  const primary = locale === 'ar' ? row.nameAr : row.nameEn;
+  const secondary = locale === 'ar' ? row.nameEn : row.nameAr;
+  return primary ?? secondary ?? '';
 }
 
 export interface PlanPageProps {

@@ -84,10 +84,13 @@ function summaryRow(row: unknown): BudgetCurrencySummary {
 
 function categoryRow(row: unknown): BudgetCategoryRow {
   const r = asRow(row);
+  const nameEn = nullableText(r, 'name_en');
+  const nameAr = nullableText(r, 'name_ar');
+  if (nameEn === null && nameAr === null) throw new Error('The database row has no display name.');
   return {
     categoryId: textValue(r, 'category_id'),
-    nameEn: textValue(r, 'name_en'),
-    nameAr: textValue(r, 'name_ar'),
+    nameEn,
+    nameAr,
     archivedAt: nullableText(r, 'archived_at'),
     currency: currencyValue(r, 'currency'),
     targetMinor: nullableMinorValue(r, 'target_minor'),

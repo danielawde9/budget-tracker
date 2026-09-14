@@ -18,8 +18,8 @@ export interface BudgetCurrencySummary {
 
 export interface BudgetCategoryRow {
   categoryId: string;
-  nameEn: string;
-  nameAr: string;
+  nameEn: string | null;
+  nameAr: string | null;
   archivedAt: string | null;
   currency: Currency;
   targetMinor: string | null;
