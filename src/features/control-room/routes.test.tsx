@@ -40,6 +40,7 @@ function gateways(overrides: {
     insights: overrides.insights ?? insights(async () => []),
     exchange: null,
     allocation: null,
+    goals: null,
   };
 }
 

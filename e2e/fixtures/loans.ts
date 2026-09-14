@@ -33,6 +33,18 @@ export interface ApplicationFixtureOptions {
   allocationHistoryPage?: Record<string, unknown>;
   /** `allocation_trend` JSON object. */
   allocationTrend?: Record<string, unknown>;
+  /** Goals list: seeds `goal_page`'s initial rows (camelCase, matching the
+   *  SQL contract exactly). A `create_goal_plan` call appends a new row so
+   *  the list reflects it, mirroring how `publish_allocation_month` updates
+   *  `allocationMonth` above. Defaults to an empty list. */
+  seedGoals?: readonly Record<string, unknown>[];
+  /** `goal_detail`'s `milestones` for any seeded goal (static; not mutated
+   *  by `set_goal_milestone_state` -- that command still returns a valid
+   *  receipt, matching the read/write split already used for allocation's
+   *  category/history/trend pages above). */
+  goalMilestones?: readonly Record<string, unknown>[];
+  /** `goal_history_page` JSON object for a goal's detail view. */
+  goalHistoryPage?: Record<string, unknown>;
 }
 
 const defaultAllocationMonth: Record<string, unknown> = {
@@ -255,6 +267,21 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
   let lastSavedGroups: readonly { id: string; purpose: 'spending' | 'future'; nameEn: string | null; nameAr: string | null; order: number; basisPoints: number }[] = [];
   let lastSavedTemplateRevisionId = '0';
   const allocationReceipts = new Map<string, { command: string; sequenceId: string; result: unknown }>();
+  const goals: Record<string, unknown>[] = cloneRows(options.seedGoals ?? []);
+  let nextGoalRevisionId = 100;
+  let nextGoalEventId = 100;
+  const earmarkHeadByGoal = new Map<string, string>();
+  const milestoneStates = new Map<string, 'complete' | 'incomplete'>();
+  const goalReceipts = new Map<string, { command: string; sequenceId: string; result: unknown }>();
+
+  function goalHead(goalId: string): string {
+    return earmarkHeadByGoal.get(goalId) ?? '0'.repeat(64);
+  }
+  function bumpGoalHead(goalId: string): string {
+    const next = String(Number(goalHead(goalId).slice(0, 8) || '0') + 1).padStart(64, '0');
+    earmarkHeadByGoal.set(goalId, next);
+    return next;
+  }
 
   if (authenticated) {
     await page.addInitScript((value) => localStorage.setItem('sb-127-auth-token', JSON.stringify(value)), authSession());
@@ -553,8 +580,138 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
     }
     if (path.endsWith('/rpc/find_planning_command')) {
       const body = request.postDataJSON() as { p_request_id: string };
-      const receipt = allocationReceipts.get(body.p_request_id);
+      const receipt = allocationReceipts.get(body.p_request_id) ?? goalReceipts.get(body.p_request_id);
       return json(route, receipt ?? null);
+    }
+    if (path.endsWith('/rpc/goal_page')) {
+      return json(route, { rows: cloneRows(goals), hasMore: false, nextCursor: null, asOf: '2026-09-14T12:00:00Z' });
+    }
+    if (path.endsWith('/rpc/goal_detail')) {
+      const body = request.postDataJSON() as { p_goal_id: string };
+      const summary = goals.find((row) => row['id'] === body.p_goal_id);
+      if (!summary) return json(route, { message: 'the goal does not belong to the requested space', code: 'P0001' }, 400);
+      const milestones = cloneRows(options.goalMilestones ?? []).map((milestone) => {
+        const overridden = milestoneStates.get(milestone['id'] as string);
+        return overridden ? { ...milestone, currentState: overridden } : milestone;
+      });
+      return json(route, {
+        summary, milestones,
+        earmarkHead: goalHead(body.p_goal_id), definitionHead: String(summary['revisionId']), asOf: '2026-09-14T12:00:00Z',
+      });
+    }
+    if (path.endsWith('/rpc/goal_history_page')) {
+      return json(route, options.goalHistoryPage ?? { rows: [], hasMore: false, nextCursor: null });
+    }
+    if (path.endsWith('/rpc/create_goal_plan')) {
+      const body = request.postDataJSON() as {
+        p_request_id: string; p_goal_id: string;
+        p_definition: { kind: string; currency: string; nameEn: string | null; nameAr: string | null; targetMinor: string; deadline: string | null; monthlyAmountMinor: string | null; priority: number };
+      };
+      const existing = goalReceipts.get(body.p_request_id);
+      if (existing) return json(route, existing.result);
+      const revisionId = String(nextGoalRevisionId++);
+      goals.push({
+        id: body.p_goal_id, revisionId, currency: body.p_definition.currency, kind: body.p_definition.kind, state: 'active',
+        nameEn: body.p_definition.nameEn, nameAr: body.p_definition.nameAr, targetMinor: body.p_definition.targetMinor,
+        earmarkedMinor: '0', coveredMinor: '0', fulfilledMinor: '0', shortageMinor: '0',
+        monthlyTargetMinor: null, monthlyNetContributionMinor: '0',
+        dueDate: body.p_definition.deadline, horizon: body.p_definition.deadline ? 'short' : 'open', needsReview: false,
+        suggestedMonthlyMinor: null, forecastMonth: null, forecastState: 'insufficient_history', asOf: '2026-09-14T12:00:00Z',
+      });
+      const result = { goalId: body.p_goal_id, revisionId };
+      goalReceipts.set(body.p_request_id, { command: 'create_goal_plan', sequenceId: revisionId, result });
+      return json(route, result);
+    }
+    if (path.endsWith('/rpc/revise_goal_plan')) {
+      const body = request.postDataJSON() as {
+        p_request_id: string; p_goal_id: string; p_state: string;
+        p_definition: { nameEn: string | null; nameAr: string | null; targetMinor: string; deadline: string | null };
+      };
+      const existing = goalReceipts.get(body.p_request_id);
+      if (existing) return json(route, existing.result);
+      const revisionId = String(nextGoalRevisionId++);
+      const record = goals.find((row) => row['id'] === body.p_goal_id);
+      if (record) {
+        record['revisionId'] = revisionId; record['state'] = body.p_state;
+        record['nameEn'] = body.p_definition.nameEn; record['nameAr'] = body.p_definition.nameAr;
+        record['targetMinor'] = body.p_definition.targetMinor; record['dueDate'] = body.p_definition.deadline;
+      }
+      const result = { goalId: body.p_goal_id, revisionId };
+      goalReceipts.set(body.p_request_id, { command: 'revise_goal_plan', sequenceId: revisionId, result });
+      return json(route, result);
+    }
+    if (path.endsWith('/rpc/record_goal_earmark')) {
+      const body = request.postDataJSON() as { p_request_id: string; p_goal_id: string; p_action: 'reserve' | 'release'; p_amount_minor: string };
+      const existing = goalReceipts.get(body.p_request_id);
+      if (existing) return json(route, existing.result);
+      const eventId = String(nextGoalEventId++);
+      const record = goals.find((row) => row['id'] === body.p_goal_id);
+      if (record) {
+        const delta = body.p_action === 'reserve' ? BigInt(body.p_amount_minor) : -BigInt(body.p_amount_minor);
+        const earmarked = BigInt(record['earmarkedMinor'] as string) + delta;
+        record['earmarkedMinor'] = earmarked.toString();
+        record['coveredMinor'] = earmarked.toString();
+        record['shortageMinor'] = '0';
+      }
+      bumpGoalHead(body.p_goal_id);
+      const result = { eventId, goalId: body.p_goal_id };
+      goalReceipts.set(body.p_request_id, { command: 'record_goal_earmark', sequenceId: eventId, result });
+      return json(route, result);
+    }
+    if (path.endsWith('/rpc/move_goal_earmark')) {
+      const body = request.postDataJSON() as { p_request_id: string; p_from_goal_id: string; p_to_goal_id: string };
+      const existing = goalReceipts.get(body.p_request_id);
+      if (existing) return json(route, existing.result);
+      const eventId = String(nextGoalEventId++);
+      bumpGoalHead(body.p_from_goal_id);
+      bumpGoalHead(body.p_to_goal_id);
+      const result = { eventId };
+      goalReceipts.set(body.p_request_id, { command: 'move_goal_earmark', sequenceId: eventId, result });
+      return json(route, result);
+    }
+    if (path.endsWith('/rpc/reverse_goal_earmark')) {
+      const body = request.postDataJSON() as { p_request_id: string };
+      const existing = goalReceipts.get(body.p_request_id);
+      if (existing) return json(route, existing.result);
+      const eventId = String(nextGoalEventId++);
+      const result = { eventId };
+      goalReceipts.set(body.p_request_id, { command: 'reverse_goal_earmark', sequenceId: eventId, result });
+      return json(route, result);
+    }
+    if (path.endsWith('/rpc/link_goal_purchase')) {
+      const body = request.postDataJSON() as { p_request_id: string; p_lines: readonly { goalId: string; amountMinor: string }[] };
+      const existing = goalReceipts.get(body.p_request_id);
+      if (existing) return json(route, existing.result);
+      const linkIds = body.p_lines.map(() => `${String(nextGoalEventId++).padStart(8, '0')}-0000-4000-8000-000000000000`);
+      for (const line of body.p_lines) {
+        const record = goals.find((row) => row['id'] === line.goalId);
+        if (record) record['fulfilledMinor'] = (BigInt(record['fulfilledMinor'] as string) + BigInt(line.amountMinor)).toString();
+        bumpGoalHead(line.goalId);
+      }
+      const result = { linkIds };
+      goalReceipts.set(body.p_request_id, { command: 'link_goal_purchase', sequenceId: linkIds[0] ?? '0', result });
+      return json(route, result);
+    }
+    if (path.endsWith('/rpc/set_goal_monthly_target')) {
+      const body = request.postDataJSON() as { p_request_id: string; p_goal_id: string; p_amount_minor: string };
+      const existing = goalReceipts.get(body.p_request_id);
+      if (existing) return json(route, existing.result);
+      const revisionId = String(nextGoalRevisionId++);
+      const record = goals.find((row) => row['id'] === body.p_goal_id);
+      if (record) record['monthlyTargetMinor'] = body.p_amount_minor;
+      const result = { revisionId };
+      goalReceipts.set(body.p_request_id, { command: 'set_goal_monthly_target', sequenceId: revisionId, result });
+      return json(route, result);
+    }
+    if (path.endsWith('/rpc/set_goal_milestone_state')) {
+      const body = request.postDataJSON() as { p_request_id: string; p_milestone_id: string; p_action: 'complete' | 'reopen' };
+      const existing = goalReceipts.get(body.p_request_id);
+      if (existing) return json(route, existing.result);
+      const eventId = String(nextGoalEventId++);
+      milestoneStates.set(body.p_milestone_id, body.p_action === 'complete' ? 'complete' : 'incomplete');
+      const result = { eventId };
+      goalReceipts.set(body.p_request_id, { command: 'set_goal_milestone_state', sequenceId: eventId, result });
+      return json(route, result);
     }
     if (path.endsWith('/rpc/record_usd_to_lbp_exchange')) {
       // The gateway only checks that the returned id is a UUID; keep it fixed

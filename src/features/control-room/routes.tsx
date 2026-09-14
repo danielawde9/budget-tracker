@@ -8,6 +8,9 @@ import { useCategories } from '../categories/use-categories.js';
 import type { CategoriesGateway } from '../categories/types.js';
 import { useExchange } from '../exchange/use-exchange.js';
 import type { ExchangeClient } from '../exchange/types.js';
+import { GoalsPage } from '../goals/goals-page.js';
+import type { GoalsGateway } from '../goals/types.js';
+import { useGoals } from '../goals/use-goals.js';
 import type { HouseholdGateway } from '../household/types.js';
 import type { InsightsClient, CategoryBudgetRow } from '../insights/types.js';
 import type { Currency, Locale, SpaceKind } from '../loans/types.js';
@@ -56,6 +59,21 @@ const unavailableAllocationGateway: AllocationGateway = {
   async findCommand() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
 };
 
+const unavailableGoalsGateway: GoalsGateway = {
+  async loadPage() { throw new Error('Goals are unavailable until this browser is connected to its data service.'); },
+  async loadDetail() { throw new Error('Goals are unavailable until this browser is connected to its data service.'); },
+  async loadHistory() { throw new Error('Goals are unavailable until this browser is connected to its data service.'); },
+  async create() { throw new Error('Goals are unavailable until this browser is connected to its data service.'); },
+  async revise() { throw new Error('Goals are unavailable until this browser is connected to its data service.'); },
+  async reserveOrRelease() { throw new Error('Goals are unavailable until this browser is connected to its data service.'); },
+  async move() { throw new Error('Goals are unavailable until this browser is connected to its data service.'); },
+  async reverse() { throw new Error('Goals are unavailable until this browser is connected to its data service.'); },
+  async linkPurchase() { throw new Error('Goals are unavailable until this browser is connected to its data service.'); },
+  async setMonthlyTarget() { throw new Error('Goals are unavailable until this browser is connected to its data service.'); },
+  async setMilestone() { throw new Error('Goals are unavailable until this browser is connected to its data service.'); },
+  async findCommand() { throw new Error('Goals are unavailable until this browser is connected to its data service.'); },
+};
+
 export interface ControlRoomGateways {
   wallets: WalletsGateway;
   loans: LoansGateway;
@@ -66,6 +84,7 @@ export interface ControlRoomGateways {
   insights: InsightsClient | null;
   exchange: ExchangeClient | null;
   allocation: AllocationGateway | null;
+  goals: GoalsGateway | null;
 }
 
 export interface ControlRoomRoutesProps {
@@ -267,7 +286,27 @@ function AllocationCurrencySection(props: {
   );
 }
 
+function GoalsCurrencySection(props: {
+  locale: Locale;
+  spaceId: string;
+  currency: 'USD' | 'LBP';
+  gateway: GoalsGateway;
+  onSpaceUnavailable?: (() => void) | undefined;
+}) {
+  // Filtering by state happens client-side inside GoalsPage over this one
+  // fetch of the full relevant set (bounded to 200 goals by the DB layer),
+  // rather than re-querying goal_page per filter tab.
+  const goals = useGoals(props.gateway, props.spaceId, props.currency, 'all', props.onSpaceUnavailable);
+  return (
+    <section className="cr-card" aria-label={`${props.locale === 'ar' ? 'الأهداف' : 'Goals'} ${props.currency}`}>
+      <span className="cr-chip">{props.currency}</span>
+      <GoalsPage locale={props.locale} currency={props.currency} goals={goals} />
+    </section>
+  );
+}
+
 const ALLOCATION_CURRENCIES = ['USD', 'LBP'] as const;
+const GOAL_CURRENCIES = ['USD', 'LBP'] as const;
 
 function PlanRoutes(props: PlanRoutesProps) {
   const { locale, spaceId, gateways } = props;
@@ -325,6 +364,16 @@ function PlanRoutes(props: PlanRoutesProps) {
           gateway={gateways.allocation ?? unavailableAllocationGateway}
           categories={props.expenseRootCategories}
           categoryTargets={categoryTargetsByCurrency.get(currency) ?? new Map()}
+          onSpaceUnavailable={props.onSpaceUnavailable}
+        />
+      ))}
+      {GOAL_CURRENCIES.map((currency) => (
+        <GoalsCurrencySection
+          key={currency}
+          locale={locale}
+          spaceId={spaceId}
+          currency={currency}
+          gateway={gateways.goals ?? unavailableGoalsGateway}
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
       ))}

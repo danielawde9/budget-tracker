@@ -1896,3 +1896,64 @@
 [2026-09-14T13:57:57.484Z] [INFO] Worker testgaps completed in 13ms
 [2026-09-14T13:58:57.643Z] [INFO] Starting worker: optimize (1/2 concurrent)
 [2026-09-14T13:58:57.644Z] [INFO] Worker optimize completed in 12ms
+[2026-09-14T14:01:58.037Z] [INFO] Starting worker: audit (1/2 concurrent)
+[2026-09-14T14:01:58.037Z] [INFO] Worker audit completed in 28ms
+[2026-09-14T14:09:57.617Z] [INFO] Starting worker: map (1/2 concurrent)
+[2026-09-14T14:09:57.618Z] [INFO] Worker map completed in 16ms
+[2026-09-14T14:11:58.049Z] [INFO] Starting worker: audit (1/2 concurrent)
+[2026-09-14T14:11:58.050Z] [INFO] Worker audit completed in 11ms
+[2026-09-14T14:13:57.626Z] [INFO] Starting worker: optimize (1/2 concurrent)
+[2026-09-14T14:13:57.626Z] [INFO] Worker optimize completed in 11ms
+[2026-09-14T14:15:57.376Z] [INFO] Starting worker: consolidate (1/2 concurrent)
+[2026-09-14T14:15:57.378Z] [INFO] Consolidate worker: distillation skipped (error: Could not locate the bindings file. Tried:
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/Debug/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/Release/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/out/Debug/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/Debug/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/out/Release/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/Release/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/default/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/compiled/22.22.0/darwin/arm64/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/addon-build/release/install-root/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/addon-build/debug/install-root/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/addon-build/default/install-root/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/lib/binding/node-v127-darwin-arm64/better_sqlite3.node)
+[2026-09-14T14:15:57.378Z] [INFO] Worker consolidate completed in 32ms
+[2026-09-14T14:17:57.447Z] [INFO] Starting worker: testgaps (1/2 concurrent)
+[2026-09-14T14:17:57.448Z] [INFO] Worker testgaps completed in 14ms
+[2026-09-14T14:21:58.037Z] [INFO] Worker audit deferred: Memory too low: 0.7% free
+[2026-09-14T14:24:57.604Z] [INFO] Worker map deferred: Memory too low: 3.6% free
+[2026-09-14T14:28:57.623Z] [INFO] Starting worker: optimize (1/2 concurrent)
+[2026-09-14T14:28:57.624Z] [INFO] Worker optimize completed in 13ms
+[2026-09-14T14:28:57.641Z] [INFO] Starting worker: audit (1/2 concurrent)
+[2026-09-14T14:28:57.642Z] [INFO] Worker audit completed in 10ms
+[2026-09-14T14:28:57.658Z] [INFO] Starting worker: map (1/2 concurrent)
+[2026-09-14T14:28:57.658Z] [INFO] Worker map completed in 8ms
+[2026-09-14T14:31:58.043Z] [INFO] Starting worker: audit (1/2 concurrent)
+[2026-09-14T14:31:58.044Z] [INFO] Worker audit completed in 11ms
+[2026-09-14T14:37:57.517Z] [INFO] Worker testgaps deferred: Memory too low: 3.1% free
+[2026-09-14T14:39:57.679Z] [INFO] Starting worker: map (1/2 concurrent)
+[2026-09-14T14:39:57.680Z] [INFO] Worker map completed in 11ms
+[2026-09-14T14:39:57.697Z] [INFO] Starting worker: testgaps (1/2 concurrent)
+[2026-09-14T14:39:57.698Z] [INFO] Worker testgaps completed in 9ms
+[2026-09-14T14:41:58.136Z] [INFO] Starting worker: audit (1/2 concurrent)
+[2026-09-14T14:41:58.137Z] [INFO] Worker audit completed in 15ms
+[2026-09-14T14:43:57.708Z] [INFO] Starting worker: optimize (1/2 concurrent)
+[2026-09-14T14:43:57.710Z] [INFO] Worker optimize completed in 12ms
+[2026-09-14T14:45:57.447Z] [INFO] Starting worker: consolidate (1/2 concurrent)
+[2026-09-14T14:45:57.450Z] [INFO] Consolidate worker: distillation skipped (error: Could not locate the bindings file. Tried:
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/Debug/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/Release/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/out/Debug/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/Debug/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/out/Release/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/Release/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/default/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/compiled/22.22.0/darwin/arm64/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/addon-build/release/install-root/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/addon-build/debug/install-root/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/addon-build/default/install-root/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/lib/binding/node-v127-darwin-arm64/better_sqlite3.node)
+[2026-09-14T14:45:57.450Z] [INFO] Worker consolidate completed in 17ms

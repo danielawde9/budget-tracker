@@ -1,0 +1,223 @@
+/* ==========================================================================
+   Goals feature — scoped styles reusing Control Room's tokens (--cr-*) and
+   .cr-card/.cr-button visual language, matching the allocation feature's own
+   convention. Logical properties throughout for RTL; no new design tokens.
+   ========================================================================== */
+
+.goal-visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.goal-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cr-space-2);
+  justify-content: space-between;
+}
+
+.goal-heading {
+  font-family: var(--cr-font-display);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.goal-label-muted {
+  color: var(--cr-ink-soft);
+  font-size: 12px;
+}
+
+.goal-danger-text {
+  color: var(--cr-danger);
+}
+
+.goal-complete-badge {
+  display: inline-block;
+  margin-inline-start: var(--cr-space-2);
+  padding: 0 var(--cr-space-1);
+  border-radius: var(--cr-radius-sm);
+  background: color-mix(in srgb, var(--cr-accent) 15%, transparent);
+  color: var(--cr-accent);
+  font-size: 11px;
+}
+
+/* ---- Goal list ---------------------------------------------------------- */
+
+.goal-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-3);
+}
+
+.goal-filter-tabs button[aria-selected="true"] {
+  background: var(--cr-accent);
+  color: var(--cr-surface);
+}
+
+.goal-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-2);
+  list-style: none;
+  padding-inline-start: 0;
+}
+
+.goal-list-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-1);
+}
+
+/* ---- Detail metrics ------------------------------------------------------ */
+
+.goal-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-3);
+}
+
+.goal-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--cr-space-3);
+}
+
+.goal-metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-1);
+}
+
+.goal-metric-value {
+  font-family: var(--cr-font-display);
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Progress bar / accessible chart ------------------------------------ */
+
+.goal-progress-table {
+  border-collapse: collapse;
+  inline-size: 100%;
+}
+
+.goal-progress {
+  block-size: 4px;
+  border-radius: var(--cr-radius-full);
+  background: var(--cr-surface-sunken);
+  overflow: hidden;
+  box-shadow: var(--cr-shadow-sunken);
+}
+.goal-progress > span {
+  display: block;
+  block-size: 100%;
+  border-radius: inherit;
+  background: var(--cr-accent);
+  transition: inline-size 200ms var(--cr-ease);
+}
+.goal-progress[data-over="true"] > span {
+  background: var(--cr-danger);
+}
+
+.goal-overage-text {
+  display: block;
+  color: var(--cr-danger);
+  font-size: 11px;
+}
+
+/* ---- Milestones ----------------------------------------------------------- */
+
+.goal-milestone-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-2);
+  list-style: none;
+  padding-inline-start: 0;
+}
+
+.goal-milestone-row {
+  border-block-end: 1px solid var(--cr-hairline);
+  padding-block-end: var(--cr-space-2);
+}
+
+.goal-milestone-label {
+  font-weight: 500;
+}
+
+.goal-milestone-actions {
+  margin-block-start: var(--cr-space-1);
+}
+
+.goal-milestone-editor-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-2);
+  border: 1px solid var(--cr-hairline);
+  border-radius: var(--cr-radius-sm);
+  padding: var(--cr-space-2);
+  margin-block-end: var(--cr-space-2);
+}
+
+/* ---- Editor / funding forms ----------------------------------------------- */
+
+.goal-editor-mode,
+.goal-funding-mode {
+  border: 1px solid var(--cr-hairline);
+  border-radius: var(--cr-radius);
+  padding: var(--cr-space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cr-space-2);
+}
+
+.goal-editor-mode legend,
+.goal-funding-mode legend {
+  padding-inline: var(--cr-space-1);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cr-ink-soft);
+}
+
+.goal-milestone-editor {
+  border: 1px solid var(--cr-hairline);
+  border-radius: var(--cr-radius);
+  padding: var(--cr-space-3);
+}
+
+/* ---- History -------------------------------------------------------------- */
+
+.goal-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-1);
+  list-style: none;
+  padding-inline-start: 0;
+  font-size: 13px;
+}
+
+/* Phone-width layouts: let rows wrap to their own lines rather than
+   compressing inputs illegibly, matching the allocation feature's own
+   320/390px inspection matrix. */
+@media (max-width: 420px) {
+  .goal-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+  .goal-milestone-editor-row .goal-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .goal-progress > span {
+    transition: none;
+  }
+}

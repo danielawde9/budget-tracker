@@ -2359,3 +2359,59 @@ more correct than a literal reading of a files list that predates task
 surface that will actually call `publishMonthV2` from wherever the monthly
 plan screen chooses to expose goal-target editing (that screen-level design
 choice is task 13's, not decided here).
+
+## 2026-09-14 — Goals UI completes Release 2; two scope boundaries and one left-open follow-up (task 13)
+
+**Decision:** Linking an existing purchase to a goal (`GoalPurchaseDialog`)
+takes the expense's reference id as a pasted UUID rather than a picker
+browsing recent expenses. Task 13's own text says "after an accepted new
+expense, offer a separate recoverable goal link," describing an eventual
+entry point *from the Wallets/Record flow*; building that means editing
+`transaction-dialog.tsx` (or similar), which is another feature's owned
+file and posting flow ("do not change... posting gateways" is explicit in
+this task's own scope line). The entry point actually built is *from the
+goal's own detail page* instead, satisfying "link an existing purchase"
+without touching wallets. Full evidence: `docs/verification/future-planning/13.md`.
+
+`GoalEditor`'s revise mode shows an explicit warning that `note`, the
+goal's own base `monthlyAmountMinor`, and `priority` are not pre-filled,
+rather than silently defaulting them (to `null`/the month's target/`0`
+respectively) on every save. `goal_page`/`goal_detail`'s summary (task 11's
+own exact field list) does not carry these three fields at all — only
+`goal_history_page`'s `definition` rows do, and that feed has no
+source-kind filter, making "find the current definition" impractical to
+implement by paging through it. Since this task's scope excludes SQL
+changes, the honest choice is surfacing the gap to the person editing,
+not guessing on their behalf.
+
+Real-Playwright testing (not just component tests against mocked hook
+state) found three defects a mocked-hook test cannot see: `GoalDetail`'s
+own `goal_detail`/`goal_history_page` fetch depended on the *whole*
+`props.goals` object from `useGoals` (a fresh object every render, exactly
+like `useAllocation`'s own return value) rather than the specific
+`useCallback`-stable methods it calls — every mutation's `saving`→`ready`
+status transition therefore re-triggered the fetch effect, flashing
+`GoalDetail` back to its loading state and unmounting whatever dialog was
+open mid-submission; a redundant explicit `aria-label` on a `<label>`
+already supplying that name via its own text broke `getByLabel`/
+`getByRole('textbox')` resolution; and the inline milestone checklist
+never triggered a re-fetch after a successful `complete`/`reopen` (every
+*dialog* refreshes via its own close handler, but the checklist isn't a
+dialog). All three fixed before this task's commit.
+
+**Why:** `useGoals`/`useAllocation` returning a fresh object every render
+is fine for a component that only *reads* the hook's fields during render
+(every existing allocation view does exactly this) — it only breaks once a
+consumer puts the object itself in a `useCallback`/`useEffect` dependency
+array for a *second*, nested fetch, which no allocation view has ever
+needed. This is a new pattern, not a repeat of an old lesson; the fix
+belongs at the call site (depend on the specific stable methods), matching
+ordinary React practice, not a change to `useGoals` itself.
+
+**If changed:** A future task could extend `goal_page`/`goal_detail` (or
+add a `p_source_kind` filter to `goal_history_page`) to expose
+`contributionMode`/`monthlyMinor`/`note`/`priority`, letting `GoalEditor`
+drop its revise-mode warning and pre-fill faithfully — this is a SQL change
+and therefore its own separate task, not something folded into a UI-only
+packet. A future task could also add the wallet-side "link this expense to
+a goal" prompt this task deliberately left out.

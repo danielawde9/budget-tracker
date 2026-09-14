@@ -5,6 +5,7 @@ import { createHouseholdInvitationBootstrap, takeHouseholdInvitation } from './f
 import './styles.css';
 import './control-room.css';
 import './features/allocation/allocation.css';
+import './features/goals/goals.css';
 
 const householdInvitationBootstrap = createHouseholdInvitationBootstrap(takeHouseholdInvitation(window.location, window.history));
 const root = document.querySelector('#root');
