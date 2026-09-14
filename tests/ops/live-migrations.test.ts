@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest';
 const script = join(process.cwd(), 'scripts/ops/apply-live-migrations.sh');
 const projectRef = 'hqblhzqitrbvpyoxtmew';
 const fixtureProjectRef = projectRef;
-const releaseHead = '7a5523d8c977968746f54767e44fadb16d74d0d2';
+const releaseHead = 'c1a4a566dd935f21ba8ea19565c4f689a5651fd1';
 const liveRunnerCommit = 'b9537efa69216a42189cbb878c4bfa849a5b52f5';
 const subprocessTimeoutMillis = 10_000;
 const defaultProjects = JSON.stringify([{ id: fixtureProjectRef, name: 'Budget' }]);
@@ -187,14 +187,14 @@ describe('one-time live Supabase migration runner', () => {
     expect(source).not.toContain('SERVICE_ROLE_KEY:?');
   });
 
-  it('verifies the exact 46-row journal and merged schema after application', () => {
+  it('verifies the exact 47-row journal and merged schema after application', () => {
     const source = readFileSync(script, 'utf8');
     const verificationSql = source.slice(
       source.indexOf('readonly LIVE_VERIFY_SQL='),
       source.indexOf('\n\nlive_fail()'),
     );
 
-    expect(verificationSql.match(/'20[0-9]{12}'/g)).toHaveLength(46);
+    expect(verificationSql.match(/'20[0-9]{12}'/g)).toHaveLength(47);
     expect(verificationSql).toContain("'20260908170000'");
     expect(verificationSql).toContain("'20260910100000'");
     expect(verificationSql).toContain("'20260911100000'");
@@ -239,6 +239,18 @@ describe('one-time live Supabase migration runner', () => {
     expect(verificationSql).toContain("to_regprocedure('public.goal_detail(uuid,uuid,date)')");
     expect(verificationSql).toContain(
       "to_regprocedure('public.publish_allocation_month_v2(uuid,uuid,date,public.currency_code,bigint,bigint,bigint,text,jsonb,uuid,jsonb)')",
+    );
+    expect(verificationSql).toContain("'20260914170000'");
+    expect(verificationSql).toContain("to_regclass('public.schedules')");
+    expect(verificationSql).toContain("to_regclass('public.scheduled_occurrences')");
+    expect(verificationSql).toContain(
+      "to_regprocedure('public.save_schedule(uuid,uuid,uuid,bigint,jsonb)')",
+    );
+    expect(verificationSql).toContain(
+      "to_regprocedure('public.confirm_scheduled_occurrence(uuid,uuid,uuid,bigint,text,date,uuid)')",
+    );
+    expect(verificationSql).toContain(
+      "to_regprocedure('public.scheduled_occurrence_page(uuid,date,date,date,uuid,integer)')",
     );
     expect(verificationSql).not.toContain("to_regclass('public.subcategories')");
   });

@@ -1957,3 +1957,86 @@
  → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/addon-build/default/install-root/better_sqlite3.node
  → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/lib/binding/node-v127-darwin-arm64/better_sqlite3.node)
 [2026-09-14T14:45:57.450Z] [INFO] Worker consolidate completed in 17ms
+[2026-09-14T14:51:58.190Z] [INFO] Worker audit deferred: Memory too low: 0.3% free
+[2026-09-14T14:54:57.747Z] [INFO] Starting worker: map (1/2 concurrent)
+[2026-09-14T14:54:57.750Z] [INFO] Worker map completed in 16ms
+[2026-09-14T14:54:57.768Z] [INFO] Starting worker: audit (1/2 concurrent)
+[2026-09-14T14:54:57.769Z] [INFO] Worker audit completed in 10ms
+[2026-09-14T14:57:57.576Z] [INFO] Starting worker: testgaps (1/2 concurrent)
+[2026-09-14T14:57:57.577Z] [INFO] Worker testgaps completed in 12ms
+[2026-09-14T14:58:57.782Z] [INFO] Starting worker: optimize (1/2 concurrent)
+[2026-09-14T14:58:57.783Z] [INFO] Worker optimize completed in 20ms
+[2026-09-14T15:01:58.210Z] [INFO] Starting worker: audit (1/2 concurrent)
+[2026-09-14T15:01:58.211Z] [INFO] Worker audit completed in 13ms
+[2026-09-14T15:09:57.768Z] [INFO] Worker map deferred: Memory too low: 1.0% free
+[2026-09-14T15:11:58.236Z] [INFO] Starting worker: audit (1/2 concurrent)
+[2026-09-14T15:11:58.236Z] [INFO] Worker audit completed in 10ms
+[2026-09-14T15:11:58.252Z] [INFO] Starting worker: map (1/2 concurrent)
+[2026-09-14T15:11:58.252Z] [INFO] Worker map completed in 8ms
+[2026-09-14T15:13:57.811Z] [INFO] Starting worker: optimize (1/2 concurrent)
+[2026-09-14T15:13:57.812Z] [INFO] Worker optimize completed in 13ms
+[2026-09-14T15:15:57.533Z] [INFO] Starting worker: consolidate (1/2 concurrent)
+[2026-09-14T15:15:57.537Z] [INFO] Consolidate worker: distillation skipped (error: Could not locate the bindings file. Tried:
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/Debug/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/Release/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/out/Debug/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/Debug/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/out/Release/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/Release/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/default/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/compiled/22.22.0/darwin/arm64/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/addon-build/release/install-root/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/addon-build/debug/install-root/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/addon-build/default/install-root/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/lib/binding/node-v127-darwin-arm64/better_sqlite3.node)
+[2026-09-14T15:15:57.537Z] [INFO] Worker consolidate completed in 19ms
+[2026-09-14T15:17:57.616Z] [INFO] Starting worker: testgaps (1/2 concurrent)
+[2026-09-14T15:17:57.617Z] [INFO] Worker testgaps completed in 17ms
+[2026-09-14T15:21:58.261Z] [INFO] Starting worker: audit (1/2 concurrent)
+[2026-09-14T15:21:58.262Z] [INFO] Worker audit completed in 17ms
+[2026-09-14T15:24:57.781Z] [INFO] Starting worker: map (1/2 concurrent)
+[2026-09-14T15:24:57.782Z] [INFO] Worker map completed in 11ms
+[2026-09-14T15:28:57.824Z] [INFO] Worker optimize deferred: Memory too low: 1.0% free
+[2026-09-14T15:31:58.277Z] [INFO] Worker audit deferred: Memory too low: 3.2% free
+[2026-09-14T15:37:57.612Z] [INFO] Starting worker: testgaps (1/2 concurrent)
+[2026-09-14T15:37:57.612Z] [INFO] Worker testgaps completed in 10ms
+[2026-09-14T15:37:57.630Z] [INFO] Starting worker: optimize (1/2 concurrent)
+[2026-09-14T15:37:57.630Z] [INFO] Worker optimize completed in 10ms
+[2026-09-14T15:37:57.645Z] [INFO] Starting worker: audit (1/2 concurrent)
+[2026-09-14T15:37:57.646Z] [INFO] Worker audit completed in 8ms
+[2026-09-14T15:39:57.766Z] [INFO] Worker map deferred: Memory too low: 3.2% free
+[2026-09-14T15:41:58.253Z] [INFO] Worker audit deferred: Memory too low: 1.5% free
+[2026-09-14T15:43:57.800Z] [INFO] Worker optimize deferred: Memory too low: 0.5% free
+[2026-09-14T15:45:57.522Z] [INFO] Worker consolidate deferred: Memory too low: 0.4% free
+[2026-09-14T15:51:58.257Z] [INFO] Worker audit deferred: CPU load too high: 15.51
+[2026-09-14T15:54:57.764Z] [INFO] Starting worker: map (1/2 concurrent)
+[2026-09-14T15:54:57.765Z] [INFO] Worker map completed in 12ms
+[2026-09-14T15:54:57.783Z] [INFO] Starting worker: map (1/2 concurrent)
+[2026-09-14T15:54:57.783Z] [INFO] Worker map completed in 8ms
+[2026-09-14T15:54:57.799Z] [INFO] Starting worker: audit (1/2 concurrent)
+[2026-09-14T15:54:57.807Z] [INFO] Starting worker: optimize (2/2 concurrent)
+[2026-09-14T15:54:57.807Z] [INFO] Worker audit completed in 16ms
+[2026-09-14T15:54:57.815Z] [INFO] Worker optimize completed in 16ms
+[2026-09-14T15:54:57.832Z] [INFO] Starting worker: consolidate (1/2 concurrent)
+[2026-09-14T15:54:57.840Z] [INFO] Starting worker: audit (2/2 concurrent)
+[2026-09-14T15:54:57.840Z] [INFO] Worker audit completed in 8ms
+[2026-09-14T15:54:57.850Z] [INFO] Consolidate worker: distillation skipped (error: Could not locate the bindings file. Tried:
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/Debug/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/Release/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/out/Debug/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/Debug/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/out/Release/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/Release/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/default/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/compiled/22.22.0/darwin/arm64/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/addon-build/release/install-root/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/addon-build/debug/install-root/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/addon-build/default/install-root/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/lib/binding/node-v127-darwin-arm64/better_sqlite3.node)
+[2026-09-14T15:54:57.850Z] [INFO] Worker consolidate completed in 27ms
+[2026-09-14T15:57:57.618Z] [INFO] Starting worker: testgaps (1/2 concurrent)
+[2026-09-14T15:57:57.618Z] [INFO] Worker testgaps completed in 12ms
+[2026-09-14T15:58:57.790Z] [INFO] Worker optimize deferred: Memory too low: 3.8% free
+[2026-09-14T16:01:58.242Z] [INFO] Worker audit deferred: Memory too low: 2.5% free

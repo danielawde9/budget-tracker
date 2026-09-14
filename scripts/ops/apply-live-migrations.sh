@@ -9,7 +9,7 @@ readonly LIVE_REPO_ROOT="$(cd "${LIVE_SCRIPT_DIR}/../.." && pwd -P)"
 source "${LIVE_SCRIPT_DIR}/budget-common.sh"
 
 readonly LIVE_PROJECT_REF='hqblhzqitrbvpyoxtmew'
-readonly LIVE_MANIFEST_SOURCE_SHA='7a5523d8c977968746f54767e44fadb16d74d0d2'
+readonly LIVE_MANIFEST_SOURCE_SHA='c1a4a566dd935f21ba8ea19565c4f689a5651fd1'
 readonly LIVE_CONFIRMATION="APPLY LIVE MIGRATIONS TO ${LIVE_PROJECT_REF}"
 readonly LIVE_MAX_PROJECT_LIST_BYTES=1048576
 readonly LIVE_SUPABASE_BIN="${BUDGET_SUPABASE_BIN:-$(command -v supabase || true)}"
@@ -40,6 +40,11 @@ readonly LIVE_VERIFY_SQL="select case when
   and to_regprocedure('public.goal_page(uuid,public.currency_code,text,timestamptz,uuid,integer)') is not null
   and to_regprocedure('public.goal_detail(uuid,uuid,date)') is not null
   and to_regprocedure('public.publish_allocation_month_v2(uuid,uuid,date,public.currency_code,bigint,bigint,bigint,text,jsonb,uuid,jsonb)') is not null
+  and to_regclass('public.schedules') is not null
+  and to_regclass('public.scheduled_occurrences') is not null
+  and to_regprocedure('public.save_schedule(uuid,uuid,uuid,bigint,jsonb)') is not null
+  and to_regprocedure('public.confirm_scheduled_occurrence(uuid,uuid,uuid,bigint,text,date,uuid)') is not null
+  and to_regprocedure('public.scheduled_occurrence_page(uuid,date,date,date,uuid,integer)') is not null
   and (select array_agg(version order by version) from supabase_migrations.schema_migrations)
     = array[
       '20260907100000','20260907110000','20260907120000','20260907130000',
@@ -53,7 +58,7 @@ readonly LIVE_VERIFY_SQL="select case when
       '20260911100000','20260912090000','20260912100000','20260912101000',
       '20260912101500','20260912102000','20260914090000','20260914100000',
       '20260914110000','20260914120000','20260914130000','20260914140000',
-      '20260914150000','20260914160000'
+      '20260914150000','20260914160000','20260914170000'
     ]::text[]
   then 'budget_schema_ready'
   else 'budget_schema_incomplete'

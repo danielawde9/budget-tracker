@@ -2415,3 +2415,136 @@ drop its revise-mode warning and pre-fill faithfully — this is a SQL change
 and therefore its own separate task, not something folded into a UI-only
 packet. A future task could also add the wallet-side "link this expense to
 a goal" prompt this task deliberately left out.
+
+## 2026-09-14 — Recurring schedules and settlement opens Release 3 (task 14)
+
+**Decision:** `schedule_revisions` does not duplicate the immutable
+`schedules.kind` column onto every revision row (unlike `goal_revisions`,
+which does duplicate `goals.currency` so a composite FK can pin it
+structurally). `kind` has no per-revision field to drift in the first place,
+so both `private.check_schedule_revision` and the `confirm_scheduled_occurrence`/
+`link_scheduled_payment` commands read it with a plain join back to
+`schedules` instead. `save_schedule` still rejects a `p_definition.kind`/
+`currency` that disagrees with an existing schedule's stored values before
+inserting, so a client sees a clean `P0001` rather than a raw FK violation.
+
+`materialize_schedule_occurrences` has no `p_schedule_id` argument — per the
+task's own RPC table it is a single space-wide sweep over every currently
+active schedule, bounded to 90 days and 500 new rows per call, not a
+per-schedule command. Task 15/16 must call it once per space, not once per
+schedule.
+
+The 200-active-schedule cap is checked only when a schedule is first
+created (mirrors task 09/10's identical precedent: goals' 100-active-or-paused
+cap is checked only in `create_goal_plan`, never in `revise_goal_plan`). A
+schedule reactivated from `paused`/`ended` back to `active` via `save_schedule`
+is not re-checked against the cap.
+
+"Labels never default to an account's private email" is implemented as an
+explicit `save_schedule` guard: it reads the calling actor's own
+`auth.users.email` and rejects (`22023`) a `nameEn`/`nameAr` that matches it
+case-insensitively after trimming. No existing table can express this as a
+plain `CHECK` (schema objects cannot read `auth.users`), and no prior
+migration in this repo established a different pattern for it, so this is a
+new, narrowly-scoped defense against a hypothetical UI bug that pre-fills a
+bill/income label with the signed-in account's own address and leaks it into
+a shared space.
+
+"Validate active referenced identities" at `confirm_scheduled_occurrence`/
+`link_scheduled_payment` time is deliberately asymmetric: the payment
+**wallet** (active + occurrence-currency-matched, since `record_financial_event`
+itself only checks "active in this space," never the caller's intended
+currency) and, for a categorized occurrence, its **category** (not archived,
+kind still matches) are hard `P0001` rejections — paying into the wrong
+currency or a dead category is a real error. The occurrence's **funding
+goal**, by contrast, degrades gracefully: if it has been closed, paused, or
+left with zero earmark since the schedule was defined, the payment still
+posts and the goal-funding step is silently skipped (the bill lands
+"paid but unfunded," exactly the outcome the task's own text names for a
+zero-earmark goal). Blocking a real bill payment because of an unrelated
+goal's later lifecycle change would be a worse outcome than an unfunded bill.
+
+`scheduled_occurrence_page`'s `fundingShortfallMinor` (a field the task
+specifies by name but not by formula) is defined as
+`greatest(settledMinor − sum(goal_purchase_links for this occurrence's own
+linked/confirmed events, restricted to its fundingGoalId), 0)`, and is
+`null` when the occurrence carries no `fundingGoalId`. This makes "paid but
+unfunded" (the task's own example) read as a positive shortfall equal to
+the unfunded portion, and reads `0` once `link_goal_purchase` has covered
+the full settled amount.
+
+Materialized occurrence identity is derived deterministically from
+`(schedule_id, due_date)` via task 03's `private.planning_child_request`
+digest (a new `private.schedule_occurrence_id` wrapper), not a fresh random
+UUID per insert — satisfying the task's "stable schedule/date identity
+derivation" instruction and making `materialize_schedule_occurrences`
+naturally idempotent under `ON CONFLICT (schedule_id, due_date) DO NOTHING`
+without a second lookup pass.
+
+The task file's own header names task 14's command-inventory file as
+`docs/product/financial-command-inventory.md`; the file actually lives at
+`docs/financial-command-inventory.md` (confirmed via `git log --follow`) —
+there is no `docs/product/` directory in this repo. The correct path was
+updated instead. Separately: tasks 09/10's own header also listed the
+inventory doc as an owned file, but neither `e1d2504` nor `86ef972` actually
+touched it (verified via `git show <sha> -- docs/financial-command-inventory.md`,
+which returns no diff) — goal funding/milestone commands were never added to
+the inventory. That gap predates this task and is out of task 14's declared
+scope (DB-only, own files listed above) to backfill; it is flagged here
+rather than silently left unmentioned, per the standing "if you find it
+already written [or missing] somewhere, flag it" practice.
+
+**Why:** Each choice above either follows an existing, already-proven
+repo precedent (goal cap scope, composite-FK currency pinning, deterministic
+child-request-style identity derivation) or resolves a genuine textual
+ambiguity in the task file in the direction that keeps a real bill payment
+from failing due to an unrelated later change elsewhere in the system.
+
+**If changed:** If a future task wants the 200-schedule cap re-checked on
+reactivation, or wants a funding-goal lifecycle change to hard-block
+confirmation instead of degrading to "unfunded," those are one-line changes
+to `save_schedule`/`confirm_scheduled_occurrence` respectively, not schema
+changes. If `fundingShortfallMinor`'s formula should instead reflect the
+*schedule's* nominal funding intent rather than actual settled cash, that is
+also a `scheduled_occurrence_page` change only. Task 15 (recurring gateway)
+consumes `save_schedule`'s exact definition-key shape and
+`scheduled_occurrence_page`'s exact row shape as written here; task 16 (UI)
+is the first surface that can show the "paid but unfunded" state to a user.
+
+**Addendum (same day) — the migration-manifest/live-verify bookkeeping is
+part of every DB task's commit, not just this task's declared files.** A
+full `pnpm check` run surfaced `tests/ops/migration-manifest.test.ts` and
+`tests/ops/live-migrations.test.ts` failing on this task's own new migration
+file (`ops/budget-migrations.sha256` pinned at 46 rows;
+`scripts/ops/apply-live-migrations.sh`'s `LIVE_VERIFY_SQL` pinned at 46
+migration versions and missing this task's new objects). Comparing
+`git show 86ef972 --stat` and `git show 6fd99ad --stat` (tasks 10 and 11)
+confirmed both of *those* commits updated the same four files
+(`ops/budget-migrations.sha256`, `scripts/ops/apply-live-migrations.sh`,
+`tests/ops/migration-manifest.test.ts`, `tests/ops/live-migrations.test.ts`)
+in their own feature commit, not as a separate later "prepare live release"
+chore — that separate-chore pattern (`d71c7a1`, `319db60`) only happens when
+a human deliberately batches several already-merged tasks for one live
+push. So this task follows the same, more common precedent: regenerated
+`ops/budget-migrations.sha256` via the repo's own
+`scripts/ops/migrate-budget.sh create-manifest` (never hand-typed hashes),
+bumped `LIVE_MANIFEST_SOURCE_SHA` / the two tests' `releaseHead`/
+`liveReleaseHead` constants to `c1a4a566dd935f21ba8ea19565c4f689a5651fd1`
+(this task's own starting SHA — matching the exact pattern task 10→11 used:
+each constant is the parent commit of that task's own commit), added
+`'20260914170000'` plus five representative `to_regclass`/`to_regprocedure`
+existence checks (`schedules`, `scheduled_occurrences`, `save_schedule`,
+`confirm_scheduled_occurrence`, `scheduled_occurrence_page` — a table+RPC
+sample, matching task 11's own density of "cover the new surface without
+enumerating all six new functions") to `LIVE_VERIFY_SQL`, and verified the
+resulting SQL block actually resolves to `budget_schema_ready` by running
+it (not just asserting the string shape) against a from-scratch database
+replaying all 47 migrations. None of this executes `pnpm migrate:live` or
+touches a live database — it edits four already-git-tracked files the same
+way editing a lockfile does, which is why it is inside "make `pnpm check`
+genuinely green," not a live/production migration.
+
+**If changed:** if a future session prefers the separate-chore convention
+for this task instead, revert these four files' diffs and land them in a
+follow-up `chore(db): prepare 47-migration live release` commit before the
+live migration is actually run (still by the human, never the agent).

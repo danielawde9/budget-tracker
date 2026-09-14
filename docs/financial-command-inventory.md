@@ -114,6 +114,36 @@ via a `.catch`; the monthly-comparison call does not, hence the visible
 error banner). See `docs/decisions.md` (2026-09-14, "Deployed reporting
 foundation fix to production").
 
+`public.save_schedule`, `public.materialize_schedule_occurrences`, and
+`public.set_occurrence_state` (task 14) are non-posting planning commands over
+a new immutable `schedules`/`schedule_revisions`/`scheduled_occurrences`/
+`occurrence_events` schema. They append schedule/occurrence definitions and
+skip/reopen actions through `public.planning_command_receipts`; none of the
+three can create or alter a financial event, movement, loan posting, balance,
+or category association.
+
+`public.confirm_scheduled_occurrence` and `public.link_scheduled_payment`
+(task 14) are the only two new commands in this schema that reach the money
+journal, and they do so exclusively by calling the four already-approved
+posting commands above -- never a new writer. `confirm_scheduled_occurrence`
+invokes `record_financial_event` (uncategorized income/expense),
+`record_categorized_financial_event` (categorized income/expense), or
+`record_loan_repayment` (`debt_payment` schedules, using the loan's existing
+repayment accounting, never opening-principal accounting) with a request ID
+it derives deterministically via task 03's `private.planning_child_request`,
+then appends one `occurrence_events` settlement row. `link_scheduled_payment`
+posts nothing itself; it attaches an existing, already-posted, unreversed
+financial event to an occurrence, capped by that event's own remaining
+eligible amount. When either command's occurrence carries a `fundingGoalId`,
+it also calls task 10's `public.link_goal_purchase` in the same transaction
+to allocate `min(available goal earmark, confirmed amount)` -- reusing that
+command's own double-spend and balance checks rather than duplicating them;
+a zero-earmark goal leaves the bill posted but unfunded, never blocked.
+`public.scheduled_occurrence_page` is a read-only reconciliation projection
+over this schema and cannot create or alter any financial row. No application
+UI entry path calls any of the six yet (checked against `src/` before writing
+this sentence); tasks 15/16 add the gateway and UI surface.
+
 The Loans and Wallets workspaces are the implemented financial entry paths in
 the authenticated application shell; Categories manages metadata only. Wallets
 can create wallets, post the four approved general event shapes, optionally
