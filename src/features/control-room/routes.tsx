@@ -12,6 +12,9 @@ import { GoalsPage } from '../goals/goals-page.js';
 import type { GoalsGateway } from '../goals/types.js';
 import { useGoals } from '../goals/use-goals.js';
 import type { HouseholdGateway } from '../household/types.js';
+import type { RecurringGateway } from '../recurring/types.js';
+import { useRecurring } from '../recurring/use-recurring.js';
+import { UpcomingPage } from '../recurring/upcoming-page.js';
 import type { InsightsClient, CategoryBudgetRow } from '../insights/types.js';
 import type { Currency, Locale, SpaceKind } from '../loans/types.js';
 import type { LoansGateway } from '../loans/types.js';
@@ -74,6 +77,16 @@ const unavailableGoalsGateway: GoalsGateway = {
   async findCommand() { throw new Error('Goals are unavailable until this browser is connected to its data service.'); },
 };
 
+const unavailableRecurringGateway: RecurringGateway = {
+  async loadOccurrences() { throw new Error('Recurring bills are unavailable until this browser is connected to its data service.'); },
+  async saveSchedule() { throw new Error('Recurring bills are unavailable until this browser is connected to its data service.'); },
+  async materialize() { throw new Error('Recurring bills are unavailable until this browser is connected to its data service.'); },
+  async setOccurrenceState() { throw new Error('Recurring bills are unavailable until this browser is connected to its data service.'); },
+  async confirm() { throw new Error('Recurring bills are unavailable until this browser is connected to its data service.'); },
+  async linkExisting() { throw new Error('Recurring bills are unavailable until this browser is connected to its data service.'); },
+  async findCommand() { throw new Error('Recurring bills are unavailable until this browser is connected to its data service.'); },
+};
+
 export interface ControlRoomGateways {
   wallets: WalletsGateway;
   loans: LoansGateway;
@@ -85,6 +98,7 @@ export interface ControlRoomGateways {
   exchange: ExchangeClient | null;
   allocation: AllocationGateway | null;
   goals: GoalsGateway | null;
+  recurring: RecurringGateway | null;
 }
 
 export interface ControlRoomRoutesProps {
@@ -114,6 +128,15 @@ function currentMonthStart(): string {
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+/** Window-bound arithmetic only (never an occurrence's own `dueDate`, which
+ * this feature always displays as the server's plain string, unshifted) --
+ * safe, ordinary `Date` use for picking the materialize/load range. */
+function addDaysIso(iso: string, days: number): string {
+  const date = new Date(`${iso}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
 }
 
 function isSpaceUnavailable(cause: unknown): boolean {
@@ -305,6 +328,26 @@ function GoalsCurrencySection(props: {
   );
 }
 
+function UpcomingBillsSection(props: {
+  locale: Locale;
+  spaceId: string;
+  gateway: RecurringGateway;
+  onSpaceUnavailable?: (() => void) | undefined;
+}) {
+  // A fixed 60-day-ahead window, re-derived every render off "today" rather
+  // than stored in state -- occurrences never need a wider client-chosen
+  // range in this task's scope, and materialize (explicit-refresh only,
+  // never on mount) reuses this exact same bound.
+  const fromDate = todayIso();
+  const toDate = addDaysIso(fromDate, 60);
+  const recurring = useRecurring(props.gateway, props.spaceId, fromDate, toDate, props.onSpaceUnavailable);
+  return (
+    <section className="cr-card" aria-label={props.locale === 'ar' ? 'الفواتير القادمة' : 'Upcoming bills'}>
+      <UpcomingPage locale={props.locale} recurring={recurring} fromDate={fromDate} toDate={toDate} />
+    </section>
+  );
+}
+
 const ALLOCATION_CURRENCIES = ['USD', 'LBP'] as const;
 const GOAL_CURRENCIES = ['USD', 'LBP'] as const;
 
@@ -377,6 +420,12 @@ function PlanRoutes(props: PlanRoutesProps) {
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
       ))}
+      <UpcomingBillsSection
+        locale={locale}
+        spaceId={spaceId}
+        gateway={gateways.recurring ?? unavailableRecurringGateway}
+        onSpaceUnavailable={props.onSpaceUnavailable}
+      />
     </>
   );
 }

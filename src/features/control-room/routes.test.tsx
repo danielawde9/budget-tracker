@@ -41,6 +41,7 @@ function gateways(overrides: {
     exchange: null,
     allocation: null,
     goals: null,
+    recurring: null,
   };
 }
 

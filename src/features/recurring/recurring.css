@@ -1,0 +1,246 @@
+/* ==========================================================================
+   Recurring (upcoming bills) feature -- scoped styles reusing Control
+   Room's tokens (--cr-*) and .cr-card/.cr-button/.cr-skeleton visual
+   language, matching the goals/allocation features' own convention.
+   Logical properties throughout for RTL; no new design tokens.
+   ========================================================================== */
+
+.rec-visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.rec-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cr-space-2);
+  justify-content: space-between;
+}
+
+.rec-heading {
+  font-family: var(--cr-font-display);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.rec-label-muted {
+  color: var(--cr-ink-soft);
+  font-size: 12px;
+}
+
+.rec-danger-text {
+  color: var(--cr-danger);
+}
+
+/* ---- Page shell / filters ------------------------------------------------ */
+
+.rec-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-3);
+}
+
+.rec-filter-tabs button[aria-selected="true"] {
+  background: var(--cr-accent);
+  color: var(--cr-surface-sunken);
+}
+
+.rec-skeleton-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-2);
+}
+
+/* ---- Status badges -------------------------------------------------------
+   Color alone never encodes the state -- every badge carries its own text
+   label, and every numeric figure it sits beside is also spelled out in the
+   accessible table cells around it. */
+
+.rec-badge {
+  display: inline-block;
+  padding: 0 var(--cr-space-2);
+  border-radius: var(--cr-radius-full);
+  font-size: 11px;
+  font-weight: 600;
+}
+.rec-badge-upcoming { background: var(--cr-surface-sunken); color: var(--cr-ink-soft); }
+.rec-badge-due { background: var(--cr-warn-strong); color: #fff; }
+.rec-badge-overdue { background: var(--cr-danger); color: #fff; }
+.rec-badge-partial { background: var(--cr-warn); color: #fff; }
+.rec-badge-paid { background: var(--cr-accent); color: var(--cr-accent-ink); }
+.rec-badge-skipped { background: var(--cr-surface-sunken); color: var(--cr-ink-soft); }
+
+/* ---- Occurrence list: accessible table + per-row bar ---------------------
+   Mirrors allocation-bars.tsx's own table+bar+drilldown shape (task 08). */
+
+.rec-bars {
+  overflow-x: auto;
+}
+
+.rec-bars-table {
+  border-collapse: collapse;
+  inline-size: 100%;
+}
+
+.rec-bars-table th,
+.rec-bars-table td {
+  padding: var(--cr-space-2);
+  text-align: start;
+  vertical-align: middle;
+  border-block-end: 1px solid var(--cr-hairline);
+}
+
+.rec-bar-label {
+  font-weight: 500;
+}
+
+.rec-bar-visual {
+  min-inline-size: 120px;
+}
+
+.rec-progress {
+  block-size: 4px;
+  border-radius: var(--cr-radius-full);
+  background: var(--cr-surface-sunken);
+  overflow: hidden;
+  box-shadow: var(--cr-shadow-sunken);
+}
+.rec-progress > span {
+  display: block;
+  block-size: 100%;
+  border-radius: inherit;
+  background: var(--cr-accent);
+  transition: inline-size 200ms var(--cr-ease);
+}
+.rec-progress[data-over="true"] > span {
+  background: var(--cr-danger);
+}
+
+.rec-overage-text {
+  display: block;
+  color: var(--cr-danger);
+  font-size: 11px;
+}
+
+.rec-drilldown-button {
+  white-space: nowrap;
+}
+
+/* ---- Occurrence detail ----------------------------------------------------- */
+
+.rec-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-3);
+}
+
+.rec-amounts-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-2);
+}
+
+.rec-amounts-table {
+  border-collapse: collapse;
+  inline-size: 100%;
+}
+.rec-amounts-table th,
+.rec-amounts-table td {
+  padding: var(--cr-space-2);
+  text-align: start;
+}
+
+/* ---- Editor / payment forms ------------------------------------------------ */
+
+.rec-editor-mode,
+.rec-payment-mode,
+.rec-reference-fields {
+  border: 1px solid var(--cr-hairline);
+  border-radius: var(--cr-radius);
+  padding: var(--cr-space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cr-space-2);
+}
+
+.rec-editor-mode legend,
+.rec-payment-mode legend,
+.rec-reference-fields legend {
+  padding-inline: var(--cr-space-1);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cr-ink-soft);
+}
+
+.rec-required-hint {
+  color: var(--cr-warn-strong);
+  font-size: 11px;
+}
+
+/* Phone-width layouts: responsive table -> stacked cards, the same
+   technique allocation-bars.tsx already uses (task 08). The table stays in
+   the accessibility tree (no display:none on its structure beyond visually
+   hiding the header row, the same clip technique as .rec-visually-hidden)
+   while every control -- including the "Review" drilldown button -- renders
+   inside the viewport instead of requiring a horizontal scroll to reach it.
+   Without this, the "Review" button sits far enough right in a 7-column
+   table that scrolling it into view on a 390px viewport can leave it
+   momentarily under the header row's own buttons mid-scroll -- exactly the
+   click-interception flake a real Playwright run (not a mocked component
+   test) caught here. */
+@media (max-width: 420px) {
+  .rec-bars {
+    overflow-x: visible;
+  }
+  .rec-bars-table thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+  .rec-bars-table,
+  .rec-bars-table tbody,
+  .rec-bar-row {
+    display: block;
+    inline-size: 100%;
+  }
+  .rec-bar-row {
+    padding-block: var(--cr-space-2);
+    border-block-end: 1px solid var(--cr-hairline);
+  }
+  .rec-bars-table th[scope="row"],
+  .rec-bars-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-inline: 0;
+    border-block-end: 0;
+    text-align: end;
+  }
+  .rec-bars-table td[data-label]::before {
+    content: attr(data-label);
+    color: var(--cr-ink-soft);
+    font-size: 11px;
+    text-align: start;
+  }
+  .rec-bar-visual {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--cr-space-1);
+    min-inline-size: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rec-progress > span {
+    transition: none;
+  }
+}

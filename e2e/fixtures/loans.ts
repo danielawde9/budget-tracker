@@ -45,6 +45,14 @@ export interface ApplicationFixtureOptions {
   goalMilestones?: readonly Record<string, unknown>[];
   /** `goal_history_page` JSON object for a goal's detail view. */
   goalHistoryPage?: Record<string, unknown>;
+  /** Upcoming bills: seeds `scheduled_occurrence_page`'s initial rows
+   *  (camelCase, matching the SQL contract exactly). `save_schedule` records
+   *  a schedule definition but creates no occurrence on its own (materialize
+   *  is explicit-only, matching the product rule); `materialize_schedule_
+   *  occurrences` then creates one occurrence per active schedule whose
+   *  `startsOn` falls at or before the requested range's end, the same
+   *  read/write split already used for allocation/goals above. */
+  seedOccurrences?: readonly Record<string, unknown>[];
 }
 
 const defaultAllocationMonth: Record<string, unknown> = {
@@ -273,6 +281,12 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
   const earmarkHeadByGoal = new Map<string, string>();
   const milestoneStates = new Map<string, 'complete' | 'incomplete'>();
   const goalReceipts = new Map<string, { command: string; sequenceId: string; result: unknown }>();
+  const occurrences: Record<string, unknown>[] = cloneRows(options.seedOccurrences ?? []);
+  const schedules: { id: string; revisionId: string; definition: Record<string, unknown> }[] = [];
+  let nextScheduleRevisionId = 100;
+  let nextOccurrenceEventId = 100;
+  let nextMaterializedOccurrenceId = 100;
+  const recurringReceipts = new Map<string, { command: string; sequenceId: string; result: unknown }>();
 
   function goalHead(goalId: string): string {
     return earmarkHeadByGoal.get(goalId) ?? '0'.repeat(64);
@@ -580,8 +594,102 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
     }
     if (path.endsWith('/rpc/find_planning_command')) {
       const body = request.postDataJSON() as { p_request_id: string };
-      const receipt = allocationReceipts.get(body.p_request_id) ?? goalReceipts.get(body.p_request_id);
+      const receipt = allocationReceipts.get(body.p_request_id) ?? goalReceipts.get(body.p_request_id) ?? recurringReceipts.get(body.p_request_id);
       return json(route, receipt ?? null);
+    }
+    if (path.endsWith('/rpc/scheduled_occurrence_page')) {
+      return json(route, { rows: cloneRows(occurrences), hasMore: false, nextCursor: null, asOf: '2026-09-14' });
+    }
+    if (path.endsWith('/rpc/save_schedule')) {
+      const body = request.postDataJSON() as { p_request_id: string; p_schedule_id: string; p_definition: Record<string, unknown> };
+      const existing = recurringReceipts.get(body.p_request_id);
+      if (existing) return json(route, existing.result);
+      const revisionId = String(nextScheduleRevisionId++);
+      const index = schedules.findIndex((row) => row.id === body.p_schedule_id);
+      const scheduleRow = { id: body.p_schedule_id, revisionId, definition: body.p_definition };
+      if (index >= 0) schedules[index] = scheduleRow; else schedules.push(scheduleRow);
+      const result = { scheduleId: body.p_schedule_id, revisionId };
+      recurringReceipts.set(body.p_request_id, { command: 'save_schedule', sequenceId: revisionId, result });
+      return json(route, result);
+    }
+    if (path.endsWith('/rpc/materialize_schedule_occurrences')) {
+      const body = request.postDataJSON() as { p_request_id: string; p_from_date: string; p_to_date: string };
+      const existing = recurringReceipts.get(body.p_request_id);
+      if (existing) return json(route, existing.result);
+      let createdCount = 0;
+      let existingCount = 0;
+      for (const schedule of schedules) {
+        const def = schedule.definition;
+        if (def['state'] !== 'active') continue;
+        const startsOn = def['startsOn'] as string;
+        if (startsOn > body.p_to_date) continue;
+        if (occurrences.some((occurrence) => occurrence['scheduleId'] === schedule.id)) { existingCount += 1; continue; }
+        occurrences.push({
+          // A materialized occurrence id must itself be a valid UUID (the
+          // gateway's own `uuid()` parser rejects anything else) -- never
+          // derive it by string-suffixing the schedule's id.
+          id: `c0000000-0000-4000-8000-${String(nextMaterializedOccurrenceId++).padStart(12, '0')}`,
+          scheduleId: schedule.id, sourceRevisionId: schedule.revisionId, currentEventId: null,
+          currency: def['currency'], kind: def['kind'], nameEn: def['nameEn'], nameAr: def['nameAr'], dueDate: startsOn,
+          expectedMinor: def['expectedMinor'], settledMinor: '0', remainingMinor: def['expectedMinor'], state: 'pending', overdue: false,
+          categoryId: def['categoryId'], loanId: def['loanId'], fundingGoalId: def['fundingGoalId'], preferredWalletId: def['preferredWalletId'],
+          fundingShortfallMinor: null, asOf: '2026-09-14',
+        });
+        createdCount += 1;
+      }
+      const result = { createdCount, existingCount, fromDate: body.p_from_date, toDate: body.p_to_date };
+      recurringReceipts.set(body.p_request_id, { command: 'materialize_schedule_occurrences', sequenceId: String(createdCount), result });
+      return json(route, result);
+    }
+    if (path.endsWith('/rpc/set_occurrence_state')) {
+      const body = request.postDataJSON() as { p_request_id: string; p_occurrence_id: string; p_action: 'skip' | 'reopen' };
+      const existing = recurringReceipts.get(body.p_request_id);
+      if (existing) return json(route, existing.result);
+      const eventId = String(nextOccurrenceEventId++);
+      const record = occurrences.find((occurrence) => occurrence['id'] === body.p_occurrence_id);
+      if (record) { record['state'] = body.p_action === 'skip' ? 'skipped' : 'pending'; record['currentEventId'] = eventId; }
+      const result = { occurrenceId: body.p_occurrence_id, eventId };
+      recurringReceipts.set(body.p_request_id, { command: 'set_occurrence_state', sequenceId: eventId, result });
+      return json(route, result);
+    }
+    if (path.endsWith('/rpc/confirm_scheduled_occurrence')) {
+      const body = request.postDataJSON() as { p_request_id: string; p_occurrence_id: string; p_actual_amount_minor: string };
+      const existing = recurringReceipts.get(body.p_request_id);
+      if (existing) return json(route, existing.result);
+      const eventId = String(nextOccurrenceEventId++);
+      const financialEventId = `f0000000-0000-4000-8000-${String(nextOccurrenceEventId).padStart(12, '0')}`;
+      const record = occurrences.find((occurrence) => occurrence['id'] === body.p_occurrence_id);
+      if (record) {
+        const settled = BigInt(record['settledMinor'] as string) + BigInt(body.p_actual_amount_minor);
+        const expected = BigInt(record['expectedMinor'] as string);
+        const remaining = expected - settled;
+        record['settledMinor'] = settled.toString();
+        record['remainingMinor'] = (remaining > 0n ? remaining : 0n).toString();
+        record['state'] = remaining > 0n ? 'partial' : 'settled';
+        record['currentEventId'] = eventId;
+      }
+      const result = { occurrenceId: body.p_occurrence_id, occurrenceEventId: eventId, financialEventId };
+      recurringReceipts.set(body.p_request_id, { command: 'confirm_scheduled_occurrence', sequenceId: eventId, result });
+      return json(route, result);
+    }
+    if (path.endsWith('/rpc/link_scheduled_payment')) {
+      const body = request.postDataJSON() as { p_request_id: string; p_occurrence_id: string; p_event_id: string; p_amount_minor: string };
+      const existing = recurringReceipts.get(body.p_request_id);
+      if (existing) return json(route, existing.result);
+      const eventId = String(nextOccurrenceEventId++);
+      const record = occurrences.find((occurrence) => occurrence['id'] === body.p_occurrence_id);
+      if (record) {
+        const settled = BigInt(record['settledMinor'] as string) + BigInt(body.p_amount_minor);
+        const expected = BigInt(record['expectedMinor'] as string);
+        const remaining = expected - settled;
+        record['settledMinor'] = settled.toString();
+        record['remainingMinor'] = (remaining > 0n ? remaining : 0n).toString();
+        record['state'] = remaining > 0n ? 'partial' : 'settled';
+        record['currentEventId'] = eventId;
+      }
+      const result = { occurrenceId: body.p_occurrence_id, occurrenceEventId: eventId, financialEventId: body.p_event_id };
+      recurringReceipts.set(body.p_request_id, { command: 'link_scheduled_payment', sequenceId: eventId, result });
+      return json(route, result);
     }
     if (path.endsWith('/rpc/goal_page')) {
       return json(route, { rows: cloneRows(goals), hasMore: false, nextCursor: null, asOf: '2026-09-14T12:00:00Z' });

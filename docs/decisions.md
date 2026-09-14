@@ -2631,6 +2631,120 @@ the same friendly copy. `src/lib/supabase.ts`'s `BudgetDataClient` now also
 intersects `RecurringDataClient`. Full evidence:
 `docs/verification/future-planning/15.md`.
 
+## 2026-09-14 — Recurring UI lands per task 16, closing Release 3's B1 (bills and pay-cycle control, part 1)
+
+**Decision:** Added the upcoming-bills human flow per
+`docs/superpowers/plans/future-planning/16-recurring-ui.md`, over task 15's
+gateway/hook exactly as exposed -- no new gateway method, no SQL change.
+Mirrored task 13's (goals) exact shape and conventions (`t(locale,en,ar)`
+inline copy, `.cr-card`/`.cr-button` visual language, `rec-*`-prefixed CSS,
+the `unavailableXGateway`/route-wiring pattern) and task 08's (allocation)
+table+bar+drilldown shape for the occurrence list specifically, since this
+screen's natural unit is a *list* of many occurrences each with its own
+expected/settled reading, not one entity's single progress bar. Four
+screen-scoped decisions worth recording because a future task could read
+task 15's gateway differently:
+
+1. **`ScheduleEditor` supports schedule *creation* only -- there is no
+   revise/pause/resume-schedule UI in this task.** `scheduled_occurrence_page`
+   (the only read RPC) projects occurrence rows, not a schedule's own
+   cadence/interval/state/dates; there is no `loadSchedule`/schedule-detail
+   RPC to read those back. A revise UI built from an occurrence row's
+   `sourceRevisionId` (which is the revision that materialized *that*
+   occurrence, not necessarily the schedule's current one) could not
+   honestly pre-fill cadence/interval/state/startsOn/endsOn -- exactly task
+   13's own "note/monthly-amount/priority not shown in revise mode" gap, but
+   worse here since *nothing* about the recurrence rule itself is
+   reconstructable. Rather than silently guess or build a misleading partial
+   revise form, this task scoped to what Task 1's own brief literally asks
+   for ("create a monthly/weekly schedule"). `saveSchedule` (the gateway
+   method) already accepts `expectedRevisionId` for a future revise UI once
+   a schedule-detail projection exists -- this is a UI-scope choice, not a
+   gateway limitation.
+2. **Category/loan/funding-goal/preferred-wallet references are pasted ids
+   in `ScheduleEditor`/`ConfirmPaymentDialog`, never a picker** -- the same
+   scope boundary `GoalPurchaseDialog` (task 13) already used for its
+   expense reference id, for the same reason: a picker means extending
+   Wallets/Loans/Categories' own list UIs, out of this task's owned files.
+   `save_schedule`/`confirm_scheduled_occurrence` validate every reference
+   server-side regardless.
+3. **A `debt_payment` occurrence never shows "Record payment" (the generic
+   wallet/amount confirm path) -- only "Link an existing transaction."**
+   The brief is explicit ("Loan occurrences use their loan flow, never
+   generic expense fields... do not invent a new loan-posting path here").
+   `confirm_scheduled_occurrence` is mechanically generic enough to accept a
+   debt-payment occurrence, but exposing that path in the UI would let a
+   user post a loan repayment through a wallet/amount form that bypasses
+   the loan feature's own flow entirely. Instead, `OccurrenceDetail` passes
+   `allowConfirm={row.kind !== 'debt_payment'}` into `ConfirmPaymentDialog`,
+   which locks to link-only mode and shows an explicit note: record the
+   repayment from the loan's own flow, then link it here via
+   `link_scheduled_payment` (whose own error message already anticipates
+   this: "the referenced event must be a repayment on the occurrence's own
+   loan").
+4. **`UpcomingBillsSection` is one section, not split per currency** (unlike
+   `GoalsCurrencySection`'s `USD`/`LBP` pair) -- `scheduled_occurrence_page`
+   has no currency axis of its own (occurrences of different currencies
+   intermix in one page, each row carrying its own `currency`), so there is
+   nothing to split by. It uses a fixed 60-day-ahead window
+   (`todayIso()..todayIso()+60d`), recomputed every render rather than
+   stored in state, reused verbatim by the explicit "Refresh occurrences"
+   materialize call so that button never silently generates a different
+   range than what is on screen.
+
+**No client-side date arithmetic ever touches an occurrence's own `dueDate`**
+(U16-02's concern) -- every due date in this feature (`upcoming-page.tsx`,
+`occurrence-detail.tsx`) is rendered as the server's plain `YYYY-MM-DD`
+string, never reparsed through a `Date` object; `occurrenceBucket`'s
+upcoming-vs-due split uses plain string comparison
+(`row.dueDate <= row.asOf`) for the same reason. The only `Date` use in this
+feature at all is `routes.tsx`'s `addDaysIso` (the materialize/load window
+bound) and the date-format validators in `ScheduleEditor`/
+`ConfirmPaymentDialog` (which validate a value the *user just typed*, not an
+occurrence's server-computed date) -- structurally, this UI cannot
+reintroduce a Jan31->Feb-overflow-shaped bug because it never computes a
+recurrence date at all, only displays or bounds-checks ones already
+computed.
+
+**No occurrence-detail/history RPC exists** (only the list page), so
+`OccurrenceDetail` reads its row directly out of
+`props.recurring.page.rows` instead of a second fetch -- the same refresh
+`useRecurring` already runs after every accepted command keeps this screen
+current with zero extra plumbing. This structurally avoids task 13's own
+documented defect class (a nested fetch depending on the whole hook object,
+or a local view the shared refresh never touches): there is no second fetch
+here to go stale in the first place. One consequence: there is no
+correction/audit history browsing at the occurrence level (goals' own
+`GoalDetail` has one via `loadHistory`); task 14/15 project none, and adding
+one is a SQL/gateway change out of this task's scope.
+
+`scheduled_occurrence_page`'s `expectedMinor` is contractually positive
+(`parsePositiveMinorAmount` rejects non-positive amounts client-side too,
+mirroring `save_schedule`'s own validation) -- unlike allocation/goals'
+`hasPlan`/nullable-target fields, a schedule occurrence is never genuinely
+target-less. `OccurrenceAmountsTable`'s "no expected amount set" branch and
+the per-row bar's negative-settled guard are therefore defensive
+(defense-in-depth against a malformed DTO), not reachable via any normal
+product flow -- documented in `occurrence-detail.tsx`'s own comments rather
+than pretending the brief's generic "No target vs Explicit zero" pair
+literally applies to a field this DTO cannot leave null.
+
+**Why:** Every one of the four screen-scoped choices above trades a wider,
+more "complete-looking" feature for one that is honest about exactly what
+task 15's gateway can support today -- matching this session's own standing
+rule (a documented default beats an undocumented guess) and task 13's own
+precedent of surfacing, not silently papering over, a DTO projection gap.
+
+**If changed:** if a future task adds a schedule-detail/history projection
+(the natural next SQL/gateway extension), `ScheduleEditor` gains a genuine
+revise mode and `OccurrenceDetail` gains a correction-history section --
+both additive to this task's files, no breaking change to what exists
+today. If a future task decides loan occurrences *should* post through a
+generic confirm path after all, that is a product decision for whoever owns
+the loan feature, not a UI-layer default to flip unilaterally here.
+
+Full evidence: `docs/verification/future-planning/16.md`.
+
 The hook's "current view" is the first page of `scheduled_occurrence_page`
 for a given `(spaceId, fromDate, toDate)` — the closest recurring analogue
 to `useAllocation`'s `(spaceId, month, currency)` and `useGoals`'s

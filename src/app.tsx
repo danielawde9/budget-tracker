@@ -9,6 +9,8 @@ import { createSupabaseCategoriesGateway } from './features/categories/supabase-
 import type { CategoriesGateway } from './features/categories/types.js';
 import { createSupabaseGoalsGateway } from './features/goals/supabase-goals-gateway.js';
 import type { GoalsGateway } from './features/goals/types.js';
+import { createSupabaseRecurringGateway } from './features/recurring/supabase-recurring-gateway.js';
+import type { RecurringGateway } from './features/recurring/types.js';
 import { ControlRoomShell } from './features/control-room/control-room-shell.js';
 import { ControlRoomRoutes } from './features/control-room/routes.js';
 import type { ControlRoomDestination } from './features/control-room/types.js';
@@ -55,6 +57,7 @@ interface AppProps {
   exchangeClient?: ExchangeClient;
   allocationGateway?: AllocationGateway;
   goalsGateway?: GoalsGateway;
+  recurringGateway?: RecurringGateway;
 }
 
 interface AuthenticatedWorkspaceProps {
@@ -73,6 +76,7 @@ interface AuthenticatedWorkspaceProps {
   exchangeClient: ExchangeClient | null;
   allocationGateway: AllocationGateway | null;
   goalsGateway: GoalsGateway | null;
+  recurringGateway: RecurringGateway | null;
   onLocaleChange(): void;
   onHouseholdInvitationConsumed(): void;
   onSignOut(): void;
@@ -169,7 +173,7 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
       spaceId={workspace.selectedSpaceId}
       spaceKind={workspace.selectedSpace.kind}
       destination={activeDestination}
-      gateways={{ wallets: props.walletsGateway, loans: props.loansGateway, categories: props.categoriesGateway, reports: props.reportsGateway, household: props.householdGateway, plan: props.planClient, insights: props.insightsClient, exchange: props.exchangeClient, allocation: props.allocationGateway, goals: props.goalsGateway }}
+      gateways={{ wallets: props.walletsGateway, loans: props.loansGateway, categories: props.categoriesGateway, reports: props.reportsGateway, household: props.householdGateway, plan: props.planClient, insights: props.insightsClient, exchange: props.exchangeClient, allocation: props.allocationGateway, goals: props.goalsGateway, recurring: props.recurringGateway }}
       recordOpen={recordOpen}
       onCloseRecord={() => setRecordOpen(false)}
       onSpaceUnavailable={() => void workspace.refresh()}
@@ -184,16 +188,17 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
   </>;
 }
 
-interface ConfiguredAppProps extends Omit<Required<AppProps>, 'householdInvitationBootstrap' | 'planClient' | 'insightsClient' | 'exchangeClient' | 'allocationGateway' | 'goalsGateway'> {
+interface ConfiguredAppProps extends Omit<Required<AppProps>, 'householdInvitationBootstrap' | 'planClient' | 'insightsClient' | 'exchangeClient' | 'allocationGateway' | 'goalsGateway' | 'recurringGateway'> {
   readonly householdInvitationBootstrap: HouseholdInvitationBootstrap | null;
   readonly planClient: PlanClient | null;
   readonly insightsClient: InsightsClient | null;
   readonly exchangeClient: ExchangeClient | null;
   readonly allocationGateway: AllocationGateway | null;
   readonly goalsGateway: GoalsGateway | null;
+  readonly recurringGateway: RecurringGateway | null;
 }
 
-function ConfiguredApp({ authGateway, categoriesGateway, householdGateway, householdInvitationBootstrap, loansGateway, walletsGateway, reportsGateway, workspaceGateway, planClient, insightsClient, exchangeClient, allocationGateway, goalsGateway }: ConfiguredAppProps) {
+function ConfiguredApp({ authGateway, categoriesGateway, householdGateway, householdInvitationBootstrap, loansGateway, walletsGateway, reportsGateway, workspaceGateway, planClient, insightsClient, exchangeClient, allocationGateway, goalsGateway, recurringGateway }: ConfiguredAppProps) {
   const auth = useAuthSession(authGateway);
   const [locale, setLocale] = useState<Locale>('en');
   const [householdInvitationToken, setHouseholdInvitationToken] = useState(() => householdInvitationBootstrap?.take() ?? null);
@@ -239,13 +244,14 @@ function ConfiguredApp({ authGateway, categoriesGateway, householdGateway, house
     exchangeClient={exchangeClient}
     allocationGateway={allocationGateway}
     goalsGateway={goalsGateway}
+    recurringGateway={recurringGateway}
     onLocaleChange={() => setLocale((current) => current === 'en' ? 'ar' : 'en')}
     onHouseholdInvitationConsumed={() => setHouseholdInvitationToken(null)}
     onSignOut={() => void auth.signOut()}
   />;
 }
 
-export function App({ householdInvitationBootstrap = null, authGateway, categoriesGateway, householdGateway, loansGateway, walletsGateway, reportsGateway, workspaceGateway, planClient, insightsClient, exchangeClient, allocationGateway, goalsGateway }: AppProps = {}) {
+export function App({ householdInvitationBootstrap = null, authGateway, categoriesGateway, householdGateway, loansGateway, walletsGateway, reportsGateway, workspaceGateway, planClient, insightsClient, exchangeClient, allocationGateway, goalsGateway, recurringGateway }: AppProps = {}) {
   const client = useMemo(() => createBrowserDataClient(), []);
   const activeAuthGateway = useMemo(() => authGateway ?? (client ? createSupabaseAuthGateway(client) : null), [authGateway, client]);
   const activeCategoriesGateway = useMemo(() => categoriesGateway ?? (client ? createSupabaseCategoriesGateway(client) : null), [categoriesGateway, client]);
@@ -259,10 +265,11 @@ export function App({ householdInvitationBootstrap = null, authGateway, categori
   const activeExchangeClient = useMemo(() => exchangeClient ?? (client ? createExchangeClient(client) : null), [exchangeClient, client]);
   const activeAllocationGateway = useMemo(() => allocationGateway ?? (client ? createSupabaseAllocationGateway(client) : null), [allocationGateway, client]);
   const activeGoalsGateway = useMemo(() => goalsGateway ?? (client ? createSupabaseGoalsGateway(client) : null), [goalsGateway, client]);
+  const activeRecurringGateway = useMemo(() => recurringGateway ?? (client ? createSupabaseRecurringGateway(client) : null), [recurringGateway, client]);
 
   if (!activeAuthGateway || !activeCategoriesGateway || !activeHouseholdGateway || !activeLoansGateway || !activeWalletsGateway || !activeWorkspaceGateway) {
     return <main className="workspace-state-page configuration-page"><section className="state-panel"><span className="brand">Budget ledger</span><h1>Configuration needed</h1><p>This installation needs its data service before the financial workspace can open.</p><details className="configuration-detail"><summary>Operator setup details</summary><p>Connect this browser to the dedicated Budget development stack before continuing.</p></details></section></main>;
   }
 
-  return <ConfiguredApp householdInvitationBootstrap={householdInvitationBootstrap} authGateway={activeAuthGateway} categoriesGateway={activeCategoriesGateway} householdGateway={activeHouseholdGateway} loansGateway={activeLoansGateway} walletsGateway={activeWalletsGateway} reportsGateway={activeReportsGateway} workspaceGateway={activeWorkspaceGateway} planClient={activePlanClient} insightsClient={activeInsightsClient} exchangeClient={activeExchangeClient} allocationGateway={activeAllocationGateway} goalsGateway={activeGoalsGateway} />;
+  return <ConfiguredApp householdInvitationBootstrap={householdInvitationBootstrap} authGateway={activeAuthGateway} categoriesGateway={activeCategoriesGateway} householdGateway={activeHouseholdGateway} loansGateway={activeLoansGateway} walletsGateway={activeWalletsGateway} reportsGateway={activeReportsGateway} workspaceGateway={activeWorkspaceGateway} planClient={activePlanClient} insightsClient={activeInsightsClient} exchangeClient={activeExchangeClient} allocationGateway={activeAllocationGateway} goalsGateway={activeGoalsGateway} recurringGateway={activeRecurringGateway} />;
 }

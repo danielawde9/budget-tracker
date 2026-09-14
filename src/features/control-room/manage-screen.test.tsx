@@ -20,6 +20,7 @@ function gateways(): ControlRoomGateways {
     exchange: null,
     allocation: null,
     goals: null,
+    recurring: null,
   };
 }
 
