@@ -2111,3 +2111,66 @@ Deploying still requires Daniel to run
 `set -a && source .env.ops.local && set +a && scripts/ops/docker-ssh-bridge.sh run -- pnpm migrate:live`
 himself; Claude does not and will not enter the Supabase PAT/DB password
 prompts.
+
+## 2026-09-14 — Goal and milestone schema lands per task 09, opening Release 2
+
+**Decision:** Added nine tables per
+`docs/superpowers/plans/future-planning/09-goals-schema-db.md`: `goals`,
+versioned `goal_revisions` (milestone definitions are children of a full
+revision snapshot, not a separate stream — target/deadline/milestones can
+never drift out of sync through independent writes), `goal_milestones`
+(stable identity across revisions), `goal_revision_milestones`,
+`goal_milestone_events` (checklist completion history), `goal_earmark_events`/
+`goal_earmark_lines` (an advisory reservation ledger, separate from actual
+money), `goal_purchase_links`, and `goal_monthly_target_revisions`. Three
+deferred constraint triggers enforce cross-row invariants at commit:
+`check_goal_definition` (exact milestone count, thresholds strictly
+increasing and ≤ target by ordinal among amount-kind milestones, due dates
+nondecreasing and ≤ the goal's own deadline, predecessor-chain integrity),
+`check_goal_milestone_event` (a checklist action can only target a
+checklist-kind milestone present in the goal's *current* definition, not one
+a later revision dropped or one of kind `amount`), and
+`check_goal_earmark_event` (exact declared line shape per operation, a
+reverse can only target a non-reverse original, and a nonnegative running
+per-goal balance where only an *increasing* event's own contribution is
+checked against target-less-fulfilled — a decreasing event, e.g. a release,
+is left alone even if the balance is already over a since-lowered target, so
+a legitimate later target reduction never retroactively blocks releasing
+what was validly reserved earlier). Full evidence:
+`docs/verification/future-planning/09.md`.
+
+This is a schema-only DB packet; task 10 (goal commands) adds the RPC layer.
+Every deferred-trigger adapter is `SECURITY DEFINER` and every constraint
+trigger uses the `_publish_check` naming suffix from the very first draft —
+both hard-won lessons from tasks 04/05 (see
+[[deferred-trigger-security-context]] and
+[[postgres-deferred-constraint-gotchas]]) applied proactively this time
+rather than discovered again via a failing test. The result: 37 tests
+passed on the first real-Postgres run, with only two test-authoring bugs
+(asserting on the bare INSERT instead of the later `forceDeferred()` for a
+genuinely deferred violation; and asserting `TRUNCATE` rejection on `goals`
+itself, which Postgres refuses even earlier via its own FK-cascade check —
+0A000 — before any trigger runs at all, since four other tables hold
+`ON DELETE RESTRICT` references into it; fixed by testing `TRUNCATE` on a
+leaf table, `goal_earmark_lines`, that nothing else references) — zero
+actual SQL defects, a first for this roadmap.
+
+**Why:** Re-deriving the same class of bug twice would mean the lessons
+recorded in `docs/decisions.md`/memory across tasks 04–06 weren't actually
+being read before writing new deferred-trigger SQL. Designing the earmark
+balance check around "only the increasing side of an event is checked
+against the ceiling" up front (rather than a naive "recompute and compare
+the whole balance every time") was necessary to satisfy the task's own
+explicit requirement that a target reduction below existing earmark must
+never retroactively invalidate prior reserve rows — a naive design would
+have failed that exact scenario the first time it was tested.
+
+**If changed:** `goal_purchase_links` has no RPC yet and no rows can exist
+until task 10 grants one; `check_goal_earmark_event`'s fulfilled-amount term
+already queries it (always zero today), so task 10 needs no change to this
+check function when it lands. The 100-active/200-relevant-goals-per-space
+cap from `01-sql-contract.md`'s shared caps list is deliberately **not**
+enforced here — it is a count invariant only a command (task 10's
+`create_goal`, holding the space lock) can meaningfully check before
+inserting, the same way allocation's per-template group/root caps live in
+its command layer, not its schema layer.
