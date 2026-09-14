@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest';
 const script = join(process.cwd(), 'scripts/ops/apply-live-migrations.sh');
 const projectRef = 'hqblhzqitrbvpyoxtmew';
 const fixtureProjectRef = projectRef;
-const releaseHead = 'a1346ce0f406deb36fe8778f5e2e47c0af3312e3';
+const releaseHead = '882703bfd3ae8e8250096f639fbaa38873d8b75c';
 const liveRunnerCommit = 'b9537efa69216a42189cbb878c4bfa849a5b52f5';
 const subprocessTimeoutMillis = 10_000;
 const defaultProjects = JSON.stringify([{ id: fixtureProjectRef, name: 'Budget' }]);
@@ -187,19 +187,22 @@ describe('one-time live Supabase migration runner', () => {
     expect(source).not.toContain('SERVICE_ROLE_KEY:?');
   });
 
-  it('verifies the exact 40-row journal and merged schema after application', () => {
+  it('verifies the exact 43-row journal and merged schema after application', () => {
     const source = readFileSync(script, 'utf8');
     const verificationSql = source.slice(
       source.indexOf('readonly LIVE_VERIFY_SQL='),
       source.indexOf('\n\nlive_fail()'),
     );
 
-    expect(verificationSql.match(/'20[0-9]{12}'/g)).toHaveLength(40);
+    expect(verificationSql.match(/'20[0-9]{12}'/g)).toHaveLength(43);
     expect(verificationSql).toContain("'20260908170000'");
     expect(verificationSql).toContain("'20260910100000'");
     expect(verificationSql).toContain("'20260911100000'");
     expect(verificationSql).toContain("'20260912102000'");
     expect(verificationSql).toContain("'20260914100000'");
+    expect(verificationSql).toContain("'20260914110000'");
+    expect(verificationSql).toContain("'20260914120000'");
+    expect(verificationSql).toContain("'20260914130000'");
     expect(verificationSql).toContain("to_regclass('public.household_invitations')");
     expect(verificationSql).toContain(
       "to_regprocedure('public.create_subcategory(uuid,uuid,uuid,text,text)')",
@@ -207,6 +210,13 @@ describe('one-time live Supabase migration runner', () => {
     expect(verificationSql).toContain("to_regprocedure('public.archive_wallet(uuid,uuid,uuid)')");
     expect(verificationSql).toContain("to_regclass('public.monthly_budget_plan_revisions')");
     expect(verificationSql).toContain("to_regclass('public.planning_command_receipts')");
+    expect(verificationSql).toContain("to_regclass('public.allocation_month_snapshots')");
+    expect(verificationSql).toContain(
+      "to_regprocedure('public.publish_allocation_month(uuid,uuid,date,public.currency_code,bigint,bigint,bigint,text,jsonb,uuid)')",
+    );
+    expect(verificationSql).toContain(
+      "to_regprocedure('public.allocation_month_state(uuid,date,public.currency_code,bigint)')",
+    );
     expect(verificationSql).not.toContain("to_regclass('public.subcategories')");
   });
 

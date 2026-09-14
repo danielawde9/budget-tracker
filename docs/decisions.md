@@ -2064,3 +2064,50 @@ set values in both without a documented reconciliation story. If
 gateway cross-reference in `allocation-setup.tsx` can be dropped for a
 single-gateway read. Release 1 (tasks 02–08: allocation DB layers through
 UI) is now complete; task 09 (goal tables) is a new, separate feature.
+
+## 2026-09-14 — Live migration journal extends to the 43-migration release (deploy pending)
+
+**Decision:** Daniel ran `pnpm migrate:live` and the local gate itself
+refused with `unmanifested migration file` (exit 79) before any credential
+was even used — `ops/budget-migrations.sha256` and
+`scripts/ops/apply-live-migrations.sh` were still pinned to task 03's
+foundation release (commit `a1346ce`, 40 migrations) and had never been
+retargeted for tasks 04–06's three new migration files
+(`20260914110000_allocation_schema.sql`, `20260914120000_allocation_commands.sql`,
+`20260914130000_allocation_projections.sql`), exactly the gap this repo's
+own drift-detection tool (`pnpm check:live-migration-drift`, added in task
+05's own packet) exists to catch at review time rather than at deploy time.
+Retargeted both to source commit `882703bfd3ae8e8250096f639fbaa38873d8b75c`
+(task 06's own commit — the last commit that added a migration file), added
+three `to_regclass`/`to_regprocedure` existence checks
+(`public.allocation_month_snapshots`, `public.publish_allocation_month(...)`,
+`public.allocation_month_state(...)`) representing the three new migrations,
+and extended the `schema_migrations` array to all 43 versions. The new
+manifest rows were generated with the script's own
+`migrate-budget.sh create-manifest` (pure local SHA-256 hashing, no network
+or credentials) and verified locally with `verify-manifest` before being
+installed, mirroring exactly `ad69c21`'s prior 38→40 release-prep pattern.
+`tests/ops/live-migrations.test.ts` and `tests/ops/migration-manifest.test.ts`
+were updated to match (43 rows, the new source SHA, the three new checks).
+This commit only reconciles the local gate; it does not run
+`pnpm migrate:live` and does not touch credentials.
+
+**Why:** Every task in this session's roadmap that adds a migration file
+must also extend this manifest/verify-SQL pair in the same spirit as
+`ad69c21` already established — tasks 04–06 added their migrations without
+doing so, so the very first live deploy attempt after task 06 landed was
+always going to fail this gate. Root cause is process, not the gate itself
+working exactly as designed (it is why `--is-ancestor` checks and the
+"tracked changes forbidden" guard exist: to stop a deploy from running
+against a manifest nobody has reviewed against the current migration set).
+
+**If changed:** Any future packet that adds a `supabase/migrations/*.sql`
+file must, in the same commit or a same-day follow-up, regenerate
+`ops/budget-migrations.sha256` (via `migrate-budget.sh create-manifest`) and
+retarget `LIVE_MANIFEST_SOURCE_SHA`/`LIVE_VERIFY_SQL` in
+`apply-live-migrations.sh` to the new migration-adding commit — do not defer
+this to a separate "release prep" packet as happened across tasks 04–06.
+Deploying still requires Daniel to run
+`set -a && source .env.ops.local && set +a && scripts/ops/docker-ssh-bridge.sh run -- pnpm migrate:live`
+himself; Claude does not and will not enter the Supabase PAT/DB password
+prompts.

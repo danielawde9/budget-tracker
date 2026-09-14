@@ -9,7 +9,7 @@ readonly LIVE_REPO_ROOT="$(cd "${LIVE_SCRIPT_DIR}/../.." && pwd -P)"
 source "${LIVE_SCRIPT_DIR}/budget-common.sh"
 
 readonly LIVE_PROJECT_REF='hqblhzqitrbvpyoxtmew'
-readonly LIVE_MANIFEST_SOURCE_SHA='a1346ce0f406deb36fe8778f5e2e47c0af3312e3'
+readonly LIVE_MANIFEST_SOURCE_SHA='882703bfd3ae8e8250096f639fbaa38873d8b75c'
 readonly LIVE_CONFIRMATION="APPLY LIVE MIGRATIONS TO ${LIVE_PROJECT_REF}"
 readonly LIVE_MAX_PROJECT_LIST_BYTES=1048576
 readonly LIVE_SUPABASE_BIN="${BUDGET_SUPABASE_BIN:-$(command -v supabase || true)}"
@@ -27,6 +27,9 @@ readonly LIVE_VERIFY_SQL="select case when
   and to_regprocedure('public.archive_wallet(uuid,uuid,uuid)') is not null
   and to_regclass('public.monthly_budget_plan_revisions') is not null
   and to_regclass('public.planning_command_receipts') is not null
+  and to_regclass('public.allocation_month_snapshots') is not null
+  and to_regprocedure('public.publish_allocation_month(uuid,uuid,date,public.currency_code,bigint,bigint,bigint,text,jsonb,uuid)') is not null
+  and to_regprocedure('public.allocation_month_state(uuid,date,public.currency_code,bigint)') is not null
   and (select array_agg(version order by version) from supabase_migrations.schema_migrations)
     = array[
       '20260907100000','20260907110000','20260907120000','20260907130000',
@@ -38,7 +41,8 @@ readonly LIVE_VERIFY_SQL="select case when
       '20260908174000','20260908175000','20260908176000','20260908177000',
       '20260908178000','20260908179000','20260908180000','20260910100000',
       '20260911100000','20260912090000','20260912100000','20260912101000',
-      '20260912101500','20260912102000','20260914090000','20260914100000'
+      '20260912101500','20260912102000','20260914090000','20260914100000',
+      '20260914110000','20260914120000','20260914130000'
     ]::text[]
   then 'budget_schema_ready'
   else 'budget_schema_incomplete'
