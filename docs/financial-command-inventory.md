@@ -55,6 +55,16 @@ refuses every money movement into an archived wallet, including reversals and
 loan postings, so it narrows what the posting commands above can write without
 adding a writer. No browser entry path calls the lifecycle commands yet.
 
+`public.report_monthly_cash_summary`, `public.report_wallet_activity`,
+`public.report_category_actual_vs_budget`, and
+`public.monthly_budget_category_page_v2` are read-only reporting projections,
+not posting commands. They read the existing journal, wallet movements, and
+monthly plan revisions and cannot create or alter a financial event, movement,
+loan posting, balance, or category association. No application UI entry path
+calls them yet; the future-planning reporting-foundation verification packet
+(`docs/superpowers/plans/future-planning/02-reporting-verification.md`) is
+their first real-Postgres exercise, in `tests/db/planning-projections.integration.test.ts`.
+
 The Loans and Wallets workspaces are the implemented financial entry paths in
 the authenticated application shell; Categories manages metadata only. Wallets
 can create wallets, post the four approved general event shapes, optionally

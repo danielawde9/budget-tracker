@@ -1662,3 +1662,48 @@ Reconciling the pinned manifest is the documented prerequisite from the
 source database, imported data, or expanded journal requires a new review and
 explicit owner approval, plus a matching update to this manifest and the two
 ops tests, mirroring this same procedure.
+
+## 2026-09-14 — Reporting foundation was unexecuted; task 02 fixes it forward
+
+**Decision:** The three `report_*` functions added by
+`20260912102000_reporting_read_models.sql` had never been exercised against a
+real PostgreSQL engine before this session and did not run at all:
+`report_monthly_cash_summary` failed its own RETURNS TABLE contract
+(`sum(bigint)` yields `numeric`), and `report_category_actual_vs_budget`
+failed on every call, twice over (its `currency` OUT parameter is ambiguous
+against a bare column reference in its own query, and it is `SECURITY
+INVOKER` reading a table with all privileges revoked). Both functions also
+re-negated an already-correctly-signed reversal movement, doubling a reversed
+income/expense instead of netting it to zero. `monthly_budget_category_page`
+accepted a `created_at` cursor it never returned, making pagination
+unusable, and had no root-only guard on monthly budget targets despite the
+subcategory model requiring one.
+`supabase/migrations/20260914090000_planning_projection_contracts.sql` fixes
+all of the above via `CREATE OR REPLACE` (no prior migration edited): corrects
+the sign and bigint-cast defects, converts `report_category_actual_vs_budget`
+to `SECURITY DEFINER` with the same authenticated-only grant boundary, adds a
+root-only trigger plus an application-level check on
+`monthly_budget_plan_revisions`, and adds `monthly_budget_category_page_v2`
+(returning its cursor timestamp as `text`, since a JS client's `Date`
+round-trip truncates `timestamptz` to millisecond precision and can
+duplicate/drop rows across a page boundary) while leaving v1 for existing
+consumers. Full evidence: `docs/verification/future-planning/02.md`.
+
+**Why:** `docs/superpowers/plans/future-planning/02-reporting-verification.md`
+requires proving these paths in real PostgreSQL before new budgets depend on
+them, precisely because a migration having applied is not evidence it runs
+correctly. None of these defects could have been found without a real
+engine: they are runtime/type-checking failures, not migration-apply-time
+syntax errors.
+
+**If changed:** A new `financial_event_kind` value must be added to the
+literal classification map in
+`tests/db/planning-projections.integration.test.ts` before it is used in
+reporting. `monthly_budget_category_page` (v1) is unchanged and still used by
+any existing caller; a UI/gateway migration to v2 is a separate, later
+packet. The full 15-file `tests/db` suite could not be run to completion in
+this sandboxed session (stalled after `household-membership.integration.test.ts`
+on real network latency, not a code fault); that file's one pre-existing,
+unrelated failure (`uses the selective membership and invitation indexes
+after representative ANALYZE`) is not fixed here and needs a session with
+reliable full-suite network access.
