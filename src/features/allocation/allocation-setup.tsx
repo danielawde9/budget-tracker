@@ -5,6 +5,7 @@ import { AllocationOverview } from './allocation-overview.js';
 import { basisPointsToPercentText } from './money-allocation.js';
 import type { AllocationCategoryRow, AllocationGateway, AllocationGroupRow, PublishMonthResult, SaveTemplateResult } from './types.js';
 import type { useAllocation } from './use-allocation.js';
+import { AllocationSkeleton } from '../control-room/skeletons.js';
 
 const t = (locale: Locale, en: string, ar: string) => (locale === 'ar' ? ar : en);
 
@@ -74,7 +75,7 @@ export function AllocationSetup(props: AllocationSetupProps) {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   if (allocation.status === 'loading') {
-    return <p>{t(locale, 'Loading allocation…', 'جارٍ تحميل التخصيص…')}</p>;
+    return <AllocationSkeleton locale={locale} />;
   }
   if (allocation.status === 'error') {
     return (

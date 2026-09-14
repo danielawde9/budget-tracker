@@ -519,8 +519,10 @@
   padding-block: var(--cr-space-3);
   border-block-end: 1px solid var(--cr-border);
   font-size: 14px;
+  animation: cr-row-in var(--cr-duration) var(--cr-ease);
 }
 .cr-journal-row:last-child { border-block-end: 0; }
+@keyframes cr-row-in { from { opacity: 0; transform: translateY(-6px); } }
 .cr-journal-row--button {
   inline-size: 100%;
   background: none;
@@ -888,9 +890,106 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cr-sheet-backdrop, .cr-sheet, .cr-skeleton { animation: none; }
+  .cr-sheet-backdrop, .cr-sheet, .cr-skeleton, .cr-journal-row { animation: none; }
   .cr-skeleton { background: var(--cr-surface-sunken); }
   .cr-tab, .cr-fab, .cr-rail-record, .cr-button, .cr-chip, .cr-type-tile, .cr-keypad button,
   .cr-journal-row--button, .cr-record-wallet, .cr-record-category,
   .cr-progress > span, .cr-bars > span { transition: none; }
 }
+
+/* ==========================================================================
+   Manage-section normalization — Wallets, Categories, Loans, and Household
+   (styles.css) still carry their old full-desktop-page rhythm (huge hero
+   h1s, 28-64px section gaps) from before they lived inside this mobile
+   shell. Rather than rewrite their markup, bring their outer spacing/type
+   scale down to the cr- rhythm wherever they're mounted here (Manage), so
+   nothing reads as a foreign page when you tab between sections. Internal
+   row/dialog layouts are intentionally left untouched.
+   ========================================================================== */
+
+.cr-main h1,
+.cr-main .topbar h1 {
+  font-size: 23px;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  font-weight: 700;
+}
+.cr-main .brand {
+  margin-bottom: var(--cr-space-2);
+  font-size: 12px;
+}
+.cr-main .topbar,
+.cr-main .page-header {
+  padding-bottom: var(--cr-space-4);
+  border-bottom: 1px solid var(--cr-hairline);
+}
+.cr-main .topbar p {
+  margin: var(--cr-space-2) 0 0;
+  max-width: 52ch;
+  font-size: 14px;
+}
+.cr-main .household-columns,
+.cr-main .category-registers,
+.cr-main .wallet-journal-layout {
+  gap: var(--cr-space-5);
+  margin-block-start: var(--cr-space-5);
+}
+.cr-main .household-self-access {
+  margin-block-start: var(--cr-space-5);
+}
+.cr-main .controls,
+.cr-main .workspace-toolbar {
+  gap: var(--cr-space-3);
+  padding-block: var(--cr-space-3);
+}
+.cr-main .loan-columns {
+  gap: var(--cr-space-5);
+}
+.cr-main .summary {
+  margin: var(--cr-space-4) 0 var(--cr-space-5);
+}
+.cr-main .state-panel,
+.cr-main .empty {
+  padding: var(--cr-space-4) var(--cr-space-1);
+}
+.cr-main button,
+.cr-main input,
+.cr-main select,
+.cr-main textarea {
+  border-radius: var(--cr-radius-sm);
+}
+@media (max-width: 1023px) {
+  .cr-main .household-columns { margin-block-start: var(--cr-space-4); }
+  .cr-main .wallet-journal-layout { gap: var(--cr-space-5); }
+  .cr-main .loan-columns { gap: var(--cr-space-5); }
+}
+
+/* The transaction table's 6-column grid (styles.css) needs ~600px of
+   minimum column width and was only ever given the narrow, stacked
+   treatment below a 1023px *viewport* — but inside this shell the
+   journal's actual column is capped at var(--cr-content-w) regardless of
+   viewport, so on any wide screen the table blew past its ~370px box and
+   painted over the balances beside it. Apply the narrow treatment here
+   unconditionally instead of behind that viewport media query. */
+.cr-main .wallet-journal-layout { display: flex; flex-direction: column; }
+.cr-main .journal,
+.cr-main .wallet-context { inline-size: 100%; }
+.cr-main .journal-column-headings { display: none; }
+.cr-main .journal-movement { grid-template-columns: minmax(0, 1fr) auto; gap: 4px var(--cr-space-4); padding-block: 11px; }
+.cr-main .journal-filters { grid-template-columns: 1fr; }
+.cr-main .journal-movement time { grid-column: 1; grid-row: 1; }
+.cr-main .journal-movement strong { grid-column: 1; grid-row: 2; }
+.cr-main .journal-movement > bdi:first-of-type { grid-column: 1; grid-row: 3; }
+.cr-main .journal-category-cell { grid-column: 1; grid-row: 4; }
+.cr-main .journal-movement > bdi:last-child { grid-column: 2; grid-row: 1 / span 5; }
+.cr-main .journal-movement [role="cell"]::before {
+  content: attr(data-label);
+  display: block;
+  color: var(--cr-ink-soft);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.cr-main .journal-movement > bdi:last-child::before { text-align: end; }
+.cr-main .journal-state { justify-content: flex-start; }

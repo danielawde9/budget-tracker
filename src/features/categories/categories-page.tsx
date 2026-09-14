@@ -7,6 +7,7 @@ import { localizeCategoryError } from './errors.js';
 import { SubcategoryDialog } from './subcategory-dialog.js';
 import type { CategoriesGateway, Category, CategoryKind } from './types.js';
 import { useCategories } from './use-categories.js';
+import { CategoriesSkeleton } from '../control-room/skeletons.js';
 
 interface CategoriesPageProps {
   gateway: CategoriesGateway;
@@ -94,7 +95,7 @@ export function CategoriesPage({ gateway, spaceId, locale = 'en', onSpaceUnavail
 
     <div className="category-kind-tabs" role="group" aria-label={t(locale, 'Category type', 'نوع الفئة')}><button type="button" className={activeKind === 'income' ? 'category-tab-active' : ''} aria-pressed={activeKind === 'income'} onClick={() => setActiveKind('income')}>{t(locale, 'Income', 'الدخل')}</button><button type="button" className={activeKind === 'expense' ? 'category-tab-active' : ''} aria-pressed={activeKind === 'expense'} onClick={() => setActiveKind('expense')}>{t(locale, 'Expense', 'المصروف')}</button></div>
 
-    {state.status === 'loading' && <div className="state-panel" role="status" aria-label={t(locale, 'Loading categories', 'تحميل الفئات')}>{t(locale, 'Loading this space’s categories…', 'جارٍ تحميل فئات هذه المساحة…')}</div>}
+    {state.status === 'loading' && <CategoriesSkeleton locale={locale} />}
     {state.status === 'error' && <div className="state-panel error-notice" role="alert"><strong>{t(locale, 'Categories are unavailable', 'الفئات غير متاحة')}</strong><p>{loadError?.message}</p><p>{loadError?.recovery}</p><button type="button" onClick={() => void state.refresh()}>{t(locale, 'Try again', 'المحاولة مجددًا')}</button></div>}
     {state.status === 'ready' && <div className="category-registers">
       <CategoryRegister locale={locale} kind="income" categories={state.incomeCategories} activeKind={activeKind} nextCursor={state.incomeNextCursor} loadingMore={state.loadingMore === 'income'} onArchive={(category) => setDialog({ archive: category })} onCreateSubcategory={(category) => setDialog({ createSubcategory: category })} onLoadMore={() => void state.loadMore('income')} />

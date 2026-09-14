@@ -5,6 +5,7 @@ import { localizeHouseholdError } from './errors.js';
 import { HouseholdConfirmDialog, InviteHouseholdDialog } from './household-dialogs.js';
 import type { HouseholdGateway, HouseholdInvitation, HouseholdMembership, MemberRole } from './types.js';
 import { useHousehold } from './use-household.js';
+import { HouseholdSkeleton } from '../control-room/skeletons.js';
 
 interface HouseholdPageProps {
   readonly gateway: HouseholdGateway;
@@ -58,7 +59,7 @@ export function HouseholdPage(props: HouseholdPageProps) {
   const formatDate = useCallback((value: string) => new Intl.DateTimeFormat(props.locale === 'ar' ? 'ar-LB' : 'en-US', { dateStyle: 'medium' }).format(new Date(value)), [props.locale]);
 
   if (household.status === 'loading') {
-    return <div className="state-panel" role="status" aria-label={text.loading}>{text.loading}…</div>;
+    return <HouseholdSkeleton locale={props.locale} label={`${text.loading}…`} />;
   }
   if (household.status === 'error') {
     return <section className="state-panel"><ErrorNotice error={household.error} locale={props.locale} /><button type="button" onClick={() => void household.retry()}>{text.tryAgain}</button></section>;

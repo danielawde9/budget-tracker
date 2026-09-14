@@ -5,6 +5,7 @@ import { GoalDetail } from './goal-detail.js';
 import { GoalEditor } from './goal-editor.js';
 import type { GoalStateFilter, GoalSummary } from './types.js';
 import type { GoalsState } from './use-goals.js';
+import { GoalsSkeleton } from '../control-room/skeletons.js';
 
 interface GoalsPageProps {
   locale: Locale;
@@ -53,7 +54,7 @@ export function GoalsPage(props: GoalsPageProps) {
         className="cr-button" onClick={() => setStateFilter(filter)}>{filterLabel(props.locale, filter)}</button>)}
     </div>
 
-    {goals.status === 'loading' && <p>{t(props.locale, 'Loading…', 'جارٍ التحميل…')}</p>}
+    {goals.status === 'loading' && <GoalsSkeleton locale={props.locale} />}
     {goals.status === 'error' && <div className="cr-card" role="alert">
       <p>{goals.error?.message}</p>
       <p><small>{goals.error?.recovery}</small></p>

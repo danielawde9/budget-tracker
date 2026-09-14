@@ -15,6 +15,7 @@ import { TransactionDialog } from './transaction-dialog.js';
 import type { JournalEvent, JournalEventKind, WalletProjection } from './types.js';
 import type { WalletsState } from './use-wallets.js';
 import { WalletDialog } from './wallet-dialog.js';
+import { WalletsSkeleton } from '../control-room/skeletons.js';
 
 interface WalletsPageProps {
   categoriesGateway?: CategoriesGateway;
@@ -108,7 +109,7 @@ export function WalletsPage({ categoriesGateway, spaceId, userId, walletState, l
       <div className="wallet-actions"><button type="button" className="button-secondary" onClick={() => setDialog('wallet')}>{t(locale, 'New wallet', 'محفظة جديدة')}</button><button type="button" disabled={walletState.wallets.length === 0 || walletState.status !== 'ready'} onClick={() => openQuickEntry()}>{t(locale, 'Add transaction', 'إضافة معاملة')}</button></div>
     </header>
 
-    {walletState.status === 'loading' && <div className="state-panel" role="status" aria-label="Loading wallets">{t(locale, 'Loading this space’s wallets…', 'جارٍ تحميل محافظ هذه المساحة…')}</div>}
+    {walletState.status === 'loading' && <WalletsSkeleton locale={locale} />}
     {walletState.status === 'error' && <div className="state-panel error-notice" role="alert"><strong>{t(locale, 'Wallets are unavailable', 'المحافظ غير متاحة')}</strong><p>{journalCategoryError?.message ?? walletState.error}</p>{journalCategoryError && <p>{journalCategoryError.recovery}</p>}<button type="button" onClick={() => void walletState.refresh()}>{t(locale, 'Try again', 'المحاولة مجددًا')}</button></div>}
     {categoriesGateway && categoryState.status === 'error' && <div className="state-panel error-notice" role="alert"><strong>{t(locale, 'Categories are unavailable', 'الفئات غير متاحة')}</strong><p>{categoryError?.message}</p><p>{categoryError?.recovery}</p><button type="button" onClick={() => void categoryState.refresh()}>{t(locale, 'Try again', 'المحاولة مجددًا')}</button></div>}
     {walletState.status === 'ready' && <div className="wallet-journal-layout">

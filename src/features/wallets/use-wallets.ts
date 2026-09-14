@@ -266,13 +266,12 @@ export function useWallets(
   const reconcileCommand = useCallback(async (
     command: RetryCommand,
   ): Promise<CommandOutcome> => {
-    const categorized = command.kind === 'record' && command.categoryId !== null;
     if (command.kind === 'rename' || command.kind === 'archive' || command.kind === 'restore') {
       try {
         if (command.kind === 'rename') await gateway.renameWallet(command.input);
         else if (command.kind === 'archive') await gateway.archiveWallet(command.input);
         else await gateway.restoreWallet(command.input);
-        await refreshAfterCommand(false);
+        await refreshAfterCommand(true);
         return { status: 'success', reconciled: false };
       } catch (cause) {
         if (!isAmbiguousTransportFailure(cause)) throw cause;
@@ -284,7 +283,7 @@ export function useWallets(
           throw reconciliationCause;
         }
         if (record && record.commandKind === walletLifecycleKind(command.kind) && record.walletId === command.input.walletId) {
-          await refreshAfterCommand(false);
+          await refreshAfterCommand(true);
           return { status: 'success', reconciled: true };
         }
         setRetry(command);
@@ -318,8 +317,8 @@ export function useWallets(
           ...command.description,
         });
       }
-      const refreshed = await refreshAfterCommand(categorized);
-      return { status: categorized && !refreshed ? 'refresh-required' : 'success', reconciled: false };
+      const refreshed = await refreshAfterCommand(true);
+      return { status: refreshed ? 'success' : 'refresh-required', reconciled: false };
     } catch (cause) {
       if (!isAmbiguousTransportFailure(cause)) throw cause;
       let event;
@@ -342,8 +341,8 @@ export function useWallets(
             ...command.description,
           });
         }
-        const refreshed = await refreshAfterCommand(categorized);
-        return { status: categorized && !refreshed ? 'refresh-required' : 'success', reconciled: true };
+        const refreshed = await refreshAfterCommand(true);
+        return { status: refreshed ? 'success' : 'refresh-required', reconciled: true };
       }
       setRetry(command);
       return { status: 'ambiguous', reconciled: false };

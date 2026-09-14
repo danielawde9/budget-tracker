@@ -100,7 +100,8 @@ bdi, dd, strong { font-variant-numeric: tabular-nums; }
 .journal-column-headings, .journal-movement { display: grid; grid-template-columns: 92px minmax(92px, 1fr) minmax(100px, 1.1fr) minmax(100px, 1fr) minmax(120px, 1fr) minmax(92px, auto); gap: 14px; align-items: center; }
 .journal-column-headings { padding: 13px 4px 10px; color: #68756c; border-block-end: 1px solid #bdc7bd; font-size: .72rem; font-weight: 760; letter-spacing: .07em; text-transform: uppercase; }
 .journal-column-headings span:last-child { text-align: end; }
-.journal-row { padding-block: 12px; border-block-end: 1px solid #c7cfc7; }
+.journal-row { padding-block: 12px; border-block-end: 1px solid #c7cfc7; animation: row-in 160ms ease-out; }
+@keyframes row-in { from { opacity: 0; transform: translateY(-6px); } }
 .journal-movement { min-block-size: 40px; padding: 7px 4px; }
 .journal-movement time, .journal-state { color: #68756c; font-size: .82rem; }
 .journal-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-block: 14px; }

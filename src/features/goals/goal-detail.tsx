@@ -9,6 +9,7 @@ import { GoalMilestones } from './goal-milestones.js';
 import { GoalPurchaseDialog } from './goal-purchase-dialog.js';
 import type { GoalDetail as GoalDetailData, GoalHistoryRow, GoalState, GoalSummary } from './types.js';
 import type { GoalsState } from './use-goals.js';
+import { GoalDetailSkeleton } from '../control-room/skeletons.js';
 
 interface GoalDetailProps {
   locale: Locale;
@@ -139,7 +140,7 @@ export function GoalDetail(props: GoalDetailProps) {
     setDialog('edit');
   }
 
-  if (status === 'loading') return <p>{t(props.locale, 'Loading…', 'جارٍ التحميل…')}</p>;
+  if (status === 'loading') return <GoalDetailSkeleton locale={props.locale} />;
   if (status === 'error' || !detail) return <div className="cr-card" role="alert">
     <p>{error?.message}</p>
     <p><small>{error?.recovery}</small></p>

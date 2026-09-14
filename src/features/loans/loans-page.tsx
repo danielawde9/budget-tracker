@@ -5,6 +5,7 @@ import { LoanSummary } from './loan-summary.js';
 import { CorrectionDialog, CreateLoanDialog, LoanDetailDialog, RepaymentDialog, TargetDialog } from './loan-dialogs.js';
 import { useLoans } from './use-loans.js';
 import type { Loan, LoansGateway, Locale, Space } from './types.js';
+import { LoansSkeleton } from '../control-room/skeletons.js';
 
 interface LoansPageProps {
   gateway: LoansGateway;
@@ -50,7 +51,7 @@ export function LoansPage({ gateway, locale: controlledLocale, spaces: controlle
       {!embedded && state.dashboard ? <span className="space-kind">{translate(locale, state.dashboard.space.kind)}</span> : null}
     </section>
 
-    {state.loading && !state.dashboard ? <div className="state-panel" role="status">Loading the ledger…</div> : null}
+    {state.loading && !state.dashboard ? <LoansSkeleton locale={locale} /> : null}
     {state.error ? <div className="state-panel error-notice" role="alert"><strong>{state.error.title}</strong><p>{state.error.message}</p><p>{state.error.recovery}</p><button type="button" onClick={() => void state.retry()}>{translate(locale, 'tryAgain')}</button></div> : null}
     {state.dashboard ? <>
       <LoanSummary summaries={state.dashboard.summaries} locale={locale} />

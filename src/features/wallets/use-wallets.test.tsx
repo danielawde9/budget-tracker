@@ -314,6 +314,57 @@ describe('useWallets', () => {
     expect(categories.recordCategorizedEvent).not.toHaveBeenCalled();
   });
 
+  it('keeps the current projection visible while an uncategorized record refresh is pending', async () => {
+    const refresh = deferred<WalletsSnapshot>();
+    const loadSnapshot = vi.fn()
+      .mockResolvedValueOnce(walletSnapshot)
+      .mockReturnValueOnce(refresh.promise);
+    const service = gateway({ loadSnapshot });
+    const { result } = renderHook(() => useWallets(service, 'space-1'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(result.current.wallets).toEqual(walletSnapshot.wallets);
+
+    let posted!: ReturnType<typeof result.current.recordEvent>;
+    act(() => {
+      posted = result.current.recordEvent({
+        kind: 'expense',
+        effectiveDate: '2026-09-08',
+        movements: [{ walletId: 'wallet-1', amountMinor: '-500' }],
+      });
+    });
+
+    await waitFor(() => expect(loadSnapshot).toHaveBeenCalledTimes(2));
+    expect(result.current.status).toBe('ready');
+    expect(result.current.wallets).toEqual(walletSnapshot.wallets);
+
+    refresh.resolve(walletSnapshot);
+    await act(async () => { await posted; });
+    expect(result.current.status).toBe('ready');
+  });
+
+  it('keeps the current projection visible while a reversal refresh is pending', async () => {
+    const refresh = deferred<WalletsSnapshot>();
+    const loadSnapshot = vi.fn()
+      .mockResolvedValueOnce(walletSnapshot)
+      .mockReturnValueOnce(refresh.promise);
+    const service = gateway({ loadSnapshot });
+    const { result } = renderHook(() => useWallets(service, 'space-1'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    let reversed!: ReturnType<typeof result.current.reverseEvent>;
+    act(() => {
+      reversed = result.current.reverseEvent({ eventId: 'event-1', effectiveDate: '2026-09-08' });
+    });
+
+    await waitFor(() => expect(loadSnapshot).toHaveBeenCalledTimes(2));
+    expect(result.current.status).toBe('ready');
+    expect(result.current.wallets).toEqual(walletSnapshot.wallets);
+
+    refresh.resolve(walletSnapshot);
+    await act(async () => { await reversed; });
+    expect(result.current.status).toBe('ready');
+  });
+
   it('routes a categorized expense through the protected categories command', async () => {
     const wallets = gateway();
     const categories = categoriesGateway();

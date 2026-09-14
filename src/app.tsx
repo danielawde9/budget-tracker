@@ -35,6 +35,7 @@ import { classifyHouseholdError, localizeHouseholdError, type HouseholdErrorView
 import type { HouseholdInvitationBootstrap } from './features/household/invitation-fragment.js';
 import { createSupabaseReportsGateway } from './features/reports/supabase-reports-gateway.js';
 import type { ReportsGateway } from './features/reports/types.js';
+import { WorkspaceSkeleton } from './features/control-room/skeletons.js';
 
 const unavailableReportsGateway: ReportsGateway = {
   async loadMonthlyComparison() { throw new Error('Reports are unavailable until this browser is connected to its data service.'); },
@@ -124,7 +125,7 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
   }
 
   if (workspace.status === 'loading') {
-    return <main className="workspace-state-page"><div role="status">Loading your spaces…</div></main>;
+    return <main className="workspace-state-page"><WorkspaceSkeleton locale={props.locale} /></main>;
   }
   if (workspace.status === 'error') {
     return <main className="workspace-state-page"><section className="state-panel error-notice" role="alert"><strong>Spaces are unavailable</strong><p>{workspace.error}</p><button type="button" onClick={() => void workspace.refresh()}>Try again</button></section></main>;
