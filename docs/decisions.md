@@ -1808,3 +1808,38 @@ secrets — a separate, explicit decision with its own review, not implied by
 adding this script. Any new column this check should also assert on
 (currently only `schema_migrations.version`, not file hashes) needs a
 matching update to `check-live-migration-drift.mjs`'s tests.
+
+## 2026-09-14 — Allocation schema lands with two Postgres naming/scoping gotchas fixed
+
+**Decision:** Added the task 04 allocation schema (8 tables: groups,
+versioned templates + lines + root mappings, and immutable monthly snapshots
++ groups + roots + loan-pool commitments) with two deferred cross-row
+validation functions, per
+`docs/superpowers/plans/future-planning/04-allocation-schema-db.md`. Full
+evidence: `docs/verification/future-planning/04.md`. Two non-obvious defects
+were found and fixed while building the real-Postgres test suite (not
+present in the task's own given DDL/logic — both are naming/scoping
+mechanics I introduced while implementing it):
+
+1. `CREATE CONSTRAINT TRIGGER <name>` registers a `pg_constraint` row under
+   that same name. Two of my chosen trigger names collided with Postgres's
+   own auto-generated name for a two-column `CHECK` on the same table
+   (`allocation_template_lines_check`, `allocation_month_groups_check`).
+   Renamed every constraint trigger with a `_publish_check` suffix.
+2. `SET CONSTRAINTS ALL IMMEDIATE` switches the deferral *mode* for the rest
+   of the transaction, not just a one-time check — an unrelated later insert
+   in the same transaction then fires its own deferred trigger immediately,
+   before its children exist. Test helpers now re-issue
+   `SET CONSTRAINTS ALL DEFERRED` immediately after every forced check.
+
+**Why:** These are exactly the class of defect `01-test-recipes.md`'s
+red/green mechanics and deferred-constraint guidance exist to catch — neither
+is a migration-apply-time syntax error, both only surface when real rows are
+actually inserted and checked.
+
+**If changed:** No public command writes through this schema yet (task 05).
+Any new table added to this family must reuse `private.planning_guard_insert()`
+/ `private.planning_reject_mutation()` (task 03) rather than new per-table
+guard functions, and any new deferred constraint trigger name must avoid the
+`<table>_check` / `<table>_<single-column>_check` auto-naming pattern
+Postgres reserves for unnamed CHECK constraints on that same table.
