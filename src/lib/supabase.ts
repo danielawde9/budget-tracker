@@ -4,8 +4,9 @@ import type { CategoriesDataClient } from '../features/categories/supabase-categ
 import type { LoansDataClient } from '../features/loans/supabase-loans-gateway.js';
 import type { WalletsDataClient } from '../features/wallets/supabase-wallets-gateway.js';
 import type { HouseholdDataClient } from '../features/household/supabase-household-gateway.js';
+import type { AllocationDataClient } from '../features/allocation/supabase-allocation-gateway.js';
 
-export type BudgetDataClient = LoansDataClient & SupabaseAuthClient & WalletsDataClient & CategoriesDataClient & HouseholdDataClient;
+export type BudgetDataClient = LoansDataClient & SupabaseAuthClient & WalletsDataClient & CategoriesDataClient & HouseholdDataClient & AllocationDataClient;
 
 export function createBrowserDataClient(): BudgetDataClient | null {
   const url = import.meta.env['VITE_SUPABASE_URL'];

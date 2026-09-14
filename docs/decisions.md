@@ -1928,3 +1928,63 @@ boundary row via a scalar subquery ordered by the cursor column, never
 `max()`/`min()` on that column directly. No UI/gateway entry path calls any
 of the four new functions yet (checked against `src/`, not assumed) — task
 07 (gateway) and task 08 (setup/charts UI) are separate, later packets.
+
+## 2026-09-14 — Allocation gateway lands per task 07; a fake-timer/React combination is dropped as a test hazard, not a product defect
+
+**Decision:** Added the typed allocation application boundary per
+`docs/superpowers/plans/future-planning/07-allocation-gateway.md`: shared
+transport (`src/features/planning-shared/rpc.ts`, a 15-second abortable RPC
+wrapper) and parsers (`parse.ts`); the pure `allocateIncome` apportionment
+helper (`src/features/allocation/money-allocation.ts`, ported verbatim from
+the task's exact implementation); DTOs (`types.ts`); the Supabase gateway
+(`supabase-allocation-gateway.ts`) mapping camelCase inputs to
+`p_snake_case` RPC args and validating every response field explicitly; a
+state-machine hook (`use-allocation.ts`) with the required
+loading/ready/saving/accepted-refresh-pending/ambiguous/error status union;
+an in-memory test fake; and an error classifier
+(`errors.ts`) covering every SQLSTATE/message token from tasks 03–06's own
+error table plus the domain-specific `P0001` messages `save_allocation_template`/
+`publish_allocation_month` raise. `src/lib/supabase.ts`'s `BudgetDataClient`
+now also intersects `AllocationDataClient`. Full evidence:
+`docs/verification/future-planning/07.md`.
+
+Mutation reconciliation reuses the wallets feature's ambiguous/ready-to-retry
+shape (`src/features/wallets/use-wallets.ts`), but is simpler: because tasks
+03/05 gave every allocation command a real idempotent receipt
+(`public.planning_command_receipts`, looked up by `find_planning_command`),
+reconciliation after a timeout-shaped failure is an exact
+`(space,request,actor)` lookup, never wallets' heuristic match-by-business-
+fields. An explicit user-initiated `retryAmbiguous()` re-issues the identical
+request id/payload rather than auto-retrying, matching `01-sql-contract.md`'s
+"never auto-retry... with a fresh request UUID" (the SAME id is safe and
+required here, by design, since it replays instead of reposting).
+
+One test in the plan's own Task 3 recipe — re-driving the real 15-second
+`AbortController` timeout through `renderHook` + `vi.useFakeTimers()` — was
+written, then dropped after it reproducibly crashed the vitest worker with an
+out-of-memory abort in this sandbox (confirmed via a minimal, unrelated
+`renderHook`-plus-fake-timer repro that did *not* crash, isolating the cause
+to this specific combination: real `AbortController`/`AbortSignal` event
+dispatch plus fake timers plus React's effect scheduler, not a defect in
+`use-allocation.ts`, `rpc.ts`, or the removed test's own gateway fake). The
+15-second timeout itself is proved once, in isolation, by
+`planning-shared/rpc.test.ts` (fake timers, no React); the hook's
+ambiguous/retry state machine is proved end-to-end by two other
+`use-allocation.test.tsx` tests using a synthetic timeout-shaped rejection
+instead of a real armed timer, exercising the identical `reconcileCommand`
+code path.
+
+**Why:** A test that reliably crashes the runner is worse than no test: it
+would either be skipped by a future session (silently losing its coverage
+signal) or block the whole file's suite from reporting real regressions
+elsewhere in the same run, exactly what happened here (11 of 12 tests were
+starved of a result on every attempt). The two-layer split (transport-level
+timeout in isolation; hook-level reconciliation with a synthetic rejection)
+preserves full coverage of both halves without the hazardous composition.
+
+**If changed:** If a future session needs to re-attempt this exact
+end-to-end shape, budget time to root-cause the jsdom/fake-timer/
+AbortController interaction first (not just retry variations of the test),
+or use `vi.setSystemTime`/manual `Date` stubbing instead of
+`vi.useFakeTimers()` for the `setTimeout` in `rpc.ts` specifically. Task 08
+(allocation UI) is a separate, later packet; this commit stops before it.
