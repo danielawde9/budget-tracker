@@ -1843,3 +1843,38 @@ Any new table added to this family must reuse `private.planning_guard_insert()`
 guard functions, and any new deferred constraint trigger name must avoid the
 `<table>_check` / `<table>_<single-column>_check` auto-naming pattern
 Postgres reserves for unnamed CHECK constraints on that same table.
+
+## 2026-09-14 — Allocation commands land; a deferred-trigger security gap in task 04 surfaces and is fixed forward
+
+**Decision:** Added `private.allocate_planning_income` (exact largest-remainder
+apportionment), `public.save_allocation_template`, and
+`public.publish_allocation_month` per
+`docs/superpowers/plans/future-planning/05-allocation-commands-db.md`. Full
+evidence: `docs/verification/future-planning/05.md`. Building the real
+command path (not task 04's owner-seeded test rows) surfaced that task 04's
+seven deferred-trigger adapters were `SECURITY INVOKER`: a deferred
+constraint fires at COMMIT, after any `SECURITY DEFINER` caller has already
+returned, back under the plain session role — which has no `EXECUTE` on the
+revoked `check_allocation_template`/`check_allocation_month`. Fixed with
+`CREATE OR REPLACE FUNCTION` on all seven adapters (now `SECURITY DEFINER`);
+`20260914110000_allocation_schema.sql` is not edited. Also strengthened
+`private.check_allocation_month` (task 05's own item 5) to compare exact
+per-group apportionment output, not just the aggregate sum — which in turn
+required correcting three of task 04's own tests that had declared a
+`group_count` inconsistent with their fixture template's real one-group
+shape (the old sum-only check never noticed; the new exact check correctly
+does).
+
+**Why:** `01-sql-contract.md`'s "Required SQL evidence" list exists precisely
+to catch defects like this — a `SECURITY DEFINER` privilege boundary that
+looks correct until exercised through the specific caller shape (a real
+command called by an ordinary authenticated session, not a raw owner insert)
+that production will actually use.
+
+**If changed:** Any future deferred-constraint trigger whose adapter calls a
+restricted-`EXECUTE` check function must itself be `SECURITY DEFINER`, not
+`SECURITY INVOKER` — verified by testing through the real `SECURITY DEFINER`
+command, not just owner-seeded fixture rows (owner-seeded rows hide this
+exact class of bug, as task 04's own test suite did). No UI/gateway calls
+either new command yet (checked against `src/`, not assumed) — task 06 adds
+the read-model projections these commands feed.

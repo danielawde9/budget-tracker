@@ -405,13 +405,22 @@ describe('allocation schema: month snapshots', () => {
     const category = await expenseRootCategory(spaceId, 'Essentials');
     const wrongKindRevision = await planCategoryTarget(spaceId, category, '2026-09-01', 'USD', '1');
     await withRollback(db().client, async () => {
-      const { templateId } = await templateFixture(spaceId, category);
+      const { groupId, templateId } = await templateFixture(spaceId, category);
+      const snapshotId = await insertMonthSnapshot({
+        spaceId, currency: 'USD', month: '2026-09-01', templateRevisionId: templateId, incomePlanRevisionId: wrongKindRevision,
+        baseIncomeMinor: '10', unallocatedMinor: '2', groupCount: 1, rootCount: 0, loanLineCount: 0,
+      });
+      // income=10 at 8000 bps divides evenly (8 to the group, 2 residual, no
+      // largest-remainder tie-break needed); task 05's exact apportionment
+      // check requires this row to match before the income-revision check
+      // (later in the function) is reached.
+      await insertMonthGroup({
+        snapshotId, groupId, spaceId, currency: 'USD', nameEn: 'Essentials', purpose: 'spending',
+        displayOrder: 0, basisPoints: 8000, targetMinor: '8',
+      });
       await expectSavepointRejection(
         db().client,
-        () => insertMonthSnapshot({
-          spaceId, currency: 'USD', month: '2026-09-01', templateRevisionId: templateId, incomePlanRevisionId: wrongKindRevision,
-          baseIncomeMinor: '1', unallocatedMinor: '1', groupCount: 0, rootCount: 0, loanLineCount: 0,
-        }).then(forceDeferred),
+        forceDeferred,
         { code: '23514', message: 'allocation_month_income_revision_invalid' },
       );
     });
@@ -486,25 +495,39 @@ describe('allocation schema: month snapshots', () => {
     const category = await expenseRootCategory(spaceId, 'Essentials');
     const income = await planIncome(spaceId, '2026-09-01', 'USD', '0');
     await withRollback(db().client, async () => {
-      const { templateId } = await templateFixture(spaceId, category);
+      const { groupId, templateId } = await templateFixture(spaceId, category);
+      // income=0 at 8000 bps computes to 0 for the group; each snapshot below
+      // must carry a matching allocation_month_groups row (task 05's exact
+      // apportionment check) or it will fail before ever reaching the
+      // predecessor-head comparison this test is about.
+      const addMatchingGroup = (snapshotId: number) => insertMonthGroup({
+        snapshotId, groupId, spaceId, currency: 'USD', nameEn: 'Essentials', purpose: 'spending',
+        displayOrder: 0, basisPoints: 8000, targetMinor: '0',
+      });
       const first = await insertMonthSnapshot({
         spaceId, currency: 'USD', month: '2026-09-01', templateRevisionId: templateId, incomePlanRevisionId: income,
-        baseIncomeMinor: '0', unallocatedMinor: '0', groupCount: 0, rootCount: 0, loanLineCount: 0,
+        baseIncomeMinor: '0', unallocatedMinor: '0', groupCount: 1, rootCount: 0, loanLineCount: 0,
       });
+      await addMatchingGroup(first);
       await forceDeferred();
       const second = await insertMonthSnapshot({
         spaceId, currency: 'USD', month: '2026-09-01', templateRevisionId: templateId, incomePlanRevisionId: income,
-        expectedSnapshotId: first, baseIncomeMinor: '0', unallocatedMinor: '0', groupCount: 0, rootCount: 0, loanLineCount: 0,
+        expectedSnapshotId: first, baseIncomeMinor: '0', unallocatedMinor: '0', groupCount: 1, rootCount: 0, loanLineCount: 0,
       });
+      await addMatchingGroup(second);
       await forceDeferred();
       expect(second).toBeGreaterThan(first);
       await db().client.query('drop index public.allocation_month_successor_idx');
       await expectSavepointRejection(
         db().client,
-        () => insertMonthSnapshot({
-          spaceId, currency: 'USD', month: '2026-09-01', templateRevisionId: templateId, incomePlanRevisionId: income,
-          expectedSnapshotId: first, baseIncomeMinor: '0', unallocatedMinor: '0', groupCount: 0, rootCount: 0, loanLineCount: 0,
-        }).then(forceDeferred),
+        async () => {
+          const stale = await insertMonthSnapshot({
+            spaceId, currency: 'USD', month: '2026-09-01', templateRevisionId: templateId, incomePlanRevisionId: income,
+            expectedSnapshotId: first, baseIncomeMinor: '0', unallocatedMinor: '0', groupCount: 1, rootCount: 0, loanLineCount: 0,
+          });
+          await addMatchingGroup(stale);
+          await forceDeferred();
+        },
         { code: '23514', message: 'allocation_month_predecessor_not_head' },
       );
     });
@@ -520,15 +543,20 @@ describe('allocation schema: month snapshots', () => {
       const fixture = await templateFixture(spaceId, category);
       const snapshot = await insertMonthSnapshot({
         spaceId, currency: 'USD', month: '2026-09-01', templateRevisionId: fixture.templateId, incomePlanRevisionId: income,
-        baseIncomeMinor: '100000', unallocatedMinor: '100000', groupCount: 0, rootCount: 0, loanLineCount: 0,
+        baseIncomeMinor: '100000', unallocatedMinor: '20000', groupCount: 1, rootCount: 0, loanLineCount: 0,
+      });
+      // income=100000 at 8000 bps computes to 80000 for the group; task 05's
+      // exact apportionment check requires this row to match.
+      await insertMonthGroup({
+        snapshotId: snapshot, groupId: fixture.groupId, spaceId, currency: 'USD', nameEn: 'Essentials', purpose: 'spending',
+        displayOrder: 0, basisPoints: 8000, targetMinor: '80000',
       });
       await forceDeferred();
       return { snapshotId: snapshot };
     });
     const target = await planCategoryTarget(spaceId, category, '2026-09-01', 'USD', '1000');
-    // groupId: null (a standalone, ungrouped root) -- the committed snapshot
-    // has zero month_groups, so referencing any real group would fail on the
-    // (snapshot_id,group_id,...) FK before the count-mismatch check ever runs.
+    // groupId: null (a standalone, ungrouped root) keeps this test isolated
+    // to the root-count mismatch it's about, independent of the group row.
     await withRollback(db().client, () => expectSavepointRejection(
       db().client,
       () => insertMonthRoot({ snapshotId, categoryId: category, groupId: null, spaceId, currency: 'USD', targetRevisionId: target, targetMinor: '1000' }).then(forceDeferred),

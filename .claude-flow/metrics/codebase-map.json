@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-14T05:09:56.960Z",
+  "timestamp": "2026-09-14T05:54:57.095Z",
   "projectRoot": "/Users/daniel/Desktop/Daniel/budget-tracking",
   "structure": {
     "hasPackageJson": true,
@@ -7,5 +7,5 @@
     "hasClaudeConfig": true,
     "hasClaudeFlow": true
   },
-  "scannedAt": 1789362596960
+  "scannedAt": 1789365297095
 }

@@ -1287,3 +1287,47 @@
 [2026-09-14T05:15:56.973Z] [INFO] Worker consolidate completed in 27ms
 [2026-09-14T05:15:56.990Z] [INFO] Starting worker: optimize (1/2 concurrent)
 [2026-09-14T05:15:56.991Z] [INFO] Worker optimize completed in 9ms
+[2026-09-14T05:17:56.958Z] [INFO] Starting worker: testgaps (1/2 concurrent)
+[2026-09-14T05:17:56.961Z] [INFO] Worker testgaps completed in 15ms
+[2026-09-14T05:21:56.984Z] [INFO] Starting worker: audit (1/2 concurrent)
+[2026-09-14T05:21:56.985Z] [INFO] Worker audit completed in 13ms
+[2026-09-14T05:24:56.983Z] [INFO] Starting worker: map (1/2 concurrent)
+[2026-09-14T05:24:56.984Z] [INFO] Worker map completed in 11ms
+[2026-09-14T05:25:47.685Z] [INFO] Starting worker: harness (1/2 concurrent)
+[2026-09-14T05:25:47.689Z] [INFO] Worker harness completed in 14ms
+[2026-09-14T05:28:56.978Z] [INFO] Starting worker: optimize (1/2 concurrent)
+[2026-09-14T05:28:56.980Z] [INFO] Worker optimize completed in 15ms
+[2026-09-14T05:31:57.033Z] [INFO] Starting worker: audit (1/2 concurrent)
+[2026-09-14T05:31:57.033Z] [INFO] Worker audit completed in 11ms
+[2026-09-14T05:37:57.033Z] [INFO] Starting worker: testgaps (1/2 concurrent)
+[2026-09-14T05:37:57.037Z] [INFO] Worker testgaps completed in 35ms
+[2026-09-14T05:39:57.040Z] [INFO] Starting worker: map (1/2 concurrent)
+[2026-09-14T05:39:57.042Z] [INFO] Worker map completed in 18ms
+[2026-09-14T05:41:57.061Z] [INFO] Starting worker: audit (1/2 concurrent)
+[2026-09-14T05:41:57.062Z] [INFO] Worker audit completed in 13ms
+[2026-09-14T05:43:57.022Z] [INFO] Starting worker: optimize (1/2 concurrent)
+[2026-09-14T05:43:57.023Z] [INFO] Worker optimize completed in 14ms
+[2026-09-14T05:45:57.045Z] [INFO] Starting worker: consolidate (1/2 concurrent)
+[2026-09-14T05:45:57.049Z] [INFO] Consolidate worker: distillation skipped (error: Could not locate the bindings file. Tried:
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/Debug/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/Release/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/out/Debug/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/Debug/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/out/Release/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/Release/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/default/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/compiled/22.22.0/darwin/arm64/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/addon-build/release/install-root/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/addon-build/debug/install-root/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/addon-build/default/install-root/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/lib/binding/node-v127-darwin-arm64/better_sqlite3.node)
+[2026-09-14T05:45:57.050Z] [INFO] Worker consolidate completed in 17ms
+[2026-09-14T05:51:57.105Z] [INFO] Starting worker: audit (1/2 concurrent)
+[2026-09-14T05:51:57.106Z] [INFO] Worker audit completed in 14ms
+[2026-09-14T05:54:57.095Z] [INFO] Starting worker: map (1/2 concurrent)
+[2026-09-14T05:54:57.096Z] [INFO] Worker map completed in 17ms
+[2026-09-14T05:57:57.086Z] [INFO] Starting worker: testgaps (1/2 concurrent)
+[2026-09-14T05:57:57.087Z] [INFO] Worker testgaps completed in 12ms
+[2026-09-14T05:58:57.069Z] [INFO] Starting worker: optimize (1/2 concurrent)
+[2026-09-14T05:58:57.069Z] [INFO] Worker optimize completed in 11ms

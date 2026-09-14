@@ -41,10 +41,22 @@ posts no financial row and its return shape/fingerprint are unchanged.
 introduced as shared foundation for later planning commands
 (`docs/superpowers/plans/future-planning/03-planning-foundation-db.md`). It
 returns only the calling actor's own receipt from `public.planning_command_receipts`
-(never another actor's) and creates or alters no financial row. No planning
-command writes through this table yet; `private.planning_replay` and the
-receipt table are internal to future command implementations, not called by
-any command in this repository today.
+(never another actor's) and creates or alters no financial row.
+
+`public.save_allocation_template` and `public.publish_allocation_month` are
+non-posting planning commands that write through `public.planning_command_receipts`
+(the first real callers of task 03's receipt/replay foundation). Neither posts
+a financial event, movement, or loan row. `save_allocation_template` upserts
+`public.allocation_groups` and appends immutable
+`allocation_template_revisions`/`_lines`/`_roots` rows. `publish_allocation_month`
+computes apportionment via `private.allocate_planning_income`, then calls the
+existing `public.set_monthly_income_plan` and `public.set_monthly_category_target`
+(under request IDs it derives deterministically via task 03's
+`private.planning_child_request`, never inventing new financial-adjacent
+writers) before appending an immutable `allocation_month_snapshots` row and
+its group/root/loan-commitment lines. No application UI entry path calls
+either command yet (checked against `src/` before writing this sentence, per
+the 2026-09-14 correction above).
 
 `public.create_category`, `public.create_subcategory`, and `public.archive_category`
 are protected metadata lifecycle commands, not posting commands. The browser
