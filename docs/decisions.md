@@ -2310,3 +2310,52 @@ per-file hashes match the files on disk, never that `source_sha` equals
 `HEAD` exactly, so pinning it to the immediate parent commit satisfies the
 "same commit as the migration" rule without the commit-hash chicken-and-egg
 problem a literal self-reference would create).
+
+## 2026-09-14 — Goals gateway; `publishMonthV2` lands in the allocation feature, not goals (task 12)
+
+**Decision:** Task 12's own owned-files list names only `src/features/goals/*`
+and `src/lib/supabase.ts`, but its Task 1 text explicitly requires "G1
+introduces `publish_allocation_month_v2`: add an explicit v2 gateway method
+and typed `goalTargets`, never ambiguously choose an overloaded RPC."
+`publish_allocation_month_v2` (task 11) is fundamentally a variant of
+`AllocationGateway.publishMonth` — same command family, same snapshot
+concept, extended with goal integration — not a goals-domain operation, so
+`publishMonthV2` was added to `AllocationGateway`
+(`src/features/allocation/types.ts`/`supabase-allocation-gateway.ts`) and
+`useAllocation`'s own `RetryCommand` union, not invented as a
+goals-gateway method that would have to reach back into allocation's own
+snapshot/template concepts it has no other business knowing about. Full
+evidence: `docs/verification/future-planning/12.md`.
+
+Two smaller, load-bearing decisions from the same task: `useGoals`'s
+"current view" is the first page of `goal_page` for a given
+`(spaceId, currency, stateFilter)` — mirroring `useAllocation`'s own
+month-state view — while pagination beyond the first page
+(`loadMore`), `loadDetail`, and `loadHistory` are stateless passthroughs
+rather than hook-managed state, exactly matching how
+`loadCategoryPage`/`loadHistoryPage`/`loadTrend` are stateless in
+`useAllocation` today: the hook's state machine exists to coordinate
+mutations (the accepted/ambiguous/retry dance), not to own every possible
+read. And a genuinely new shared parser (`head`/`nullableHead` in
+`planning-shared/parse.ts`) was added rather than duplicated locally in
+`goals/`, since a 64-lowercase-hex stale token is a shape any future
+planning gateway could need again — matching the existing precedent that
+shared, reusable validation logic belongs in `planning-shared`, not
+copied per-feature.
+
+**Why:** Read literally, the owned-files list would make the explicit `G1`
+instruction impossible to satisfy without either violating "never
+ambiguously choose an overloaded RPC" (bolting `goalTargets` onto
+`publishMonth` via an optional argument) or inventing an awkward
+goals-domain wrapper around an allocation-domain command. Placing the new
+method where the operation actually belongs — next to `publishMonth`, in
+the feature that already owns the snapshot/template concepts — was judged
+more correct than a literal reading of a files list that predates task
+11's own design.
+
+**If changed:** Task 13 (goals + milestones UI) wires `useGoals`/
+`createSupabaseGoalsGateway` into `app.tsx`/`routes.tsx`, the same way task
+08 wired `useAllocation` into the existing Plan route — and is the UI
+surface that will actually call `publishMonthV2` from wherever the monthly
+plan screen chooses to expose goal-target editing (that screen-level design
+choice is task 13's, not decided here).

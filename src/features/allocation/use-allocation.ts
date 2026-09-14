@@ -12,6 +12,7 @@ import type {
   LoadTrendInput,
   PublishMonthInput,
   PublishMonthResult,
+  PublishMonthV2Input,
   SaveTemplateInput,
   SaveTemplateResult,
 } from './types.js';
@@ -28,6 +29,20 @@ export interface CommandOutcome {
   result?: SaveTemplateResult | PublishMonthResult;
 }
 
+function runAllocationCommand(gateway: AllocationGateway, command: RetryCommand): Promise<SaveTemplateResult | PublishMonthResult> {
+  switch (command.kind) {
+    case 'saveTemplate': return gateway.saveTemplate(command.input);
+    case 'publishMonth': return gateway.publishMonth(command.input);
+    case 'publishMonthV2': return gateway.publishMonthV2(command.input);
+  }
+}
+
+const ALLOCATION_COMMAND_NAME: Record<RetryCommand['kind'], string> = {
+  saveTemplate: 'save_allocation_template',
+  publishMonth: 'publish_allocation_month',
+  publishMonthV2: 'publish_allocation_month_v2',
+};
+
 export const defaultMonthState: AllocationMonthState = {
   snapshotId: null, templateRevisionId: null, incomeRevisionId: null, hasPlan: false,
   plannedIncomeMinor: null, actualIncomeMinor: '0', expenseMinor: '0', incomeAfterSpendingMinor: '0',
@@ -38,10 +53,12 @@ export const defaultMonthState: AllocationMonthState = {
 
 type SaveTemplateDraft = Omit<SaveTemplateInput, 'spaceId' | 'requestId'>;
 type PublishMonthDraft = Omit<PublishMonthInput, 'spaceId' | 'requestId' | 'month' | 'currency'>;
+type PublishMonthV2Draft = Omit<PublishMonthV2Input, 'spaceId' | 'requestId' | 'month' | 'currency'>;
 
 type RetryCommand =
   | { kind: 'saveTemplate'; requestId: string; input: SaveTemplateInput }
-  | { kind: 'publishMonth'; requestId: string; input: PublishMonthInput };
+  | { kind: 'publishMonth'; requestId: string; input: PublishMonthInput }
+  | { kind: 'publishMonthV2'; requestId: string; input: PublishMonthV2Input };
 
 interface AllocationView {
   loadedKey: string;
@@ -140,14 +157,14 @@ export function useAllocation(
 
   const reconcileCommand = useCallback(async (command: RetryCommand): Promise<CommandOutcome> => {
     try {
-      const result = command.kind === 'saveTemplate' ? await gateway.saveTemplate(command.input) : await gateway.publishMonth(command.input);
+      const result = await runAllocationCommand(gateway, command);
       const refreshed = await refreshAfterCommand();
       const outcome: CommandOutcome = { status: refreshed ? 'success' : 'refresh-required', reconciled: false, result };
       settleOutcome(outcome);
       return outcome;
     } catch (cause) {
       if (!isAmbiguousTransportFailure(cause)) throw cause;
-      const commandName = command.kind === 'saveTemplate' ? 'save_allocation_template' : 'publish_allocation_month';
+      const commandName = ALLOCATION_COMMAND_NAME[command.kind];
       let receipt;
       try {
         receipt = await gateway.findCommand(command.input.spaceId, command.requestId);
@@ -199,6 +216,11 @@ export function useAllocation(
     return runCommand({ kind: 'publishMonth', requestId, input: { ...draft, spaceId, requestId, month, currency } });
   }, [createRequestId, runCommand, spaceId, month, currency]);
 
+  const publishMonthV2 = useCallback((draft: PublishMonthV2Draft): Promise<CommandOutcome> => {
+    const requestId = createRequestId();
+    return runCommand({ kind: 'publishMonthV2', requestId, input: { ...draft, spaceId, requestId, month, currency } });
+  }, [createRequestId, runCommand, spaceId, month, currency]);
+
   const retryAmbiguous = useCallback(async (): Promise<CommandOutcome> => {
     if (!retry) throw new Error('There is no unresolved command to retry.');
     return withPending(() => reconcileCommand(retry));
@@ -228,6 +250,7 @@ export function useAllocation(
     refresh: () => load(),
     saveTemplate,
     publishMonth,
+    publishMonthV2,
     retryAmbiguous,
     clearAmbiguous,
     loadCategoryPage,

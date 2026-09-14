@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  array, bigIntId, boolean, currency, date, enumValue, integer, minor, month,
-  nullableBigIntId, nullableInteger, nullableMinor, nullableSignedIntegerText,
+  array, bigIntId, boolean, currency, date, enumValue, head, integer, minor, month,
+  nullableBigIntId, nullableHead, nullableInteger, nullableMinor, nullableSignedIntegerText,
   nullableString, nullableUuid, object, planningMoneyInput, string, uniqueBy, uuid,
 } from './parse.js';
 
@@ -132,6 +132,27 @@ describe('string/uuid/nullableString/nullableUuid', () => {
   it('passes null through for nullable variants', () => {
     expect(nullableString(null, 'nameAr')).toBeNull();
     expect(nullableUuid(null, 'groupId')).toBeNull();
+  });
+});
+
+describe('head/nullableHead', () => {
+  it('accepts a 64-lowercase-hex token', () => {
+    const token = 'a'.repeat(64);
+    expect(head(token, 'earmarkHead')).toBe(token);
+  });
+  it('rejects uppercase hex, a bigint revision, and any other length', () => {
+    expect(() => head('A'.repeat(64), 'earmarkHead')).toThrow();
+    expect(() => head('123', 'earmarkHead')).toThrow();
+    expect(() => head('a'.repeat(63), 'earmarkHead')).toThrow();
+    expect(() => head('a'.repeat(65), 'earmarkHead')).toThrow();
+  });
+  it('never confuses a head token with a plain string field', () => {
+    expect(() => head('not-a-head-at-all', 'earmarkHead')).toThrow();
+  });
+  it('passes null through for the nullable variant only', () => {
+    expect(nullableHead(null, 'earmarkHead')).toBeNull();
+    expect(nullableHead(undefined, 'earmarkHead')).toBeNull();
+    expect(() => head(null, 'earmarkHead')).toThrow();
   });
 });
 

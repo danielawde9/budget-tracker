@@ -8,6 +8,7 @@ import type {
   AllocationCategoryPage,
   AllocationCategoryRow,
   AllocationGateway,
+  AllocationGoalTargetInput,
   AllocationGroupRow,
   AllocationHistoryPage,
   AllocationHistoryRow,
@@ -22,6 +23,7 @@ import type {
   PlanningCommandReceipt,
   PublishMonthInput,
   PublishMonthResult,
+  PublishMonthV2Input,
   SaveTemplateInput,
   SaveTemplateResult,
 } from './types.js';
@@ -211,6 +213,15 @@ function rootTargetArg(target: PublishMonthInput['rootTargets'][number]): Record
   };
 }
 
+function goalTargetArg(target: AllocationGoalTargetInput): Record<string, unknown> {
+  return {
+    goalId: uuid(target.goalId, 'goalTarget.goalId'),
+    groupId: target.groupId === null ? null : uuid(target.groupId, 'goalTarget.groupId'),
+    amountMinor: planningMoneyInput(target.amountMinor),
+    expectedRevisionId: target.expectedRevisionId,
+  };
+}
+
 export function createSupabaseAllocationGateway(client: AllocationDataClient): AllocationGateway {
   return {
     async loadMonth(input: LoadMonthInput, signal?: AbortSignal) {
@@ -284,6 +295,25 @@ export function createSupabaseAllocationGateway(client: AllocationDataClient): A
         p_income_minor: planningMoneyInput(input.incomeMinor),
         p_root_targets: input.rootTargets.map(rootTargetArg),
         p_loan_group_id: input.loanGroupId,
+      });
+      return publishMonthResult(data);
+    },
+
+    async publishMonthV2(input: PublishMonthV2Input): Promise<PublishMonthResult> {
+      if (input.rootTargets.length > 200) throw new Error('Too many root targets.');
+      if (input.goalTargets.length > 100) throw new Error('Too many goal targets.');
+      const data = await planningRpc(client, 'publish_allocation_month_v2', {
+        p_space_id: input.spaceId,
+        p_request_id: input.requestId,
+        p_month: month(input.month),
+        p_currency: currency(input.currency),
+        p_expected_snapshot_id: bigIntArg(input.expectedSnapshotId, 'expectedSnapshotId'),
+        p_template_revision_id: bigIntArg(input.templateRevisionId, 'templateRevisionId'),
+        p_expected_income_revision_id: bigIntArg(input.expectedIncomeRevisionId, 'expectedIncomeRevisionId'),
+        p_income_minor: planningMoneyInput(input.incomeMinor),
+        p_root_targets: input.rootTargets.map(rootTargetArg),
+        p_loan_group_id: input.loanGroupId,
+        p_goal_targets: input.goalTargets.map(goalTargetArg),
       });
       return publishMonthResult(data);
     },

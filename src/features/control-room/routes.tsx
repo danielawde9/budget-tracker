@@ -52,6 +52,7 @@ const unavailableAllocationGateway: AllocationGateway = {
   async loadTrend() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
   async saveTemplate() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
   async publishMonth() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
+  async publishMonthV2() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
   async findCommand() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
 };
 

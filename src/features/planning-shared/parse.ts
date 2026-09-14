@@ -1,6 +1,7 @@
 const AGGREGATE_MONEY_PATTERN = /^(0|-?[1-9][0-9]{0,29})$/;
 const MUTATION_MONEY_PATTERN = /^(0|[1-9][0-9]{0,14})$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const HEAD_PATTERN = /^[0-9a-f]{64}$/;
 
 export function object(value: unknown): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -78,6 +79,19 @@ export function uuid(value: unknown, field: string): string {
 export function nullableUuid(value: unknown, field: string): string | null {
   if (value === null || value === undefined) return null;
   return uuid(value, field);
+}
+
+/** An opaque 64-lowercase-hex stale token (e.g. a goal's earmark/definition
+ * head) -- never a bigint revision counter, so it is validated by shape only. */
+export function head(value: unknown, field: string): string {
+  const result = string(value, field);
+  if (!HEAD_PATTERN.test(result)) throw new Error(`Invalid head token for ${field}.`);
+  return result;
+}
+
+export function nullableHead(value: unknown, field: string): string | null {
+  if (value === null || value === undefined) return null;
+  return head(value, field);
 }
 
 /** A bigint identifier: PostgREST may serialize it as a JSON number (when

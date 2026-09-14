@@ -339,6 +339,38 @@ describe('createSupabaseAllocationGateway: publishMonth', () => {
   });
 });
 
+describe('createSupabaseAllocationGateway: publishMonthV2', () => {
+  it('calls the distinct v2 RPC (never the v1 name) with root and goal targets mapped separately', async () => {
+    const { client, calls } = fakeClient(() => ({ data: { snapshotId: '12', incomeRevisionId: '30001' }, error: null }));
+    const gateway = createSupabaseAllocationGateway(client);
+    const result = await gateway.publishMonthV2({
+      spaceId: 'space-1', requestId: 'req-1', month: '2026-09-01', currency: 'USD',
+      expectedSnapshotId: null, templateRevisionId: '9', expectedIncomeRevisionId: null,
+      incomeMinor: '200000',
+      rootTargets: [{ categoryId: '00000000-0000-4000-8000-000000000010', amountMinor: '112000', expectedRevisionId: null }],
+      loanGroupId: null,
+      goalTargets: [{ goalId: '00000000-0000-4000-8000-000000000101', groupId: '00000000-0000-4000-8000-000000000003', amountMinor: '10000', expectedRevisionId: null }],
+    });
+    expect(calls[0]!.name).toBe('publish_allocation_month_v2');
+    expect(calls[0]!.args['p_goal_targets']).toEqual([
+      { goalId: '00000000-0000-4000-8000-000000000101', groupId: '00000000-0000-4000-8000-000000000003', amountMinor: '10000', expectedRevisionId: null },
+    ]);
+    expect(result.snapshotId).toBe('12');
+  });
+
+  it('accepts a standalone (null groupId) goal target', async () => {
+    const { client, calls } = fakeClient(() => ({ data: { snapshotId: '1', incomeRevisionId: '1' }, error: null }));
+    const gateway = createSupabaseAllocationGateway(client);
+    await gateway.publishMonthV2({
+      spaceId: 'space-1', requestId: 'req-1', month: '2026-09-01', currency: 'USD',
+      expectedSnapshotId: null, templateRevisionId: '9', expectedIncomeRevisionId: null,
+      incomeMinor: '200000', rootTargets: [], loanGroupId: null,
+      goalTargets: [{ goalId: '00000000-0000-4000-8000-000000000101', groupId: null, amountMinor: '5000', expectedRevisionId: null }],
+    });
+    expect((calls[0]!.args['p_goal_targets'] as Array<{ groupId: unknown }>)[0]!.groupId).toBeNull();
+  });
+});
+
 describe('createSupabaseAllocationGateway: findCommand', () => {
   it('returns null when no receipt exists', async () => {
     const { client } = fakeClient(() => ({ data: null, error: null }));

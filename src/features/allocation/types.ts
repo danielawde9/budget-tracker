@@ -167,6 +167,30 @@ export interface PublishMonthResult {
   readonly incomeRevisionId: string;
 }
 
+export interface AllocationGoalTargetInput {
+  readonly goalId: string;
+  readonly groupId: string | null;
+  readonly amountMinor: string;
+  readonly expectedRevisionId: string | null;
+}
+
+/** `publish_allocation_month_v2`'s own input -- a distinct command from
+ * `publishMonth`, never an overload chosen ambiguously by argument shape,
+ * per task 11/12's explicit instruction. */
+export interface PublishMonthV2Input {
+  readonly spaceId: string;
+  readonly requestId: string;
+  readonly month: string;
+  readonly currency: Currency;
+  readonly expectedSnapshotId: string | null;
+  readonly templateRevisionId: string;
+  readonly expectedIncomeRevisionId: string | null;
+  readonly incomeMinor: string;
+  readonly rootTargets: readonly AllocationRootTargetInput[];
+  readonly loanGroupId: string | null;
+  readonly goalTargets: readonly AllocationGoalTargetInput[];
+}
+
 export interface PlanningCommandReceipt {
   readonly command: string;
   readonly sequenceId: string;
@@ -180,5 +204,6 @@ export interface AllocationGateway {
   loadTrend(input: LoadTrendInput, signal?: AbortSignal): Promise<AllocationTrend>;
   saveTemplate(input: SaveTemplateInput): Promise<SaveTemplateResult>;
   publishMonth(input: PublishMonthInput): Promise<PublishMonthResult>;
+  publishMonthV2(input: PublishMonthV2Input): Promise<PublishMonthResult>;
   findCommand(spaceId: string, requestId: string): Promise<PlanningCommandReceipt | null>;
 }

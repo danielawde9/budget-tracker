@@ -11,6 +11,7 @@ import type {
   PlanningCommandReceipt,
   PublishMonthInput,
   PublishMonthResult,
+  PublishMonthV2Input,
   SaveTemplateInput,
   SaveTemplateResult,
 } from '../features/allocation/types.js';
@@ -111,6 +112,16 @@ export class InMemoryAllocationGateway implements AllocationGateway {
     if (existing) return existing.result as PublishMonthResult;
     const result: PublishMonthResult = { snapshotId: String(this.nextSnapshotId++), incomeRevisionId: String(this.nextIncomeRevisionId++) };
     this.receipts.set(input.requestId, { command: 'publish_allocation_month', sequenceId: String(this.receipts.size + 1), result });
+    return result;
+  }
+
+  async publishMonthV2(input: PublishMonthV2Input): Promise<PublishMonthResult> {
+    this.calls.push({ name: 'publishMonthV2', input });
+    if (this.error) throw this.error;
+    const existing = this.receipts.get(input.requestId);
+    if (existing) return existing.result as PublishMonthResult;
+    const result: PublishMonthResult = { snapshotId: String(this.nextSnapshotId++), incomeRevisionId: String(this.nextIncomeRevisionId++) };
+    this.receipts.set(input.requestId, { command: 'publish_allocation_month_v2', sequenceId: String(this.receipts.size + 1), result });
     return result;
   }
 

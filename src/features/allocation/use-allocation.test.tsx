@@ -202,6 +202,23 @@ describe('useAllocation', () => {
     });
   });
 
+  it('publishMonthV2 saves goal targets under a generated request id, distinct from publishMonth', async () => {
+    const gateway = new InMemoryAllocationGateway();
+    const { result } = renderHook(() => useAllocation(gateway, 'space-1', '2026-09-01', 'USD', undefined, () => 'req-fixed'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    gateway.monthState = coreMonthStateFixture;
+    await act(async () => {
+      const outcome = await result.current.publishMonthV2({
+        templateRevisionId: '9', expectedSnapshotId: null, expectedIncomeRevisionId: null,
+        incomeMinor: '200000', rootTargets: [], loanGroupId: null,
+        goalTargets: [{ goalId: '00000000-0000-4000-8000-000000000101', groupId: null, amountMinor: '5000', expectedRevisionId: null }],
+      });
+      expect(outcome).toMatchObject({ status: 'success', reconciled: false });
+    });
+    expect(gateway.calls.filter((call) => call.name === 'publishMonthV2')).toHaveLength(1);
+    expect(gateway.calls.filter((call) => call.name === 'publishMonth')).toHaveLength(0);
+  });
+
   it('loadCategoryPage/loadHistoryPage/loadTrend fill in the current space/month/currency', async () => {
     const gateway = new InMemoryAllocationGateway();
     gateway.categoryPage = { rows: [], nextRootId: null, hasMore: false };
