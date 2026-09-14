@@ -9,7 +9,7 @@ readonly LIVE_REPO_ROOT="$(cd "${LIVE_SCRIPT_DIR}/../.." && pwd -P)"
 source "${LIVE_SCRIPT_DIR}/budget-common.sh"
 
 readonly LIVE_PROJECT_REF='hqblhzqitrbvpyoxtmew'
-readonly LIVE_MANIFEST_SOURCE_SHA='e1d250468d7bd213ecbf561b25a3a814b0f7cd25'
+readonly LIVE_MANIFEST_SOURCE_SHA='d9867c529b3783edd38d204b05eb5a15ce0fa0be'
 readonly LIVE_CONFIRMATION="APPLY LIVE MIGRATIONS TO ${LIVE_PROJECT_REF}"
 readonly LIVE_MAX_PROJECT_LIST_BYTES=1048576
 readonly LIVE_SUPABASE_BIN="${BUDGET_SUPABASE_BIN:-$(command -v supabase || true)}"
@@ -32,6 +32,10 @@ readonly LIVE_VERIFY_SQL="select case when
   and to_regprocedure('public.allocation_month_state(uuid,date,public.currency_code,bigint)') is not null
   and to_regclass('public.goals') is not null
   and to_regclass('public.goal_earmark_events') is not null
+  and to_regclass('public.goal_purchase_links') is not null
+  and to_regprocedure('public.create_goal_plan(uuid,uuid,uuid,jsonb,jsonb)') is not null
+  and to_regprocedure('public.record_goal_earmark(uuid,uuid,uuid,text,text,text,boolean)') is not null
+  and to_regprocedure('public.link_goal_purchase(uuid,uuid,uuid,jsonb)') is not null
   and (select array_agg(version order by version) from supabase_migrations.schema_migrations)
     = array[
       '20260907100000','20260907110000','20260907120000','20260907130000',
@@ -44,7 +48,8 @@ readonly LIVE_VERIFY_SQL="select case when
       '20260908178000','20260908179000','20260908180000','20260910100000',
       '20260911100000','20260912090000','20260912100000','20260912101000',
       '20260912101500','20260912102000','20260914090000','20260914100000',
-      '20260914110000','20260914120000','20260914130000','20260914140000'
+      '20260914110000','20260914120000','20260914130000','20260914140000',
+      '20260914150000'
     ]::text[]
   then 'budget_schema_ready'
   else 'budget_schema_incomplete'

@@ -2208,3 +2208,49 @@ it doesn't pass — never amend the original commit once anything depends on
 it). Deploying still requires Daniel to run
 `set -a && source .env.ops.local && set +a && scripts/ops/docker-ssh-bridge.sh run -- pnpm migrate:live`
 himself.
+
+## 2026-09-14 — Goal commands forward-fix `check_goal_earmark_event` to exempt reversals from the ceiling check
+
+**Decision:** Task 10 (`20260914150000_goal_commands.sql`) implements the
+8 goal command RPCs from `10-goals-commands-db.md`, plus `CREATE OR REPLACE
+FUNCTION private.check_goal_earmark_event` — task 09's own committed
+migration file is not edited. The original ceiling check
+(`event_contribution > 0 and running_balance > target - fulfilled`) is
+narrowed to exclude `operation = 'reverse'`. Task 10 explicitly requires
+"a reverse can exceed a subsequently reduced target because it corrects
+history, not new intent" — a case that cannot arise from task 09's own
+schema alone (no command existed yet to lower a target after a reserve),
+so task 09's check was correct for everything it could be tested against at
+the time, but would have wrongly rejected a legitimate restore-by-reversal
+once `revise_goal_plan` could lower a target. The nonnegative floor
+(`running_balance < 0`) is untouched and remains the only backstop against
+a reversal driving a balance negative. Mirrors task 05's identical fix to
+task 04's `check_allocation_month`. Full evidence:
+`docs/verification/future-planning/10.md`.
+
+Real-Postgres testing also caught a genuine bug before commit: the new
+`private.goal_financing_state` helper computed its stale-token's latest
+event id via `select max(id) from goal_earmark_lines`, but that table has
+no surrogate `id` column (its primary key is `(event_id, goal_id)`) —
+fixed to `max(event_id)`. This broke the helper for *every* goal, so it
+surfaced on the first test that reached a `revise_goal_plan` close path.
+
+**Why:** Re-deriving "only the increasing side of an event is checked
+against the ceiling" was already the right shape from task 09; task 10 only
+needed to add one more exemption (`reverse`) to it, not redesign it.
+Keeping the fix in a `CREATE OR REPLACE` in the new migration file, rather
+than editing the committed one, follows the repo's forward-only migration
+rule even though the function itself was never applied to production
+before this fix lands (deploy is still pending; see the 43/44-migration
+release-prep entries above) — the rule is about the *file*, not about
+whether the specific function has reached a real database yet.
+
+**If changed:** Task 11 (goal projections) reads `goal_financing_state`
+and `goal_cash_pool` for the public/UI-facing read side; both are `private`
+schema functions deliberately left inaccessible to `authenticated` in this
+task, matching `private.allocate_planning_income`'s precedent from
+Release 1 — task 11 either exposes a thin public wrapper or folds the same
+computation into its own projection function. Per the binding practice
+above, `ops/budget-migrations.sha256` and `apply-live-migrations.sh` are
+updated in this same commit (45-migration release, source SHA = this
+commit).
