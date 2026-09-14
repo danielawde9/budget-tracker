@@ -6,8 +6,9 @@ import type { WalletsDataClient } from '../features/wallets/supabase-wallets-gat
 import type { HouseholdDataClient } from '../features/household/supabase-household-gateway.js';
 import type { AllocationDataClient } from '../features/allocation/supabase-allocation-gateway.js';
 import type { GoalsDataClient } from '../features/goals/supabase-goals-gateway.js';
+import type { RecurringDataClient } from '../features/recurring/supabase-recurring-gateway.js';
 
-export type BudgetDataClient = LoansDataClient & SupabaseAuthClient & WalletsDataClient & CategoriesDataClient & HouseholdDataClient & AllocationDataClient & GoalsDataClient;
+export type BudgetDataClient = LoansDataClient & SupabaseAuthClient & WalletsDataClient & CategoriesDataClient & HouseholdDataClient & AllocationDataClient & GoalsDataClient & RecurringDataClient;
 
 export function createBrowserDataClient(): BudgetDataClient | null {
   const url = import.meta.env['VITE_SUPABASE_URL'];

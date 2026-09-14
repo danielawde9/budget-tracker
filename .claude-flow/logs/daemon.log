@@ -2118,3 +2118,13 @@
 [2026-09-14T17:01:58.372Z] [INFO] Worker audit completed in 16ms
 [2026-09-14T17:01:58.390Z] [INFO] Starting worker: optimize (1/2 concurrent)
 [2026-09-14T17:01:58.391Z] [INFO] Worker optimize completed in 8ms
+[2026-09-14T17:09:57.881Z] [INFO] Worker map deferred: Memory too low: 0.8% free
+[2026-09-14T17:09:58.411Z] [INFO] Daemon self-shutdown: max age 43200s reached
+[2026-09-14T17:09:58.413Z] [INFO] Stopped worker: map
+[2026-09-14T17:09:58.413Z] [INFO] Stopped worker: audit
+[2026-09-14T17:09:58.413Z] [INFO] Stopped worker: optimize
+[2026-09-14T17:09:58.413Z] [INFO] Stopped worker: consolidate
+[2026-09-14T17:09:58.413Z] [INFO] Stopped worker: testgaps
+[2026-09-14T17:09:58.413Z] [INFO] Stopped worker: backup
+[2026-09-14T17:09:58.414Z] [INFO] Stopped worker: harness
+[2026-09-14T17:09:58.428Z] [INFO] Daemon stopped

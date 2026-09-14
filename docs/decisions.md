@@ -2599,3 +2599,70 @@ not before.
 Full before/after test detail and the exact command run for each fix is in
 `docs/verification/future-planning/14.md` and
 `.superpowers/sdd/release-3-bills-paycycle/task-14-report.md`.
+
+## 2026-09-14 — Recurring gateway lands per task 15, closing the RPC boundary for Release 3's bill/income schedules
+
+**Decision:** Added the typed recurring application boundary per
+`docs/superpowers/plans/future-planning/15-recurring-gateway.md`, over task
+14's six RPCs re-verified directly against the committed migration
+(`supabase/migrations/20260914170000_recurring_schedules.sql`), not the
+plan prose, per the task's own instruction that fix rounds changed a couple
+of things after the brief was written. Two confirmations that mattered:
+`confirm_scheduled_occurrence`'s seven arguments (`p_space_id,p_request_id,
+p_occurrence_id,p_expected_event_id,p_actual_amount_minor,p_effective_date,
+p_wallet_id`) match the brief exactly, and `scheduled_occurrence_page`'s row
+shape matches the brief's field list verbatim (`id,scheduleId,
+sourceRevisionId,currentEventId,currency,kind,nameEn,nameAr,dueDate,
+expectedMinor,settledMinor,remainingMinor,state,overdue,categoryId,loanId,
+fundingGoalId,preferredWalletId,fundingShortfallMinor,asOf`) — no drift to
+reconcile. Reused `planning-shared/rpc.ts`/`parse.ts` verbatim (no new
+shared primitive was needed this time, unlike task 12's `head`/`nullableHead`
+addition) and mirrored `src/features/goals/*`'s exact shape: DTOs
+(`types.ts`), a Supabase gateway mapping camelCase to `p_snake_case` and
+validating every response field before trusting it (`supabase-recurring-
+gateway.ts`), a five-mutation-kind generalization of the goals/allocation
+accepted/ambiguous/retry state machine (`use-recurring.ts`), an in-memory
+test fake, and an error classifier (`errors.ts`) covering every SQLSTATE/
+message token task 14's commands raise, including the deferred-trigger
+recheck messages (`occurrence_already_skipped`,
+`occurrence_allocation_exceeds_eligible_amount`, etc.) alongside their
+command-time P0001 twins so both paths to the same business rule surface
+the same friendly copy. `src/lib/supabase.ts`'s `BudgetDataClient` now also
+intersects `RecurringDataClient`. Full evidence:
+`docs/verification/future-planning/15.md`.
+
+The hook's "current view" is the first page of `scheduled_occurrence_page`
+for a given `(spaceId, fromDate, toDate)` — the closest recurring analogue
+to `useAllocation`'s `(spaceId, month, currency)` and `useGoals`'s
+`(spaceId, currency, stateFilter)` view keys, since `loadOccurrences` has no
+month/currency axis of its own, only a date range. `loadMore` (pagination
+beyond the first page) is a stateless passthrough, matching how
+`loadDetail`/`loadHistory`/`loadMore` are stateless in `useGoals` today.
+
+As in tasks 07/12, the plan's own Task 3 recipe of re-driving the real
+15-second `AbortController` timeout through `renderHook` +
+`vi.useFakeTimers()` was not attempted here: the prior two tasks already
+documented the reproducible out-of-memory crash this exact combination
+causes in this sandbox (jsdom `AbortSignal` dispatch + fake timers + React's
+effect scheduler), and nothing about task 15's transport differs from
+theirs — the 15-second timeout is the same `planning-shared/rpc.ts` already
+proved in isolation by `rpc.test.ts`, and the ambiguous/retry state machine
+is proved end-to-end here with a synthetic timeout-shaped rejection instead,
+exercising the identical `reconcileCommand` code path both prior tasks used.
+
+**Why:** Re-verifying against the migration rather than the brief avoided
+building against possibly-stale prose (the brief itself warns fix rounds
+changed some signatures); doing so confirmed no reconciliation was actually
+needed for this task, which is itself worth recording since the next
+session should not assume that will always be true. Not re-attempting the
+known-hazardous fake-timer test a third time avoided reintroducing a
+previously root-caused runner crash for a decision already settled twice.
+
+**If changed:** Task 16 (upcoming bills UI) wires `useRecurring`/
+`createSupabaseRecurringGateway` into `app.tsx`/`routes.tsx`, the same way
+task 08/13 wired allocation/goals into their own routes — and is the
+surface that will actually call `materialize`/`confirm`/`linkExisting` from
+wherever the bills screen chooses to expose them (that screen-level design
+choice is task 16's, not decided here). If a future session finally lands
+the real-timer version of the hook test, replace this note and task 07/12's
+matching notes together, since all three share one root cause.
