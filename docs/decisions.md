@@ -1776,3 +1776,35 @@ himself (Supabase PAT/DB password prompts; Claude does not and will not enter
 credentials). Any future planning-foundation packet must check `src/` for
 existing UI/gateway consumers before claiming a command is unused — this is
 now a standing lesson, not just this incident.
+
+## 2026-09-14 — Add a read-only live-migration drift check, not an auto-deploy
+
+**Decision:** Added `pnpm check:live-migration-drift`
+(`scripts/ops/check-live-migration-drift.sh` +
+`scripts/ops/check-live-migration-drift.mjs`), a read-only sibling of
+`apply-live-migrations.sh` that compares `supabase/migrations/*.sql` against
+`supabase_migrations.schema_migrations` on the live `Budget Production`
+project and reports every version present on only one side. It runs the same
+exact-project verification and credential prompts as the live migration
+runner, but issues no write of any kind: no `db push`, no dry-run, no backup,
+no typed confirmation, because nothing here can change the database. It is
+**not** wired into `pnpm check` or any CI/build step — it needs the same
+Supabase PAT and DB password as `migrate:live` and is meant to be run
+on demand (`set -a && source .env.ops.local && set +a && pnpm check:live-migration-drift`,
+inside `scripts/ops/docker-ssh-bridge.sh run --` if the local Supabase CLI
+needs it) or from a future scheduled job that has those secrets.
+
+**Why:** Daniel asked for "SQL sync" after task 02's fix migration sat
+undeployed for a day and broke the Home page in production before anyone
+noticed. Auto-deploying migrations on merge was explicitly declined — it
+would remove the manual PAT/password/typed-confirmation gate this repo
+deliberately built, and directly contradicts this repo's own global rule
+that migrations are "never auto-pushed to a database." A read-only detector
+gives the same visibility without an unattended write path to production.
+
+**If changed:** Wiring this into an actual scheduled job (so it runs without
+a human present) requires storing the Supabase PAT and DB password as CI/job
+secrets — a separate, explicit decision with its own review, not implied by
+adding this script. Any new column this check should also assert on
+(currently only `schema_migrations.version`, not file hashes) needs a
+matching update to `check-live-migration-drift.mjs`'s tests.
