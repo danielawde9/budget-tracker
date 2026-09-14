@@ -1878,3 +1878,53 @@ command, not just owner-seeded fixture rows (owner-seeded rows hide this
 exact class of bug, as task 04's own test suite did). No UI/gateway calls
 either new command yet (checked against `src/`, not assumed) — task 06 adds
 the read-model projections these commands feed.
+
+## 2026-09-14 — Allocation projection read-model lands per task 06
+
+**Decision:** Added `private.planning_ordinary_activity` (the exact given
+canonical ordinary-activity SQL, wrapped with membership and a 1–366-day
+range check) plus four public read contracts —
+`public.allocation_month_state`, `public.allocation_category_page`,
+`public.allocation_history_page`, `public.allocation_trend` — per
+`docs/superpowers/plans/future-planning/06-allocation-projections-db.md`.
+Full evidence: `docs/verification/future-planning/06.md`. Two real defects
+surfaced only once the functions were exercised through disposable-Postgres
+tests, not by re-reading the plan's own SQL:
+
+- Postgres has no built-in `max()`/`min()` aggregate for the `uuid` type.
+  `allocation_category_page`'s next-cursor computation originally used
+  `max(root_id) filter (...)` to pick the last-returned row's UUID cursor;
+  fixed by restructuring the pagination query around a `numbered` CTE and
+  plain scalar subqueries (`(select root_id from numbered where rn =
+  p_limit)`, `exists(...)` for `hasMore`) instead of aggregating a UUID
+  column at all.
+- `SET statement_timeout='10s'` was added to all four public functions per
+  the task's own Task 2 preamble ("All reads ... `SET
+  statement_timeout='10s'`"), matching the pattern task 03 already
+  established (`set search_path=... set statement_timeout='10s'`), which the
+  first draft of this migration had omitted.
+
+Design choices made where the task's prose was under-specified (validated
+against Task 3's fixture, not assumed): `ownDebtPaidMinor`/
+`remainingDebtMinor` are always a **live** read via
+`loan_monthly_currency_summary` at the currently-viewed month, independent of
+`hasPlan`; a `future`-purpose group's `actualMinor` is always its snapshot's
+own stored `allocation_month_commitments.observed_actual_minor` (the amount
+observed at publish time), never live loan activity, so it cannot silently
+drift after publish; `leftToAllocate`'s "standalone debt commitment" and
+"future excess" terms are mutually exclusive per snapshot, matching the
+schema's own one-row-per-snapshot `allocation_month_commitments` shape
+(`group_id is null` selects exactly one branch).
+
+**Why:** `01-sql-contract.md`'s required-evidence discipline exists exactly
+to catch a builtin-aggregate gap like the `uuid` one above — it reads as
+valid SQL and would only fail at the first real page-2 request in
+production, not at `CREATE FUNCTION` time (Postgres does not validate a
+`plpgsql` function body's inner SQL until it first executes a given branch).
+
+**If changed:** Any future paginated read contract that carries a `uuid`
+(or other type without a builtin min/max aggregate) cursor must extract the
+boundary row via a scalar subquery ordered by the cursor column, never
+`max()`/`min()` on that column directly. No UI/gateway entry path calls any
+of the four new functions yet (checked against `src/`, not assumed) — task
+07 (gateway) and task 08 (setup/charts UI) are separate, later packets.

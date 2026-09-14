@@ -86,6 +86,18 @@ not posting commands. They read the existing journal, wallet movements, and
 monthly plan revisions and cannot create or alter a financial event, movement,
 loan posting, balance, or category association.
 
+`public.allocation_month_state`, `public.allocation_category_page`,
+`public.allocation_history_page`, and `public.allocation_trend` are read-only
+reconciliation projections over the allocation schema and command tables from
+`save_allocation_template`/`publish_allocation_month`. They read
+`private.planning_ordinary_activity` (a new private, non-executable-by-role
+helper defining current ordinary income/expense classification for this
+reconciliation layer), `public.loan_monthly_currency_summary`, and the
+`allocation_month_*`/`allocation_template_*` tables; they cannot create or
+alter a financial event, movement, loan posting, balance, category
+association, or any allocation row. No application UI entry path calls any of
+the four yet (checked against `src/` before writing this sentence).
+
 **Correction (2026-09-14):** the sentence "no application UI entry path calls
 them yet" that stood here at task 02's initial commit was wrong — it was not
 checked against `src/` before being written. `src/features/control-room/routes.tsx`'s
