@@ -423,6 +423,39 @@ describe('confirm_scheduled_occurrence', () => {
     })).rejects.toMatchObject({ code: 'P0001', message: 'planning_idempotency_conflict' });
   });
 
+  it('rejects a request id reused by a different actor in the same space, without disclosing the original result', async () => {
+    // A 'personal' space enforces exactly one member; use 'household' so a
+    // second real, active member can be added directly (bypassing the
+    // invitation flow, which is not what this test is about) -- mirrors
+    // save_schedule's own changed-actor test in recurring-schedules.integration.test.ts.
+    const spaceId = await withAuthenticatedTransaction(db().client, actor, async () => {
+      const space = await db().client.query<{ id: string }>(
+        "select id from public.create_space($1, 'household') limit 2", ['Confirm idempotency conflict actor'],
+      );
+      return space.rows[0]!.id;
+    });
+    const secondMember = randomUUID();
+    await db().client.query(
+      `insert into auth.users(id, email, email_confirmed_at) values ($1, 'second-member@budget.invalid', now())`,
+      [secondMember],
+    );
+    await db().client.query(
+      "insert into public.space_memberships(space_id, user_id, role) values ($1,$2,'member'::public.member_role)",
+      [spaceId, secondMember],
+    );
+    const walletId = await freshWallet(spaceId);
+    await fundWallet(spaceId, walletId, '1000000');
+    const schedule = await saveSchedule(spaceId, { expectedMinor: '50000' });
+    await materialize(spaceId, '2026-01-01', '2026-01-31');
+    const occurrence = await firstOccurrence(schedule.scheduleId);
+    const requestId = randomUUID();
+    await confirm({ spaceId, occurrenceId: occurrence.id, expectedEventId: null, amountMinor: '20000', effectiveDate: '2026-01-01', walletId, requestId });
+    await expect(withAuthenticatedTransaction(db().client, secondMember, () =>
+      db().client.query('select public.confirm_scheduled_occurrence($1,$2,$3,$4,$5,$6,$7)',
+        [spaceId, requestId, occurrence.id, null, '20000', '2026-01-01', walletId]),
+    )).rejects.toMatchObject({ code: 'P0001', message: 'planning_idempotency_conflict' });
+  });
+
   it('rejects confirming a skipped occurrence', async () => {
     const spaceId = await freshSpace('Confirm skipped rejects');
     const walletId = await freshWallet(spaceId);
