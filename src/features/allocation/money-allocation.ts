@@ -9,6 +9,22 @@ export interface AllocatedAmount {
 }
 export const residualId = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
 
+/** Percent input has at most two decimal digits: "56.25" becomes 5625 bps. */
+export function percentToBasisPoints(value: string): number {
+  const trimmed = value.trim();
+  if (!/^\d{1,3}(\.\d{1,2})?$/.test(trimmed)) throw new Error('Enter a percentage with at most two decimal digits.');
+  const [whole, fraction = ''] = trimmed.split('.');
+  const basisPoints = Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
+  if (basisPoints < 0 || basisPoints > 10000) throw new Error('Percentage must be between 0 and 100.');
+  return basisPoints;
+}
+
+export function basisPointsToPercentText(basisPoints: number): string {
+  const whole = Math.trunc(basisPoints / 100);
+  const fraction = (basisPoints % 100).toString().padStart(2, '0');
+  return fraction === '00' ? String(whole) : `${whole}.${fraction}`;
+}
+
 export function allocateIncome(
   incomeMinor: string,
   groups: readonly AllocationWeight[],

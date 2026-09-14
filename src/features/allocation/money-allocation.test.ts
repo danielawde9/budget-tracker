@@ -1,5 +1,41 @@
 import { describe, expect, it } from 'vitest';
-import { allocateIncome, residualId, type AllocationWeight } from './money-allocation.js';
+import { allocateIncome, basisPointsToPercentText, percentToBasisPoints, residualId, type AllocationWeight } from './money-allocation.js';
+
+describe('percentToBasisPoints', () => {
+  it('converts a whole percent', () => {
+    expect(percentToBasisPoints('56')).toBe(5600);
+  });
+  it('converts a two-decimal percent, matching the task example exactly', () => {
+    expect(percentToBasisPoints('56.25')).toBe(5625);
+  });
+  it('converts a one-decimal percent', () => {
+    expect(percentToBasisPoints('56.5')).toBe(5650);
+  });
+  it('accepts the boundaries 0 and 100', () => {
+    expect(percentToBasisPoints('0')).toBe(0);
+    expect(percentToBasisPoints('100')).toBe(10000);
+  });
+  it('rejects more than two decimal digits', () => {
+    expect(() => percentToBasisPoints('56.256')).toThrow();
+  });
+  it('rejects a value over 100', () => {
+    expect(() => percentToBasisPoints('100.01')).toThrow();
+  });
+  it('rejects a negative or non-numeric value', () => {
+    expect(() => percentToBasisPoints('-5')).toThrow();
+    expect(() => percentToBasisPoints('abc')).toThrow();
+  });
+});
+
+describe('basisPointsToPercentText', () => {
+  it('round-trips through percentToBasisPoints', () => {
+    expect(basisPointsToPercentText(5625)).toBe('56.25');
+    expect(basisPointsToPercentText(percentToBasisPoints('56.25'))).toBe('56.25');
+  });
+  it('omits the decimal part for a whole percent', () => {
+    expect(basisPointsToPercentText(5600)).toBe('56');
+  });
+});
 
 const weights = [
   { id: '00000000-0000-4000-8000-000000000001', order: 0, basisPoints: 5600 },

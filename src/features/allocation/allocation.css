@@ -1,0 +1,261 @@
+/* ==========================================================================
+   Allocation feature — scoped styles reusing Control Room's tokens
+   (--cr-*) and .cr-card/.cr-row/.cr-label/.cr-button visual language.
+   Logical properties throughout for RTL; no new design tokens.
+   ========================================================================== */
+
+.alloc-visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.alloc-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cr-space-2);
+  justify-content: space-between;
+}
+
+.alloc-heading {
+  font-family: var(--cr-font-display);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.alloc-label-muted {
+  color: var(--cr-ink-soft);
+  font-size: 12px;
+}
+
+.alloc-danger-text {
+  color: var(--cr-danger);
+}
+
+/* ---- Overview metrics -------------------------------------------------- */
+
+.alloc-overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-3);
+}
+
+.alloc-stale-banner {
+  background: var(--cr-warn-strong, var(--cr-warn));
+  background: color-mix(in srgb, var(--cr-warn) 15%, transparent);
+  border: 1px solid var(--cr-warn);
+  border-radius: var(--cr-radius-sm);
+  padding: var(--cr-space-2) var(--cr-space-3);
+  color: var(--cr-warn-strong);
+  font-size: 13px;
+}
+
+.alloc-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--cr-space-3);
+}
+
+.alloc-metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-1);
+}
+
+.alloc-metric-value {
+  font-family: var(--cr-font-display);
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Bars / accessible chart -------------------------------------------- */
+
+.alloc-bars {
+  overflow-x: auto;
+}
+
+.alloc-bars-table {
+  border-collapse: collapse;
+  inline-size: 100%;
+  font-size: 13px;
+}
+
+.alloc-bars-table th,
+.alloc-bars-table td {
+  padding-block: var(--cr-space-2);
+  padding-inline-end: var(--cr-space-3);
+  text-align: start;
+  vertical-align: middle;
+  border-block-end: 1px solid var(--cr-hairline);
+}
+
+.alloc-bar-row th[scope="row"] {
+  font-weight: 500;
+}
+
+.alloc-bar-bps {
+  margin-inline-start: var(--cr-space-2);
+  color: var(--cr-ink-soft);
+  font-size: 11px;
+}
+
+.alloc-bar-visual {
+  min-inline-size: 120px;
+}
+
+.alloc-progress {
+  block-size: 4px;
+  border-radius: var(--cr-radius-full);
+  background: var(--cr-surface-sunken);
+  overflow: hidden;
+  box-shadow: var(--cr-shadow-sunken);
+}
+.alloc-progress > span {
+  display: block;
+  block-size: 100%;
+  border-radius: inherit;
+  background: var(--cr-accent);
+  transition: inline-size 200ms var(--cr-ease);
+}
+.alloc-progress[data-over="true"] > span {
+  background: var(--cr-danger);
+}
+
+.alloc-overage-text {
+  display: block;
+  color: var(--cr-danger);
+  font-size: 11px;
+}
+
+.alloc-drilldown-button {
+  margin-block-start: var(--cr-space-1);
+  font-size: 12px;
+  padding: var(--cr-space-1) var(--cr-space-2);
+}
+
+/* ---- Setup / editor ------------------------------------------------------ */
+
+.alloc-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-4);
+}
+
+.alloc-fieldset {
+  border: 1px solid var(--cr-hairline);
+  border-radius: var(--cr-radius);
+  padding: var(--cr-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-2);
+}
+
+.alloc-fieldset legend {
+  padding-inline: var(--cr-space-1);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cr-ink-soft);
+}
+
+.alloc-radio {
+  display: flex;
+  align-items: center;
+  gap: var(--cr-space-2);
+}
+
+.alloc-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-1);
+  font-size: 12px;
+  color: var(--cr-ink-soft);
+}
+.alloc-field input,
+.alloc-field select {
+  font-size: 14px;
+  color: var(--cr-ink);
+}
+
+.alloc-group-row,
+.alloc-root-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cr-space-2);
+}
+.alloc-root-row > span:first-child {
+  min-inline-size: 120px;
+  flex: 1 1 auto;
+}
+
+/* Phone-width layouts: let group/root rows wrap to their own lines rather
+   than compressing inputs illegibly, per the 320/390px inspection matrix. */
+@media (max-width: 420px) {
+  .alloc-group-row,
+  .alloc-root-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .alloc-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* Responsive table -> stacked cards. The table stays in the accessibility
+     tree (no display:none on its structure beyond hiding the header row
+     visually, the same clip technique as .alloc-visually-hidden) while every
+     control renders inside the viewport instead of requiring a horizontal
+     scroll to reach it. */
+  .alloc-bars {
+    overflow-x: visible;
+  }
+  .alloc-bars-table thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+  .alloc-bars-table,
+  .alloc-bars-table tbody,
+  .alloc-bar-row {
+    display: block;
+    inline-size: 100%;
+  }
+  .alloc-bar-row {
+    padding-block: var(--cr-space-2);
+    border-block-end: 1px solid var(--cr-hairline);
+  }
+  .alloc-bars-table th[scope="row"],
+  .alloc-bars-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-inline: 0;
+    border-block-end: 0;
+    text-align: end;
+  }
+  .alloc-bars-table td[data-label]::before {
+    content: attr(data-label);
+    color: var(--cr-ink-soft);
+    font-size: 11px;
+    text-align: start;
+  }
+  .alloc-bar-visual {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--cr-space-1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alloc-progress > span {
+    transition: none;
+  }
+}

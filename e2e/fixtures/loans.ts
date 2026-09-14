@@ -1,4 +1,5 @@
 import type { Page, Route } from '@playwright/test';
+import { allocateIncome, residualId as allocationResidualId } from '../../src/features/allocation/money-allocation.js';
 
 export interface ApplicationFixtureOptions {
   authenticated?: boolean;
@@ -22,7 +23,28 @@ export interface ApplicationFixtureOptions {
   activityRows?: readonly Record<string, unknown>[];
   /** Home trend card: rows for `report_monthly_cash_summary` (needs exactly four). */
   trendRows?: readonly Record<string, unknown>[];
+  /** Allocation setup/overview: the `allocation_month_state` JSON object (camelCase
+   *  keys, matching the SQL contract exactly -- not a table row). Defaults to a
+   *  no-plan-yet shape when omitted. */
+  allocationMonth?: Record<string, unknown>;
+  /** `allocation_category_page` JSON object for the drilldown dialog. */
+  allocationCategoryPage?: Record<string, unknown>;
+  /** `allocation_history_page` JSON object. */
+  allocationHistoryPage?: Record<string, unknown>;
+  /** `allocation_trend` JSON object. */
+  allocationTrend?: Record<string, unknown>;
 }
+
+const defaultAllocationMonth: Record<string, unknown> = {
+  snapshotId: null, templateRevisionId: null, incomeRevisionId: null, hasPlan: false,
+  plannedIncomeMinor: null, actualIncomeMinor: '0', expenseMinor: '0', incomeAfterSpendingMinor: '0',
+  ownDebtPaidMinor: '0', remainingDebtMinor: '0', leftToAllocateMinor: null, childPlanChanged: false,
+  asOf: '2026-09-14T12:00:00Z',
+  groups: [
+    { groupId: null, rowKind: 'unmapped', nameEn: null, nameAr: null, order: null, targetMinor: '0', actualMinor: '0', varianceMinor: '0', basisPoints: null, actualShareOfIncomeBps: null, hasPlan: false },
+    { groupId: null, rowKind: 'uncategorized', nameEn: null, nameAr: null, order: null, targetMinor: null, actualMinor: '0', varianceMinor: null, basisPoints: null, actualShareOfIncomeBps: null, hasPlan: false },
+  ],
+};
 
 const defaultTrendRows: Record<string, unknown>[] = [
   { period_month: '2025-10-01', period_role: 'previous', currency: 'USD', income_net_minor: '200000', expense_net_minor: '-120000', wallet_delta_net_minor: '80000' },
@@ -226,6 +248,13 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
   let categoryFailuresRemaining = options.failCategoriesOnce ? 16 : 0;
   let eventSequence = 0;
   const protectedMutationCalls = new Set<string>();
+  let allocationMonth: Record<string, unknown> = { ...(options.allocationMonth ?? defaultAllocationMonth) };
+  let nextAllocationTemplateRevisionId = 100;
+  let nextAllocationSnapshotId = 100;
+  let nextAllocationIncomeRevisionId = 100;
+  let lastSavedGroups: readonly { id: string; purpose: 'spending' | 'future'; nameEn: string | null; nameAr: string | null; order: number; basisPoints: number }[] = [];
+  let lastSavedTemplateRevisionId = '0';
+  const allocationReceipts = new Map<string, { command: string; sequenceId: string; result: unknown }>();
 
   if (authenticated) {
     await page.addInitScript((value) => localStorage.setItem('sb-127-auth-token', JSON.stringify(value)), authSession());
@@ -456,6 +485,76 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
     }
     if (path.endsWith('/rpc/report_monthly_cash_summary')) {
       return json(route, cloneRows(options.trendRows ?? defaultTrendRows));
+    }
+    if (path.endsWith('/rpc/allocation_month_state')) {
+      return json(route, allocationMonth);
+    }
+    if (path.endsWith('/rpc/allocation_category_page')) {
+      return json(route, options.allocationCategoryPage ?? { rows: [], nextRootId: null, hasMore: false });
+    }
+    if (path.endsWith('/rpc/allocation_history_page')) {
+      return json(route, options.allocationHistoryPage ?? { rows: [], nextId: null, hasMore: false });
+    }
+    if (path.endsWith('/rpc/allocation_trend')) {
+      return json(route, options.allocationTrend ?? { months: [] });
+    }
+    if (path.endsWith('/rpc/save_allocation_template')) {
+      const body = request.postDataJSON() as {
+        p_request_id: string;
+        p_groups: readonly { id: string; purpose: 'spending' | 'future'; nameEn: string | null; nameAr: string | null; order: number; basisPoints: number }[];
+      };
+      const existing = allocationReceipts.get(body.p_request_id);
+      if (existing) return json(route, existing.result);
+      const templateRevisionId = String(nextAllocationTemplateRevisionId++);
+      lastSavedGroups = body.p_groups;
+      lastSavedTemplateRevisionId = templateRevisionId;
+      const result = { templateRevisionId };
+      allocationReceipts.set(body.p_request_id, { command: 'save_allocation_template', sequenceId: templateRevisionId, result });
+      return json(route, result);
+    }
+    if (path.endsWith('/rpc/publish_allocation_month')) {
+      const body = request.postDataJSON() as {
+        p_request_id: string; p_income_minor: string;
+        p_root_targets: readonly { categoryId: string; amountMinor: string }[];
+      };
+      const existing = allocationReceipts.get(body.p_request_id);
+      if (existing) return json(route, existing.result);
+      const snapshotId = String(nextAllocationSnapshotId++);
+      const incomeRevisionId = String(nextAllocationIncomeRevisionId++);
+      const weights = lastSavedGroups.map((group) => ({ id: group.id, order: group.order, basisPoints: group.basisPoints }));
+      const apportioned = weights.length > 0 ? allocateIncome(body.p_income_minor, weights) : [];
+      const residual = apportioned.find((row) => row.id === allocationResidualId);
+      const realRootTotal = body.p_root_targets.reduce((sum, target) => sum + BigInt(target.amountMinor), 0n);
+      const standaloneTotal = weights.length === 0 ? realRootTotal : 0n;
+      const groups = lastSavedGroups.map((group) => {
+        const target = apportioned.find((row) => row.id === group.id);
+        return {
+          groupId: group.id, rowKind: group.purpose, nameEn: group.nameEn, nameAr: group.nameAr,
+          order: group.order, targetMinor: target?.amountMinor ?? '0', actualMinor: '0', varianceMinor: target?.amountMinor ?? '0',
+          basisPoints: group.basisPoints, actualShareOfIncomeBps: '0', hasPlan: true,
+        };
+      });
+      allocationMonth = {
+        snapshotId, templateRevisionId: lastSavedTemplateRevisionId,
+        incomeRevisionId, hasPlan: true,
+        plannedIncomeMinor: body.p_income_minor, actualIncomeMinor: '0', expenseMinor: '0', incomeAfterSpendingMinor: '0',
+        ownDebtPaidMinor: '0', remainingDebtMinor: '0',
+        leftToAllocateMinor: weights.length > 0 ? (residual?.amountMinor ?? '0') : (BigInt(body.p_income_minor) - standaloneTotal).toString(),
+        childPlanChanged: false, asOf: '2026-09-14T12:00:00Z',
+        groups: [
+          ...groups,
+          { groupId: null, rowKind: 'unmapped', nameEn: null, nameAr: null, order: null, targetMinor: standaloneTotal.toString(), actualMinor: '0', varianceMinor: standaloneTotal.toString(), basisPoints: null, actualShareOfIncomeBps: null, hasPlan: standaloneTotal !== 0n },
+          { groupId: null, rowKind: 'uncategorized', nameEn: null, nameAr: null, order: null, targetMinor: null, actualMinor: '0', varianceMinor: null, basisPoints: null, actualShareOfIncomeBps: null, hasPlan: false },
+        ],
+      };
+      const result = { snapshotId, incomeRevisionId };
+      allocationReceipts.set(body.p_request_id, { command: 'publish_allocation_month', sequenceId: snapshotId, result });
+      return json(route, result);
+    }
+    if (path.endsWith('/rpc/find_planning_command')) {
+      const body = request.postDataJSON() as { p_request_id: string };
+      const receipt = allocationReceipts.get(body.p_request_id);
+      return json(route, receipt ?? null);
     }
     if (path.endsWith('/rpc/record_usd_to_lbp_exchange')) {
       // The gateway only checks that the returned id is a UUID; keep it fixed

@@ -17,7 +17,16 @@ import type {
 } from './types.js';
 
 export type AllocationStatus = 'loading' | 'ready' | 'saving' | 'accepted-refresh-pending' | 'ambiguous' | 'error';
-export interface CommandOutcome { status: 'success' | 'ambiguous' | 'refresh-required'; reconciled: boolean }
+export interface CommandOutcome {
+  status: 'success' | 'ambiguous' | 'refresh-required';
+  reconciled: boolean;
+  /** The command's own result (e.g. the new templateRevisionId), present on
+   * 'success'/'refresh-required' -- absent while 'ambiguous', since nothing
+   * confirmed happened yet. Lets a caller chain saveTemplate -> publishMonth
+   * as one logical "Confirm" without the hook itself bundling the two SQL
+   * commands into a single non-idempotent unit. */
+  result?: SaveTemplateResult | PublishMonthResult;
+}
 
 export const defaultMonthState: AllocationMonthState = {
   snapshotId: null, templateRevisionId: null, incomeRevisionId: null, hasPlan: false,
@@ -131,10 +140,9 @@ export function useAllocation(
 
   const reconcileCommand = useCallback(async (command: RetryCommand): Promise<CommandOutcome> => {
     try {
-      if (command.kind === 'saveTemplate') await gateway.saveTemplate(command.input);
-      else await gateway.publishMonth(command.input);
+      const result = command.kind === 'saveTemplate' ? await gateway.saveTemplate(command.input) : await gateway.publishMonth(command.input);
       const refreshed = await refreshAfterCommand();
-      const outcome: CommandOutcome = { status: refreshed ? 'success' : 'refresh-required', reconciled: false };
+      const outcome: CommandOutcome = { status: refreshed ? 'success' : 'refresh-required', reconciled: false, result };
       settleOutcome(outcome);
       return outcome;
     } catch (cause) {
@@ -150,7 +158,10 @@ export function useAllocation(
       }
       if (receipt && receipt.command === commandName) {
         const refreshed = await refreshAfterCommand();
-        const outcome: CommandOutcome = { status: refreshed ? 'success' : 'refresh-required', reconciled: true };
+        const outcome: CommandOutcome = {
+          status: refreshed ? 'success' : 'refresh-required', reconciled: true,
+          result: receipt.result as SaveTemplateResult | PublishMonthResult,
+        };
         settleOutcome(outcome);
         return outcome;
       }

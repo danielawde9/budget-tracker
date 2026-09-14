@@ -1988,3 +1988,79 @@ AbortController interaction first (not just retry variations of the test),
 or use `vi.setSystemTime`/manual `Date` stubbing instead of
 `vi.useFakeTimers()` for the `setTimeout` in `rpc.ts` specifically. Task 08
 (allocation UI) is a separate, later packet; this commit stops before it.
+
+## 2026-09-14 — Allocation UI lands per task 08, completing Release 1
+
+**Decision:** Added the allocation human flow per
+`docs/superpowers/plans/future-planning/08-allocation-ui.md`:
+`chart-ratio.ts` (exact given `chartPercent`), `allocation-bars.tsx` (an
+accessible `<table>` chart — real semantic table plus a CSS-only responsive
+"stacked card" layout under 420px, since Playwright's `expectContainedControls`
+caught the desktop table layout genuinely overflowing the 390px mobile
+viewport on first e2e run), `allocation-overview.tsx`, `allocation-month-editor.tsx`
+(manual/percentage mode, live `allocateIncome` preview, client-side
+over-allocation guard mirroring the SQL's own check for immediate feedback),
+`allocation-setup.tsx` (the orchestrator wiring `useAllocation` to the
+overview/editor), and `allocation.css`. Full evidence:
+`docs/verification/future-planning/08.md`.
+
+**Placement:** Control Room's Plan route already existed with its own
+per-category target editor (`PlanPage`/`usePlan`, predating this roadmap).
+Rather than replace it — a redesign decision out of this task's scope per
+`00-start-here.md`'s "do not implement that entire redesign as a side
+effect" — the new allocation section (one per currency, mirroring the
+existing Plan page's own USD/LBP stacking) was added **alongside** it in
+`PlanRoutes`. Both now coexist on the Plan screen. Consolidating them into
+one coherent editing surface (or deciding the old per-category editor should
+be retired once allocation covers its use cases) is an explicit **open
+follow-up UX decision**, not resolved here.
+
+**expectedRevisionId for existing category targets:** `allocation_category_page`
+(task 06) does not expose each root's `target_revision_id`, so the editor
+cannot learn it from the allocation read contracts alone when re-publishing
+an already-planned category (required for `publish_allocation_month`'s
+per-category optimistic-concurrency check, proven necessary by task 05's own
+"stops an old positive target" test, which only works because the test
+already held that revision id from calling `set_monthly_category_target`
+itself). Resolved without any SQL change: `publish_allocation_month` and the
+pre-existing `set_monthly_category_target` both write into the same
+`monthly_budget_plan_revisions` table, and the pre-existing, already-public
+`monthly_budget_category_page`/`_v2` (task 02) already reads `target_revision_id`
+from it. `AllocationSetup` resolves each category's current revision id from
+the existing Plan gateway's category rows (already loaded by `PlanRoutes`)
+before opening the editor.
+
+**Live-browser verification:** the real Supabase project still has none of
+tasks 02–06's migrations deployed (`pnpm migrate:live` has not been run this
+session), so both the pre-existing Plan screen and the new allocation
+section show their real, honest "could not load" error states against
+production today — confirmed by hand in Chrome and unrelated to this
+change (the Plan screen's own pre-existing failure, "the database row is
+missing name_ar", predates this task and reproduces on `main` before these
+commits; not investigated further here as out of Release 1's scope). Full
+happy-path verification therefore used `e2e/allocation.visual.spec.ts`
+against the project's existing Playwright fixture-server harness
+(`e2e/fixtures/loans.ts`, extended with `allocation_month_state`/
+`allocation_category_page`/`allocation_history_page`/`allocation_trend`/
+`save_allocation_template`/`publish_allocation_month`/`find_planning_command`
+route handlers, reusing the real `allocateIncome` helper for a faithful
+publish-time apportionment preview) — real Chrome, real bundled app code,
+real network layer, fixture data only at the PostgREST boundary. This
+exercised the exact plan-pack Task 3 numbers end to end and caught the
+mobile overflow bug above on the first run.
+
+**Why:** Every prior task in this roadmap fixed real bugs only by testing
+against the real engine/real browser rather than trusting the written code;
+this task's mobile-overflow catch is the UI-layer instance of that same
+pattern. The placement and expectedRevisionId decisions both favor an
+explicit, reasoned default over inventing new SQL or redesigning shared
+navigation mid-task, per `00-start-here.md`'s own scope discipline.
+
+**If changed:** A future task should either retire `PlanPage`'s per-category
+editor in favor of allocation's manual mode, or make their relationship
+explicit in the UI (e.g., link one from the other) — right now a user could
+set values in both without a documented reconciliation story. If
+`allocation_category_page` later grows a `targetRevisionId` field, the Plan
+gateway cross-reference in `allocation-setup.tsx` can be dropped for a
+single-gateway read. Release 1 (tasks 02–08: allocation DB layers through
+UI) is now complete; task 09 (goal tables) is a new, separate feature.

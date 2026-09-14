@@ -70,7 +70,7 @@ describe('useAllocation', () => {
         templateRevisionId: '9', expectedSnapshotId: null, expectedIncomeRevisionId: null,
         incomeMinor: '200000', rootTargets: [], loanGroupId: null,
       });
-      expect(outcome).toEqual({ status: 'success', reconciled: false });
+      expect(outcome).toMatchObject({ status: 'success', reconciled: false });
     });
     expect(gateway.calls.filter((call) => call.name === 'publishMonth')).toHaveLength(1);
     expect((gateway.calls.find((call) => call.name === 'publishMonth')!.input as { requestId: string }).requestId).toBe('req-fixed');
@@ -119,7 +119,7 @@ describe('useAllocation', () => {
         templateRevisionId: '9', expectedSnapshotId: null, expectedIncomeRevisionId: null,
         incomeMinor: '200000', rootTargets: [], loanGroupId: null,
       });
-      expect(outcome).toEqual({ status: 'refresh-required', reconciled: false });
+      expect(outcome).toMatchObject({ status: 'refresh-required', reconciled: false });
     });
     expect(result.current.status).toBe('accepted-refresh-pending');
     gateway.monthState = coreMonthStateFixture;
@@ -141,14 +141,14 @@ describe('useAllocation', () => {
     await waitFor(() => expect(result.current.status).toBe('ready'));
     await act(async () => {
       const outcome = await result.current.saveTemplate({ currency: 'USD', expectedRevisionId: null, groups: [], rootMappings: [] });
-      expect(outcome).toEqual({ status: 'ambiguous', reconciled: false });
+      expect(outcome).toMatchObject({ status: 'ambiguous', reconciled: false });
     });
     expect(result.current.status).toBe('ambiguous');
     expect(result.current.ambiguous).toEqual({ kind: 'saveTemplate', requestId: 'req-fixed' });
     gateway.monthState = coreMonthStateFixture;
     await act(async () => {
       const outcome = await result.current.retryAmbiguous();
-      expect(outcome).toEqual({ status: 'success', reconciled: false });
+      expect(outcome).toMatchObject({ status: 'success', reconciled: false });
     });
     expect(result.current.status).toBe('ready');
     expect(result.current.ambiguous).toBeNull();
@@ -167,7 +167,7 @@ describe('useAllocation', () => {
     await waitFor(() => expect(result.current.status).toBe('ready'));
     await act(async () => {
       const outcome = await result.current.saveTemplate({ currency: 'USD', expectedRevisionId: null, groups: [], rootMappings: [] });
-      expect(outcome).toEqual({ status: 'success', reconciled: true });
+      expect(outcome).toMatchObject({ status: 'success', reconciled: true });
     });
     expect(result.current.status).toBe('ready');
     expect(result.current.ambiguous).toBeNull();

@@ -18,6 +18,7 @@ function gateways(): ControlRoomGateways {
     plan: null,
     insights: { walletActivity: vi.fn(async () => []), categoryActualVsBudget: vi.fn(async () => []) },
     exchange: null,
+    allocation: null,
   };
 }
 

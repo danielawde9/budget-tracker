@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { AllocationSetup } from '../allocation/allocation-setup.js';
+import type { CategoryOption } from '../allocation/allocation-month-editor.js';
+import type { AllocationGateway } from '../allocation/types.js';
+import { useAllocation } from '../allocation/use-allocation.js';
 import { useCategories } from '../categories/use-categories.js';
 import type { CategoriesGateway } from '../categories/types.js';
 import { useExchange } from '../exchange/use-exchange.js';
@@ -41,6 +45,16 @@ const unavailablePlanClient: PlanClient = {
   async setCategoryTarget() { throw new Error('Planning is unavailable until this browser is connected to its data service.'); },
 };
 
+const unavailableAllocationGateway: AllocationGateway = {
+  async loadMonth() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
+  async loadCategoryPage() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
+  async loadHistoryPage() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
+  async loadTrend() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
+  async saveTemplate() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
+  async publishMonth() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
+  async findCommand() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
+};
+
 export interface ControlRoomGateways {
   wallets: WalletsGateway;
   loans: LoansGateway;
@@ -50,6 +64,7 @@ export interface ControlRoomGateways {
   plan: PlanClient | null;
   insights: InsightsClient | null;
   exchange: ExchangeClient | null;
+  allocation: AllocationGateway | null;
 }
 
 export interface ControlRoomRoutesProps {
@@ -220,11 +235,55 @@ interface PlanRoutesProps {
   gateways: ControlRoomGateways;
   loans: ReturnType<typeof useLoans>;
   month: string;
+  expenseRootCategories: readonly CategoryOption[];
+  onSpaceUnavailable?: (() => void) | undefined;
 }
+
+function AllocationCurrencySection(props: {
+  locale: Locale;
+  spaceId: string;
+  month: string;
+  currency: 'USD' | 'LBP';
+  gateway: AllocationGateway;
+  categories: readonly CategoryOption[];
+  categoryTargets: ReadonlyMap<string, { amountMinor: string; revisionId: string | null }>;
+  onSpaceUnavailable?: (() => void) | undefined;
+}) {
+  const allocation = useAllocation(props.gateway, props.spaceId, props.month, props.currency, props.onSpaceUnavailable);
+  return (
+    <section className="cr-card" aria-label={`${props.locale === 'ar' ? 'التخصيص' : 'Allocation'} ${props.currency}`}>
+      <span className="cr-chip">{props.currency}</span>
+      <AllocationSetup
+        locale={props.locale}
+        currency={props.currency}
+        month={props.month}
+        categories={props.categories}
+        categoryTargets={props.categoryTargets}
+        allocation={allocation}
+        gateway={props.gateway}
+      />
+    </section>
+  );
+}
+
+const ALLOCATION_CURRENCIES = ['USD', 'LBP'] as const;
 
 function PlanRoutes(props: PlanRoutesProps) {
   const { locale, spaceId, gateways } = props;
   const plan = usePlan(gateways.plan ?? unavailablePlanClient, spaceId, props.month);
+
+  const categoryTargetsByCurrency = useMemo(() => {
+    const map = new Map<'USD' | 'LBP', Map<string, { amountMinor: string; revisionId: string | null }>>([
+      ['USD', new Map()], ['LBP', new Map()],
+    ]);
+    if (plan.status === 'ready') {
+      for (const row of plan.categoryRows) {
+        if (row.targetMinor === null) continue;
+        map.get(row.currency)?.set(row.categoryId, { amountMinor: row.targetMinor, revisionId: row.targetRevisionId });
+      }
+    }
+    return map;
+  }, [plan.status, plan.categoryRows]);
 
   if (plan.status === 'loading') {
     return <PlanSkeleton locale={locale} />;
@@ -243,17 +302,32 @@ function PlanRoutes(props: PlanRoutesProps) {
     );
   }
   return (
-    <PlanPage
-      locale={locale}
-      month={props.month}
-      summaries={plan.summaries}
-      categoryRows={plan.categoryRows}
-      pending={plan.pending}
-      error={plan.saveError}
-      loansSummary={props.loans.dashboard?.summaries ?? []}
-      onSaveIncome={plan.setIncomePlan}
-      onSaveTarget={plan.setCategoryTarget}
-    />
+    <>
+      <PlanPage
+        locale={locale}
+        month={props.month}
+        summaries={plan.summaries}
+        categoryRows={plan.categoryRows}
+        pending={plan.pending}
+        error={plan.saveError}
+        loansSummary={props.loans.dashboard?.summaries ?? []}
+        onSaveIncome={plan.setIncomePlan}
+        onSaveTarget={plan.setCategoryTarget}
+      />
+      {ALLOCATION_CURRENCIES.map((currency) => (
+        <AllocationCurrencySection
+          key={currency}
+          locale={locale}
+          spaceId={spaceId}
+          month={props.month}
+          currency={currency}
+          gateway={gateways.allocation ?? unavailableAllocationGateway}
+          categories={props.expenseRootCategories}
+          categoryTargets={categoryTargetsByCurrency.get(currency) ?? new Map()}
+          onSpaceUnavailable={props.onSpaceUnavailable}
+        />
+      ))}
+    </>
   );
 }
 
@@ -279,6 +353,11 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
       outstandingMinor: loan.outstandingMinor,
     }));
   }, [loans.dashboard]);
+
+  const expenseRootCategoryOptions = useMemo(() => categories.expenseCategories
+    .filter((category) => category.parentCategoryId === null && category.archivedAt === null)
+    .map((category) => ({ id: category.id, nameEn: category.nameEn ?? '', nameAr: category.nameAr ?? '' })),
+  [categories.expenseCategories]);
 
   const categoryTree = useMemo(() => {
     const all = [...categories.incomeCategories, ...categories.expenseCategories];
@@ -333,6 +412,8 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
           gateways={gateways}
           loans={loans}
           month={month}
+          expenseRootCategories={expenseRootCategoryOptions}
+          onSpaceUnavailable={props.onSpaceUnavailable}
         />
       );
       break;
