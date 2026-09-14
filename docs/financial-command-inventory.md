@@ -72,10 +72,23 @@ adding a writer. No browser entry path calls the lifecycle commands yet.
 `public.monthly_budget_category_page_v2` are read-only reporting projections,
 not posting commands. They read the existing journal, wallet movements, and
 monthly plan revisions and cannot create or alter a financial event, movement,
-loan posting, balance, or category association. No application UI entry path
-calls them yet; the future-planning reporting-foundation verification packet
-(`docs/superpowers/plans/future-planning/02-reporting-verification.md`) is
-their first real-Postgres exercise, in `tests/db/planning-projections.integration.test.ts`.
+loan posting, balance, or category association.
+
+**Correction (2026-09-14):** the sentence "no application UI entry path calls
+them yet" that stood here at task 02's initial commit was wrong — it was not
+checked against `src/` before being written. `src/features/control-room/routes.tsx`'s
+Home destination already calls `gateways.reports.loadMonthlyComparison`
+(`report_monthly_cash_summary`) and `insightsClient.categoryActualVsBudget`
+(`report_category_actual_vs_budget`) on every load via
+`src/features/reports/supabase-reports-gateway.ts` and
+`src/features/insights/insights-client.ts`. Because task 02's fix migration
+(`20260914090000_planning_projection_contracts.sql`) was never deployed to
+the live Supabase project, production kept calling the pre-fix, unusable
+versions of both functions and the Home page showed "Could not load the
+latest data." (the category call degrades silently to an empty budget list
+via a `.catch`; the monthly-comparison call does not, hence the visible
+error banner). See `docs/decisions.md` (2026-09-14, "Deployed reporting
+foundation fix to production").
 
 The Loans and Wallets workspaces are the implemented financial entry paths in
 the authenticated application shell; Categories manages metadata only. Wallets

@@ -1741,3 +1741,38 @@ must not create a public "insert receipt" RPC (only a domain command may
 write one, after its own validation). Changing `private.planning_child_request`'s
 digest/encoding after any wrapper can have outstanding requests would break
 existing pending idempotency keys.
+
+## 2026-09-14 — Live migration journal extends to the 40-migration release (deploy pending)
+
+**Decision:** Daniel reproduced a live Home-page failure ("Could not load the
+latest data.") by signing in to the local dev shell (which talks to the real
+`Budget Production` project) with his own account. Network capture showed
+`report_monthly_cash_summary` and `report_category_actual_vs_budget` both
+returning HTTP 400 from PostgREST — the exact two functions task 02 proved
+broken and fixed in `20260914090000_planning_projection_contracts.sql`, which
+had never been deployed. `ops/budget-migrations.sha256` and
+`scripts/ops/apply-live-migrations.sh` (source SHA, one new
+`to_regclass('public.planning_command_receipts')` check, and the exact
+`schema_migrations` array) are retargeted to source commit
+`a1346ce0f406deb36fe8778f5e2e47c0af3312e3` to include both the task 02 fix and
+task 03's foundation migration (38→40). This commit only reconciles the local
+gate; it does not run `pnpm migrate:live`.
+
+**Also corrects the record:** `docs/financial-command-inventory.md`'s task-02
+claim that "no application UI entry path calls them yet" was wrong — it was
+never checked against `src/`. `src/features/control-room/routes.tsx`'s Home
+destination has called both functions on every load via
+`supabase-reports-gateway.ts` and `insights-client.ts` since before task 02;
+that is exactly why the broken pre-fix functions surfaced as a visible,
+reproducible bug in production rather than staying latent.
+
+**Why:** The two functions were fixed locally but the fix sat undeployed;
+production kept executing the pre-fix, unusable versions on a UI path real
+users hit on every sign-in.
+
+**If changed:** Deploying requires Daniel to run
+`set -a && source .env.ops.local && set +a && scripts/ops/docker-ssh-bridge.sh run -- pnpm migrate:live`
+himself (Supabase PAT/DB password prompts; Claude does not and will not enter
+credentials). Any future planning-foundation packet must check `src/` for
+existing UI/gateway consumers before claiming a command is unused — this is
+now a standing lesson, not just this incident.
