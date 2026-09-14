@@ -144,6 +144,23 @@ over this schema and cannot create or alter any financial row. No application
 UI entry path calls any of the six yet (checked against `src/` before writing
 this sentence); tasks 15/16 add the gateway and UI surface.
 
+`public.available_cash_summary` and `public.cash_outlook` (task 17) are the
+two newest read-only reconciliation projections. They read (never write)
+existing allocation snapshot tables (task 06), goal coverage/earmark tables
+(task 11), and schedule/occurrence tables (task 14) through five new private
+helpers (`private.planning_goal_bill_coverage`,
+`private.planning_expense_buckets`, `private.planning_cash_commitments`,
+`private.planning_materialization_gap`,
+`private.planning_unpaid_backlog_count`) plus the existing
+`private.goal_cash_pool`, `private.goal_space_earmarked_total`,
+`private.goal_coverage_set`, `private.planning_ordinary_activity`,
+`public.loan_monthly_plan`, and `private.schedule_occurrence_settlement`.
+Neither RPC, nor any of the five new private helpers, contains an INSERT,
+UPDATE, DELETE, or call to any command in this document -- every one is a
+`SELECT`-only `STABLE` function. No application UI entry path calls either of
+the two yet (checked against `src/` before writing this sentence); tasks
+18/19 add the gateway and UI surface.
+
 The Loans and Wallets workspaces are the implemented financial entry paths in
 the authenticated application shell; Categories manages metadata only. Wallets
 can create wallets, post the four approved general event shapes, optionally

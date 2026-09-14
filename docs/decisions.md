@@ -2780,3 +2780,125 @@ wherever the bills screen chooses to expose them (that screen-level design
 choice is task 16's, not decided here). If a future session finally lands
 the real-timer version of the hook test, replace this note and task 07/12's
 matching notes together, since all three share one root cause.
+
+## 2026-09-14 — Available cash and bounded outlook open B2 (task 17)
+
+**Decision:** Added `20260914180000_available_cash_projection.sql` — two
+public read RPCs (`available_cash_summary`, `cash_outlook`) plus five new
+private helpers (`planning_goal_bill_coverage`, `planning_expense_buckets`,
+`planning_cash_commitments`, `planning_materialization_gap`,
+`planning_unpaid_backlog_count`) — over task 06's allocation snapshot,
+task 11's goal coverage, and task 14's schedules/occurrences. No new table,
+no new writer; every function is `STABLE SECURITY DEFINER`, revoked from
+PUBLIC/anon/authenticated/service_role, with the two public RPCs granted
+EXECUTE to `authenticated` only. Full evidence:
+`docs/verification/future-planning/17.md`.
+
+Two structural corrections made while implementing the brief's formulas,
+worth recording since a literal reading of section 1 could mislead a
+future author into the wrong SQL shape:
+
+1. **B_g (a spending group's remaining budget) is computed once per GROUP,
+   never per individual mapped root.** The brief's "B_g=max(saved group
+   target−net ordinary group spending to today,0)" names a single group-
+   level figure, but a naive per-root implementation (reusing each root's
+   own `allocation_month_roots.target_minor` as its own "B") silently
+   produces the wrong number the moment a group has more than one mapped
+   root — task 06's own `allocation_month_state` already establishes the
+   correct pattern (roll every mapped root's spend up to the ONE shared
+   group target); `planning_expense_buckets` mirrors it via a
+   `mapped_group_totals` CTE that sums spend/bills across every root
+   sharing a `group_id` before the group-level `Q` is computed. An
+   *unmapped* root (has a saved target, no group) still gets its own
+   standalone bucket with its own target, exactly as the brief's "each
+   form a standalone bucket" phrase asks.
+2. **`max(B,O)-min(G,max(B,O))` is computed per bucket, then the resulting
+   `Q` values are summed — never combined by first summing B, O and G
+   separately across buckets.** This clamp-and-subtract formula does not
+   distribute over addition (a two-bucket counterexample: bucket A
+   B=100,O=0,Q=100; bucket B B=0,O=100,Q=100; summing B/O first gives
+   B=100,O=100,Q=max(100,100)-0=100, not the correct 200). Every
+   `Q`-producing helper (`planning_expense_buckets`,
+   `planning_cash_commitments`'s headroom) computes the clamp per bucket
+   row and only ever sums the already-clamped `commitment_minor`/headroom
+   column afterward.
+
+`debtCommitment=max(D,O_debt)` is computed **per loan** (via
+`loan_monthly_plan`'s per-loan `remaining_reservation_minor` joined to that
+loan's own unpaid `debt_payment` occurrences), then summed — not at the
+whole-currency aggregate level. The brief's "match by loan ID before
+grouping; residual loan-pool reservation is applied only after identified
+obligations" falls out of this for free: a loan with no matching schedule
+contributes `O_debt_loan=0` so `max()` passes its reservation through
+unchanged, and a loan with no reservation contributes `D_loan=0` so `max()`
+passes its schedule's remaining amount through unchanged — no separate
+"residual pool" bookkeeping is needed. `U` and the group-target subtraction
+inside `H` both read the goal's **saved** (snapshot-frozen)
+`allocation_month_goal_lines.amount_minor`, never a live target that may
+have drifted since publish — matching "calculate against saved snapshot and
+return needsReview=true" from section 1; `needsReview` extends task 11's
+`childPlanChanged` check (income/root/goal-target heads) to this projection.
+
+`unplanned`/`incomplete` states null out every derived commitment field
+(`expenseCommitmentsMinor`, `debtCommitmentsMinor`, `goalTopupsMinor`,
+`futureHeadroomMinor`, `availableMinor`, `deficitMinor`, `spendableMinor`,
+`dailyExtraGuideMinor`) and return `groups: []`, while still reporting the
+facts that genuinely do not need a plan (`cashMinor`, `goalClaimsMinor`,
+`receivedIncomeMinor`, `ordinarySpendingMinor`, `incomeMinusSpendingMinor`,
+`uncategorizedMinor`, `daysRemaining`, `unmaterializedCount`) — the brief's
+own "cash/goal/bill facts... but availableMinor NULL" line, read literally:
+the *available* number is the one no state may guess, not every field.
+`incomplete` fires on either of two independent triggers sharing one
+`unmaterializedCount` output field (the JSON contract has only one slot for
+it): a nonzero count of schedule/date candidates missing from
+`scheduled_occurrences` in the needed 90-day window (today..today+89), or
+more than 500 unpaid occurrences already materialized through that same
+window (the historical-overdue-backlog cap) — whichever count is larger is
+reported, since both signal "narrow the window or materialize before
+trusting this number," not two independent numbers a v1 client needs to
+tell apart.
+
+`available_cash_summary`'s `groups[]` row reuses `budgetRemainingMinor` for
+two different (but analogous) meanings by `purpose`: for a spending group it
+is `B_g` (already clamped ≥0, per the brief's own formula); for a Future
+group it is the **unclamped, signed** `target − saved goal targets −
+original saved debt commitment` — deliberately negative when the group is
+overcommitted, so "Report overcommitted groups separately" (section 1) is
+answered by a client-side `budgetRemainingMinor < 0` check on that one row
+rather than a dedicated boolean field absent from the section 2 JSON
+contract; `futureHeadroomMinor` (top-level) is the `max(...,0)`-clamped sum
+of the same signed value, which is the one that actually subtracts into
+`available`.
+
+**Why:** Both structural corrections were caught by writing the acceptance
+table's literal fixtures first and finding the naive implementation gave
+the wrong number on the very first "single spending group" row before any
+multi-root or multi-bucket case was even attempted — exactly the kind of
+defect TDD against real Postgres is supposed to surface before commit, not
+after. The per-loan debtCommitment shape was chosen specifically because
+the brief names a two-loan-shaped hazard ("Match by loan ID before
+grouping") in prose; implementing it per-loan makes the hazard structurally
+unreachable rather than trusting an aggregate-level `max()` to coincidentally
+give the same answer (it does for one loan, as the acceptance table's own
+"Same loan reservation10000 and scheduled remaining8000" fixture shows, but
+would not for two loans with opposite D/O_debt shapes).
+
+**If changed:** Tasks 18 (cash-control gateway) and 19 (cash-control UI)
+consume these two RPCs' exact JSON shape as-is. If a future task adds a
+"standalone Future bucket" display row (goals/debt not linked to any of the
+≤12 groups — currently folded into the top-level aggregates only, per the
+section 2 JSON contract's fixed group-row shape with no room for an
+`id: null` row), that is an additive JSON-contract change to this
+migration's read RPCs, not a rewrite of `planning_cash_commitments`, whose
+per-bucket rows (including the synthetic standalone one, `group_id null`)
+already carry everything such a row would need.
+
+`ops/budget-migrations.sha256`/`scripts/ops/apply-live-migrations.sh` are
+**not** updated in this commit, unlike several prior DB-layer tasks' own
+"prepare N-migration live release" pattern — this task's own dispatch
+scopes ownership to exactly the migration/test/decisions/inventory/evidence
+files listed above and explicitly excludes any deploy-adjacent action.
+`pnpm migrate:live` will refuse this migration as "unmanifested" (the same
+failure mode task 06 hit) until a future chore commit retargets the
+manifest to include `20260914180000_available_cash_projection.sql` — that
+retarget is deliberately left for Daniel or a later session, not done here.
