@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createSupabaseAllocationGateway } from './features/allocation/supabase-allocation-gateway.js';
 import type { AllocationGateway } from './features/allocation/types.js';
 import { AuthScreen } from './features/auth/auth-screen.js';
@@ -96,6 +96,23 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
   const [terminalAcceptance, setTerminalAcceptance] = useState(false);
   const acceptRequestId = useState(() => crypto.randomUUID())[0];
 
+  // Stable across every render of this component -- `workspace.refresh` is
+  // itself referentially stable (useWorkspace's own `load`/`refresh`
+  // useCallbacks only depend on `gateway`/`storageKey`, and `gateway` is
+  // memoized once at the top-level App). Without this useCallback, a fresh
+  // closure was created here on every render (e.g. opening/closing the
+  // record dialog toggles state in this same component), which sits
+  // unchanged-looking but reference-unequal in the dependency array of
+  // every downstream hook's mount effect it reaches
+  // (use-cash-control.ts/use-recurring.ts/use-wallets.ts/use-goals.ts/
+  // use-allocation.ts, via ControlRoomRoutes' unwrapped prop passthrough) --
+  // re-running all of them, including useCashReadSlice's `run`, which
+  // unconditionally blanks its view back to a loading skeleton at the start
+  // of every run. That is the exact jitter class commit 5a5ee32 fixed
+  // elsewhere in this release; see docs/decisions.md, "final review fix
+  // wave" entry, finding 3.
+  const onSpaceUnavailable = useCallback(() => { void workspace.refresh(); }, [workspace.refresh]);
+
   const showAcceptance = props.householdInvitationToken !== null || terminalAcceptance;
   if (showAcceptance) {
     const localized = acceptError ? localizeHouseholdError(acceptError, props.locale) : null;
@@ -180,7 +197,7 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
       gateways={{ wallets: props.walletsGateway, loans: props.loansGateway, categories: props.categoriesGateway, reports: props.reportsGateway, household: props.householdGateway, plan: props.planClient, insights: props.insightsClient, exchange: props.exchangeClient, allocation: props.allocationGateway, goals: props.goalsGateway, recurring: props.recurringGateway, cashControl: props.cashControlGateway }}
       recordOpen={recordOpen}
       onCloseRecord={() => setRecordOpen(false)}
-      onSpaceUnavailable={() => void workspace.refresh()}
+      onSpaceUnavailable={onSpaceUnavailable}
       onOpenRecord={() => setRecordOpen(true)}
       userId={props.userId}
       spaceName={workspace.selectedSpace.name}

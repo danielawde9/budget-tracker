@@ -3260,3 +3260,202 @@ applied to money-correctness claims.
 **If changed:** none -- this is a test-only and documentation-only fix
 round; no SQL, gateway, or rendering-logic change. Full before/after detail
 in `docs/verification/future-planning/19.md`'s "Fix round 1" section.
+
+## 2026-09-15 — Final whole-release review fix wave (Release 3, `c1a4a56..80c5e13`): five findings, one fixer for the whole list
+
+A fresh, independent whole-release integration review (re-deriving every
+money formula from scratch, confirmed sound, no Critical) returned "With
+fixes": 5 Important findings that no single task-scoped review could see,
+because each spans files touched by more than one task. Per this repo's SDD
+process, one fixer handled the whole list in one fix wave -- the last one
+before this release is push-ready. Full before/after detail, exact commands
+run, and reasoning is in
+`.superpowers/sdd/release-3-bills-paycycle/final-review-fix-wave-report.md`;
+this entry is the required ledger record.
+
+**Decision (finding 1 -- a raw, un-bdi-wrapped minor-unit amount shown
+twice, once off by 100x):** `cash_outlook`'s SQL-composed `assumption`
+string baked in `v_overdue_minor::text` verbatim ("...totaling 15000000
+already past due"), rendered raw by `cash-outlook-chart.tsx` directly above
+its own separately-rendered, correctly-formatted, `<bdi>`-wrapped "Overdue:
+N · ل.ل 150,000.00" line -- the same figure shown twice, one wrong by two
+orders of magnitude to a reader. Fixed by dropping the amount from the SQL
+string entirely (`supabase/migrations/20260914180000_available_cash_
+projection.sql`'s `v_assumption` now reads "...includes N overdue unpaid
+bill(s) already past due.", count only). The amount-bearing, formatted,
+`<bdi>`-wrapped, bilingual UI copy this calls for already existed as a
+separate element (`cash-outlook-chart.tsx`'s own `overdueCount >
+0`/`overdueMinor` block, via `formatMinorAmount`+`t()`) -- once the SQL
+sentence no longer duplicates it, that existing element is the single
+disclosure, not a second one composed to replace the SQL text. Updated
+`tests/db/cash-outlook.integration.test.ts` (the `toContain('9000')`
+assertion, which encoded the bug, is now `not.toContain('9000')`) and added
+a new component regression test in `cash-outlook-chart.test.tsx` proving
+the raw minor-unit figure never appears on the page and the formatted
+amount appears exactly once.
+
+**Decision (finding 2 -- overdue unpaid income silently inflated the
+shortfall forecast, no disclosure):** `cash_outlook`'s `income_by_day` CTE
+bucketed by `greatest(so.due_date, p_start_date)` with no lower bound, so
+unpaid income overdue from weeks ago appeared as arriving "today," inflating
+every subsequent day's opening cash and able to erase `firstNegativeDate`
+with no warning -- asymmetric with the overdue-*outflow* path, which has an
+explicit disclosed `overdueCount`/`overdueMinor`/label. The brief is silent
+on this specific asymmetry. **Ruling:** for a screen whose entire purpose is
+shortfall warning, the conservative default is correct -- overdue unpaid
+income must never be silently assumed to arrive. Chose option (b) from the
+two offered: exclude overdue income from `expectedIncomeMinor` entirely
+(`income_by_day` now filters `so.due_date >= p_start_date`, dropping the
+`greatest()` collapse), rather than (a) giving it the full disclosed-count
+treatment symmetric with overdue outflow. Reasoning: overdue income and
+overdue outflow are not symmetric risks for a shortfall-warning screen --
+disclosing "N overdue bills, still counted as due today" is honest because
+the money still needs to leave; inventing a disclosed-but-still-counted
+"N overdue paychecks, still counted as arriving today" would still be an
+optimistic assumption merely with a label attached, not a fix. Excluding it
+outright is the conservative-and-honest choice; a future task can still add
+a "there is N unconfirmed overdue income not reflected in this forecast"
+disclosure on top of this excluded baseline without touching the money math
+again. **If changed:** if a future task adds that disclosure, it composes
+directly from the same `so.due_date < p_start_date and sch.kind = 'income'`
+predicate `outflow_by_day`'s own overdue block already uses the mirror of,
+no schema change needed. Added a new integration test proving overdue
+income never appears in any day's `expectedIncomeMinor` and never inflates
+day-0 opening cash.
+
+**Decision (finding 3 -- an unstable callback re-introduced the exact
+jitter class `5a5ee32` fixed elsewhere in this release):**
+`app.tsx`'s `AuthenticatedWorkspace` passed `onSpaceUnavailable={() => void
+workspace.refresh()}` -- a fresh closure every render -- straight through
+`ControlRoomRoutes` (unwrapped) into `use-cash-control.ts`/`use-recurring.
+ts`/`use-wallets.ts`/`use-goals.ts`/`use-allocation.ts`, each of which
+carries `onSpaceUnavailable` in a `useCallback`'s dependency array that
+feeds a mount `useEffect`. `useCashReadSlice.run` (new this release)
+unconditionally calls `setView(initialView(...))` at the start of every run,
+so the new "Available after commitments" card blanked back to a loading
+skeleton on any unrelated re-render of `AuthenticatedWorkspace` (e.g.
+opening/closing the record dialog, which toggles state in that same
+component). Confirmed `workspace.refresh` itself is already referentially
+stable (`useWorkspace`'s `refresh`/`load` `useCallback`s depend only on
+`gateway`/`storageKey`, and `gateway` is memoized once at the top-level
+`App` via `useMemo`) -- the instability was entirely the bare arrow wrapping
+it, not a deeper problem in `useWorkspace`. Fixed with one `useCallback` in
+`app.tsx` around `onSpaceUnavailable`. Verified the mechanism directly, not
+just the symptom: two new tests in `use-cash-control.test.tsx` mount the
+real hook via `renderHook` and prove a re-render with a *stable*
+`onSpaceUnavailable` reference leaves both slices `ready` with no extra
+fetch, while a re-render that passes a *fresh* closure reference re-enters
+`loading` on both slices -- the exact mechanism the fix protects against,
+independent of the rest of the render tree. (Note for the next reader: an
+earlier draft of that test created the fresh closure as an inline literal
+directly inside the `renderHook` render callback rather than threading it
+through `initialProps`/`rerender` -- it looped indefinitely, since the
+hook's own internal re-renders from `setView` recreated a "new" closure on
+every one of them too, not just the one deliberate re-render, and exhausted
+the test worker's heap. That failure mode is itself corroborating evidence
+of how serious this bug class is.) `ManageScreen` (Wallets/Categories/Loans/
+Household, reached via the Manage destination) independently re-wraps
+`onSpaceUnavailable` in its own fresh inline arrows for `useCategories`/
+`useLoans`/`useHousehold` -- a separate, pre-existing instability affecting
+different hooks than this finding's named five; left alone as out of this
+finding's explicit scope, worth a future session's attention.
+
+**Decision (finding 4 -- a retroactive ledger entry for an already-shipped,
+undocumented contract change):** commit `5a5ee32` (landed mid-release by a
+different session, sound and already tested; not redesigned here) widened
+`use-wallets.ts`'s `CommandOutcome` reporting with no `decisions.md` entry,
+violating this repo's own "same commit as the change it describes" rule.
+Read directly off `git show 5a5ee32 -- src/features/wallets/use-wallets.ts`:
+(1) the record-command path (`recordEvent`/`retryAmbiguous`'s reconciled
+twin) used to call `refreshAfterCommand(categorized)` and only ever report
+`'refresh-required'` when the command was categorized *and* its post-
+command refresh failed (`categorized && !refreshed ? 'refresh-required' :
+'success'`) -- an uncategorized command's silently-failed refresh was
+unconditionally reported `'success'`. Now every command calls
+`refreshAfterCommand(true)` unconditionally, and status is
+`refreshed ? 'success' : 'refresh-required'` for every command, categorized
+or not -- a failed post-command refresh is now visible to the UI layer
+(`wallet-dialog.tsx`/`transaction-dialog.tsx` already handle
+`'refresh-required'` as a soft "saved, but the display may be stale, please
+refresh" notice, never a hard error) regardless of whether the record
+carried a category. (2) Wallet rename/archive/restore (`reconcileCommand`'s
+lifecycle branch) switched from `refreshAfterCommand(false)` to
+`refreshAfterCommand(true)` -- `refreshAfterCommand`'s boolean is
+"preserve current data across the refresh instead of blanking to empty, and
+don't surface a hard error view on a failed refresh" (`load(preserveCurrent,
+!preserveCurrent)`), so this half of the change is the jitter fix itself
+(matching the commit's own stated purpose); it does not change these three
+commands' own status reporting, which was and remains unconditionally
+`'success'` in that branch. Recorded here as an honest description of a
+reasonable, already-shipped, working change (better failure visibility
+after a wallet-lifecycle or record command, matching what categorized
+commands already had) -- not a proposal, and not redesigned.
+
+**Decision (finding 5 -- two independently-accepted Minors compounding into
+a user-visible defect):** `available_cash_summary` emits
+`budgetRemainingMinor` UNCLAMPED for Future-purpose groups (task 17's
+committed, already-reviewed contract -- not touched here), reachable-
+negative when a group's goal targets plus debt commitment exceed its own
+target. `commitment-breakdown.tsx` rendered that figure under a column
+header literally labeled "Budget remaining" (the same header spending
+groups use, where the figure is clamped and means something else), and
+`groupCommitmentRatio` returned `over: false` unconditionally whenever
+`unpaidBillsMinor === null` (every Future row), making the "+X over
+remaining budget" overage indicator structurally unreachable for exactly
+the rows that can go negative -- an overcommitted Future group showed an
+unexplained negative number with no overage flag, missing the brief's
+"report overcommitted groups separately" for Future groups specifically.
+Fixed at the UI layer only, per the finding's own instruction not to touch
+task 17's DB field semantics: (1) a Future-purpose row's "Budget remaining"
+cell now also carries a distinct "Headroom" badge (`cc-badge-neutral`,
+bilingual), so the figure is never presented as meaning the same thing a
+spending group's clamped figure means; (2) `groupCommitmentRatio` now
+computes `over`/`overageMinor` from the sign of `budgetRemainingMinor`
+itself for a Future row (`hasScale` stays `false` -- there genuinely is no
+bar/percentage scale for a Future row, only the textual signal), and
+`CommitmentBreakdown` renders a "Overcommitted by X" line for an
+overcommitted Future row where before nothing rendered at all (the whole
+bar-visual-row was gated on `applicable`, always `false` for a Future row).
+New component tests in `commitment-breakdown.test.tsx` prove `groupCommitmentRatio`'s
+new negative-budgetRemainingMinor behavior directly, and prove the rendered
+component shows the "Headroom" label and the visible overage indicator for
+an overcommitted Future group where before it showed neither.
+
+**Folded in (task 18, no deviations):** re-read task 18's evidence record
+(`docs/verification/future-planning/18.md`) and `git show 6156255 --
+src/features/cash-control/supabase-cash-control-gateway.ts` directly rather
+than trusting the evidence record's own summary. Confirmed: every DTO field,
+RPC argument name, and nullability rule in `types.ts`/`supabase-cash-
+control-gateway.ts` matches the committed migration exactly (including the
+`overdueCount`/`overdueMinor` pair task 17's own fix rounds added, already
+correctly reconciled against the brief's stale field list); no mutation/
+write call anywhere in the gateway; no float ever touches a `Minor` value.
+No deviation found -- this is a positive confirmation, not a default
+"probably fine" assumption.
+
+**Folded in (stale manifest `source_sha` stamp, and the regen the SQL edits
+above require anyway):** editing `supabase/migrations/20260914180000_
+available_cash_projection.sql` for findings 1/2 invalidates its checksum in
+`ops/budget-migrations.sha256` regardless, so the manifest needed
+regenerating in this same commit either way -- which also naturally retires
+the stamp the final reviewer flagged as no longer describing the checksummed
+content. Followed the exact mechanical process task 14's and task 17's own
+fix rounds used (grepped their own decisions.md entries for the precedent
+before touching anything): `migrate-budget.sh create-manifest` regenerated
+`ops/budget-migrations.sha256` (still 48 rows -- no migration file was
+added, only one edited in place, which is permitted pre-live-deploy per the
+same precedent task 14's/task 17's own fix rounds established) with
+`source_sha=80c5e13856ee5f8fbadba3cd46c49d84b1b21c31` (this fix wave's own
+parent commit -- HEAD at the time of the edit -- the established "prior
+commit, never this commit's own not-yet-known hash" pattern). Diffed old
+vs. new manifest to confirm exactly the two expected lines changed (the
+`source_sha` line and the one edited migration's checksum) and nothing
+else. `scripts/ops/apply-live-migrations.sh`'s `LIVE_MANIFEST_SOURCE_SHA`
+updated to match; no `to_regprocedure`/version-array change needed since no
+migration file was added and `available_cash_summary`/`cash_outlook`'s
+signatures are unchanged. `tests/ops/migration-manifest.test.ts` (
+`liveReleaseHead`) and `tests/ops/live-migrations.test.ts` (`releaseHead`)
+updated to the new SHA to match; both ops suites (32 tests) green against
+these changes. This is bookkeeping for `pnpm check`/live-migration
+verification to stay green pre-deploy, never a live/production migration
+run -- none was performed, none was requested.

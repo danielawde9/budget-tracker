@@ -13,23 +13,44 @@ export interface GroupCommitmentRatio {
    * rows), so a zero `budgetRemainingMinor` can mean either "no target was
    * ever set" or "the target is fully spent" -- this UI cannot honestly
    * tell those apart and does not guess; see `commitment-breakdown.test.ts`
-   * and `decisions.md`. */
+   * and `decisions.md`. `hasScale` stays false for every Future-purpose row
+   * (there is no meaningful bar/percentage for it -- see `chartPercent`'s
+   * own bounded-ratio contract), but `over`/`overageMinor` are still
+   * meaningful there: a Future group's `budgetRemainingMinor` is reachable-
+   * negative by construction (goal targets + debt commitment can exceed the
+   * group's own target, unlike a spending group's clamped-at-zero figure),
+   * so the textual overcommitted signal fires from that sign alone, with no
+   * percentage/scale attached. See `docs/decisions.md`, "final review fix
+   * wave" entry, finding 5. */
   readonly hasScale: boolean;
   readonly percent: number;
   readonly over: boolean;
   /** Non-null exactly when `over` is true. Computed from the original
-   * `BigInt` budgetRemaining/unpaidBills values, never the clamped
+   * `BigInt` budgetRemaining/unpaidBills (or, for a Future row, the
+   * negative `budgetRemainingMinor` itself) values, never the clamped
    * `chartPercent` coordinate. */
   readonly overageMinor: string | null;
 }
 
-/** Budget-remaining-vs-unpaid-bills ratio for one spending group's row bar.
- * Only used by `CommitmentBreakdown` today; kept as its own exported
- * function (rather than inlined) so a future second call site reuses this
- * exact computation instead of duplicating it, matching this feature area's
- * own `settlement-progress.ts` precedent (task 16). */
+/** Budget-remaining-vs-unpaid-bills ratio for one spending group's row bar,
+ * or the overcommitted signal for one Future-purpose group's row (which has
+ * no unpaid-bills figure to compare against at all -- `unpaidBillsMinor` is
+ * `null` for every Future row per the DB contract). Only used by
+ * `CommitmentBreakdown` today; kept as its own exported function (rather
+ * than inlined) so a future second call site reuses this exact computation
+ * instead of duplicating it, matching this feature area's own
+ * `settlement-progress.ts` precedent (task 16). */
 export function groupCommitmentRatio(group: AvailableCashGroupRow): GroupCommitmentRatio {
-  if (group.unpaidBillsMinor === null) return { hasScale: false, percent: 0, over: false, overageMinor: null };
+  if (group.unpaidBillsMinor === null) {
+    // Future-purpose row: no per-bill budget line to scale a bar against,
+    // but budgetRemainingMinor is unclamped (task 17's committed contract)
+    // and therefore reachable-negative -- an overcommitted goal+debt
+    // total against the group's own target. That is still worth a textual
+    // overage signal even with hasScale:false.
+    const budgetRemaining = BigInt(group.budgetRemainingMinor);
+    const over = budgetRemaining < 0n;
+    return { hasScale: false, percent: 0, over, overageMinor: over ? (-budgetRemaining).toString() : null };
+  }
   const budgetRemaining = BigInt(group.budgetRemainingMinor);
   const unpaidBills = BigInt(group.unpaidBillsMinor);
   const hasScale = budgetRemaining > 0n;
@@ -85,7 +106,12 @@ export function CommitmentBreakdown({ locale, currency, groups }: CommitmentBrea
               <Fragment key={group.id}>
                 <tr className="cc-bar-row">
                   <th scope="row" className="cc-bar-label"><bdi>{displayName}</bdi></th>
-                  <td data-label={t(locale, 'Budget remaining', 'الميزانية المتبقية')}>
+                  <td data-label={applicable
+                    ? t(locale, 'Budget remaining', 'الميزانية المتبقية')
+                    : t(locale, 'Headroom', 'الهامش المتاح')}>
+                    {!applicable && (
+                      <span className="cc-badge cc-badge-neutral">{t(locale, 'Headroom', 'الهامش المتاح')}</span>
+                    )}
                     <bdi>{formatMinorAmount(group.budgetRemainingMinor, currency, locale)}</bdi>
                   </td>
                   <td data-label={t(locale, 'Unpaid bills', 'الفواتير غير المدفوعة')}>
@@ -109,7 +135,7 @@ export function CommitmentBreakdown({ locale, currency, groups }: CommitmentBrea
                     </button>
                   </td>
                 </tr>
-                {applicable && (
+                {(applicable || ratio.over) && (
                   <tr className="cc-bar-visual-row"><td colSpan={6}>
                     {ratio.hasScale ? (
                       <>
@@ -122,6 +148,14 @@ export function CommitmentBreakdown({ locale, currency, groups }: CommitmentBrea
                           </span>
                         )}
                       </>
+                    ) : !applicable && ratio.over && ratio.overageMinor ? (
+                      // Future-purpose row: no bar (no meaningful scale --
+                      // hasScale stays false), but the textual overcommitted
+                      // signal must still be reachable, per finding 5.
+                      <span className="cc-overage-text">
+                        {t(locale, 'Overcommitted by', 'محجوز بأكثر من المتاح بمقدار')}{' '}
+                        <bdi>{formatMinorAmount(ratio.overageMinor, currency, locale)}</bdi>
+                      </span>
                     ) : (
                       <p className="cc-label-muted">{t(locale, 'No remaining budget line to compare against.', 'لا يوجد بند ميزانية متبقٍ للمقارنة.')}</p>
                     )}

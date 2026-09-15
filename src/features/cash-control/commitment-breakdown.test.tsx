@@ -34,6 +34,19 @@ describe('groupCommitmentRatio', () => {
     expect(ratio.overageMinor).toBeNull();
     expect(ratio.percent).toBe(25);
   });
+  // Finding 5 (final whole-release review): a Future-purpose group's
+  // budgetRemainingMinor is unclamped by the DB and reachable-negative
+  // (goal targets + debt commitment can exceed the group's own target).
+  // hasScale stays false (no meaningful bar for a Future row), but the
+  // textual overcommitted signal must still fire from the sign alone.
+  it('is over (with no scale) for an overcommitted Future-purpose group -- negative budgetRemainingMinor', () => {
+    const ratio = groupCommitmentRatio(group({ budgetRemainingMinor: '-15000', unpaidBillsMinor: null, goalOverlapMinor: null }));
+    expect(ratio).toEqual({ hasScale: false, percent: 0, over: true, overageMinor: '15000' });
+  });
+  it('is not over for a healthy (non-negative) Future-purpose group', () => {
+    const ratio = groupCommitmentRatio(group({ budgetRemainingMinor: '0', unpaidBillsMinor: null, goalOverlapMinor: null }));
+    expect(ratio).toEqual({ hasScale: false, percent: 0, over: false, overageMinor: null });
+  });
 });
 
 describe('CommitmentBreakdown', () => {
@@ -91,6 +104,39 @@ describe('CommitmentBreakdown', () => {
     const row = screen.getByText('Future').closest('tr')!;
     expect(within(row).getAllByText('Not applicable')).toHaveLength(2);
     expect(document.querySelector('.cc-progress')).not.toBeInTheDocument();
+  });
+
+  // Finding 5 (final whole-release review): before this fix, an
+  // overcommitted Future group showed an unexplained negative number under
+  // a "Budget remaining" header (the same header spending groups use, where
+  // the figure is clamped and means something different) with no overage
+  // flag at all -- hasScale:false made the whole bar-visual-row unreachable
+  // for every Future row. Now the row gets its own "Headroom" label and the
+  // overcommitted signal is visible, with still no bar (no meaningful scale
+  // for a Future row).
+  it('shows a distinct "Headroom" label and a visible overcommitted indicator for a Future group with negative budgetRemainingMinor', () => {
+    render(<CommitmentBreakdown locale="en" currency="USD" groups={[group({
+      nameEn: 'Future', budgetRemainingMinor: '-15000', unpaidBillsMinor: null, goalOverlapMinor: null, commitmentMinor: '21000',
+    })]} />);
+    const row = screen.getByText('Future').closest('tr')!;
+    expect(within(row).getByText('Headroom')).toBeInTheDocument();
+    expect(within(row).getByText('-$150.00')).toBeInTheDocument();
+    // Before this fix, no .cc-progress AND no .cc-overage-text ever rendered
+    // for a Future row (the whole bar-visual-row was gated on `applicable`,
+    // which is always false for a Future group) -- the overage was silently
+    // unreachable. Now the textual signal (no bar; hasScale stays false)
+    // is visible.
+    expect(document.querySelector('.cc-progress')).not.toBeInTheDocument();
+    const overage = screen.getByText('Overcommitted by').closest('.cc-overage-text')!;
+    expect(overage).toHaveTextContent('$150.00');
+  });
+
+  it('shows no overage indicator for a healthy (non-negative) Future-purpose group, same as before', () => {
+    render(<CommitmentBreakdown locale="en" currency="USD" groups={[group({
+      nameEn: 'Future', unpaidBillsMinor: null, goalOverlapMinor: null, commitmentMinor: '21000',
+    })]} />);
+    expect(screen.queryByText(/Overcommitted by/)).not.toBeInTheDocument();
+    expect(document.querySelector('.cc-bar-visual-row')).not.toBeInTheDocument();
   });
 
   it('expands the Future-purpose group’s own explanation, distinct from the spending-group one', async () => {

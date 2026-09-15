@@ -161,11 +161,37 @@ describe('cash_outlook -- scheduled income and bills project onto the correct da
     const closingAtEnd = result.days[result.days.length - 1]!.closingCashMinor;
     expect(closingAtEnd).toBe(String(100000 - 9000 - 4000));
     // The overdue bill (not the future one) is what today's big outflow is
-    // silently explained by -- an explicit count/amount, not just a number.
+    // silently explained by -- an explicit count, via the typed
+    // overdueCount/overdueMinor fields, never a raw minor-unit amount baked
+    // into the free-text assumption sentence (that duplicated, unformatted,
+    // un-bdi-wrapped figure was itself a final-review finding -- see
+    // docs/decisions.md, "final review fix wave").
     expect(result.overdueCount).toBe(1);
     expect(result.overdueMinor).toBe('9000');
     expect(result.assumption).toContain('1 overdue unpaid bill');
-    expect(result.assumption).toContain('9000');
+    expect(result.assumption).not.toContain('9000');
+  });
+
+  it('excludes overdue unpaid income from today\'s opening cash and every day\'s inflow, never silently assuming it arrived', async () => {
+    const spaceId = await freshSpace('Overdue income excluded');
+    const wallet = await usdWallet(spaceId);
+    await recordIncome(spaceId, wallet, '10000');
+    const overdueIncomeDay = daysFromToday(-10);
+    await saveSchedule(spaceId, { kind: 'income', expectedMinor: '200000', startsOn: overdueIncomeDay, nameEn: 'Overdue salary' });
+    await materialize(spaceId, overdueIncomeDay, daysFromToday(30));
+
+    const result = await outlook(spaceId, 15, 'expected');
+    // The unconfirmed overdue salary must not inflate day-0's opening cash,
+    // must not appear as inflow on any single day in the window (never
+    // "today" and never its own -10 due date, which is outside the window
+    // anyway), and must not silently prop up every later day's opening
+    // balance via the running-sum carry-forward.
+    expect(result.days[0]!.openingCashMinor).toBe('10000');
+    for (const day of result.days) {
+      expect(day.expectedIncomeMinor).toBe('0');
+    }
+    const closingAtEnd = result.days[result.days.length - 1]!.closingCashMinor;
+    expect(closingAtEnd).toBe('10000');
   });
 
   it('excludes goal earmarks from the cash line entirely', async () => {

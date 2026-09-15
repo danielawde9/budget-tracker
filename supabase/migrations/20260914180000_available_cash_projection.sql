@@ -450,7 +450,17 @@ grant execute on function public.available_cash_summary(uuid,public.currency_cod
 -- greatest(due_date,start_date) below, same as any due-today item), but
 -- that alone leaves a big unexplained day-0 outflow -- overdueCount/
 -- overdueMinor and the assumption text make the "why" explicit, per the
--- brief's own "bucketed today with explicit overdue label/count".
+-- brief's own "bucketed today with explicit overdue label/count". The
+-- assumption sentence itself only ever names the overdue *count*, never an
+-- amount -- the amount is a typed field (overdueMinor) the UI formats and
+-- <bdi>-wraps itself; baking a raw minor-unit number into this free-text
+-- sentence would show it unformatted, un-bdi-wrapped, directly beside the
+-- UI's own correctly-formatted rendering of the same figure (see
+-- docs/decisions.md, "final review fix wave"). Overdue unpaid INCOME is
+-- never bucketed into today at all (unlike overdue outflow): an unpaid
+-- salary from weeks ago is not silently assumed to arrive today just
+-- because "today" is the earliest day left to put it -- see
+-- income_by_day below and the same decisions.md entry.
 create function public.cash_outlook(
   p_space_id uuid, p_currency public.currency_code, p_start_date date, p_days integer, p_scenario text
 ) returns jsonb
@@ -508,8 +518,8 @@ begin
     then 'Projects only unpaid scheduled income and scheduled bills; unplanned day-to-day spending can still lower this line.'
     else 'Assumes no further income arrives in this window; scheduled bills still apply.' end
     || case when v_overdue_count > 0
-      then format(' Today''s outflow includes %s overdue unpaid bill%s totaling %s already past due.',
-        v_overdue_count, case when v_overdue_count = 1 then '' else 's' end, v_overdue_minor::text)
+      then format(' Today''s outflow includes %s overdue unpaid bill%s already past due.',
+        v_overdue_count, case when v_overdue_count = 1 then '' else 's' end)
       else '' end;
 
   with days as (
@@ -517,15 +527,22 @@ begin
   ), day_dates as (
     select days.day_offset, (p_start_date + days.day_offset)::date as day_date from days
   ), income_by_day as (
-    select greatest(so.due_date, p_start_date) as bucket_date,
+    -- Unlike outflow_by_day below, overdue unpaid income (due_date before
+    -- p_start_date) is never bucketed onto today -- an unconfirmed salary
+    -- from weeks ago is not silently assumed to arrive today just because
+    -- today is the earliest day left in this window. The conservative
+    -- default for a shortfall-warning screen is to exclude it from
+    -- expectedIncomeMinor entirely, never invent an arrival day for it; see
+    -- docs/decisions.md, "final review fix wave" entry, finding 2.
+    select so.due_date as bucket_date,
       sum(greatest(so.expected_minor - stl.settled_minor, 0)) as amount_minor
     from public.scheduled_occurrences so
     join public.schedules sch on sch.id = so.schedule_id and sch.space_id = p_space_id and sch.kind = 'income'
     cross join lateral private.schedule_occurrence_settlement(so.id, p_start_date) stl
     where so.space_id = p_space_id and so.currency = p_currency and p_scenario = 'expected'
       and not stl.skipped and greatest(so.expected_minor - stl.settled_minor, 0) > 0
-      and greatest(so.due_date, p_start_date) <= v_end_date
-    group by greatest(so.due_date, p_start_date)
+      and so.due_date >= p_start_date and so.due_date <= v_end_date
+    group by so.due_date
   ), outflow_by_day as (
     select greatest(so.due_date, p_start_date) as bucket_date,
       sum(greatest(so.expected_minor - stl.settled_minor, 0)) as amount_minor

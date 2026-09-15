@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 
 const script = join(process.cwd(), 'scripts/ops/migrate-budget.sh');
 const sourceSha = '41504561b7f6fdf3f1321fa38a025673eb0d9f0d';
-const liveReleaseHead = 'b269612541ba604776ad116dca1891e581a49892';
+const liveReleaseHead = '80c5e13856ee5f8fbadba3cd46c49d84b1b21c31';
 const liveManifest = join(process.cwd(), 'ops/budget-migrations.sha256');
 
 function fixture() {

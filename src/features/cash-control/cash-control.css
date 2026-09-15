@@ -64,6 +64,7 @@
 }
 .cc-badge-review { background: var(--cr-warn); color: #fff; }
 .cc-badge-negative { background: var(--cr-danger); color: #fff; margin-inline-start: var(--cr-space-2); }
+.cc-badge-neutral { background: var(--cr-surface-sunken); color: var(--cr-ink-soft); margin-inline-end: var(--cr-space-2); }
 
 /* ---- Compact (Home) summary ------------------------------------------------ */
 

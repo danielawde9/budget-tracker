@@ -166,6 +166,67 @@ describe('useCashControl: error recovery', () => {
   });
 });
 
+// Finding 3 (final whole-release review): app.tsx used to pass a fresh
+// `() => void workspace.refresh()` closure as `onSpaceUnavailable` on every
+// render of AuthenticatedWorkspace (e.g. opening/closing the record
+// dialog). That closure flows down to this hook's own `useCashReadSlice`
+// unwrapped, where it sits in `run`'s dependency array -- so a fresh
+// reference re-triggers the mount effect, which unconditionally blanks the
+// view back to `loading` at the start of every run. app.tsx now wraps it in
+// `useCallback`; these two tests prove the mechanism directly at the hook
+// layer that the fix protects, independent of the rest of the render tree.
+// See docs/decisions.md, "final review fix wave" entry, finding 3.
+describe('useCashControl: onSpaceUnavailable reference stability', () => {
+  // `onSpaceUnavailable` is threaded through `initialProps`/`rerender` here
+  // (not created as an inline literal inside the render callback) so it
+  // stays referentially stable across the hook's OWN internal re-renders
+  // (every `setView` call inside `run` triggers one) and changes reference
+  // ONLY on the explicit `rerender(...)` call below -- exactly one simulated
+  // parent re-render, the same shape as `AuthenticatedWorkspace` opening the
+  // record dialog. (An inline `() => undefined` literal directly inside the
+  // render callback recreates on every internal re-render too, not just the
+  // explicit one, which reproduces the real bug so aggressively it loops the
+  // effect indefinitely and exhausts the test worker's heap -- confirmed
+  // while writing this test, and itself further evidence of how serious
+  // this class of bug is.)
+  it('does not re-enter loading or refetch on an unrelated re-render when onSpaceUnavailable is a stable reference', async () => {
+    const gateway = new InMemoryCashControlGateway();
+    gateway.available = coreAvailableCashSummaryFixture;
+    gateway.outlook = coreCashOutlookFixture;
+    const stableOnSpaceUnavailable = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ onSpaceUnavailable }: { onSpaceUnavailable: () => void }) =>
+        useCashControl(gateway, 'space-1', 'USD', '2026-09-15', 60, 'expected', onSpaceUnavailable),
+      { initialProps: { onSpaceUnavailable: stableOnSpaceUnavailable } },
+    );
+    await waitFor(() => expect(result.current.available.status).toBe('ready'));
+    await waitFor(() => expect(result.current.outlook.status).toBe('ready'));
+    const callsBefore = gateway.calls.length;
+
+    rerender({ onSpaceUnavailable: stableOnSpaceUnavailable });
+    expect(result.current.available.status).toBe('ready');
+    expect(result.current.outlook.status).toBe('ready');
+    expect(gateway.calls.length).toBe(callsBefore);
+  });
+
+  it('re-enters loading on a re-render that passes a fresh onSpaceUnavailable closure -- the exact jitter a bare inline arrow in app.tsx caused before it was wrapped in useCallback', async () => {
+    const gateway = new InMemoryCashControlGateway();
+    gateway.available = coreAvailableCashSummaryFixture;
+    gateway.outlook = coreCashOutlookFixture;
+    const { result, rerender } = renderHook(
+      ({ onSpaceUnavailable }: { onSpaceUnavailable: () => void }) =>
+        useCashControl(gateway, 'space-1', 'USD', '2026-09-15', 60, 'expected', onSpaceUnavailable),
+      { initialProps: { onSpaceUnavailable: () => undefined } },
+    );
+    await waitFor(() => expect(result.current.available.status).toBe('ready'));
+    await waitFor(() => expect(result.current.outlook.status).toBe('ready'));
+
+    rerender({ onSpaceUnavailable: () => undefined }); // a single fresh closure, one simulated parent re-render
+    expect(result.current.available.status).toBe('loading');
+    expect(result.current.outlook.status).toBe('loading');
+  });
+});
+
 // The literal shared 15-second transport timeout is proved once, in
 // isolation, by planning-shared/rpc.test.ts (no React involved) and
 // re-affirmed by the allocation/goals/recurring gateways' own hook suites.

@@ -125,6 +125,22 @@ describe('CashOutlookChart', () => {
     expect(screen.getByText('$150.00')).toBeInTheDocument();
   });
 
+  it('never shows the overdue amount twice -- the free-text assumption names only the count, the formatted/bdi-wrapped amount appears exactly once', () => {
+    renderChart({
+      data: {
+        ...slice().data,
+        assumption: 'Projects only unpaid scheduled income and scheduled bills; unplanned day-to-day spending can still lower this line. Today\'s outflow includes 2 overdue unpaid bills already past due.',
+        overdueCount: 2, overdueMinor: '15000000',
+        days: [{ date: '2026-09-15', openingCashMinor: '100000', expectedIncomeMinor: '0', expectedOutflowMinor: '12000', closingCashMinor: '88000' }],
+      },
+    });
+    // The raw minor-unit figure must never appear on the page at all --
+    // not unformatted, not duplicated -- only the formatted amount, and
+    // only once (inside the dedicated Overdue line's own <bdi>).
+    expect(screen.queryByText(/15000000/)).not.toBeInTheDocument();
+    expect(screen.getAllByText('$150,000.00')).toHaveLength(1);
+  });
+
   it('calls onScenarioChange when a scenario tab is clicked, and marks the active one selected', async () => {
     const user = userEvent.setup();
     const { onScenarioChange } = renderChart({}, 'expected');
