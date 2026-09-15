@@ -52,7 +52,7 @@ test('signed-out desktop keeps financial content private', async ({ page }, test
   await installApplicationFixture(page, { authenticated: false });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'العربية' })).toHaveCSS('color', 'rgb(23, 35, 29)');
+  await expect(page.getByRole('button', { name: 'العربية' })).toHaveCSS('color', 'rgb(18, 22, 20)');
   await expect(page.getByText('Maya')).toHaveCount(0);
   await page.screenshot({ path: screenshotPath(testInfo, 'signed-out-desktop.png'), fullPage: true });
 });

@@ -203,6 +203,13 @@
   border-block-start: 1px solid var(--cr-border);
 }
 
+/* Phone-only top bar: the space switcher lives here on narrow screens (the
+   left rail that normally hosts it is hidden below 1024px). */
+.cr-mobile-topbar {
+  display: block;
+  padding: var(--cr-space-3) var(--cr-space-4) 0;
+}
+
 .cr-tab {
   flex: 1;
   display: flex;
@@ -285,6 +292,7 @@
   }
   .cr-tabbar { display: none; }
   .cr-main { padding: var(--cr-space-6); }
+  .cr-mobile-topbar { display: none; }
 }
 
 /* Prominent full-width Record action at the top of the rail */

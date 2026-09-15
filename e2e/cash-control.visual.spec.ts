@@ -1,7 +1,7 @@
 import { expect, test, type TestInfo } from '@playwright/test';
 import { installApplicationFixture } from './fixtures/application.js';
 import { expectContainedControls } from './workspace-contract.js';
-import { chooseWorkspaceDestination, switchWorkspaceLanguage } from './workspace-navigation.js';
+import { chooseWorkspaceDestination, openPlanSection, switchWorkspaceLanguage } from './workspace-navigation.js';
 import { formatMinorAmount } from '../src/features/wallets/money.js';
 
 function screenshotPath(testInfo: TestInfo, name: string) {
@@ -53,6 +53,7 @@ async function openPlan(page: import('@playwright/test').Page, options: Paramete
   await expect(page.getByRole('heading', { name: 'Personal space' })).toBeVisible();
   await chooseWorkspaceDestination(page, 'Plan');
   await expect(page.getByRole('heading', { name: 'Monthly plan' })).toBeVisible();
+  await openPlanSection(page, 'Available cash');
 }
 
 test('U19-01/U19-02: Home shows a compact signed shortfall, Plan shows the full breakdown with the already-deduplicated group commitment', async ({ page }, testInfo) => {
@@ -67,6 +68,7 @@ test('U19-01/U19-02: Home shows a compact signed shortfall, Plan shows the full 
 
   await chooseWorkspaceDestination(page, 'Plan');
   await expect(page.getByRole('heading', { name: 'Monthly plan' })).toBeVisible();
+  await openPlanSection(page, 'Available cash');
   const usdSection = page.getByRole('region', { name: 'Available after commitments USD' });
   await usdSection.scrollIntoViewIfNeeded();
   await expect(usdSection).toContainText('-$100.00');
@@ -91,6 +93,7 @@ test('an unplanned currency shows a no-plan message on Home and Plan, not a cras
 
   await chooseWorkspaceDestination(page, 'Plan');
   await expect(page.getByRole('heading', { name: 'Monthly plan' })).toBeVisible();
+  await openPlanSection(page, 'Available cash');
   const usdSection = page.getByRole('region', { name: 'Available after commitments USD' });
   await expect(usdSection).toContainText('No published plan snapshot yet');
 });
@@ -145,6 +148,7 @@ test('Arabic RTL mirrors the compact and full available-after-commitments views'
   await expect(arHomeCard).toContainText(formatMinorAmount('-10000', 'USD', 'ar'));
 
   await chooseWorkspaceDestination(page, 'الخطة');
+  await openPlanSection(page, 'السيولة المتاحة');
   const arSection = page.getByRole('region', { name: 'المتاح بعد الالتزامات USD' });
   await arSection.scrollIntoViewIfNeeded();
   await expect(arSection).toContainText(formatMinorAmount('-10000', 'USD', 'ar'));

@@ -1,7 +1,7 @@
 import { expect, test, type TestInfo } from '@playwright/test';
 import { installApplicationFixture } from './fixtures/application.js';
 import { expectContainedControls } from './workspace-contract.js';
-import { chooseWorkspaceDestination, switchWorkspaceLanguage } from './workspace-navigation.js';
+import { chooseWorkspaceDestination, openPlanSection, switchWorkspaceLanguage } from './workspace-navigation.js';
 
 function screenshotPath(testInfo: TestInfo, name: string) {
   return process.env['UPDATE_VISUAL_ARTIFACTS'] === '1'
@@ -35,6 +35,7 @@ async function openPlan(page: import('@playwright/test').Page, options: Paramete
   await expect(page.getByRole('heading', { name: 'Personal space' })).toBeVisible();
   await chooseWorkspaceDestination(page, 'Plan');
   await expect(page.getByRole('heading', { name: 'Monthly plan' })).toBeVisible();
+  await openPlanSection(page, 'Goals');
 }
 
 test('U13-01/U13-04 shows target, earmarked, cash-covered, fulfilled, shortage, and a checklist milestone distinctly', async ({ page }, testInfo) => {
@@ -103,6 +104,7 @@ test('Arabic RTL mirrors the goals overview and detail', async ({ page }, testIn
   await openPlan(page, { seedGoals: [coreGoal], goalMilestones: coreMilestones });
   await switchWorkspaceLanguage(page);
   await chooseWorkspaceDestination(page, 'الخطة');
+  await openPlanSection(page, 'الأهداف');
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   const arSection = page.getByRole('region', { name: 'الأهداف USD' });
   await expect(arSection.getByText('كمبيوتر محمول جديد')).toBeVisible();

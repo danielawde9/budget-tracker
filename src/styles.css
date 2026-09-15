@@ -26,6 +26,22 @@ body {
 
 button, input, select, textarea { font: inherit; color: inherit; }
 button, select, input { min-height: 44px; }
+
+/* Canonical form controls — one consistent look everywhere (text fields,
+   selects, and textareas). Checkboxes/radios keep their native shape. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="submit"]):not([type="button"]),
+select,
+textarea {
+  border: 1px solid var(--cr-border, #dde4e1);
+  border-radius: var(--cr-radius-sm, 12px);
+  background: var(--cr-surface, #ffffff);
+  color: var(--cr-ink, #121614);
+  min-height: 44px;
+  padding: 0.6rem 0.75rem;
+  font-size: 15px;
+}
+textarea { min-height: 96px; }
+
 button {
   border: 1px solid var(--cr-border, #dde4e1);
   border-radius: var(--cr-radius-sm, 12px);
@@ -720,6 +736,17 @@ dd { margin: 6px 0 0; font-weight: 700; white-space: nowrap; }
   background: var(--cr-surface, #ffffff);
   color: var(--cr-ink, #121614);
   text-align: start;
+}
+.space-switcher-trigger span,
+.space-switcher-trigger small {
+  color: var(--cr-ink-soft, #55605a);
+  font-size: 12px;
+  font-weight: 650;
+}
+.space-switcher-trigger bdi {
+  font-weight: 800;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
 }
 .space-switcher-menu {
   position: absolute;

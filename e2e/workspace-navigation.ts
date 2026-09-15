@@ -31,6 +31,12 @@ export async function chooseWorkspaceDestination(page: Page, name: string) {
   await page.getByRole('navigation', { name: /^(Manage sections|أقسام الإدارة)$/ }).getByRole('button', { name, exact: true }).click();
 }
 
+/** Opens one sub-section of the Plan destination (Allocation, Goals, ...). */
+export async function openPlanSection(page: Page, sectionName: string) {
+  const nav = page.getByRole('navigation', { name: /^(Plan sections|أقسام الخطة)$/ });
+  await nav.getByRole('button', { name: sectionName, exact: true }).click();
+}
+
 export async function switchWorkspaceLanguage(page: Page) {
   await openManageSections(page);
   const html = page.locator('html');

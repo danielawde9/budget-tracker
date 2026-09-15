@@ -1,7 +1,7 @@
 import { expect, test, type TestInfo } from '@playwright/test';
 import { installApplicationFixture } from './fixtures/application.js';
 import { expectContainedControls } from './workspace-contract.js';
-import { chooseWorkspaceDestination, switchWorkspaceLanguage } from './workspace-navigation.js';
+import { chooseWorkspaceDestination, openPlanSection, switchWorkspaceLanguage } from './workspace-navigation.js';
 import { formatMinorAmount } from '../src/features/wallets/money.js';
 
 function screenshotPath(testInfo: TestInfo, name: string) {
@@ -41,6 +41,7 @@ async function openPlan(page: import('@playwright/test').Page, options: Paramete
   await expect(page.getByRole('heading', { name: 'Personal space' })).toBeVisible();
   await chooseWorkspaceDestination(page, 'Plan');
   await expect(page.getByRole('heading', { name: 'Monthly plan' })).toBeVisible();
+  await openPlanSection(page, 'Upcoming bills');
 }
 
 test('U16-01/U16-02 shows expected/settled/remaining distinctly and a February month-end due date verbatim', async ({ page }, testInfo) => {
@@ -120,6 +121,7 @@ test('Arabic RTL mirrors the upcoming bills overview and detail', async ({ page 
   await openPlan(page, { seedOccurrences: [rentOccurrence] });
   await switchWorkspaceLanguage(page);
   await chooseWorkspaceDestination(page, 'الخطة');
+  await openPlanSection(page, 'الفواتير القادمة');
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   const arSection = page.getByRole('region', { name: 'الفواتير القادمة' });
   await expect(arSection.getByText('الإيجار')).toBeVisible();

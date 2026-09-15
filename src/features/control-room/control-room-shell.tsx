@@ -71,6 +71,7 @@ export function ControlRoomShell(props: ControlRoomShellProps) {
         {railRecord}
         {DESTINATIONS.map(renderTab)}
       </nav>
+      <div className="cr-mobile-topbar">{props.spaceControls}</div>
       <main className="cr-main">{props.children}</main>
       <nav className="cr-tabbar" aria-label={t(locale, 'Workspace', 'مساحة العمل')}>{tabs}</nav>
     </div>

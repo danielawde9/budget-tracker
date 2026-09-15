@@ -1,7 +1,7 @@
 import { expect, test, type TestInfo } from '@playwright/test';
 import { installApplicationFixture } from './fixtures/application.js';
 import { expectContainedControls } from './workspace-contract.js';
-import { chooseWorkspaceDestination, switchWorkspaceLanguage } from './workspace-navigation.js';
+import { chooseWorkspaceDestination, openPlanSection, switchWorkspaceLanguage } from './workspace-navigation.js';
 
 function screenshotPath(testInfo: TestInfo, name: string) {
   return process.env['UPDATE_VISUAL_ARTIFACTS'] === '1'
@@ -36,6 +36,7 @@ async function openPlan(page: import('@playwright/test').Page, options: Paramete
   await expect(page.getByRole('heading', { name: 'Personal space' })).toBeVisible();
   await chooseWorkspaceDestination(page, 'Plan');
   await expect(page.getByRole('heading', { name: 'Monthly plan' })).toBeVisible();
+  await openPlanSection(page, 'Allocation');
 }
 
 test('U08-01 shows 200000 planned, 180000 received, 161000 spent, and 19000 after spending', async ({ page }, testInfo) => {
@@ -115,6 +116,7 @@ test('Arabic RTL mirrors the allocation overview', async ({ page }, testInfo) =>
   await openPlan(page, { allocationMonth: coreAllocationMonth });
   await switchWorkspaceLanguage(page);
   await chooseWorkspaceDestination(page, 'الخطة');
+  await openPlanSection(page, 'التخصيص');
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   const usdSection = page.getByRole('region', { name: 'التخصيص USD' });
   await expect(usdSection.getByText('الأساسيات').first()).toBeVisible();

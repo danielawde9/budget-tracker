@@ -177,11 +177,6 @@
   font-size: 12px;
   color: var(--cr-ink-soft);
 }
-.alloc-field input,
-.alloc-field select {
-  font-size: 14px;
-  color: var(--cr-ink);
-}
 
 .alloc-group-row,
 .alloc-root-row {
