@@ -436,6 +436,15 @@
 }
 
 .cr-chips { display: flex; gap: var(--cr-space-2); flex-wrap: wrap; }
+.cr-plan-nav {
+  display: flex;
+  gap: var(--cr-space-2);
+  overflow-x: auto;
+  padding-block-end: var(--cr-space-1);
+  margin-block-end: var(--cr-space-4);
+  scrollbar-width: none;
+}
+.cr-plan-nav::-webkit-scrollbar { display: none; }
 .cr-shell .cr-chip {
   border: 1px solid var(--cr-border);
   border-radius: var(--cr-radius-full);

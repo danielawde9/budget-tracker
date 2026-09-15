@@ -131,6 +131,9 @@ export function CashControlSummary({ locale, currency, available, variant }: Cas
 
   return (
     <div className="cc-summary">
+      <p className="cr-helper">
+        {t(locale, 'Cash left after everything you have already committed to this month — bills, goals, and debt.', 'السيولة المتبقية بعد كل ما التزمت به هذا الشهر — الفواتير والأهداف والديون.')}
+      </p>
       {data.needsReview && (
         <p className="cc-badge cc-badge-review" role="status">
           {t(locale, 'A category, bill or goal changed since this plan snapshot was published -- figures may be stale.', 'تغيّرت فئة أو فاتورة أو هدف منذ نشر لقطة هذه الخطة — قد تكون الأرقام قديمة.')}
@@ -147,7 +150,7 @@ export function CashControlSummary({ locale, currency, available, variant }: Cas
           <dd><bdi className={negative ? 'cc-danger-text' : undefined}>{formatMinorAmount(availableMinor, currency, locale)}</bdi></dd>
         </div>
         <div className="cc-metric">
-          <dt>{t(locale, 'Spendable (floored at zero)', 'القابل للإنفاق (بحد أدنى صفر)')}</dt>
+          <dt>{t(locale, 'Spendable now', 'المتاح للإنفاق الآن')}</dt>
           <dd><bdi>{formatMinorAmount(spendableMinor, currency, locale)}</bdi></dd>
         </div>
         <div className="cc-metric">

@@ -417,8 +417,19 @@ const ALLOCATION_CURRENCIES = ['USD', 'LBP'] as const;
 const GOAL_CURRENCIES = ['USD', 'LBP'] as const;
 const CASH_CONTROL_CURRENCIES = ['USD', 'LBP'] as const;
 
+type PlanSection = 'plan' | 'allocation' | 'goals' | 'cash' | 'bills';
+
+const PLAN_SECTIONS: readonly { id: PlanSection; en: string; ar: string }[] = [
+  { id: 'plan', en: 'Plan', ar: 'الخطة' },
+  { id: 'allocation', en: 'Allocation', ar: 'التخصيص' },
+  { id: 'goals', en: 'Goals', ar: 'الأهداف' },
+  { id: 'cash', en: 'Available cash', ar: 'السيولة المتاحة' },
+  { id: 'bills', en: 'Upcoming bills', ar: 'الفواتير القادمة' },
+];
+
 function PlanRoutes(props: PlanRoutesProps) {
   const { locale, spaceId, gateways } = props;
+  const [section, setSection] = useState<PlanSection>('plan');
   const plan = usePlan(gateways.plan ?? unavailablePlanClient, spaceId, props.month);
 
   const categoryTargetsByCurrency = useMemo(() => {
@@ -434,11 +445,11 @@ function PlanRoutes(props: PlanRoutesProps) {
     return map;
   }, [plan.status, plan.categoryRows]);
 
+  let planSection: ReactNode;
   if (plan.status === 'loading') {
-    return <PlanSkeleton locale={locale} />;
-  }
-  if (plan.status === 'error') {
-    return (
+    planSection = <PlanSkeleton locale={locale} />;
+  } else if (plan.status === 'error') {
+    planSection = (
       <div className="cr-card" role="alert">
         <div className="cr-row">
           <span>{locale === 'ar' ? 'تعذر تحميل الخطة الشهرية.' : 'Could not load the monthly plan.'}</span>
@@ -449,9 +460,8 @@ function PlanRoutes(props: PlanRoutesProps) {
         {plan.error ? <small>{plan.error}</small> : null}
       </div>
     );
-  }
-  return (
-    <>
+  } else {
+    planSection = (
       <PlanPage
         locale={locale}
         month={props.month}
@@ -463,7 +473,26 @@ function PlanRoutes(props: PlanRoutesProps) {
         onSaveIncome={plan.setIncomePlan}
         onSaveTarget={plan.setCategoryTarget}
       />
-      {ALLOCATION_CURRENCIES.map((currency) => (
+    );
+  }
+
+  return (
+    <>
+      <nav className="cr-plan-nav" aria-label={locale === 'ar' ? 'أقسام الخطة' : 'Plan sections'}>
+        {PLAN_SECTIONS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={section === item.id ? 'cr-chip cr-chip--active' : 'cr-chip'}
+            aria-pressed={section === item.id}
+            onClick={() => setSection(item.id)}
+          >
+            {locale === 'ar' ? item.ar : item.en}
+          </button>
+        ))}
+      </nav>
+      {section === 'plan' ? planSection : null}
+      {section === 'allocation' ? ALLOCATION_CURRENCIES.map((currency) => (
         <AllocationCurrencySection
           key={currency}
           locale={locale}
@@ -475,8 +504,8 @@ function PlanRoutes(props: PlanRoutesProps) {
           categoryTargets={categoryTargetsByCurrency.get(currency) ?? new Map()}
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
-      ))}
-      {GOAL_CURRENCIES.map((currency) => (
+      )) : null}
+      {section === 'goals' ? GOAL_CURRENCIES.map((currency) => (
         <GoalsCurrencySection
           key={currency}
           locale={locale}
@@ -485,8 +514,8 @@ function PlanRoutes(props: PlanRoutesProps) {
           gateway={gateways.goals ?? unavailableGoalsGateway}
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
-      ))}
-      {CASH_CONTROL_CURRENCIES.map((currency) => (
+      )) : null}
+      {section === 'cash' ? CASH_CONTROL_CURRENCIES.map((currency) => (
         <CashControlSection
           key={currency}
           locale={locale}
@@ -495,13 +524,15 @@ function PlanRoutes(props: PlanRoutesProps) {
           gateway={gateways.cashControl ?? unavailableCashControlGateway}
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
-      ))}
-      <UpcomingBillsSection
-        locale={locale}
-        spaceId={spaceId}
-        gateway={gateways.recurring ?? unavailableRecurringGateway}
-        onSpaceUnavailable={props.onSpaceUnavailable}
-      />
+      )) : null}
+      {section === 'bills' ? (
+        <UpcomingBillsSection
+          locale={locale}
+          spaceId={spaceId}
+          gateway={gateways.recurring ?? unavailableRecurringGateway}
+          onSpaceUnavailable={props.onSpaceUnavailable}
+        />
+      ) : null}
     </>
   );
 }
