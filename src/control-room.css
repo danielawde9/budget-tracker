@@ -131,7 +131,7 @@
 .cr-select {
   appearance: none;
   -webkit-appearance: none;
-  min-height: 40px;
+  min-height: 44px;
   padding-block: 8px;
   padding-inline: var(--cr-space-3) 36px;
   border: 1px solid var(--cr-border);
@@ -142,7 +142,7 @@
   background-position: right 12px center;
   color: var(--cr-ink);
   font-family: inherit;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 650;
   cursor: pointer;
   transition: border-color var(--cr-duration) var(--cr-ease), box-shadow var(--cr-duration) var(--cr-ease);
@@ -528,7 +528,8 @@
   padding-inline: var(--cr-space-1);
   margin-inline: calc(var(--cr-space-1) * -1);
   color: var(--cr-ink);
-  font: inherit;
+  font-family: inherit;
+  font-size: 15px;
   text-align: start;
   cursor: pointer;
   transition: background-color var(--cr-duration) var(--cr-ease);
@@ -707,12 +708,13 @@
    ========================================================================== */
 
 .cr-shell .cr-button {
-  min-height: 46px;
+  min-height: 44px;
   padding-inline: var(--cr-space-4);
   border: 1px solid var(--cr-border);
   border-radius: var(--cr-radius-sm);
   background: var(--cr-surface);
   color: var(--cr-ink);
+  font-size: 15px;
   font-weight: 700;
   cursor: pointer;
   transition: background-color var(--cr-duration) var(--cr-ease), border-color var(--cr-duration) var(--cr-ease), color var(--cr-duration) var(--cr-ease), box-shadow var(--cr-duration) var(--cr-ease);
@@ -805,7 +807,7 @@
 .cr-record-details { display: flex; flex-direction: column; gap: var(--cr-space-3); }
 .cr-record-details input {
   inline-size: 100%;
-  min-height: 46px;
+  min-height: 44px;
   padding-inline: var(--cr-space-3);
   border: 1px solid var(--cr-border);
   border-radius: var(--cr-radius-sm);
