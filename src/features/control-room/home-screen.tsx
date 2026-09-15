@@ -60,6 +60,7 @@ export interface HomeScreenProps {
   month: string; // YYYY-MM-01
   onMonthChange(month: string): void;
   onRecord(): void;
+  onSeeAll?(): void;
   totals: readonly { currency: Currency; balanceMinor: string }[];
   budgets: readonly CategoryBudgetRow[];
   trend: readonly MonthlyCashSummary[];
@@ -78,6 +79,7 @@ function CashControlCard({ locale, byCurrency }: { locale: Locale; byCurrency: H
   return (
     <section className="cr-card" aria-label={t(locale, 'Available after commitments', 'المتاح بعد الالتزامات')}>
       <h2 className="cr-label">{t(locale, 'Available after commitments', 'المتاح بعد الالتزامات')}</h2>
+      <p className="cr-helper">{t(locale, 'Cash left after everything you have already committed this month.', 'السيولة المتبقية بعد كل ما التزمت به هذا الشهر.')}</p>
       <div className="cc-row">
         {byCurrency.map((entry) => (
           <div key={entry.currency}>
@@ -186,7 +188,7 @@ function LoansCard({ loans, locale }: { loans: HomeScreenProps['loansOutstanding
   );
 }
 
-function RecentActivity({ events, locale, onRecord }: { events: readonly JournalEvent[]; locale: Locale; onRecord(): void }) {
+function RecentActivity({ events, locale, onRecord, onSeeAll }: { events: readonly JournalEvent[]; locale: Locale; onRecord(): void; onSeeAll: (() => void) | undefined }) {
   return (
     <section className="cr-card" aria-label={t(locale, 'Recent activity', 'النشاط الأخير')}>
       <div className="cr-row">
@@ -208,12 +210,17 @@ function RecentActivity({ events, locale, onRecord }: { events: readonly Journal
           </div>
         );
       })}
+      {events.length > 0 && onSeeAll ? (
+        <button type="button" className="cr-button cr-button--block" onClick={onSeeAll}>
+          {t(locale, 'See all activity', 'عرض كل النشاط')}
+        </button>
+      ) : null}
     </section>
   );
 }
 
 export function HomeScreen(props: HomeScreenProps) {
-  const { locale, spaceKind, month, onMonthChange } = props;
+  const { locale, spaceKind, month, onMonthChange, onSeeAll } = props;
   const spaceLabel = spaceKind === 'household'
     ? t(locale, 'Household space', 'مساحة عائلية')
     : t(locale, 'Personal space', 'مساحة شخصية');
@@ -262,7 +269,7 @@ export function HomeScreen(props: HomeScreenProps) {
           <BudgetCard budgets={props.budgets} locale={locale} />
           <TrendCard trend={props.trend} locale={locale} />
           <LoansCard loans={props.loansOutstanding} locale={locale} />
-          <RecentActivity events={props.recentEvents.slice(0, 5)} locale={locale} onRecord={props.onRecord} />
+          <RecentActivity events={props.recentEvents.slice(0, 5)} locale={locale} onRecord={props.onRecord} onSeeAll={onSeeAll} />
         </>
       )}
     </>

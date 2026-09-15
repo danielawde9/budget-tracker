@@ -117,6 +117,7 @@ export interface ControlRoomRoutesProps {
   spaceId: string;
   spaceKind: SpaceKind;
   destination: ControlRoomDestination;
+  onDestinationChange?(destination: ControlRoomDestination): void;
   gateways: ControlRoomGateways;
   recordOpen: boolean;
   onCloseRecord(): void;
@@ -173,6 +174,7 @@ interface HomeRoutesProps {
   onMonthChange(month: string): void;
   onSpaceUnavailable?: (() => void) | undefined;
   onOpenRecord?: (() => void) | undefined;
+  onSeeAll?: (() => void) | undefined;
 }
 
 /** Home's own (USD, LBP) compact summary -- shares `useCashControl` with
@@ -260,6 +262,7 @@ function HomeRoutes(props: HomeRoutesProps) {
       loansOutstanding={props.loansOutstanding}
       recentEvents={wallets.events}
       cashControlByCurrency={cashControlByCurrency}
+      onSeeAll={() => props.onSeeAll?.()}
     />
   );
 }
@@ -564,6 +567,7 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
           onMonthChange={setMonth}
           onSpaceUnavailable={props.onSpaceUnavailable}
           onOpenRecord={props.onOpenRecord}
+          onSeeAll={() => props.onDestinationChange?.('journal')}
         />
       );
       break;
