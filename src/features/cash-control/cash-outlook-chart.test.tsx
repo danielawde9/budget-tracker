@@ -1,9 +1,30 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { CashOutlookChart } from './cash-outlook-chart.js';
-import type { CashOutlook } from './types.js';
+import { coreCashOutlookFixture, emptyAvailableCashSummary, InMemoryCashControlGateway } from '../../test/in-memory-cash-control-gateway.js';
+import type { CashControlGateway, CashOutlook } from './types.js';
+import { useCashControl } from './use-cash-control.js';
 import type { CashReadSlice } from './use-cash-control.js';
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((doResolve) => { resolve = doResolve; });
+  return { promise, resolve };
+}
+
+/** Mounts the real `useCashControl` hook (not a fake `CashReadSlice`) and
+ * renders its `outlook` slice through the real `CashOutlookChart` --
+ * the outlook-slice counterpart to `cash-control-summary.test.tsx`'s own
+ * `HookWiredSummary`, proving the same space-switch/membership-loss
+ * handling surfaces correctly in this component too (the two read slices
+ * are independently tracked by the hook, per task 18's own contract). */
+function HookWiredChart({ gateway, spaceId, onSpaceUnavailable }: {
+  gateway: CashControlGateway; spaceId: string; onSpaceUnavailable?: () => void;
+}) {
+  const cashControl = useCashControl(gateway, spaceId, 'USD', '2026-09-15', 60, 'expected', onSpaceUnavailable);
+  return <CashOutlookChart locale="en" currency="USD" outlook={cashControl.outlook} scenario="expected" onScenarioChange={() => undefined} />;
+}
 
 function slice(overrides: Partial<CashReadSlice<CashOutlook>> = {}): CashReadSlice<CashOutlook> {
   return {
@@ -132,5 +153,43 @@ describe('CashOutlookChart', () => {
     renderChart({}, 'expected', vi.fn(), 'ar');
     expect(screen.getByText('التوقع المتوقع')).toBeInTheDocument();
     expect(screen.getByText('لا توجد أيام توقع في هذا النطاق بعد.')).toBeInTheDocument();
+  });
+});
+
+describe('CashOutlookChart: real hook wiring covers a space switch while loading and revoked-membership recovery', () => {
+  it('discards a stale outlook from the prior space and renders only the fresh space’s assumption after switching while loading', async () => {
+    const first = deferred<CashOutlook>();
+    const second = deferred<CashOutlook>();
+    const gateway: CashControlGateway = {
+      loadAvailable: vi.fn(async () => emptyAvailableCashSummary),
+      loadOutlook: vi.fn((input: { spaceId: string }) => input.spaceId === 'space-1' ? first.promise : second.promise),
+    };
+    const { rerender } = render(<HookWiredChart gateway={gateway} spaceId="space-1" />);
+    expect(document.querySelectorAll('.cr-skeleton').length).toBeGreaterThan(0); // still loading space-1
+
+    rerender(<HookWiredChart gateway={gateway} spaceId="space-2" />);
+    second.resolve({ ...coreCashOutlookFixture, assumption: 'fresh space-2 assumption' });
+    await waitFor(() => expect(screen.getByText('fresh space-2 assumption')).toBeInTheDocument());
+
+    // The stale space-1 response resolves late; it must never overwrite
+    // the already-rendered fresh space-2 assumption text.
+    first.resolve({ ...coreCashOutlookFixture, assumption: 'stale space-1 assumption' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByText('stale space-1 assumption')).not.toBeInTheDocument();
+    expect(screen.getByText('fresh space-2 assumption')).toBeInTheDocument();
+  });
+
+  it('clears the visible outlook and calls onSpaceUnavailable when membership is revoked, then recovers once a valid space is selected', async () => {
+    const gateway = new InMemoryCashControlGateway();
+    gateway.error = Object.assign(new Error('planning_not_authorized'), { code: '42501' });
+    const onSpaceUnavailable = vi.fn();
+    const { rerender } = render(<HookWiredChart gateway={gateway} spaceId="revoked-space" onSpaceUnavailable={onSpaceUnavailable} />);
+    await waitFor(() => expect(onSpaceUnavailable).toHaveBeenCalled());
+    expect(document.querySelectorAll('.cr-skeleton').length).toBeGreaterThan(0); // membership loss clears data back to loading
+
+    gateway.error = null;
+    gateway.outlook = coreCashOutlookFixture;
+    rerender(<HookWiredChart gateway={gateway} spaceId="valid-space" onSpaceUnavailable={onSpaceUnavailable} />);
+    await waitFor(() => expect(screen.getByText(coreCashOutlookFixture.assumption)).toBeInTheDocument());
   });
 });

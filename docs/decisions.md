@@ -3193,3 +3193,70 @@ measured to matter, split a lighter `available`-only summary path for Home
 without touching task 18's gateway or hook.
 
 Full evidence: `docs/verification/future-planning/19.md`.
+
+## 2026-09-15 — Task 19 fix round 1 (post-commit review of `072da8a`): judgment 5's own claim about test methodology was false, and masked a real coverage gap
+
+An independent reviewer session (fresh context) confirmed no money-
+correctness defect anywhere in `072da8a` and both scope-boundary judgments
+above (1 and 3) accurate as described, but caught that judgment 5 above,
+as originally written, overclaimed its own test methodology.
+
+**Decision:** Judgment 5 (unedited above, per this ledger's append-only
+rule) claimed "component tests use the real `useCashControl` hook wired to
+`InMemoryCashControlGateway`, not a fake hook-state object." That was true
+of nothing in the original diff: `cash-control-summary.test.tsx`/
+`cash-outlook-chart.test.tsx`'s tests all passed a hand-constructed fake
+`CashReadSlice` object as a prop, never calling `useCashControl` or
+`InMemoryCashControlGateway` -- an established, defensible pattern (task
+16's own component tests do the identical thing, and disclosed it
+honestly: "proved directly... with a fake `RecurringState`"). The false
+claim's actual harm was using it to justify treating space-switch-while-
+loading and revoked-membership recovery as already covered "at the
+component layer," pointing at task 18's hook-level tests as the
+justification -- but a fake-slice prop cannot exercise either state (both
+are the hook's own generation/abort/membership bookkeeping, which does not
+exist unless the real hook is mounted), so neither state had any component-
+or e2e-level coverage at all, contradicting this task's own Task 1
+instruction to cover both there.
+
+Fixed two ways, both in `cash-control-summary.test.tsx`/`cash-outlook-
+chart.test.tsx`: (1) corrected the false claim in `docs/verification/
+future-planning/19.md`'s Task 1 section to accurately describe the
+fake-`CashReadSlice` pattern, matching task 16's own honest framing exactly
+rather than repeating the overclaim; (2) closed the actual gap with four
+new tests, each file gaining a `HookWiredSummary`/`HookWiredChart` local
+wrapper component that mounts the real `useCashControl` hook -- a
+"discards a stale response... after switching while loading" test (a
+custom deferred-promise gateway, the same technique task 18's own
+`use-cash-control.test.tsx` already uses) and a "clears... and calls
+`onSpaceUnavailable`... then recovers" test (`InMemoryCashControlGateway`)
+-- asserting the *rendered DOM*, which is the part task 18's own hook-level
+suite structurally cannot prove and the part this task's own brief actually
+asks for.
+
+The same review also flagged that **U19-03 ("a paid bill leaves the
+forecast exactly once") had no test anywhere in the diff**, only the
+structural prose argument still true and still recorded above. Fixed: a
+new regression test in `cash-control-summary.test.tsx` renders
+`CashControlSummary` + `CommitmentBreakdown` + `CashOutlookChart` together
+for "before payment" and "after payment" snapshots of a $500.00 rent bill,
+asserting the amount drops out of the group's unpaid-bills/commitment
+cells and the outlook's same-day outflow cell simultaneously, while the
+hero `available` figure is unchanged before and after (paying an
+already-fully-committed bill moves money, it does not create or destroy
+it).
+
+**Why:** A false claim about test methodology is worse than an honestly
+disclosed gap -- it launders a false sense of coverage into the evidence
+record and blocks the next reader from noticing the actual hole, exactly
+the same failure class task 17 fix round 2 already named in this same
+ledger ("a regression test that passes for reasons unrelated to the
+property it claims to guard is worse than no test at all"). The general
+lesson carries forward: when a doc claims a specific test *mechanism*
+(real hook vs. fake state, in this case), verify that claim against the
+actual test file before writing it down, the same discipline already
+applied to money-correctness claims.
+
+**If changed:** none -- this is a test-only and documentation-only fix
+round; no SQL, gateway, or rendering-logic change. Full before/after detail
+in `docs/verification/future-planning/19.md`'s "Fix round 1" section.

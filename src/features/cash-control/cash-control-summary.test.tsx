@@ -1,13 +1,39 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { CashControlSummary } from './cash-control-summary.js';
-import { coreAvailableCashSummaryFixture, emptyAvailableCashSummary } from '../../test/in-memory-cash-control-gateway.js';
-import type { AvailableCashSummary } from './types.js';
+import { CashOutlookChart } from './cash-outlook-chart.js';
+import { CommitmentBreakdown } from './commitment-breakdown.js';
+import {
+  coreAvailableCashSummaryFixture, coreCashOutlookFixture, emptyAvailableCashSummary, InMemoryCashControlGateway,
+} from '../../test/in-memory-cash-control-gateway.js';
+import type { AvailableCashSummary, CashControlGateway } from './types.js';
+import { useCashControl } from './use-cash-control.js';
 import type { CashReadSlice } from './use-cash-control.js';
 
 function slice(data: AvailableCashSummary, overrides: Partial<CashReadSlice<AvailableCashSummary>> = {}): CashReadSlice<AvailableCashSummary> {
   return { status: 'ready', data, error: null, refresh: vi.fn(), ...overrides };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((doResolve) => { resolve = doResolve; });
+  return { promise, resolve };
+}
+
+/** Mounts the real `useCashControl` hook (not a fake `CashReadSlice`) and
+ * renders its `available` slice through the real `CashControlSummary`
+ * component -- used specifically to prove the hook's own generation/abort
+ * and membership-loss handling (already proved in isolation by task 18's
+ * `use-cash-control.test.tsx`) surfaces correctly in this component's
+ * rendered output, per this task's own Task 1 requirement to cover a space
+ * switch while loading and revoked-membership recovery at the component
+ * layer -- not just re-asserted at the hook layer a second time. */
+function HookWiredSummary({ gateway, spaceId, onSpaceUnavailable }: {
+  gateway: CashControlGateway; spaceId: string; onSpaceUnavailable?: () => void;
+}) {
+  const cashControl = useCashControl(gateway, spaceId, 'USD', '2026-09-15', 60, 'expected', onSpaceUnavailable);
+  return <CashControlSummary locale="en" currency="USD" variant="full" available={cashControl.available} />;
 }
 
 describe('CashControlSummary: loading/error', () => {
@@ -132,5 +158,103 @@ describe('CashControlSummary: ready state data assertions', () => {
     render(<CashControlSummary locale="ar" currency="USD" variant="full" available={slice(coreAvailableCashSummaryFixture)} />);
     expect(screen.getByText('المتاح بعد الالتزامات')).toBeInTheDocument();
     expect(screen.getByText('السيولة الإضافية غير المخصَّصة يوميًا')).toBeInTheDocument();
+  });
+
+  // U19-03: a paid bill leaves the forecast exactly once -- reflected as a
+  // reduction in actual cash, never as a remaining commitment AND never
+  // again as a projected future outflow. Proved by rendering the summary
+  // and the outlook together (as `CashControlSection` composes them) for
+  // "before payment" and "after payment" snapshots of the same $500 rent
+  // bill, and asserting the $500 never appears twice.
+  it('U19-03: a paid bill is reflected once (reduced cash), never as a remaining commitment or a repeated projected outflow', () => {
+    const beforePayment: AvailableCashSummary = {
+      ...coreAvailableCashSummaryFixture,
+      cashMinor: '150000', expenseCommitmentsMinor: '50000', debtCommitmentsMinor: '0', goalTopupsMinor: '0', futureHeadroomMinor: '0',
+      availableMinor: '100000', deficitMinor: '0', spendableMinor: '100000', dailyExtraGuideMinor: null,
+      groups: [{
+        id: '00000000-0000-4000-8000-000000000901', nameEn: 'Essentials', nameAr: null,
+        budgetRemainingMinor: '0', unpaidBillsMinor: '50000', goalOverlapMinor: '0', commitmentMinor: '50000',
+      }],
+    };
+    const beforeOutlook = {
+      ...coreCashOutlookFixture,
+      days: [{ date: '2026-09-15', openingCashMinor: '150000', expectedIncomeMinor: '0', expectedOutflowMinor: '50000', closingCashMinor: '100000' }],
+    };
+    const { rerender } = render(<>
+      <CashControlSummary locale="en" currency="USD" variant="full" available={slice(beforePayment)} />
+      <CommitmentBreakdown locale="en" currency="USD" groups={beforePayment.groups} />
+      <CashOutlookChart locale="en" currency="USD" outlook={{ status: 'ready', data: beforeOutlook, error: null, refresh: vi.fn() }} scenario="expected" onScenarioChange={vi.fn()} />
+    </>);
+    expect(document.querySelector('.cc-metric--hero')).toHaveTextContent('$1,000.00'); // available, pre-payment
+    expect(screen.getByText('Essentials').closest('tr')).toHaveTextContent('$500.00'); // still an unpaid bill
+    expect(screen.getByText('2026-09-15').closest('tr')).toHaveTextContent('$500.00'); // still a projected outflow
+
+    // After payment: cash drops by exactly 50000 (the bill is now settled,
+    // out of actual cash), the group's unpaid-bill/commitment lines drop to
+    // zero (nothing left owed), and today's outlook outflow also drops to
+    // zero (a settled occurrence is never projected again) -- while
+    // available/spendable end up identical to before, since paying a bill
+    // that was already fully committed moves money, it does not create or
+    // destroy it.
+    const afterPayment: AvailableCashSummary = {
+      ...beforePayment,
+      cashMinor: '100000', expenseCommitmentsMinor: '0',
+      availableMinor: '100000', spendableMinor: '100000',
+      groups: [{ ...beforePayment.groups[0]!, unpaidBillsMinor: '0', commitmentMinor: '0' }],
+    };
+    const afterOutlook = {
+      ...beforeOutlook,
+      days: [{ date: '2026-09-15', openingCashMinor: '100000', expectedIncomeMinor: '0', expectedOutflowMinor: '0', closingCashMinor: '100000' }],
+    };
+    rerender(<>
+      <CashControlSummary locale="en" currency="USD" variant="full" available={slice(afterPayment)} />
+      <CommitmentBreakdown locale="en" currency="USD" groups={afterPayment.groups} />
+      <CashOutlookChart locale="en" currency="USD" outlook={{ status: 'ready', data: afterOutlook, error: null, refresh: vi.fn() }} scenario="expected" onScenarioChange={vi.fn()} />
+    </>);
+    expect(document.querySelector('.cc-metric--hero')).toHaveTextContent('$1,000.00'); // unchanged: money moved, not created/lost
+    const groupRow = screen.getByText('Essentials').closest('tr')!;
+    expect(groupRow).toHaveTextContent('$0.00');
+    expect(groupRow).not.toHaveTextContent('$500.00'); // the bill is gone from "still owed"
+    const outlookRow = screen.getByText('2026-09-15').closest('tr')!;
+    expect(outlookRow).not.toHaveTextContent('$500.00'); // and never re-appears as a projected outflow
+  });
+});
+
+describe('CashControlSummary: real hook wiring covers a space switch while loading and revoked-membership recovery', () => {
+  it('discards a stale response from the prior space and renders only the fresh space’s figure after switching while loading', async () => {
+    const first = deferred<AvailableCashSummary>();
+    const second = deferred<AvailableCashSummary>();
+    const gateway: CashControlGateway = {
+      loadAvailable: vi.fn((input: { spaceId: string }) => input.spaceId === 'space-1' ? first.promise : second.promise),
+      loadOutlook: vi.fn(async () => coreCashOutlookFixture),
+    };
+    const { rerender } = render(<HookWiredSummary gateway={gateway} spaceId="space-1" />);
+    expect(document.querySelectorAll('.cr-skeleton').length).toBeGreaterThan(0); // still loading space-1
+
+    rerender(<HookWiredSummary gateway={gateway} spaceId="space-2" />);
+    second.resolve({ ...coreAvailableCashSummaryFixture, availableMinor: '77700', spendableMinor: '77700', deficitMinor: '0' });
+    await waitFor(() => expect(document.querySelector('.cc-metric--hero')).toHaveTextContent('$777.00'));
+
+    // The stale space-1 response resolves late; it must never overwrite
+    // the already-rendered fresh space-2 figure.
+    first.resolve({ ...coreAvailableCashSummaryFixture, availableMinor: '11100', spendableMinor: '11100', deficitMinor: '0' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(document.querySelector('.cc-metric--hero')).not.toHaveTextContent('$111.00');
+    expect(document.querySelector('.cc-metric--hero')).toHaveTextContent('$777.00');
+  });
+
+  it('clears the visible figure and calls onSpaceUnavailable when membership is revoked, then recovers once a valid space is selected', async () => {
+    const gateway = new InMemoryCashControlGateway();
+    gateway.error = Object.assign(new Error('planning_not_authorized'), { code: '42501' });
+    const onSpaceUnavailable = vi.fn();
+    const { rerender } = render(<HookWiredSummary gateway={gateway} spaceId="revoked-space" onSpaceUnavailable={onSpaceUnavailable} />);
+    await waitFor(() => expect(onSpaceUnavailable).toHaveBeenCalled());
+    expect(document.querySelectorAll('.cr-skeleton').length).toBeGreaterThan(0); // membership loss clears data back to loading
+    expect(screen.queryByText('Available after commitments')).not.toBeInTheDocument();
+
+    gateway.error = null;
+    gateway.available = coreAvailableCashSummaryFixture;
+    rerender(<HookWiredSummary gateway={gateway} spaceId="valid-space" onSpaceUnavailable={onSpaceUnavailable} />);
+    await waitFor(() => expect(document.querySelector('.cc-metric--hero')).toHaveTextContent('$500.00'));
   });
 });
