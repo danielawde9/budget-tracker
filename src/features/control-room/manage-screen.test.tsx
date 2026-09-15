@@ -21,6 +21,7 @@ function gateways(): ControlRoomGateways {
     allocation: null,
     goals: null,
     recurring: null,
+    cashControl: null,
   };
 }
 

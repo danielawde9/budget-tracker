@@ -1,4 +1,7 @@
 import type { ReactNode } from 'react';
+import { CashControlSummary } from '../cash-control/cash-control-summary.js';
+import type { AvailableCashSummary } from '../cash-control/types.js';
+import type { CashReadSlice } from '../cash-control/use-cash-control.js';
 import type { MonthlyCashSummary } from '../reports/types.js';
 import type { CategoryBudgetRow } from '../insights/types.js';
 import type { Currency, Locale, SpaceKind } from '../loans/types.js';
@@ -65,6 +68,26 @@ export interface HomeScreenProps {
   onRetryLoad(): void;
   loansOutstanding: readonly { loanId: string; personName: string; currency: Currency; outstandingMinor: string }[];
   recentEvents: readonly JournalEvent[];
+  /** One compact "Available after commitments" reading per currency --
+   * full drilldown (reservation breakdown, outlook) lives only in Plan. */
+  cashControlByCurrency: readonly { currency: Currency; available: CashReadSlice<AvailableCashSummary> }[];
+}
+
+function CashControlCard({ locale, byCurrency }: { locale: Locale; byCurrency: HomeScreenProps['cashControlByCurrency'] }) {
+  if (byCurrency.length === 0) return null;
+  return (
+    <section className="cr-card" aria-label={t(locale, 'Available after commitments', 'المتاح بعد الالتزامات')}>
+      <h2 className="cr-label">{t(locale, 'Available after commitments', 'المتاح بعد الالتزامات')}</h2>
+      <div className="cc-row">
+        {byCurrency.map((entry) => (
+          <div key={entry.currency}>
+            <span className="cr-chip">{entry.currency}</span>
+            <CashControlSummary locale={locale} currency={entry.currency} available={entry.available} variant="compact" />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function BudgetCard({ budgets, locale }: { budgets: readonly CategoryBudgetRow[]; locale: Locale }) {
@@ -224,6 +247,7 @@ export function HomeScreen(props: HomeScreenProps) {
               ))}
             </div>
           </section>
+          <CashControlCard locale={locale} byCurrency={props.cashControlByCurrency} />
           {props.dataStatus === 'error' ? (
             <div className="cr-card" role="alert">
               <div className="cr-row">

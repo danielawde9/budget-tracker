@@ -3068,3 +3068,128 @@ round-half-up), not merely be nonzero.
 **If changed:** none — this is a test-only fix with no SQL or JSON-contract
 change. Full before/after detail in
 `docs/verification/future-planning/17.md`'s "Fix round 2" section.
+
+## 2026-09-15 — Cash-control UI lands per task 19, completing Release 3
+
+**Decision:** Added the read-only "Available after commitments" human flow
+per `docs/superpowers/plans/future-planning/19-available-cash-ui.md`, over
+task 18's gateway/hook exactly as exposed (`loading|ready|error` only -- no
+saving/ambiguous/accepted-refresh-pending states exist for this read-only
+gateway) -- no new gateway method, no SQL change. Placement is both Home
+(a compact per-currency card) and Plan (a full per-currency section with
+the reservation breakdown and 60-day outlook), matching allocation/goals'
+own `USD`/`LBP`-split section pattern. Five scope/judgment decisions worth
+recording:
+
+1. **`AvailableCashGroupRow` carries no `hasPlan`-equivalent flag**, unlike
+   goals'/allocation's own group rows. A zero `budgetRemainingMinor` can
+   mean either "no target was ever set for this root category" or "the
+   target is fully spent" (`B_g = max(target - spent, 0)` clamps both cases
+   to the same zero) -- this DTO shape genuinely cannot distinguish them,
+   so `commitment-breakdown.tsx` does not fabricate a "No target vs
+   Explicit zero" split the data does not support. It instead shows the
+   literal `$0.00` value plus an explicit "No remaining budget line to
+   compare against" note in place of a bar, honest about the ambiguity
+   rather than guessing which case applies (`groupCommitmentRatio`'s own
+   doc comment records this).
+2. **Each of the three Task-3 bar/chart behaviours (zero-baseline negative
+   segment, over-100% overflow, signed day-by-day plot) is demonstrated in
+   exactly the one component it fits, not forced into all three:**
+   `cash-control-summary.tsx`'s own bar covers the negative/zero-baseline
+   case (the signed `available` figure, which genuinely can go negative --
+   the deficit renders as an inverse segment scaled against total
+   reservations); `commitment-breakdown.tsx`'s per-group bar covers
+   over-100% (`unpaidBillsMinor` can exceed `budgetRemainingMinor`, e.g.
+   the `C100000,R0,B30000,O50000` acceptance fixture from
+   `17-available-cash-db.md`); `cash-outlook-chart.tsx`'s per-day bar
+   covers the signed plot (`closingCashMinor` can go negative, which is
+   exactly what `firstNegativeDate` tracks). None of the three group-level
+   DTO fields (`B_g`/`O_g`/`G_g`/`Q_g`) can themselves go negative (each is
+   a `max(...,0)` clamp per `17-available-cash-db.md`), so forcing a
+   "negative value" case onto the commitment-breakdown bar too would have
+   meant fabricating an unreachable scenario.
+3. **The commitment breakdown's "labelled drilldown button" expands an
+   in-page plain-language explanation of the same row's numbers, rather
+   than opening a bill/goal/category editor.** `AvailableCashGroupRow`
+   carries a group (category-group) id/name only, never an individual
+   bill or goal id -- there is no single "originating bill" this DTO lets
+   the UI open. Plan's sibling sections (`AllocationCurrencySection`,
+   `GoalsCurrencySection`, `UpcomingBillsSection`, this task's own
+   `CashControlSection`) are independent React trees mounted side by side
+   with no shared cross-section router or navigation mechanism in this
+   codebase; wiring one would mean either an SQL/gateway change (exposing
+   per-bill/goal ids, out of this UI-only task's scope) or a broader
+   app-shell navigation change, neither of which belongs here. The in-page
+   expand is a real, working, fully in-scope feature that still satisfies
+   "inspect every reservation component" (Task 1) honestly.
+4. **Home's compact card reuses the full `useCashControl` hook (both the
+   `available` and `outlook` slices) even though it only renders
+   `available`,** rather than calling `gateway.loadAvailable` directly in a
+   lighter Home-only effect. This issues one unused `cash_outlook` read per
+   currency on Home. Accepted over reimplementing the stale-response/
+   generation/membership-loss guard logic `useCashReadSlice` already proves
+   correct (task 18) a second time for a thin efficiency gain -- the read
+   is bounded (`p_days` capped at 90) and cheap, and per this session's own
+   standing rule, added infrastructure/optimization needs a measurement
+   first, not a guess. If this is ever measured to matter, a lighter
+   `available`-only Home variant can be split out later without touching
+   task 18's gateway.
+5. **Component tests use the real `useCashControl` hook wired to
+   `InMemoryCashControlGateway`, not a fake hook-state object,** for every
+   required state (loading/empty/ready/error) plus a space-switch-while-
+   loading and a revoked-membership-recovery case -- per this task's own
+   Task 1 instruction, a broader ask than tasks 13/16 made of themselves
+   (which deferred those last two cases entirely to the hook-level proof
+   already on file in `use-cash-control.test.tsx`). `use-cash-control.
+   test.tsx` (task 18) already proves the generation/abort/membership
+   mechanics in isolation; this task's own hook-level test in
+   `use-cash-control.test.tsx` was not re-touched, and the new component-
+   level coverage lives in `use-cash-control.test.tsx`'s sibling files
+   (`cash-control-summary.test.tsx` etc.) and is additive, not a
+   duplicate of task 18's own suite.
+
+**Actual cash and expected/received income are never combined into one
+displayed balance** (a standing acceptance property). `cash-control-
+summary.tsx`'s "This month so far" strip (`receivedIncomeMinor`/
+`ordinarySpendingMinor`/`incomeMinusSpendingMinor`) is a visually and
+semantically separate block from the "Available after commitments" hero
+figure and its Spendable/Shortfall pair -- proved directly by U19-04's own
+test (a `receivedIncomeMinor` of `9000000` never appears inside, or
+changes, the hero `.cc-metric--hero` figure). The forecast
+(`CashOutlookChart`, headed "Expected outlook") is a separate component
+entirely and never substitutes for the actual wallet-balance figure.
+
+**`dailyExtraGuideMinor`/`daysRemaining` are rendered verbatim, never
+recomputed client-side** (U19-05) -- `cash-control-summary.tsx` reads both
+fields directly off the DTO; there is no `Date`/day-count arithmetic
+anywhere in this feature's rendering path, matching task 16's own "no
+client-side date arithmetic" structural proof for occurrence due dates. The
+guide is labelled exactly "Extra unassigned cash per day" per the brief,
+with copy noting category budgets are already reserved in `Q_g`, and is
+never shown (compact or full) when `state !== 'ready'` -- `dailyExtraGuideMinor`
+is contractually `null` outside `ready` per the DTO's own contract, and the
+component adds a second, explicit `state === 'ready'` guard on top as
+defense-in-depth rather than relying on the null check alone.
+
+**`chart-ratio.ts`'s `chartPercent` is copied byte-identical to the brief**
+(and to tasks 13/16's own copies), exporting nothing else -- the group-
+ratio math it doesn't cover (`groupCommitmentRatio`) lives in
+`commitment-breakdown.tsx` itself, its own file's only consumer, so
+`chart-ratio.ts` stays exactly the brief's given helper.
+
+**Why:** Every judgment above either respects a boundary this task cannot
+cross without an SQL/gateway change (ids, `hasPlan`) or without a
+cross-feature app-shell change (drilldown navigation), or trades a thin,
+unmeasured efficiency gain for reusing already-proven request-lifecycle
+code -- matching this session's own "documented default beats an
+undocumented guess" rule and task 13/16's own precedent of surfacing DTO
+projection gaps rather than papering over them.
+
+**If changed:** if a future task extends `available_cash_summary`'s groups
+projection with per-bill/goal ids, `commitment-breakdown.tsx`'s drilldown
+button can open the real bill/goal editor instead of the in-page expand,
+additive to this task's files. If Home's extra `cash_outlook` read is ever
+measured to matter, split a lighter `available`-only summary path for Home
+without touching task 18's gateway or hook.
+
+Full evidence: `docs/verification/future-planning/19.md`.

@@ -1,0 +1,347 @@
+/* ==========================================================================
+   Cash-control (available after commitments) feature -- scoped styles
+   reusing Control Room's tokens (--cr-*) and .cr-card/.cr-button/
+   .cr-skeleton visual language, matching the recurring/goals features' own
+   convention. Logical properties throughout for RTL; no new design tokens.
+   ========================================================================== */
+
+.cc-visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.cc-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cr-space-2);
+  justify-content: space-between;
+}
+
+.cc-subheading {
+  font-family: var(--cr-font-display);
+  font-size: 15px;
+  font-weight: 600;
+  margin-block-start: var(--cr-space-3);
+}
+
+.cc-label {
+  color: var(--cr-ink-soft);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cc-label-muted {
+  color: var(--cr-ink-soft);
+  font-size: 12px;
+}
+
+.cc-danger-text {
+  color: var(--cr-danger);
+}
+
+.cc-skeleton-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-2);
+}
+
+/* ---- Status badges --------------------------------------------------------
+   Color alone never encodes state -- every badge carries its own text
+   label. */
+
+.cc-badge {
+  display: inline-block;
+  padding: var(--cr-space-1) var(--cr-space-2);
+  border-radius: var(--cr-radius-full);
+  font-size: 11px;
+  font-weight: 600;
+}
+.cc-badge-review { background: var(--cr-warn); color: #fff; }
+.cc-badge-negative { background: var(--cr-danger); color: #fff; margin-inline-start: var(--cr-space-2); }
+
+/* ---- Compact (Home) summary ------------------------------------------------ */
+
+.cc-compact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-1);
+}
+
+.cc-compact-figure {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cc-compact-figure bdi {
+  font-family: var(--cr-font-display);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.cc-compact-note {
+  color: var(--cr-ink-soft);
+  font-size: 12px;
+}
+
+.cc-inline-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--cr-accent-strong);
+  text-decoration: underline;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* ---- Full summary ----------------------------------------------------------- */
+
+.cc-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-2);
+}
+
+.cc-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--cr-space-3);
+  margin: 0;
+}
+.cc-metrics--secondary {
+  grid-template-columns: repeat(3, 1fr);
+}
+.cc-metric dt {
+  color: var(--cr-ink-soft);
+  font-size: 11px;
+}
+.cc-metric dd {
+  margin: 0;
+  font-family: var(--cr-font-display);
+  font-size: 18px;
+  font-weight: 600;
+}
+.cc-metric--hero dd {
+  font-size: 26px;
+}
+
+.cc-reservation-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-1);
+}
+.cc-reservation-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--cr-space-2);
+  padding-block: var(--cr-space-1);
+  border-block-end: 1px solid var(--cr-hairline);
+}
+
+.cc-guide {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--cr-space-1);
+}
+.cc-guide bdi {
+  font-family: var(--cr-font-display);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* ---- Signed bar (zero baseline, inverse segment for negative values) ------
+   Shared visual shape used by the summary's own available-vs-zero bar and
+   the outlook chart's per-day closing-cash bar. */
+
+.cc-signed-bar {
+  display: flex;
+  align-items: stretch;
+  block-size: 6px;
+  border-radius: var(--cr-radius-full);
+  overflow: hidden;
+  background: var(--cr-surface-sunken);
+  box-shadow: var(--cr-shadow-sunken);
+}
+.cc-signed-bar-negative,
+.cc-signed-bar-positive {
+  block-size: 100%;
+  flex: 1 1 50%;
+}
+.cc-signed-bar-negative {
+  background: var(--cr-danger);
+  /* Grows from the zero baseline outward: aligned to the end of its own
+     (start) half so a wider inline-size extends away from zero, not into
+     it. */
+  margin-inline-start: auto;
+}
+.cc-signed-bar-positive {
+  background: var(--cr-accent);
+}
+.cc-signed-bar-zero {
+  inline-size: 2px;
+  block-size: 100%;
+  background: var(--cr-ink-soft);
+  flex: 0 0 auto;
+}
+.cc-signed-bar--summary {
+  margin-block: var(--cr-space-1);
+}
+
+/* Per-row signed bar inside the outlook table: same halves, sized to the
+   table cell instead of the full card width. */
+td .cc-signed-bar {
+  min-inline-size: 90px;
+  block-size: 4px;
+}
+
+/* ---- Commitment breakdown: accessible table + per-row bar ------------------ */
+
+.cc-breakdown {
+  overflow-x: auto;
+}
+
+.cc-breakdown-table,
+.cc-outlook-table {
+  border-collapse: collapse;
+  inline-size: 100%;
+}
+
+.cc-breakdown-table th,
+.cc-breakdown-table td,
+.cc-outlook-table th,
+.cc-outlook-table td {
+  padding: var(--cr-space-2);
+  text-align: start;
+  vertical-align: middle;
+  border-block-end: 1px solid var(--cr-hairline);
+}
+
+.cc-bar-label {
+  font-weight: 500;
+}
+
+.cc-net-reserved {
+  font-weight: 600;
+}
+
+.cc-bar-visual {
+  min-inline-size: 110px;
+}
+
+.cc-progress {
+  block-size: 4px;
+  border-radius: var(--cr-radius-full);
+  background: var(--cr-surface-sunken);
+  overflow: hidden;
+  box-shadow: var(--cr-shadow-sunken);
+}
+.cc-progress > span {
+  display: block;
+  block-size: 100%;
+  border-radius: inherit;
+  background: var(--cr-accent);
+  transition: inline-size 200ms var(--cr-ease);
+}
+.cc-progress[data-over="true"] > span {
+  background: var(--cr-danger);
+}
+
+.cc-overage-text {
+  display: block;
+  color: var(--cr-danger);
+  font-size: 11px;
+}
+
+.cc-drilldown-button {
+  white-space: nowrap;
+}
+
+.cc-detail-row td {
+  background: var(--cr-surface-sunken);
+}
+
+/* ---- Outlook -------------------------------------------------------------- */
+
+.cc-outlook {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-2);
+}
+
+.cc-scenario-tabs button[aria-selected="true"] {
+  background: var(--cr-accent);
+  color: var(--cr-surface-sunken);
+}
+
+.cc-bars {
+  overflow-x: auto;
+}
+
+/* Phone-width layouts: responsive table -> stacked cards, matching the
+   recurring/allocation features' own established technique. */
+@media (max-width: 420px) {
+  .cc-breakdown,
+  .cc-bars {
+    overflow-x: visible;
+  }
+  .cc-breakdown-table thead,
+  .cc-outlook-table thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+  .cc-breakdown-table, .cc-breakdown-table tbody, .cc-bar-row,
+  .cc-outlook-table, .cc-outlook-table tbody {
+    display: block;
+    inline-size: 100%;
+  }
+  .cc-bar-row {
+    padding-block: var(--cr-space-2);
+    border-block-end: 1px solid var(--cr-hairline);
+  }
+  .cc-breakdown-table th[scope="row"],
+  .cc-breakdown-table td,
+  .cc-outlook-table th[scope="row"],
+  .cc-outlook-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-inline: 0;
+    border-block-end: 0;
+    text-align: end;
+  }
+  .cc-breakdown-table td[data-label]::before,
+  .cc-outlook-table td[data-label]::before {
+    content: attr(data-label);
+    color: var(--cr-ink-soft);
+    font-size: 11px;
+    text-align: start;
+  }
+  .cc-bar-visual {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--cr-space-1);
+    min-inline-size: 0;
+  }
+  .cc-metrics,
+  .cc-metrics--secondary {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cc-progress > span {
+    transition: none;
+  }
+}

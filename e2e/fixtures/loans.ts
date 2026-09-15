@@ -53,6 +53,23 @@ export interface ApplicationFixtureOptions {
    *  `startsOn` falls at or before the requested range's end, the same
    *  read/write split already used for allocation/goals above. */
   seedOccurrences?: readonly Record<string, unknown>[];
+  /** Cash-control summary: the `available_cash_summary` JSON object
+   *  (camelCase keys matching the SQL contract exactly). Defaults to an
+   *  `unplanned` no-snapshot-yet shape when omitted, matching every other
+   *  screen's own no-plan default. Returned for every currency (this
+   *  fixture is currency-agnostic, matching `allocationMonth`'s own
+   *  precedent above). */
+  seedAvailableCashSummary?: Record<string, unknown>;
+  /** Cash-control outlook: the `cash_outlook` JSON object's static parts
+   *  (`days`/`firstNegativeDate`/`overdueCount`/`overdueMinor`/`state`).
+   *  `scenario`/`assumption`/`startDate`/`currency` are always overwritten
+   *  from the actual request so switching the scenario tab visibly changes
+   *  the rendered assumption text. Defaults to an empty, ready window. */
+  seedCashOutlook?: Record<string, unknown>;
+  /** Cash-control failure/retry: the first `available_cash_summary` call
+   *  fails once (503), then a retry succeeds with the seeded/default data --
+   *  matching `failCategoriesOnce`'s own shape above. */
+  failAvailableCashSummaryOnce?: boolean;
 }
 
 const defaultAllocationMonth: Record<string, unknown> = {
@@ -64,6 +81,19 @@ const defaultAllocationMonth: Record<string, unknown> = {
     { groupId: null, rowKind: 'unmapped', nameEn: null, nameAr: null, order: null, targetMinor: '0', actualMinor: '0', varianceMinor: '0', basisPoints: null, actualShareOfIncomeBps: null, hasPlan: false },
     { groupId: null, rowKind: 'uncategorized', nameEn: null, nameAr: null, order: null, targetMinor: null, actualMinor: '0', varianceMinor: null, basisPoints: null, actualShareOfIncomeBps: null, hasPlan: false },
   ],
+};
+
+const defaultAvailableCashSummary: Record<string, unknown> = {
+  currency: 'USD', asOf: '2026-09-14', state: 'unplanned', needsReview: false, snapshotId: null,
+  cashMinor: '0', goalClaimsMinor: '0',
+  expenseCommitmentsMinor: null, debtCommitmentsMinor: null, goalTopupsMinor: null, futureHeadroomMinor: null,
+  availableMinor: null, deficitMinor: null, spendableMinor: null, dailyExtraGuideMinor: null,
+  daysRemaining: 0, receivedIncomeMinor: '0', ordinarySpendingMinor: '0', incomeMinusSpendingMinor: '0',
+  uncategorizedMinor: '0', unmaterializedCount: 0, groups: [],
+};
+
+const defaultCashOutlook: Record<string, unknown> = {
+  days: [], firstNegativeDate: null, state: 'ready', overdueCount: 0, overdueMinor: '0',
 };
 
 const defaultTrendRows: Record<string, unknown>[] = [
@@ -287,6 +317,7 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
   let nextOccurrenceEventId = 100;
   let nextMaterializedOccurrenceId = 100;
   const recurringReceipts = new Map<string, { command: string; sequenceId: string; result: unknown }>();
+  let failAvailableCashSummaryRemaining = options.failAvailableCashSummaryOnce ? 1 : 0;
 
   function goalHead(goalId: string): string {
     return earmarkHeadByGoal.get(goalId) ?? '0'.repeat(64);
@@ -596,6 +627,21 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       const body = request.postDataJSON() as { p_request_id: string };
       const receipt = allocationReceipts.get(body.p_request_id) ?? goalReceipts.get(body.p_request_id) ?? recurringReceipts.get(body.p_request_id);
       return json(route, receipt ?? null);
+    }
+    if (path.endsWith('/rpc/available_cash_summary')) {
+      if (failAvailableCashSummaryRemaining > 0) {
+        failAvailableCashSummaryRemaining -= 1;
+        return json(route, { message: 'available cash summary temporarily unavailable' }, 503);
+      }
+      return json(route, options.seedAvailableCashSummary ?? defaultAvailableCashSummary);
+    }
+    if (path.endsWith('/rpc/cash_outlook')) {
+      const body = request.postDataJSON() as { p_currency: string; p_start_date: string; p_scenario: 'expected' | 'no_future_income' };
+      const seed = options.seedCashOutlook ?? defaultCashOutlook;
+      const assumption = body.p_scenario === 'expected'
+        ? 'Projects only unpaid scheduled income and scheduled bills; unplanned day-to-day spending can still lower this line.'
+        : 'Assumes no further income arrives in this window; only already-scheduled bills are projected.';
+      return json(route, { ...seed, currency: body.p_currency, startDate: body.p_start_date, scenario: body.p_scenario, assumption });
     }
     if (path.endsWith('/rpc/scheduled_occurrence_page')) {
       return json(route, { rows: cloneRows(occurrences), hasMore: false, nextCursor: null, asOf: '2026-09-14' });

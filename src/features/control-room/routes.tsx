@@ -4,6 +4,11 @@ import { AllocationSetup } from '../allocation/allocation-setup.js';
 import type { CategoryOption } from '../allocation/allocation-month-editor.js';
 import type { AllocationGateway } from '../allocation/types.js';
 import { useAllocation } from '../allocation/use-allocation.js';
+import { CashControlSummary } from '../cash-control/cash-control-summary.js';
+import { CashOutlookChart } from '../cash-control/cash-outlook-chart.js';
+import { CommitmentBreakdown } from '../cash-control/commitment-breakdown.js';
+import type { CashControlGateway, CashOutlookScenario } from '../cash-control/types.js';
+import { useCashControl } from '../cash-control/use-cash-control.js';
 import { useCategories } from '../categories/use-categories.js';
 import type { CategoriesGateway } from '../categories/types.js';
 import { useExchange } from '../exchange/use-exchange.js';
@@ -77,6 +82,11 @@ const unavailableGoalsGateway: GoalsGateway = {
   async findCommand() { throw new Error('Goals are unavailable until this browser is connected to its data service.'); },
 };
 
+const unavailableCashControlGateway: CashControlGateway = {
+  async loadAvailable() { throw new Error('Available cash is unavailable until this browser is connected to its data service.'); },
+  async loadOutlook() { throw new Error('The cash outlook is unavailable until this browser is connected to its data service.'); },
+};
+
 const unavailableRecurringGateway: RecurringGateway = {
   async loadOccurrences() { throw new Error('Recurring bills are unavailable until this browser is connected to its data service.'); },
   async saveSchedule() { throw new Error('Recurring bills are unavailable until this browser is connected to its data service.'); },
@@ -99,6 +109,7 @@ export interface ControlRoomGateways {
   allocation: AllocationGateway | null;
   goals: GoalsGateway | null;
   recurring: RecurringGateway | null;
+  cashControl: CashControlGateway | null;
 }
 
 export interface ControlRoomRoutesProps {
@@ -164,10 +175,30 @@ interface HomeRoutesProps {
   onOpenRecord?: (() => void) | undefined;
 }
 
+/** Home's own (USD, LBP) compact summary -- shares `useCashControl` with
+ * `CashControlSection` below rather than calling `loadAvailable` directly,
+ * reusing its proven stale-response/generation/membership-loss guards
+ * instead of reimplementing that request lifecycle a second time here. This
+ * does issue an unused `cash_outlook` read on Home too (the compact variant
+ * only reads `available`); accepted as a bounded, cheap read-only RPC --
+ * see `docs/decisions.md`. */
+function useCashControlHomeSummary(
+  gateway: CashControlGateway, spaceId: string, onSpaceUnavailable: (() => void) | undefined,
+): readonly { currency: Currency; available: ReturnType<typeof useCashControl>['available'] }[] {
+  const today = todayIso();
+  const usd = useCashControl(gateway, spaceId, 'USD', today, 60, 'expected', onSpaceUnavailable);
+  const lbp = useCashControl(gateway, spaceId, 'LBP', today, 60, 'expected', onSpaceUnavailable);
+  return [
+    { currency: 'USD', available: usd.available },
+    { currency: 'LBP', available: lbp.available },
+  ];
+}
+
 function HomeRoutes(props: HomeRoutesProps) {
   const { locale, spaceId, spaceKind, gateways } = props;
   const month = props.month;
   const insightsClient = gateways.insights ?? unavailableInsightsClient;
+  const cashControlByCurrency = useCashControlHomeSummary(gateways.cashControl ?? unavailableCashControlGateway, spaceId, props.onSpaceUnavailable);
 
   const wallets = props.wallets;
 
@@ -228,6 +259,7 @@ function HomeRoutes(props: HomeRoutesProps) {
       onRetryLoad={() => setAttempt((current) => current + 1)}
       loansOutstanding={props.loansOutstanding}
       recentEvents={wallets.events}
+      cashControlByCurrency={cashControlByCurrency}
     />
   );
 }
@@ -348,8 +380,39 @@ function UpcomingBillsSection(props: {
   );
 }
 
+/** "Available after commitments": the full read-only detail -- headline
+ * figures, the per-group reservation breakdown, and the 60-day outlook with
+ * its own expected/conservative scenario switch. The scenario is local UI
+ * state, never persisted: changing it is a different read parameter on the
+ * same `useCashControl` hook (task 18's own contract), never a command, so
+ * it creates no journal row. */
+function CashControlSection(props: {
+  locale: Locale;
+  spaceId: string;
+  currency: 'USD' | 'LBP';
+  gateway: CashControlGateway;
+  onSpaceUnavailable?: (() => void) | undefined;
+}) {
+  const [scenario, setScenario] = useState<CashOutlookScenario>('expected');
+  const cashControl = useCashControl(props.gateway, props.spaceId, props.currency, todayIso(), 60, scenario, props.onSpaceUnavailable);
+  return (
+    <section className="cr-card" aria-label={`${props.locale === 'ar' ? 'المتاح بعد الالتزامات' : 'Available after commitments'} ${props.currency}`}>
+      <span className="cr-chip">{props.currency}</span>
+      <CashControlSummary locale={props.locale} currency={props.currency} available={cashControl.available} variant="full" />
+      {cashControl.available.status === 'ready' && cashControl.available.data.state === 'ready' && (
+        <>
+          <h4 className="cc-subheading">{props.locale === 'ar' ? 'الحجوزات' : 'Reservations'}</h4>
+          <CommitmentBreakdown locale={props.locale} currency={props.currency} groups={cashControl.available.data.groups} />
+        </>
+      )}
+      <CashOutlookChart locale={props.locale} currency={props.currency} outlook={cashControl.outlook} scenario={scenario} onScenarioChange={setScenario} />
+    </section>
+  );
+}
+
 const ALLOCATION_CURRENCIES = ['USD', 'LBP'] as const;
 const GOAL_CURRENCIES = ['USD', 'LBP'] as const;
+const CASH_CONTROL_CURRENCIES = ['USD', 'LBP'] as const;
 
 function PlanRoutes(props: PlanRoutesProps) {
   const { locale, spaceId, gateways } = props;
@@ -417,6 +480,16 @@ function PlanRoutes(props: PlanRoutesProps) {
           spaceId={spaceId}
           currency={currency}
           gateway={gateways.goals ?? unavailableGoalsGateway}
+          onSpaceUnavailable={props.onSpaceUnavailable}
+        />
+      ))}
+      {CASH_CONTROL_CURRENCIES.map((currency) => (
+        <CashControlSection
+          key={currency}
+          locale={locale}
+          spaceId={spaceId}
+          currency={currency}
+          gateway={gateways.cashControl ?? unavailableCashControlGateway}
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
       ))}

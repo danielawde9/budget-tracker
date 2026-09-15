@@ -5,6 +5,7 @@ import { formatMinorAmount } from '../wallets/money.js';
 import type { JournalEvent } from '../wallets/types.js';
 import type { MonthlyCashSummary } from '../reports/types.js';
 import { HomeScreen } from './home-screen.js';
+import type { HomeScreenProps } from './home-screen.js';
 
 const props = {
   locale: 'en' as const,
@@ -26,6 +27,7 @@ const props = {
   onRetryLoad: vi.fn(),
   loansOutstanding: [] as readonly { loanId: string; personName: string; currency: 'USD' | 'LBP'; outstandingMinor: string }[],
   recentEvents: [] as readonly JournalEvent[],
+  cashControlByCurrency: [] as HomeScreenProps['cashControlByCurrency'],
 };
 
 function byExactText(expected: string) {

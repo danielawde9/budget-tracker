@@ -7,6 +7,7 @@ import './control-room.css';
 import './features/allocation/allocation.css';
 import './features/goals/goals.css';
 import './features/recurring/recurring.css';
+import './features/cash-control/cash-control.css';
 
 const householdInvitationBootstrap = createHouseholdInvitationBootstrap(takeHouseholdInvitation(window.location, window.history));
 const root = document.querySelector('#root');

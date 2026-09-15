@@ -42,6 +42,7 @@ function gateways(overrides: {
     allocation: null,
     goals: null,
     recurring: null,
+    cashControl: null,
   };
 }
 
