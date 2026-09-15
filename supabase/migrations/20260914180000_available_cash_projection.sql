@@ -272,6 +272,7 @@ declare
   v_has_snapshot boolean := false;
   v_missing_count integer := 0;
   v_backlog_count integer := 0;
+  v_unmaterialized_count integer := 0;
   v_state text;
   v_needs_review boolean := false;
   v_cash numeric := 0;
@@ -331,6 +332,18 @@ begin
     v_state := 'incomplete';
   else
     v_state := 'ready';
+  end if;
+
+  -- unmaterializedCount reports "how many things need materializing before
+  -- this number can be trusted," never the ordinary unpaid-bill count of a
+  -- healthy plan. v_backlog_count is computed (and only computed) once
+  -- v_missing_count is already known to be zero, so it is meaningful only
+  -- as the specific >500 trigger the brief names, never as a generic bill
+  -- count: report it only when it actually exceeded that cap.
+  if v_missing_count > 0 then
+    v_unmaterialized_count := v_missing_count;
+  elsif v_backlog_count > 500 then
+    v_unmaterialized_count := v_backlog_count;
   end if;
 
   if v_state = 'ready' then
@@ -420,7 +433,7 @@ begin
     'receivedIncomeMinor', v_received_income::text, 'ordinarySpendingMinor', v_ordinary_spending::text,
     'incomeMinusSpendingMinor', (v_received_income - v_ordinary_spending)::text,
     'uncategorizedMinor', v_uncategorized::text,
-    'unmaterializedCount', greatest(v_missing_count, v_backlog_count),
+    'unmaterializedCount', v_unmaterialized_count,
     'groups', v_groups
   );
 end;
@@ -433,6 +446,11 @@ grant execute on function public.available_cash_summary(uuid,public.currency_cod
 -- SCHEDULED income occurrences, never the monthly planned income figure --
 -- a household with no scheduled/actual salary never sees an invented
 -- inflow. Goal earmarks are advisory and never appear on the cash line.
+-- Overdue unpaid obligations are bucketed into today's own outflow (via
+-- greatest(due_date,start_date) below, same as any due-today item), but
+-- that alone leaves a big unexplained day-0 outflow -- overdueCount/
+-- overdueMinor and the assumption text make the "why" explicit, per the
+-- brief's own "bucketed today with explicit overdue label/count".
 create function public.cash_outlook(
   p_space_id uuid, p_currency public.currency_code, p_start_date date, p_days integer, p_scenario text
 ) returns jsonb
@@ -443,6 +461,8 @@ declare
   v_opening numeric;
   v_missing_count integer;
   v_backlog_count integer;
+  v_overdue_count integer := 0;
+  v_overdue_minor numeric := 0;
   v_state text := 'ready';
   v_days jsonb;
   v_first_negative date;
@@ -474,9 +494,23 @@ begin
   end if;
 
   v_opening := private.goal_cash_pool(p_space_id, p_currency, p_start_date);
+
+  select coalesce(count(*), 0), coalesce(sum(greatest(so.expected_minor - stl.settled_minor, 0)), 0)
+    into v_overdue_count, v_overdue_minor
+  from public.scheduled_occurrences so
+  join public.schedules sch on sch.id = so.schedule_id and sch.space_id = p_space_id and sch.kind in ('expense', 'debt_payment')
+  cross join lateral private.schedule_occurrence_settlement(so.id, p_start_date) stl
+  where so.space_id = p_space_id and so.currency = p_currency
+    and so.due_date < p_start_date and not stl.skipped
+    and greatest(so.expected_minor - stl.settled_minor, 0) > 0;
+
   v_assumption := case when p_scenario = 'expected'
     then 'Projects only unpaid scheduled income and scheduled bills; unplanned day-to-day spending can still lower this line.'
-    else 'Assumes no further income arrives in this window; scheduled bills still apply.' end;
+    else 'Assumes no further income arrives in this window; scheduled bills still apply.' end
+    || case when v_overdue_count > 0
+      then format(' Today''s outflow includes %s overdue unpaid bill%s totaling %s already past due.',
+        v_overdue_count, case when v_overdue_count = 1 then '' else 's' end, v_overdue_minor::text)
+      else '' end;
 
   with days as (
     select gs.day_offset from generate_series(0, p_days - 1) as gs(day_offset)
@@ -530,7 +564,8 @@ begin
 
   return jsonb_build_object(
     'currency', p_currency, 'startDate', p_start_date, 'scenario', p_scenario, 'assumption', v_assumption,
-    'days', coalesce(v_days, '[]'::jsonb), 'firstNegativeDate', v_first_negative, 'state', v_state
+    'days', coalesce(v_days, '[]'::jsonb), 'firstNegativeDate', v_first_negative, 'state', v_state,
+    'overdueCount', v_overdue_count, 'overdueMinor', v_overdue_minor::text
   );
 end;
 $$;

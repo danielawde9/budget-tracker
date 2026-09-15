@@ -9,7 +9,7 @@ readonly LIVE_REPO_ROOT="$(cd "${LIVE_SCRIPT_DIR}/../.." && pwd -P)"
 source "${LIVE_SCRIPT_DIR}/budget-common.sh"
 
 readonly LIVE_PROJECT_REF='hqblhzqitrbvpyoxtmew'
-readonly LIVE_MANIFEST_SOURCE_SHA='c1a4a566dd935f21ba8ea19565c4f689a5651fd1'
+readonly LIVE_MANIFEST_SOURCE_SHA='b269612541ba604776ad116dca1891e581a49892'
 readonly LIVE_CONFIRMATION="APPLY LIVE MIGRATIONS TO ${LIVE_PROJECT_REF}"
 readonly LIVE_MAX_PROJECT_LIST_BYTES=1048576
 readonly LIVE_SUPABASE_BIN="${BUDGET_SUPABASE_BIN:-$(command -v supabase || true)}"
@@ -45,6 +45,8 @@ readonly LIVE_VERIFY_SQL="select case when
   and to_regprocedure('public.save_schedule(uuid,uuid,uuid,bigint,jsonb)') is not null
   and to_regprocedure('public.confirm_scheduled_occurrence(uuid,uuid,uuid,bigint,text,date,uuid)') is not null
   and to_regprocedure('public.scheduled_occurrence_page(uuid,date,date,date,uuid,integer)') is not null
+  and to_regprocedure('public.available_cash_summary(uuid,public.currency_code,date)') is not null
+  and to_regprocedure('public.cash_outlook(uuid,public.currency_code,date,integer,text)') is not null
   and (select array_agg(version order by version) from supabase_migrations.schema_migrations)
     = array[
       '20260907100000','20260907110000','20260907120000','20260907130000',
@@ -58,7 +60,7 @@ readonly LIVE_VERIFY_SQL="select case when
       '20260911100000','20260912090000','20260912100000','20260912101000',
       '20260912101500','20260912102000','20260914090000','20260914100000',
       '20260914110000','20260914120000','20260914130000','20260914140000',
-      '20260914150000','20260914160000','20260914170000'
+      '20260914150000','20260914160000','20260914170000','20260914180000'
     ]::text[]
   then 'budget_schema_ready'
   else 'budget_schema_incomplete'

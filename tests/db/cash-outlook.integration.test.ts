@@ -29,8 +29,18 @@ afterAll(async () => {
   if (database) await disposeDisposableDatabase(database);
 }, 30_000);
 
-const TODAY = '2026-09-14';
-const MONTH = '2026-09-01';
+// cash_outlook requires p_start_date to equal the disposable Postgres
+// container's real UTC today (v1: no historical reconstruction) -- computed
+// once at import time, not hardcoded, for the same reason
+// available-cash.integration.test.ts's own TODAY is: a fixed date string
+// silently breaks every fixture the moment the real calendar moves past it.
+function daysFromToday(offsetDays: number): string {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + offsetDays);
+  return date.toISOString().slice(0, 10);
+}
+const TODAY = daysFromToday(0);
+const MONTH = `${TODAY.slice(0, 7)}-01`;
 
 async function freshSpace(name: string): Promise<string> {
   return withAuthenticatedTransaction(db().client, actor, async () => {
@@ -86,6 +96,7 @@ type OutlookDay = { date: string; openingCashMinor: string; expectedIncomeMinor:
 type Outlook = {
   currency: string; startDate: string; scenario: string; assumption: string;
   days: OutlookDay[]; firstNegativeDate: string | null; state: string;
+  overdueCount: number; overdueMinor: string;
 };
 
 async function outlook(spaceId: string, days: number, scenario: 'expected' | 'no_future_income', startDate = TODAY): Promise<Outlook> {
@@ -118,11 +129,12 @@ describe('cash_outlook -- scheduled income and bills project onto the correct da
     const spaceId = await freshSpace('Scheduled income projection');
     const wallet = await usdWallet(spaceId);
     await recordIncome(spaceId, wallet, '5000');
-    await saveSchedule(spaceId, { kind: 'income', expectedMinor: '30000', startsOn: '2026-09-16' });
-    await materialize(spaceId, TODAY, '2026-09-30');
+    const incomeDay = daysFromToday(2);
+    await saveSchedule(spaceId, { kind: 'income', expectedMinor: '30000', startsOn: incomeDay });
+    await materialize(spaceId, TODAY, daysFromToday(30));
 
     const expected = await outlook(spaceId, 10, 'expected');
-    const day = expected.days.find((d) => d.date.slice(0, 10) === '2026-09-16')!;
+    const day = expected.days.find((d) => d.date.slice(0, 10) === incomeDay)!;
     expect(day.expectedIncomeMinor).toBe('30000');
     expect(day.closingCashMinor).toBe(String(5000 + 30000));
 
@@ -136,16 +148,24 @@ describe('cash_outlook -- scheduled income and bills project onto the correct da
     const spaceId = await freshSpace('Overdue and future bills');
     const wallet = await usdWallet(spaceId);
     await recordIncome(spaceId, wallet, '100000');
-    await saveSchedule(spaceId, { kind: 'expense', expectedMinor: '9000', startsOn: '2026-09-01', nameEn: 'Overdue' });
-    await saveSchedule(spaceId, { kind: 'expense', expectedMinor: '4000', startsOn: '2026-09-18', nameEn: 'Future' });
-    await materialize(spaceId, '2026-09-01', '2026-09-30');
+    const overdueDay = daysFromToday(-5);
+    const futureBillDay = daysFromToday(4);
+    await saveSchedule(spaceId, { kind: 'expense', expectedMinor: '9000', startsOn: overdueDay, nameEn: 'Overdue' });
+    await saveSchedule(spaceId, { kind: 'expense', expectedMinor: '4000', startsOn: futureBillDay, nameEn: 'Future' });
+    await materialize(spaceId, overdueDay, daysFromToday(30));
 
     const result = await outlook(spaceId, 10, 'expected');
     expect(result.days[0]!.expectedOutflowMinor).toBe('9000');
-    const futureDay = result.days.find((d) => d.date.slice(0, 10) === '2026-09-18')!;
+    const futureDay = result.days.find((d) => d.date.slice(0, 10) === futureBillDay)!;
     expect(futureDay.expectedOutflowMinor).toBe('4000');
     const closingAtEnd = result.days[result.days.length - 1]!.closingCashMinor;
     expect(closingAtEnd).toBe(String(100000 - 9000 - 4000));
+    // The overdue bill (not the future one) is what today's big outflow is
+    // silently explained by -- an explicit count/amount, not just a number.
+    expect(result.overdueCount).toBe(1);
+    expect(result.overdueMinor).toBe('9000');
+    expect(result.assumption).toContain('1 overdue unpaid bill');
+    expect(result.assumption).toContain('9000');
   });
 
   it('excludes goal earmarks from the cash line entirely', async () => {
@@ -207,18 +227,22 @@ describe('cash_outlook -- bounds and rejection', () => {
     const spaceId = await freshSpace('First negative date');
     const wallet = await usdWallet(spaceId);
     await recordIncome(spaceId, wallet, '1000');
-    await saveSchedule(spaceId, { kind: 'expense', expectedMinor: '5000', startsOn: '2026-09-17' });
-    await materialize(spaceId, TODAY, '2026-09-30');
+    const billDay = daysFromToday(3);
+    await saveSchedule(spaceId, { kind: 'expense', expectedMinor: '5000', startsOn: billDay });
+    await materialize(spaceId, TODAY, daysFromToday(30));
 
     const negative = await outlook(spaceId, 10, 'expected');
     expect(negative.firstNegativeDate).not.toBeNull();
-    expect(negative.firstNegativeDate?.slice(0, 10)).toBe('2026-09-17');
+    expect(negative.firstNegativeDate?.slice(0, 10)).toBe(billDay);
 
     const spaceHealthy = await freshSpace('Never negative');
     const walletHealthy = await usdWallet(spaceHealthy);
     await recordIncome(spaceHealthy, walletHealthy, '1000000');
     const healthy = await outlook(spaceHealthy, 5, 'expected');
     expect(healthy.firstNegativeDate).toBeNull();
+    expect(healthy.overdueCount).toBe(0);
+    expect(healthy.overdueMinor).toBe('0');
+    expect(healthy.assumption).not.toContain('overdue');
   });
 });
 

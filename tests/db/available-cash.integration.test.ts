@@ -31,20 +31,42 @@ afterAll(async () => {
   if (database) await disposeDisposableDatabase(database);
 }, 30_000);
 
-// The same real-clock convention task 11's goal-month-integration suite
-// uses: the disposable Postgres container's now() is the real wall clock,
-// and available_cash_summary/cash_outlook both require p_as_of_date /
-// p_start_date to equal that DB UTC today, so these fixtures are pinned to
-// the day this task was authored and verified against.
-const TODAY = '2026-09-14';
-const MONTH = '2026-09-01';
+// available_cash_summary/cash_outlook require p_as_of_date/p_start_date to
+// equal the disposable Postgres container's real UTC today (v1: no
+// historical reconstruction). A fixed hardcoded TODAY string, like task 11's
+// goal-month-integration suite originally used, silently breaks every ready-
+// state fixture the day the real calendar moves past it -- reproduced
+// directly during this fix round when the wall clock crossed into the next
+// day mid-task. Computed once at import time instead (recurring-settlement.
+// integration.test.ts's own daysFromToday helper is the established pattern
+// for date-relative fixtures in this repo; TODAY/MONTH/HORIZON_END below are
+// just that helper's offset-0/month-start/offset-89 special cases).
+function daysFromToday(offsetDays: number): string {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + offsetDays);
+  return date.toISOString().slice(0, 10);
+}
+function firstOfMonth(isoDate: string): string {
+  return `${isoDate.slice(0, 7)}-01`;
+}
+const TODAY = daysFromToday(0);
+const MONTH = firstOfMonth(TODAY);
 // available_cash_summary's incomplete-state check scans the full 90-day
 // window from today for missing materialization, independent of how far out
 // any individual fixture's bills actually fall -- every "ready" fixture
 // below must materialize through this same horizon or it lands on
 // state=incomplete instead, exactly as intended (that path has its own
 // dedicated test in the "state machine" describe block).
-const HORIZON_END = '2026-12-12';
+const HORIZON_END = daysFromToday(89);
+// A date guaranteed to fall in the calendar month immediately before MONTH
+// (never the current month), for fixtures that need income/earmarks outside
+// this-month-to-date without caring which specific prior month it lands in.
+function priorMonthAnchor(): string {
+  const date = new Date(`${MONTH}T00:00:00Z`);
+  date.setUTCMonth(date.getUTCMonth() - 1);
+  date.setUTCDate(1);
+  return date.toISOString().slice(0, 10);
+}
 
 async function freshSpace(name: string): Promise<string> {
   return withAuthenticatedTransaction(db().client, actor, async () => {
@@ -338,6 +360,11 @@ describe('available_cash_summary -- single spending group formula (acceptance ta
     expect(result.groups[0]).toMatchObject({ budgetRemainingMinor: '50000', unpaidBillsMinor: '30000', goalOverlapMinor: '0', commitmentMinor: '50000' });
     expect(result.expenseCommitmentsMinor).toBe('50000');
     expect(result.availableMinor).toBe('50000');
+    // A healthy monthly bill fully materialized through the 90-day horizon
+    // (this fixture's own materialize call) produces ~3 ordinary unpaid
+    // occurrences -- unmaterializedCount must stay 0 in the ready state, not
+    // report that ordinary backlog as if materialization were needed.
+    expect(result.unmaterializedCount).toBe(0);
   });
 
   it('C100000,R0,B30000,O50000 -> Q50000,available50000', async () => {
@@ -391,6 +418,51 @@ describe('available_cash_summary -- single spending group formula (acceptance ta
   });
 });
 
+describe('dailyExtraGuideMinor is floor(spendable/daysRemaining), remainder retained not rounded up', () => {
+  // The brief's own literal fixture ("available 1001, 3 days -> 333, not
+  // 334") pins daysRemaining to a specific day-of-month this suite's dynamic
+  // TODAY cannot reproduce on demand. Proved generically instead: probe the
+  // real daysRemaining for an empty "ready" plan, then construct cash equal
+  // to (daysRemaining * 100) + 1 so spendableMinor/daysRemaining never
+  // divides evenly (unless today is the month's last day, when daysRemaining
+  // is 1 and every integer divides evenly by definition -- guarded below).
+  // The floor identity guide*days <= spendable < (guide+1)*days holds
+  // unconditionally and is what actually distinguishes floor from round.
+  async function emptyReadyPlan(name: string): Promise<{ spaceId: string; daysRemaining: number }> {
+    const spaceId = await freshSpace(name);
+    const templateId = await saveTemplate(spaceId, []);
+    await publishV1({ spaceId, templateRevisionId: templateId, incomeMinor: '0' });
+    const probe = await summary(spaceId);
+    return { spaceId, daysRemaining: probe.daysRemaining };
+  }
+
+  it('retains a nonzero remainder instead of rounding the guide up', async () => {
+    const { spaceId, daysRemaining } = await emptyReadyPlan('Floor division probe');
+    const perDay = 100;
+    const remainder = daysRemaining > 1 ? 1 : 0;
+    const availableMinor = daysRemaining * perDay + remainder;
+    const wallet = await usdWallet(spaceId);
+    await recordIncome(spaceId, wallet, String(availableMinor));
+
+    const result = await summary(spaceId);
+    expect(result.daysRemaining).toBe(daysRemaining);
+    expect(result.availableMinor).toBe(String(availableMinor));
+    expect(result.spendableMinor).toBe(String(availableMinor));
+    const guide = Number(result.dailyExtraGuideMinor);
+    // The floor identity itself -- true for ANY daysRemaining, proving
+    // "floor" rather than "round" regardless of which day of the month ran
+    // this test.
+    expect(guide * daysRemaining).toBeLessThanOrEqual(availableMinor);
+    expect((guide + 1) * daysRemaining).toBeGreaterThan(availableMinor);
+    if (daysRemaining > 1) {
+      // On every day except a month's last, the constructed remainder is
+      // genuinely retained in `available`, not folded into the guide.
+      expect(guide).toBe(perDay);
+      expect(availableMinor - guide * daysRemaining).toBe(remainder);
+    }
+  });
+});
+
 describe('goal-bill coverage: one goal funding two bills', () => {
   it('covers the older bill in full and the newer bill with the remainder', async () => {
     const spaceId = await freshSpace('Two bills one goal');
@@ -400,13 +472,13 @@ describe('goal-bill coverage: one goal funding two bills', () => {
     const goal = await createGoal(spaceId, { kind: 'purchase', nameEn: 'Utilities fund' });
     await reserve(spaceId, goal.goalId, '30000');
 
-    const scheduleA = await saveSchedule(spaceId, { categoryId: category, expectedMinor: '25000', startsOn: '2026-09-05', fundingGoalId: goal.goalId, nameEn: 'A' });
-    const scheduleB = await saveSchedule(spaceId, { categoryId: category, expectedMinor: '25000', startsOn: '2026-09-20', fundingGoalId: goal.goalId, nameEn: 'B' });
-    await materialize(spaceId, '2026-09-01', '2026-09-30');
+    const scheduleA = await saveSchedule(spaceId, { categoryId: category, expectedMinor: '25000', startsOn: daysFromToday(5), fundingGoalId: goal.goalId, nameEn: 'A' });
+    const scheduleB = await saveSchedule(spaceId, { categoryId: category, expectedMinor: '25000', startsOn: daysFromToday(20), fundingGoalId: goal.goalId, nameEn: 'B' });
+    await materialize(spaceId, TODAY, HORIZON_END);
 
     const coverage = await db().client.query<{ occurrence_id: string; applied_minor: string }>(
       'select occurrence_id::text, applied_minor::text from private.planning_goal_bill_coverage($1,$2,$3::date,$4::date) order by occurrence_id',
-      [spaceId, 'USD', TODAY, '2026-12-12'],
+      [spaceId, 'USD', TODAY, HORIZON_END],
     );
     const occA = (await occurrencesFor(scheduleA.scheduleId))[0]!;
     const occB = (await occurrencesFor(scheduleB.scheduleId))[0]!;
@@ -482,7 +554,7 @@ describe('income vs. spending is a separate metric from available', () => {
     const wallet = await usdWallet(spaceId);
     // Prior-month income keeps cash positive without counting toward this
     // month's receivedIncomeMinor, which is month-to-date by definition.
-    await recordIncome(spaceId, wallet, '1000000', '2026-08-01');
+    await recordIncome(spaceId, wallet, '1000000', priorMonthAnchor());
     await recordIncome(spaceId, wallet, '50000');
     await recordExpense(spaceId, wallet, '60000');
 
@@ -692,8 +764,8 @@ describe('unmapped root and negative contribution', () => {
     await inTransaction(db().client, async () => {
       const priorEvent = await db().client.query<{ id: string }>(
         `insert into public.goal_earmark_events (space_id, currency, operation, line_count, effective_date, request_id, actor_id)
-         values ($1,'USD','reserve',1,'2026-08-01'::date,$2,$3) returning id::text`,
-        [spaceId, randomUUID(), actor],
+         values ($1,'USD','reserve',1,$2::date,$3,$4) returning id::text`,
+        [spaceId, priorMonthAnchor(), randomUUID(), actor],
       );
       await db().client.query(
         `insert into public.goal_earmark_lines (event_id, goal_id, space_id, currency, amount_minor) values ($1,$2,$3,'USD',20000)`,
@@ -734,7 +806,7 @@ describe('numeric bounds', () => {
     // postings at the per-transaction cap comfortably clears it.
     const perPosting = '999999999999999';
     for (let i = 0; i < 10; i += 1) {
-      await recordIncome(spaceId, wallet, perPosting, '2026-08-01');
+      await recordIncome(spaceId, wallet, perPosting, TODAY);
     }
     const expected = (BigInt(perPosting) * 10n).toString();
     expect(Number(expected)).toBeGreaterThan(Number.MAX_SAFE_INTEGER);
@@ -944,7 +1016,7 @@ describe('EXPLAIN on a realistic 90-day fixture', () => {
     for (let i = 0; i < 20; i += 1) {
       const category = categories[i % categories.length]!;
       const dayOffset = i * 4 - 10; // runs from 10 days overdue to ~70 days out
-      const date = new Date('2026-09-14T00:00:00Z');
+      const date = new Date(`${TODAY}T00:00:00Z`);
       date.setUTCDate(date.getUTCDate() + dayOffset);
       await saveSchedule(spaceId, {
         categoryId: category, expectedMinor: String(5000 + i * 100), startsOn: date.toISOString().slice(0, 10),
@@ -1006,7 +1078,7 @@ describe('EXPLAIN on a realistic 90-day fixture', () => {
     const wallet = await usdWallet(spaceId);
     await recordIncome(spaceId, wallet, '500000');
     for (let i = 0; i < 15; i += 1) {
-      const date = new Date('2026-09-14T00:00:00Z');
+      const date = new Date(`${TODAY}T00:00:00Z`);
       date.setUTCDate(date.getUTCDate() + i * 5);
       await saveSchedule(spaceId, { kind: i % 4 === 0 ? 'income' : 'expense', expectedMinor: String(3000 + i * 50), startsOn: date.toISOString().slice(0, 10), nameEn: `Item ${i}` });
     }

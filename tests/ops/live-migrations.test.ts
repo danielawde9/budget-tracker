@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest';
 const script = join(process.cwd(), 'scripts/ops/apply-live-migrations.sh');
 const projectRef = 'hqblhzqitrbvpyoxtmew';
 const fixtureProjectRef = projectRef;
-const releaseHead = 'c1a4a566dd935f21ba8ea19565c4f689a5651fd1';
+const releaseHead = 'b269612541ba604776ad116dca1891e581a49892';
 const liveRunnerCommit = 'b9537efa69216a42189cbb878c4bfa849a5b52f5';
 const subprocessTimeoutMillis = 10_000;
 const defaultProjects = JSON.stringify([{ id: fixtureProjectRef, name: 'Budget' }]);
@@ -187,14 +187,14 @@ describe('one-time live Supabase migration runner', () => {
     expect(source).not.toContain('SERVICE_ROLE_KEY:?');
   });
 
-  it('verifies the exact 47-row journal and merged schema after application', () => {
+  it('verifies the exact 48-row journal and merged schema after application', () => {
     const source = readFileSync(script, 'utf8');
     const verificationSql = source.slice(
       source.indexOf('readonly LIVE_VERIFY_SQL='),
       source.indexOf('\n\nlive_fail()'),
     );
 
-    expect(verificationSql.match(/'20[0-9]{12}'/g)).toHaveLength(47);
+    expect(verificationSql.match(/'20[0-9]{12}'/g)).toHaveLength(48);
     expect(verificationSql).toContain("'20260908170000'");
     expect(verificationSql).toContain("'20260910100000'");
     expect(verificationSql).toContain("'20260911100000'");
@@ -251,6 +251,13 @@ describe('one-time live Supabase migration runner', () => {
     );
     expect(verificationSql).toContain(
       "to_regprocedure('public.scheduled_occurrence_page(uuid,date,date,date,uuid,integer)')",
+    );
+    expect(verificationSql).toContain("'20260914180000'");
+    expect(verificationSql).toContain(
+      "to_regprocedure('public.available_cash_summary(uuid,public.currency_code,date)')",
+    );
+    expect(verificationSql).toContain(
+      "to_regprocedure('public.cash_outlook(uuid,public.currency_code,date,integer,text)')",
     );
     expect(verificationSql).not.toContain("to_regclass('public.subcategories')");
   });

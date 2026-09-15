@@ -2893,12 +2893,131 @@ migration's read RPCs, not a rewrite of `planning_cash_commitments`, whose
 per-bucket rows (including the synthetic standalone one, `group_id null`)
 already carry everything such a row would need.
 
-`ops/budget-migrations.sha256`/`scripts/ops/apply-live-migrations.sh` are
-**not** updated in this commit, unlike several prior DB-layer tasks' own
-"prepare N-migration live release" pattern — this task's own dispatch
-scopes ownership to exactly the migration/test/decisions/inventory/evidence
-files listed above and explicitly excludes any deploy-adjacent action.
-`pnpm migrate:live` will refuse this migration as "unmanifested" (the same
-failure mode task 06 hit) until a future chore commit retargets the
-manifest to include `20260914180000_available_cash_projection.sql` — that
-retarget is deliberately left for Daniel or a later session, not done here.
+`ops/budget-migrations.sha256`/`scripts/ops/apply-live-migrations.sh` were
+**not** updated in the original version of this commit, reasoning that this
+task's dispatch scoped ownership to exactly the migration/test/decisions/
+inventory/evidence files above and that manifest bookkeeping was a
+deploy-adjacent, owner-only action. **This reasoning was wrong and is
+corrected in Fix round 1 below**: local checksum-manifest regeneration is
+not a live deploy (it never touches a database), and every one of the three
+immediately preceding DB feature commits (tasks 10/11/14) updated the
+manifest inline in their own feature commit, not a separate chore commit —
+that separate-commit pattern is for *retargeting an already-applied
+release*, not a brand-new migration's first manifest entry. See Fix round 1
+for the actual fix and why `pnpm check` was genuinely red on `main` because
+of this omission.
+
+## 2026-09-14 — Task 17 fix round 1 (post-commit review of `b269612`): four findings plus one self-discovered date bug
+
+A fresh-context review of `b269612` (task 17) against this task file,
+`01-sql-contract.md`, and the current committed schema returned "Needs
+fixes": zero Critical findings (every formula independently hand-traced
+against three acceptance rows and confirmed bit-for-bit correct, including
+the double-reservation trap the brief warns about; the `groups[]` scoping
+decision above confirmed correct, not revisited), four Important findings,
+all fixed in the same follow-up commit that owns this entry.
+
+**Decision (finding 1 — `unmaterializedCount` misreported a healthy plan's
+ordinary backlog as "needs materializing"):** `available_cash_summary`
+returned `greatest(v_missing_count, v_backlog_count)` unconditionally, so a
+single healthy monthly bill's ordinary ~3 unpaid occurrences within the
+90-day window read as `unmaterializedCount: 3` in the `ready` state — wrong
+for nearly every real household. Fixed to report `v_missing_count` alone
+when that is the actual `incomplete` trigger, `v_backlog_count` only when
+*that* one is (already `>500` by construction, its own dedicated trigger),
+and `0` in every other case including `ready`. A new assertion on
+acceptance-table fixture 1 (`unmaterializedCount === 0` for one healthy
+monthly bill materialized through the full 90-day horizon) is the
+regression guard; there was previously only a `toBeGreaterThan(0)`
+assertion, and only in the dedicated `incomplete`-state test.
+
+**Decision (finding 2 — the live-migration manifest, reversed from the
+original commit):** followed the exact mechanical process tasks 10/11/14
+each used in their own feature commit: `migrate-budget.sh create-manifest`
+regenerated `ops/budget-migrations.sha256` (48 rows,
+`source_sha=b269612541ba604776ad116dca1891e581a49892` — the commit
+immediately before this fix, the established "prior commit, never this
+commit's own not-yet-known hash" pattern), `apply-live-migrations.sh`'s
+`LIVE_VERIFY_SQL` gained `to_regprocedure` existence checks for
+`available_cash_summary`/`cash_outlook` and `'20260914180000'` in its
+version array, and both `tests/ops/live-migrations.test.ts`/
+`tests/ops/migration-manifest.test.ts` were updated to match (row counts
+47→48, hardcoded release-head SHAs). Regenerating surfaced an unrelated,
+genuinely pre-existing bug as a side effect: the *previous* manifest's
+checksum for `20260914170000_recurring_schedules.sql` no longer matched
+that file's actual content — task 14's own fix round (`a2ede01`) edited
+that migration file in place (permitted; it was never live-deployed, the
+same pattern this fix round's own SQL edit below uses) but never
+regenerated the manifest afterward, so the committed checksum silently
+went stale from that commit forward. Verified directly: `shasum -a 256`
+against both the working-tree file and the `bedfc80`-committed git blob
+both produce this fix round's new hash, never the stale one that was
+committed. This fix round's manifest is therefore the first *correct* one
+since `a2ede01`, an incidental repair, not a defect this session introduced.
+
+**Decision (finding 3 — a false "proved" claim in the evidence record):**
+`docs/verification/future-planning/17.md` claimed a test proved the
+brief's literal "available 1001, 3 days → 333, not 334" fixture; no such
+test existed anywhere in the diff — `daysRemaining` depends on which real
+calendar day `TODAY` resolves to, and "3 days" specifically is not
+reachable against a real clock on demand. Corrected two ways: the false
+line in the evidence file now describes what is actually tested, and a new
+test proves the underlying *property* the literal fixture was itself
+illustrating — floor division, remainder retained, never rounded up — for
+whatever `daysRemaining` the real clock produces on any given test run:
+`guide * daysRemaining <= available < (guide+1) * daysRemaining`,
+unconditionally, plus the exact retained remainder whenever
+`daysRemaining > 1` (the one edge case, a month's last day, where every
+integer divides evenly and no remainder can be constructed at all).
+
+**Decision (finding 4 — `cash_outlook` had no explicit overdue label/count):**
+chose to add the fields the brief's own prose asks for
+("bucketed today with explicit overdue label/count") rather than document
+a deviation, since the bucketing math itself was already correct and the
+gap was purely a missing signal — two new top-level response fields,
+`overdueCount` (integer) and `overdueMinor` (text, the summed remaining
+amount of unpaid expense/debt-payment occurrences with `due_date <
+p_start_date`), plus an appended, count-aware sentence in `assumption`
+when nonzero. Additive only; no existing field changed shape or meaning.
+
+**Self-discovered, not part of the four findings:** both integration test
+files hardcoded `TODAY = '2026-09-14'` (the same convention task 11's
+`goal-month-integration.integration.test.ts` established), which
+`available_cash_summary`/`cash_outlook` reject the instant the real wall
+clock advances past it. This broke every "ready"-state fixture in both
+files literally *while this fix round was in progress* — the session
+crossed midnight UTC mid-task, reproducing the exact bug class live. Fixed
+by computing `TODAY`/`MONTH`/`HORIZON_END` once at import time from the
+real clock via a `daysFromToday(offsetDays)` helper (the same pattern
+`recurring-settlement.integration.test.ts` already uses), converting every
+previously-hardcoded September/August literal in both files to a relative
+offset.
+
+**Why:** A fixed hardcoded "today" is not a fixture — it is a countdown
+timer to the next failure, and this task's own files hit it inside the
+same session that wrote them. The four review findings were all real
+correctness/process gaps worth fixing on their own merits (a misleading
+health signal, a genuinely broken local dev gate, a false claim in a
+document whose entire purpose is to be trusted evidence, and a missing
+brief-required signal); the date bug additionally validates why "verify
+before claiming" and running the *actual* focused command matters even for
+a fix round — the review's own hand-tracing could not have caught a bug
+that only manifests against the real wall clock at execution time.
+
+**If changed:** `tests/db/goal-funding.integration.test.ts`,
+`tests/db/goal-month-integration.integration.test.ts`, and
+`tests/db/goal-projections.integration.test.ts` — none owned or touched by
+this task — hardcode the identical `TODAY`/`MONTH` pattern and now fail
+identically for the identical reason (confirmed by the full `tests/db` run
+this fix round; 25 of 26 total failures are this exact bug in those three
+files, the 26th is the already-documented, unrelated household-membership
+planner-choice flake). Whoever owns those tasks, or a future shared-
+infrastructure session, should apply the same `daysFromToday`-based fix —
+or better, extract it once into `tests/db/disposable-database.ts` (or a
+small shared fixture-dates helper) so every future DB test file gets it
+for free instead of re-deriving it per task, which is exactly how this
+pattern proliferated to four files in the first place.
+
+Full before/after test detail and the exact commands run for each fix are
+in `docs/verification/future-planning/17.md`'s "Fix round 1" section and
+`.superpowers/sdd/release-3-bills-paycycle/task-17-report.md`.
