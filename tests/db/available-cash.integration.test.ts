@@ -422,12 +422,23 @@ describe('dailyExtraGuideMinor is floor(spendable/daysRemaining), remainder reta
   // The brief's own literal fixture ("available 1001, 3 days -> 333, not
   // 334") pins daysRemaining to a specific day-of-month this suite's dynamic
   // TODAY cannot reproduce on demand. Proved generically instead: probe the
-  // real daysRemaining for an empty "ready" plan, then construct cash equal
-  // to (daysRemaining * 100) + 1 so spendableMinor/daysRemaining never
-  // divides evenly (unless today is the month's last day, when daysRemaining
-  // is 1 and every integer divides evenly by definition -- guarded below).
-  // The floor identity guide*days <= spendable < (guide+1)*days holds
-  // unconditionally and is what actually distinguishes floor from round.
+  // real daysRemaining for an empty "ready" plan, then construct cash so the
+  // division's fractional remainder is deliberately >= 0.5 of daysRemaining
+  // -- the ONLY regime where floor and round-to-nearest actually diverge.
+  // A remainder fixed at, say, 1 does not do this: 1/daysRemaining < 0.5 for
+  // every daysRemaining >= 3 (i.e. every day of the month except the single
+  // day daysRemaining==2), so floor(100 + 1/daysRemaining) and
+  // round(100 + 1/daysRemaining) both equal 100 on almost every day this
+  // test could run -- a coin-flip regression guard, not a real one (caught
+  // in review: a round()-based implementation would pass identically).
+  // remainder = daysRemaining - 1 gives a fraction (daysRemaining-1)/
+  // daysRemaining that is always >= 0.5 for any daysRemaining >= 2 (the
+  // only range possible: daysRemaining is always >= 1 by construction, and
+  // the fixture only needs remainder>0 above 1), so round() would always
+  // land on perDay+1 while floor() stays at perDay -- the two provably
+  // disagree every single day this test runs, except the one genuinely
+  // exceptional day (daysRemaining==1, a month's last day) where no integer
+  // remainder can ever be constructed at all.
   async function emptyReadyPlan(name: string): Promise<{ spaceId: string; daysRemaining: number }> {
     const spaceId = await freshSpace(name);
     const templateId = await saveTemplate(spaceId, []);
@@ -439,7 +450,7 @@ describe('dailyExtraGuideMinor is floor(spendable/daysRemaining), remainder reta
   it('retains a nonzero remainder instead of rounding the guide up', async () => {
     const { spaceId, daysRemaining } = await emptyReadyPlan('Floor division probe');
     const perDay = 100;
-    const remainder = daysRemaining > 1 ? 1 : 0;
+    const remainder = daysRemaining > 1 ? daysRemaining - 1 : 0;
     const availableMinor = daysRemaining * perDay + remainder;
     const wallet = await usdWallet(spaceId);
     await recordIncome(spaceId, wallet, String(availableMinor));
@@ -451,7 +462,10 @@ describe('dailyExtraGuideMinor is floor(spendable/daysRemaining), remainder reta
     const guide = Number(result.dailyExtraGuideMinor);
     // The floor identity itself -- true for ANY daysRemaining, proving
     // "floor" rather than "round" regardless of which day of the month ran
-    // this test.
+    // this test. With remainder/daysRemaining >= 0.5 (enforced above), a
+    // round()-based implementation would compute perDay+1 here and this
+    // very inequality would catch it: (perDay+1)*daysRemaining would exceed
+    // availableMinor by exactly 1, failing the first assertion below.
     expect(guide * daysRemaining).toBeLessThanOrEqual(availableMinor);
     expect((guide + 1) * daysRemaining).toBeGreaterThan(availableMinor);
     if (daysRemaining > 1) {

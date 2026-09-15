@@ -2968,7 +2968,11 @@ whatever `daysRemaining` the real clock produces on any given test run:
 `guide * daysRemaining <= available < (guide+1) * daysRemaining`,
 unconditionally, plus the exact retained remainder whenever
 `daysRemaining > 1` (the one edge case, a month's last day, where every
-integer divides evenly and no remainder can be constructed at all).
+integer divides evenly and no remainder can be constructed at all). **This
+test's fixture had its own bug, fixed in Fix round 2 below** — the
+originally-chosen remainder did not actually put floor and round-to-nearest
+in disagreement on most days, so the "never rounded up" half of this claim
+was itself unproven until that round.
 
 **Decision (finding 4 — `cash_outlook` had no explicit overdue label/count):**
 chose to add the fields the brief's own prose asks for
@@ -3021,3 +3025,46 @@ pattern proliferated to four files in the first place.
 Full before/after test detail and the exact commands run for each fix are
 in `docs/verification/future-planning/17.md`'s "Fix round 1" section and
 `.superpowers/sdd/release-3-bills-paycycle/task-17-report.md`.
+
+## 2026-09-15 — Task 17 fix round 2 (scoped re-review of `9a5bd7f`): the floor-division regression test did not actually discriminate floor from round
+
+A scoped re-review of fix round 1 confirmed findings 1, 2, and 4 fully
+addressed with no issues, and confirmed finding 3's evidence-doc correction
+itself was right, but caught a subtle flaw in the *new test* that fix added.
+
+**Decision:** the floor-division test (`tests/db/available-cash.
+integration.test.ts`, "retains a nonzero remainder instead of rounding the
+guide up") constructed `availableMinor = daysRemaining*100 + remainder`
+with `remainder` fixed at `1`. The fraction under test is
+`remainder/daysRemaining = 1/daysRemaining`, which is `< 0.5` for every
+`daysRemaining >= 3` — i.e. every day of the month except the single day
+`daysRemaining == 2`. `floor(100 + 1/daysRemaining)` and
+`round(100 + 1/daysRemaining)` are both `100` whenever the fraction is
+below one-half, so on nearly every day this test could run, it would have
+passed identically whether `available_cash_summary`'s SQL used `floor()`
+(which it correctly does) or a naive `round()` — a coin-flip regression
+guard, not a real one. Fixed: `remainder = daysRemaining > 1 ?
+daysRemaining - 1 : 0`, giving a fraction `(daysRemaining-1)/daysRemaining`
+that is always `>= 0.5` for any `daysRemaining >= 2` (the only range that
+matters — `daysRemaining` is never `<= 0` by construction). At that
+fraction, `round()` always lands one whole unit above `floor()`
+(`perDay+1` vs `perDay`), so the test's own existing inequality assertion
+(`guide*daysRemaining <= availableMinor`) would now actually fail against a
+`round()`-based implementation — `(perDay+1)*daysRemaining` exceeds
+`availableMinor` by exactly `remainder`'s shortfall, i.e. by 1. No SQL
+changed; `available_cash_summary` already used `floor()` correctly and the
+fixed test confirms this, now for a real reason rather than by coincidence.
+
+**Why:** a regression test that passes for reasons unrelated to the
+property it claims to guard is worse than no test at all — it launders a
+false sense of coverage into `docs/decisions.md` and the evidence record
+(fix round 1's own claim, "proves floor, never round... for whatever
+daysRemaining the real clock produces," was itself an overclaim until this
+fix, corrected above). The general lesson: when constructing a fixture to
+distinguish two rounding functions, the constructed fraction must actually
+cross the boundary where they disagree (`>= 0.5` for floor vs.
+round-half-up), not merely be nonzero.
+
+**If changed:** none — this is a test-only fix with no SQL or JSON-contract
+change. Full before/after detail in
+`docs/verification/future-planning/17.md`'s "Fix round 2" section.
