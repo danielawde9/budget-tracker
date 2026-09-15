@@ -241,6 +241,18 @@ async function saveSchedule(spaceId: string, overrides: Partial<Record<string, u
   });
 }
 
+async function reviseSchedule(
+  spaceId: string, scheduleId: string, expectedRevisionId: string, overrides: Partial<Record<string, unknown>> = {},
+): Promise<{ scheduleId: string; revisionId: string }> {
+  return withAuthenticatedTransaction(db().client, actor, async () => {
+    const result = await db().client.query<{ save_schedule: { scheduleId: string; revisionId: string } }>(
+      'select public.save_schedule($1,$2,$3,$4,$5::jsonb)',
+      [spaceId, randomUUID(), scheduleId, expectedRevisionId, JSON.stringify(scheduleDefinition(overrides))],
+    );
+    return result.rows[0]!.save_schedule;
+  });
+}
+
 async function materialize(spaceId: string, fromDate: string, toDate: string): Promise<void> {
   await withAuthenticatedTransaction(db().client, actor, () => db().client.query(
     'select public.materialize_schedule_occurrences($1,$2,$3::date,$4::date)', [spaceId, randomUUID(), fromDate, toDate],
@@ -549,16 +561,26 @@ describe('Future group commitment formula', () => {
   it('debt commitment is max(reservation, scheduled remaining), never their sum', async () => {
     const spaceId = await freshSpace('Debt commitment max not sum');
     const wallet = await usdWallet(spaceId);
+    const templateId = await saveTemplate(spaceId, []);
+    await publishV1({ spaceId, templateRevisionId: templateId, incomeMinor: '0' });
     const loan = await freshLoan(spaceId, wallet, '10000');
     await setLoanMonthlyTarget(spaceId, loan, '10000');
     await saveSchedule(spaceId, { kind: 'debt_payment', loanId: loan, categoryId: null, expectedMinor: '8000', startsOn: TODAY });
-    await materialize(spaceId, TODAY, TODAY);
+    await materialize(spaceId, TODAY, HORIZON_END);
 
     const commitments = await queryPrivateAsActor<{ group_id: string | null; debt_commitment_minor: string }>(
       'select group_id::text, debt_commitment_minor::text from private.planning_cash_commitments($1,$2,$3::date) where group_id is null',
       [spaceId, 'USD', TODAY],
     );
     expect(commitments.rows[0]!.debt_commitment_minor).toBe('10000');
+
+    // Row 7's fixture already asserts both the private helper AND the
+    // public RPC's corresponding field; row 8 must follow the same pattern
+    // -- debtCommitmentsMinor is what tasks 18/19 actually read, not the
+    // private helper directly.
+    const result = await summary(spaceId);
+    expect(result.state).toBe('ready');
+    expect(result.debtCommitmentsMinor).toBe('10000');
   });
 });
 
@@ -612,6 +634,42 @@ describe('state machine', () => {
     expect(result.state).toBe('incomplete');
     expect(result.availableMinor).toBeNull();
     expect(result.unmaterializedCount).toBeGreaterThan(0);
+  });
+
+  it('returns state=incomplete with the exact backlog count once unpaid occurrences exceed 500, distinct from a materialization gap', async () => {
+    const spaceId = await freshSpace('Backlog over 500');
+    const wallet = await usdWallet(spaceId);
+    await recordIncome(spaceId, wallet, '10000');
+    const templateId = await saveTemplate(spaceId, []);
+    await publishV1({ spaceId, templateRevisionId: templateId, incomeMinor: '10000' });
+
+    // Materializing 501 real occurrences through materialize_schedule_occurrences
+    // (capped at 500 new rows per call, per its own bound) would need several
+    // calls and months of cadence -- slow and beside the point for a read-only
+    // projection test. Pausing the schedule after creating it means
+    // schedule_occurrence_candidates (and therefore
+    // planning_materialization_gap) considers it a non-candidate entirely, so
+    // seeding its scheduled_occurrences rows by direct bulk insert -- the
+    // same "bypass the command for test setup" pattern already used elsewhere
+    // in this file for a backdated goal earmark -- cannot also trip the
+    // missing-materialization trigger and confound which path is under test.
+    const schedule = await saveSchedule(spaceId, { startsOn: TODAY });
+    await reviseSchedule(spaceId, schedule.scheduleId, schedule.revisionId, { state: 'paused' });
+
+    const backlogCount = 501;
+    await db().client.query(
+      `insert into public.scheduled_occurrences (
+         id, schedule_id, source_revision_id, space_id, currency, due_date, expected_minor, request_id, actor_id
+       )
+       select gen_random_uuid(), $1, $2, $3, 'USD', ($4::date - n), 1000, gen_random_uuid(), $5
+       from generate_series(1, $6) as n`,
+      [schedule.scheduleId, schedule.revisionId, spaceId, TODAY, actor, backlogCount],
+    );
+
+    const result = await summary(spaceId);
+    expect(result.state).toBe('incomplete');
+    expect(result.availableMinor).toBeNull();
+    expect(result.unmaterializedCount).toBe(backlogCount);
   });
 
   it('stays ready and flags needsReview when the live income target has changed since the saved snapshot', async () => {
