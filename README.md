@@ -1,4 +1,19 @@
-# Budget tracker
+# Budget Tracker
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue.svg)](tsconfig.json)
+
+A bilingual (English/Arabic, RTL-ready), self-hostable personal and household
+budget tracker built on Postgres/Supabase, Cloudflare Workers, and React. Every
+financial mutation goes through auditable, protected Postgres functions
+(never ad-hoc app-level writes), so wallets, loans, categories, and the
+transaction journal stay consistent under row-level security. Open source
+under the MIT license — issues and pull requests are welcome.
+
+**Core concepts:** multi-currency wallets (USD/LBP), derived (never
+hand-edited) balances, an immutable paginated journal, loan lending/borrowing
+with repayments and targets, one-level income/expense categories, and
+household spaces with RLS-scoped membership.
 
 For future work, give the implementer one file from the
 [SQL-first task index](docs/superpowers/plans/future-planning/00-start-here.md).
