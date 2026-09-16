@@ -161,6 +161,30 @@ UPDATE, DELETE, or call to any command in this document -- every one is a
 the two yet (checked against `src/` before writing this sentence); tasks
 18/19 add the gateway and UI surface.
 
+`public.set_rollover_policy`, `public.close_budget_month`, and
+`public.copy_allocation_month` (task 20) are non-posting planning commands
+that write through `public.planning_command_receipts`. `set_rollover_policy`
+appends one immutable `rollover_policy_revisions` row (per space, currency
+and expense root). `close_budget_month` appends one immutable
+`budget_month_closes` header plus one `budget_month_close_roots` row per root
+of the month's latest allocation snapshot, freezing income, spending, per-root
+actuals, a SHA-256 fact digest and the signed outgoing carry; it only reads
+the journal. `copy_allocation_month` publishes a new snapshot exclusively by
+calling the existing `public.publish_allocation_month_v2` (under a request ID
+derived via `private.planning_child_request`, so v2's own checks all still
+apply), then appends immutable `budget_month_carry_links` rows in the same
+transaction. None of the three can create or alter a financial event,
+movement, loan posting, balance, category association, or scheduled
+occurrence. `public.preview_budget_month_close` and
+`public.preview_month_copy` are read-only previews whose hash the commands
+re-derive under the space lock. The same migration forward-replaces the
+read-only `public.allocation_month_state`, `public.allocation_category_page`
+and `private.planning_expense_buckets` to measure variance/remaining budget
+against effective capacity (base target plus signed carry); they remain
+`SELECT`-only. No application UI entry path calls any of the five new RPCs yet
+(checked against `src/`, `worker/` and `e2e/` before writing this sentence);
+tasks 21/22 add the gateway and UI surface.
+
 The Loans and Wallets workspaces are the implemented financial entry paths in
 the authenticated application shell; Categories manages metadata only. Wallets
 can create wallets, post the four approved general event shapes, optionally

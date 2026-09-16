@@ -3459,3 +3459,115 @@ updated to the new SHA to match; both ops suites (32 tests) green against
 these changes. This is bookkeeping for `pnpm check`/live-migration
 verification to stay green pre-deploy, never a live/production migration
 run -- none was performed, none was requested.
+
+## 2026-09-16 — Month copy, close and signed rollover (task 20, DB)
+
+**Decision:** Added `20260916100000_month_transitions.sql`: four immutable
+relations (`rollover_policy_revisions`, `budget_month_closes`,
+`budget_month_close_roots`, `budget_month_carry_links`), five public RPCs
+(`set_rollover_policy`, `preview_budget_month_close`, `close_budget_month`,
+`preview_month_copy`, `copy_allocation_month`), private preview/fact/carry
+helpers, and forward replacements of `allocation_month_state`,
+`allocation_category_page` (task 06/11) and `private.planning_expense_buckets`
+(task 17). Every copy/close is explicit; nothing is scheduled and nothing posts
+money. Evidence: `docs/verification/future-planning/20.md`.
+
+Defaults chosen where the task file was silent or did not match the schema:
+
+1. **Invariants are structural wherever a key can carry them.** Beyond the
+   task's column list, close roots carry `space_id/currency/month_start/
+   source_snapshot_id/root_kind` and links carry `source_month_start/
+   target_month_start/source_enabled`, so composite FKs (plus one new
+   `allocation_month_roots(snapshot_id, category_id, target_minor)` unique
+   key, a superset of its PK) prove: root membership and base target equal
+   the snapshot; policy revision agrees with `enabled`; link carry equals the
+   close root's outgoing carry and the close root was enabled; target month =
+   source month + 1 (row CHECK). Deferred checks cover only what keys cannot:
+   exact root count, policy head and incoming carry agreement, predecessor
+   heads, carry-link completeness/source head/same-transaction.
+   *If changed:* dropping a column means moving its invariant into a deferred
+   check with its own rejection test.
+2. **"Classification revision IDs" do not exist here.** Event categories and
+   category parentage are immutable in this schema, so the fact digest covers
+   event/movement IDs, effective date, event and semantic kind, category and
+   root IDs, and amount. *If changed:* a future recategorization feature must
+   add its revision ID to `private.budget_month_close_facts`' digest input.
+3. **Fact cap:** 100000 facts/month, refused with SQLSTATE `54000`
+   `range_too_large` (never truncated). The cap is a parameter of the private
+   helper so the refusal is tested with a cap of 1; the public path passes the
+   literal 100000 (asserted from the function source).
+4. **`restatementRequired`** means "closing now would freeze something
+   different": another snapshot, fact digest/count, or any root's base,
+   incoming carry, actual, outgoing carry, enabled flag or policy revision.
+   A re-close is allowed even when nothing changed (an honest duplicate).
+5. **Close guards:** a month without a published snapshot is refused with
+   `P0001 budget_month_close_requires_plan`; a month whose UTC calendar month
+   has not ended with `22023 budget_month_not_ended` (plus a row CHECK on
+   `created_at` as the schema layer). `preview_budget_month_close`'s
+   `p_expected_close_id` is folded into the hash and the preview reports the
+   current head, so a stale expected head can never be accepted.
+6. **Copy scope:** target within 24 calendar months of the source in either
+   direction, never the same month. Archived roots are omitted (`archived`);
+   an archived root the destination still requires (template-mapped or a
+   positive destination target) is included at zero. Non-active goals are
+   omitted with their state as the reason: **`paused` is added** to the
+   task's reason list because `set_goal_monthly_target` refuses a positive
+   target for any non-active goal. **`currency_mismatch` is never emitted**:
+   a source snapshot in another currency (or another space) is refused as
+   `P0001 month_copy_source_not_found`, and composite FKs make every snapshot
+   child share its currency. An omission kind `carry` reports non-zero carry
+   dropped for an archived root. Destination positive targets not in the
+   source are included as explicit zero clears. *If changed:* a UI that wants
+   paused goals copied must first reactivate them.
+7. **Observed, mirrored, not fixed:** `publish_allocation_month_v2`'s
+   complete-set rule treats a category as required when *any* revision in the
+   month was positive (its join is not limited to the latest revision), so a
+   target cleared to zero stays "required". The copy preview mirrors that rule
+   exactly so a successful preview never produces a submission v2 rejects.
+   *If changed:* when v2 is corrected to use the latest revision, change
+   `month_copy_preview`'s `destination_positive` CTE in the same migration.
+8. **Carry links:** one link per enabled, active close root present in the
+   target snapshot (zero carry included, so the accepted close stays knowable);
+   a non-zero carry root absent from the source is added at base zero. The
+   deferred check requires the set to be complete, sourced from the latest
+   prior-month close, and written in the snapshot's own transaction
+   (`created_at = now()` for snapshot and links). A snapshot with zero links
+   is indistinguishable from a manual publication; that case, a restated
+   source close, or differing non-zero amounts sets `carryNeedsReview`.
+   *Limitation:* an owner forging `created_at` at insert time is outside the
+   application-defense scope of `01-sql-contract.md`.
+9. **Read models:** `allocation_month_state` and `allocation_category_page`
+   now report `carryMinor`/`effectiveTargetMinor`, and `varianceMinor` is
+   effective capacity minus actual — identical to the old value when no carry
+   link exists (proven on a seeded upgrade). `leftToAllocateMinor`,
+   `plannedIncomeMinor` and group targets never include carry.
+   `planning_expense_buckets` floors effective capacity minus spend at zero.
+   `available_cash_summary.needsReview` does **not** yet include carry review
+   (it would require replacing that whole function); `allocation_month_state`
+   exposes `carryNeedsReview`. *If changed:* fold it in with the task 21/22
+   gateway/UI work.
+10. **Locking, as measured:** an ordinary posting's FK takes `FOR KEY SHARE` on
+    the `spaces` row, which conflicts with the planning `FOR UPDATE` space
+    lock, so a posting and a close in the same space serialize (the task file
+    assumed they did not). The two-connection test shows the waiting close is
+    then refused `40001` because the digest changed; a transaction that began
+    before the close but commits later is caught by `restatementRequired`.
+11. **Recurring defect, now detected:** the constraint-trigger/auto-CHECK name
+    collision from task 04 recurred (`<table>_check`). Triggers use the repo's
+    `_publish_check` suffix, and `tests/db/constraint-trigger-names-ratchet.test.ts`
+    (added beyond the task's owned files) fails any future migration that
+    repeats it. Separately, `subcategories-source-ratchet` fails closed on a
+    *comment* inside a public function body when a mutation keyword
+    (`insert/update/delete/merge/truncate`) precedes `categories` before the
+    next `;` — an explanatory comment ending in "row update." did exactly
+    that and was reworded; the ratchet was correct to refuse it.
+12. **Indexes:** every new FK has a leading-column index except `actor_id`,
+    matching every existing planning table.
+13. **Release files:** `ops/budget-migrations.sha256` regenerated with
+    `migrate-budget.sh create-manifest` (49 rows; the 48 prior hashes are
+    byte-identical), `LIVE_MANIFEST_SOURCE_SHA`/test constants set to this
+    task's starting SHA `87e5af748961df75c780fd024b00cf7f6644438d`, and
+    `LIVE_VERIFY_SQL` extended with the new version and five existence checks
+    — executed on a fresh 49-migration database, it returns
+    `budget_schema_ready`. Nothing was applied live; Daniel runs
+    `pnpm migrate:live` himself.
