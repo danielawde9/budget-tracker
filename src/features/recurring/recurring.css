@@ -31,6 +31,8 @@
 .rec-label-muted {
   color: var(--cr-ink-soft);
   font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .rec-danger-text {

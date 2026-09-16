@@ -402,9 +402,8 @@
 .cr-label {
   font-family: var(--cr-font);
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   color: var(--cr-ink-soft);
 }
 
@@ -922,6 +921,17 @@
 .cr-main .wallet-journal-layout {
   gap: var(--cr-space-5);
   margin-block-start: var(--cr-space-5);
+}
+.cr-main .household-columns,
+.cr-main .category-registers,
+.cr-main .wallet-journal-layout,
+.cr-main .loan-columns,
+.cr-main .summary {
+  background: var(--cr-surface);
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius);
+  padding: var(--cr-space-5);
+  box-shadow: var(--cr-shadow-card);
 }
 .cr-main .household-self-access { margin-block-start: var(--cr-space-5); }
 .cr-main .controls,

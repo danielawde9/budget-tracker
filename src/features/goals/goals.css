@@ -30,6 +30,8 @@
 .goal-label-muted {
   color: var(--cr-ink-soft);
   font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .goal-danger-text {
