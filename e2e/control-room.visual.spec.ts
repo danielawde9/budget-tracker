@@ -121,6 +121,15 @@ test('Journal feed and entry detail sheet stay contained', async ({ page }, test
   await openSeededHome(page);
   await chooseWorkspaceDestination(page, 'Journal');
   await expect(page.getByRole('heading', { name: 'Journal' })).toBeVisible();
+
+  const search = page.getByLabel('Search');
+  await search.fill('travel');
+  await expect(page.getByRole('button', { name: /Archived travel/ })).toBeVisible();
+  await search.fill('no-such-entry');
+  await expect(page.getByText('No journal entries match.')).toBeVisible();
+  await search.fill('');
+  await expect(page.getByRole('button', { name: /Archived travel/ })).toBeVisible();
+
   await expectContainedControls(page);
   await page.screenshot({ path: screenshotPath(testInfo, `journal-${testInfo.project.name}.png`), fullPage: true });
 

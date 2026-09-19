@@ -45,6 +45,18 @@ function rowLabel(event: JournalEvent, locale: Locale): string {
   return eventLabel(event, locale);
 }
 
+function matchesSearch(event: JournalEvent, query: string, locale: Locale): boolean {
+  const needle = query.trim().toLowerCase();
+  if (needle === '') return true;
+  const haystack = [
+    rowLabel(event, locale),
+    event.note?.trim() ?? '',
+    event.effectiveDate,
+    ...event.movements.map((movement) => movement.walletName),
+  ].join('\n').toLowerCase();
+  return haystack.includes(needle);
+}
+
 export interface JournalScreenProps {
   locale: Locale;
   events: readonly JournalEvent[];
@@ -58,6 +70,7 @@ export interface JournalScreenProps {
 export function JournalScreen(props: JournalScreenProps) {
   const { locale } = props;
   const [kindFilter, setKindFilter] = useState<KindFilter>('all');
+  const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<JournalEvent | null>(null);
   const [reverseError, setReverseError] = useState<string | null>(null);
   const openerRef = useRef<HTMLButtonElement | null>(null);
@@ -94,7 +107,7 @@ export function JournalScreen(props: JournalScreenProps) {
     }
   };
 
-  const visibleEvents = props.events.filter((event) => matchesFilter(event, kindFilter));
+  const visibleEvents = props.events.filter((event) => matchesFilter(event, kindFilter) && matchesSearch(event, query, locale));
   const selectedReversible = selected !== null && selected.reversalOf === null && selected.reversedBy === null;
 
   return (
@@ -102,6 +115,14 @@ export function JournalScreen(props: JournalScreenProps) {
       <header className="cr-row">
         <h1>{t(locale, 'Journal', 'القيود')}</h1>
       </header>
+      <label className="cr-field cr-journal-search">
+        <span className="cr-label">{t(locale, 'Search', 'بحث')}</span>
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </label>
       <div className="cr-chips" role="group" aria-label={t(locale, 'Filter by type', 'تصفية حسب النوع')}>
         {FILTER_CHIPS.map((chip) => (
           <button
@@ -117,7 +138,9 @@ export function JournalScreen(props: JournalScreenProps) {
       </div>
       <section className="cr-card" aria-label={t(locale, 'Journal entries', 'قيود اليومية')}>
         {visibleEvents.length === 0 ? (
-          <p>{t(locale, 'No journal entries yet.', 'لا توجد قيود بعد.')}</p>
+          <p>{props.events.length === 0
+            ? t(locale, 'No journal entries yet.', 'لا توجد قيود بعد.')
+            : t(locale, 'No journal entries match.', 'لا توجد قيود مطابقة.')}</p>
         ) : visibleEvents.map((event) => {
           const label = rowLabel(event, locale);
           const reversal = event.reversalOf !== null;
@@ -152,6 +175,9 @@ export function JournalScreen(props: JournalScreenProps) {
           );
         })}
       </section>
+      {query.trim() !== '' && props.nextCursor !== null ? (
+        <p className="cr-label">{t(locale, 'Matches are limited to loaded entries.', 'النتائج محصورة في القيود المحمّلة.')}</p>
+      ) : null}
       {props.nextCursor !== null ? (
         <button
           type="button"

@@ -231,8 +231,89 @@ describe('JournalScreen', () => {
     expect(document.querySelector('.cr-reversal-text')).not.toBeNull();
   });
 
-  it('shows a Load more button only when a cursor exists', async () => {
+  it('filters events by case-insensitive search across label, note, and wallet name', async () => {
     const user = userEvent.setup();
+    render(<JournalScreen {...baseProps} events={[
+      event({ id: 'income-1', kind: 'income', payeeName: 'Employer', note: 'September salary' }),
+      event({
+        id: 'expense-1', kind: 'expense', payeeName: 'Groceries store',
+        movements: [{ walletId: 'wallet-2', walletName: 'Bank', currency: 'USD', amountMinor: '-12500', walletArchived: false }],
+      }),
+      event({
+        id: 'expense-2', kind: 'expense', payeeName: 'Pharmacy',
+        movements: [{ walletId: 'wallet-1', walletName: 'Cash', currency: 'USD', amountMinor: '-8000', walletArchived: false }],
+      }),
+    ]} />);
+
+    await user.type(screen.getByLabelText('Search'), 'employer');
+    expect(screen.getByText('Employer')).toBeInTheDocument();
+    expect(screen.queryByText('Groceries store')).not.toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText('Search'));
+    await user.type(screen.getByLabelText('Search'), 'SALARY');
+    expect(screen.getByText('Employer')).toBeInTheDocument();
+    expect(screen.queryByText('Pharmacy')).not.toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText('Search'));
+    await user.type(screen.getByLabelText('Search'), 'bank');
+    expect(screen.getByText('Groceries store')).toBeInTheDocument();
+    expect(screen.queryByText('Employer')).not.toBeInTheDocument();
+  });
+
+  it('combines the search text with the kind chips', async () => {
+    const user = userEvent.setup();
+    render(<JournalScreen {...baseProps} events={[
+      event({ id: 'income-1', kind: 'income', payeeName: 'Shop rent' }),
+      event({
+        id: 'expense-1', kind: 'expense', payeeName: 'Shop',
+        movements: [{ walletId: 'wallet-1', walletName: 'Cash', currency: 'USD', amountMinor: '-5000', walletArchived: false }],
+      }),
+      event({
+        id: 'expense-2', kind: 'expense', payeeName: 'Bakery',
+        movements: [{ walletId: 'wallet-1', walletName: 'Cash', currency: 'USD', amountMinor: '-9000', walletArchived: false }],
+      }),
+    ]} />);
+
+    await user.type(screen.getByLabelText('Search'), 'shop');
+    expect(screen.getByText('Shop rent')).toBeInTheDocument();
+    expect(screen.getByText('Shop')).toBeInTheDocument();
+    expect(screen.queryByText('Bakery')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    expect(screen.getByText('Shop')).toBeInTheDocument();
+    expect(screen.queryByText('Shop rent')).not.toBeInTheDocument();
+    expect(screen.queryByText('Bakery')).not.toBeInTheDocument();
+  });
+
+  it('shows an explicit empty state when the search or chips exclude everything', async () => {
+    const user = userEvent.setup();
+    render(<JournalScreen {...baseProps} events={[event({ payeeName: 'Employer' })]} />);
+
+    await user.type(screen.getByLabelText('Search'), 'missing');
+    expect(screen.getByText('No journal entries match.')).toBeInTheDocument();
+  });
+
+  it('notes that search covers loaded entries while more pages remain', async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<JournalScreen {...baseProps} nextCursor="20" events={[event({ payeeName: 'Employer' })]} />);
+
+    await user.type(screen.getByLabelText('Search'), 'employer');
+    expect(screen.getByText('Matches are limited to loaded entries.')).toBeInTheDocument();
+
+    rerender(<JournalScreen {...baseProps} nextCursor={null} events={[event({ payeeName: 'Employer' })]} />);
+    expect(screen.queryByText('Matches are limited to loaded entries.')).not.toBeInTheDocument();
+  });
+
+  it('localizes the search field and loaded-entries note in Arabic', async () => {
+    const user = userEvent.setup();
+    render(<JournalScreen {...baseProps} locale="ar" nextCursor="20" events={[event({ payeeName: 'Employer' })]} />);
+
+    await user.type(screen.getByLabelText('بحث'), 'Employer');
+    expect(screen.getByText('النتائج محصورة في القيود المحمّلة.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Search')).not.toBeInTheDocument();
+  });
+
+  it('shows a Load more button only when a cursor exists', async () => {    const user = userEvent.setup();
     const onLoadMore = vi.fn();
     const { rerender } = render(<JournalScreen {...baseProps} onLoadMore={onLoadMore} />);
     expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();

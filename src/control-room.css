@@ -127,6 +127,13 @@
   gap: var(--cr-space-1);
 }
 
+/* Journal search stretches full width above the filter chips */
+.cr-journal-search {
+  align-items: stretch;
+  margin-block-end: var(--cr-space-3);
+}
+.cr-journal-search input { inline-size: 100%; }
+
 /* Designed select — filled, bordered, clearly a control (no underline) */
 .cr-select {
   appearance: none;
