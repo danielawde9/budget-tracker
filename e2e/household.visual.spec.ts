@@ -20,7 +20,7 @@ for (const locale of ['en', 'ar'] as const) {
     await expect(page.locator('html')).toHaveAttribute('dir', locale === 'ar' ? 'rtl' : 'ltr');
     await expectContainedControls(page);
     await page.screenshot({ path: screenshotPath(testInfo, `household-${locale}-${testInfo.project.name}.png`), fullPage: true });
-    await expectDialogReturnsFocus(page, page.getByRole('button', { name: locale === 'ar' ? 'دعوة عضو' : 'Invite member' }), locale === 'ar' ? 'إنشاء سجل دعوة' : 'Create invitation record');
+    await expectDialogReturnsFocus(page, page.getByRole('button', { name: locale === 'ar' ? 'دعوة عضو' : 'Invite member' }), locale === 'ar' ? 'دعوة عضو' : 'Invite member');
   });
 }
 
@@ -70,28 +70,40 @@ test('desktop owner register exposes protected actions and opaque identifiers', 
   await expect(page.getByRole('heading', { name: 'Members' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Invitations' })).toBeVisible();
   await expect(page.getByText(householdFixtureIds.member).locator('xpath=ancestor-or-self::bdi')).toBeVisible();
-  await expect(page.getByText(householdFixtureIds.invitation).locator('xpath=ancestor-or-self::bdi')).toBeVisible();
   await expect(page.getByRole('button', { name: `Promote ${householdFixtureIds.member} to owner` })).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-owner-register.png'), fullPage: true });
 });
 
-test('invitation creation uses one protected command and never renders a token', async ({ page }, testInfo) => {
+test('invitation delivery uses one protected command and never renders a token', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop');
   await openHousehold(page);
   const opener = page.getByRole('button', { name: 'Invite member' });
   await opener.click();
-  const dialog = page.getByRole('dialog', { name: 'Create invitation record' });
+  const dialog = page.getByRole('dialog', { name: 'Invite member' });
   await expect(dialog.getByLabel('Member email')).toBeFocused();
   await dialog.getByLabel('Member email').fill('new.member@example.test');
-  await dialog.getByRole('button', { name: 'Create invitation record' }).click();
-  await expect(dialog.getByRole('status')).toContainText('Invitation record created');
+  await dialog.getByRole('button', { name: 'Send invitation' }).click();
+  await expect(dialog.getByRole('status')).toContainText('Invitation sent to new.member@example.test');
   await expect(page.getByText(/invitation token/i)).toHaveCount(0);
   const audit = await page.evaluate(async () => {
     const response = await fetch('http://127.0.0.1:55432/rest/v1/__fixture_audit');
-    return response.json() as Promise<{ protectedMutationCalls: string[] }>;
+    return response.json() as Promise<{ protectedMutationCalls: string[]; deliverCalls: { requestId: string; inviteeEmail: string }[] }>;
   });
-  expect(audit).toMatchObject({ protectedMutationCalls: ['create_household_invitation'] });
+  expect(audit.protectedMutationCalls).toEqual(['create_household_invitation']);
+  expect(audit.deliverCalls).toHaveLength(1);
+  expect(audit.deliverCalls[0]?.inviteeEmail).toBe('new.member@example.test');
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-invitation-created.png') });
+
+  await dialog.getByRole('button', { name: 'Send again' }).click();
+  await expect(dialog.getByRole('status')).toContainText('Invitation sent to new.member@example.test');
+  const resent = await page.evaluate(async () => {
+    const response = await fetch('http://127.0.0.1:55432/rest/v1/__fixture_audit');
+    return response.json() as Promise<{ protectedMutationCalls: string[]; deliverCalls: { requestId: string }[] }>;
+  });
+  expect(resent.deliverCalls).toHaveLength(2);
+  expect(resent.deliverCalls[0]?.requestId).toBe(resent.deliverCalls[1]?.requestId);
+  expect(resent.protectedMutationCalls).toEqual(['create_household_invitation']);
+
   await dialog.locator('.dialog-actions').getByRole('button', { name: 'Close' }).click();
   await expect(opener).toBeFocused();
 });
@@ -137,7 +149,7 @@ test('mobile owner dialog is contained and restores focus', async ({ page }, tes
   await expect(page.getByText('No invitation records yet.')).toBeVisible();
   const opener = page.getByRole('button', { name: 'Invite member' });
   await opener.click();
-  const dialog = page.getByRole('dialog', { name: 'Create invitation record' });
+  const dialog = page.getByRole('dialog', { name: 'Invite member' });
   await expect(dialog).toHaveCSS('min-height', '844px');
   await expectMinimumControlSize(dialog);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);

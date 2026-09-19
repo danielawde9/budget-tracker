@@ -140,6 +140,7 @@ export function useHousehold({
     label: string,
     operation: (activeRequestId: string) => Promise<void>,
     afterSuccess?: () => Promise<void>,
+    retainRequestIdAfterSuccess = false,
   ): Promise<boolean> => {
     if (actionPending) return false;
     const activeRequestId = retryIntent.current?.key === intentKey
@@ -152,7 +153,7 @@ export function useHousehold({
     try {
       await operation(activeRequestId);
       await afterSuccess?.();
-      retryIntent.current = null;
+      if (!retainRequestIdAfterSuccess) retryIntent.current = null;
       setActionSuccess(label);
       return true;
     } catch (cause) {
@@ -216,11 +217,11 @@ export function useHousehold({
       setActionError(null);
       setActionSuccess(null);
     },
-    createInvitation(email: string) {
+    createInvitation(email: string, locale: 'en' | 'ar') {
       const normalized = email.trim();
       return runMutation(`create:${normalized}`, 'invitation-created', async (activeRequestId) => {
-        await gateway.createInvitation({ spaceId, requestId: activeRequestId, email: normalized });
-      }, refreshOwner);
+        await gateway.createInvitation({ spaceId, requestId: activeRequestId, email: normalized, locale });
+      }, refreshOwner, true);
     },
     cancelInvitation(invitationId: string) {
       return runMutation(`cancel:${invitationId}`, 'invitation-cancelled', async (activeRequestId) => {

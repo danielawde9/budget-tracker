@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { classifyHouseholdError, localizeHouseholdError } from './errors.js';
+import { HouseholdInvitationDeliveryError } from './invitation-delivery.js';
 
 describe('household errors', () => {
   it.each([
@@ -23,7 +24,25 @@ describe('household errors', () => {
     });
   });
 
-  it.each(['access-lost', 'invitation-unavailable', 'last-owner', 'request-conflict', 'invalid-input', 'request-failed'] as const)(
+  it.each([
+    ['invalid_authorization', 401, 'access-lost'],
+    ['rate_limited', 429, 'rate-limited'],
+    ['delivery_status_ambiguous', 409, 'invitation-ambiguous'],
+    ['invitation_command_rejected', 400, 'invitation-conflict'],
+    ['not_found', 404, 'delivery-unavailable'],
+    ['invalid_configuration', 500, 'delivery-unavailable'],
+    ['origin_rejected', 403, 'delivery-unavailable'],
+    ['network_error', 0, 'request-failed'],
+    ['delivery_unavailable', 503, 'request-failed'],
+    ['upstream_response_invalid', 502, 'request-failed'],
+  ] as const)('maps delivery error %s to %s without exposing transport detail', (code, status, kind) => {
+    const result = classifyHouseholdError(new HouseholdInvitationDeliveryError(code, status));
+    expect(result.kind).toBe(kind);
+    expect(`${result.message} ${result.recovery}`).not.toMatch(new RegExp(code, 'i'));
+    expect(`${result.message} ${result.recovery}`).not.toMatch(/fingerprint|digest|constraint|token/i);
+  });
+
+  it.each(['access-lost', 'invitation-unavailable', 'last-owner', 'request-conflict', 'invalid-input', 'request-failed', 'rate-limited', 'invitation-ambiguous', 'invitation-conflict', 'delivery-unavailable'] as const)(
     'provides complete Arabic copy for %s',
     (kind) => {
       const localized = localizeHouseholdError({ kind, message: 'English', recovery: 'English' }, 'ar');

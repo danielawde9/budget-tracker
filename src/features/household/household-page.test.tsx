@@ -37,30 +37,43 @@ describe('HouseholdPage', () => {
     expect(screen.queryByText(/email|recipient/i)).not.toBeInTheDocument();
   });
 
-  it('creates an invitation record without rendering a token or claiming delivery', async () => {
+  it('sends an invitation without rendering a token and offers Send again', async () => {
     const { gateway, user } = await renderPage();
     await user.click(screen.getByRole('button', { name: 'Invite member' }));
-    const dialog = screen.getByRole('dialog', { name: 'Create invitation record' });
+    const dialog = screen.getByRole('dialog', { name: 'Invite member' });
     await user.type(within(dialog).getByLabelText('Member email'), 'person@example.com');
-    await user.click(within(dialog).getByRole('button', { name: 'Create invitation record' }));
-    expect(await within(dialog).findByRole('status')).toHaveTextContent('Invitation record created. Delivery is not configured.');
+    await user.click(within(dialog).getByRole('button', { name: 'Send invitation' }));
+    expect(await within(dialog).findByRole('status')).toHaveTextContent('Invitation sent to person@example.com.');
     expect(document.body).not.toHaveTextContent('secret-token');
-    expect(document.body).not.toHaveTextContent('Invitation sent');
-    expect(gateway.calls.some((call) => call.name === 'createInvitation')).toBe(true);
+    const created = gateway.calls.filter((call) => call.name === 'createInvitation');
+    expect(created).toHaveLength(1);
+    expect(created[0]?.input).toMatchObject({ email: 'person@example.com', locale: 'en' });
+    await user.click(within(dialog).getByRole('button', { name: 'Send again' }));
+    await waitFor(() => expect(gateway.calls.filter((call) => call.name === 'createInvitation')).toHaveLength(2));
+    expect(within(dialog).getByLabelText('Member email')).toBeDisabled();
+  });
+
+  it('explains that delivery happens by email instead of claiming a local record', async () => {
+    const { user } = await renderPage();
+    await user.click(screen.getByRole('button', { name: 'Invite member' }));
+    const dialog = screen.getByRole('dialog', { name: 'Invite member' });
+    expect(dialog).toHaveTextContent(/invitation email/i);
+    expect(dialog).not.toHaveTextContent(/not configured/i);
   });
 
   it.each([
-    { locale: 'en', invite: 'Invite member', email: 'Member email', create: 'Create invitation record', close: 'Close' },
-    { locale: 'ar', invite: 'دعوة عضو', email: 'البريد الإلكتروني للعضو', create: 'إنشاء سجل دعوة', close: 'إغلاق' },
-  ] as const)('labels the $locale success action as close', async ({ locale, invite, email, create, close }) => {
+    { locale: 'en' as const, invite: 'Invite member', email: 'Member email', send: 'Send invitation', again: 'Send again', close: 'Close', notice: 'Invitation sent to person@example.com.' },
+    { locale: 'ar' as const, invite: 'دعوة عضو', email: 'البريد الإلكتروني للعضو', send: 'إرسال الدعوة', again: 'إرسال مجددًا', close: 'إغلاق', notice: 'تم إرسال الدعوة إلى person@example.com.' },
+  ])('labels the $locale success actions as Send again and close', async ({ locale, invite, email, send, again, close, notice }) => {
     const { user } = await renderPage(new InMemoryHouseholdGateway(), locale);
     await user.click(screen.getByRole('button', { name: invite }));
-    const dialog = screen.getByRole('dialog', { name: create });
+    const dialog = screen.getByRole('dialog', { name: invite });
     await user.type(within(dialog).getByLabelText(email), 'person@example.com');
-    await user.click(within(dialog).getByRole('button', { name: create }));
-    await within(dialog).findByRole('status');
+    await user.click(within(dialog).getByRole('button', { name: send }));
+    expect(await within(dialog).findByRole('status')).toHaveTextContent(notice);
     const actions = dialog.querySelector<HTMLElement>('.dialog-actions');
     expect(actions).not.toBeNull();
+    expect(within(actions!).getByRole('button', { name: again })).toBeInTheDocument();
     expect(within(actions!).getByRole('button', { name: close })).toBeInTheDocument();
   });
 
@@ -123,7 +136,7 @@ describe('HouseholdPage', () => {
     expect(screen.getByRole('heading', { name: 'إدارة المنزل' })).toBeInTheDocument();
     const opener = screen.getByRole('button', { name: 'دعوة عضو' });
     await user.click(opener);
-    const dialog = screen.getByRole('dialog', { name: 'إنشاء سجل دعوة' });
+    const dialog = screen.getByRole('dialog', { name: 'دعوة عضو' });
     await user.keyboard('{Escape}');
     expect(dialog).not.toBeInTheDocument();
     expect(opener).toHaveFocus();

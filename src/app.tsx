@@ -31,8 +31,10 @@ import type { WorkspaceGateway } from './features/workspace/types.js';
 import { useWorkspace } from './features/workspace/use-workspace.js';
 import { createSupabaseWalletsGateway } from './features/wallets/supabase-wallets-gateway.js';
 import type { WalletsGateway } from './features/wallets/types.js';
-import { createBrowserDataClient } from './lib/supabase.js';
+import { createBrowserDataClient, readBrowserAccessToken } from './lib/supabase.js';
 import { createSupabaseHouseholdGateway } from './features/household/supabase-household-gateway.js';
+import { createDeliveringHouseholdGateway } from './features/household/delivering-household-gateway.js';
+import { createHttpInvitationDelivery } from './features/household/invitation-delivery.js';
 import type { HouseholdGateway } from './features/household/types.js';
 import { AcceptHouseholdInvitationDialog } from './features/household/household-dialogs.js';
 import { classifyHouseholdError, localizeHouseholdError, type HouseholdErrorView } from './features/household/errors.js';
@@ -279,7 +281,17 @@ export function App({ householdInvitationBootstrap = null, authGateway, categori
   const client = useMemo(() => createBrowserDataClient(), []);
   const activeAuthGateway = useMemo(() => authGateway ?? (client ? createSupabaseAuthGateway(client) : null), [authGateway, client]);
   const activeCategoriesGateway = useMemo(() => categoriesGateway ?? (client ? createSupabaseCategoriesGateway(client) : null), [categoriesGateway, client]);
-  const activeHouseholdGateway = useMemo(() => householdGateway ?? (client ? createSupabaseHouseholdGateway(client) : null), [householdGateway, client]);
+  const activeHouseholdGateway = useMemo(() => {
+    if (householdGateway) return householdGateway;
+    if (!client) return null;
+    return createDeliveringHouseholdGateway(createSupabaseHouseholdGateway(client), createHttpInvitationDelivery({
+      getAccessToken: async () => {
+        const token = await readBrowserAccessToken(client);
+        if (!token) throw new Error('not_authenticated');
+        return token;
+      },
+    }));
+  }, [householdGateway, client]);
   const activeLoansGateway = useMemo(() => loansGateway ?? (client ? createSupabaseLoansGateway(client) : null), [loansGateway, client]);
   const activeWalletsGateway = useMemo(() => walletsGateway ?? (client ? createSupabaseWalletsGateway(client) : null), [walletsGateway, client]);
   const activeReportsGateway = useMemo(() => reportsGateway ?? (client ? createSupabaseReportsGateway(client) : unavailableReportsGateway), [reportsGateway, client]);

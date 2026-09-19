@@ -221,6 +221,10 @@ new membership roles, routing infrastructure, hosted migration application,
 live authenticated UAT, deployment, and external invitation sending remain out
 of scope.
 
+Update 2026-09-19: the invite flow now delivers through the Worker boundary
+and supports Send-again resend; the invitation list no longer renders the raw
+invitation UUID. See `2026-09-19-household-invitation-delivery-ui-design.md`.
+
 Completion of this branch proves the local application integration only. Merge,
 push, hosted operation, real-email delivery, and installed/live-product proof
 remain separate owner-gated integration steps.

@@ -122,7 +122,7 @@ export function HouseholdPage(props: HouseholdPageProps) {
       <section className="household-register" aria-labelledby="household-invitations-heading">
         <h2 id="household-invitations-heading">{text.invitations}</h2>
         {household.invitations.length === 0 ? <p className="empty">{text.noInvitations}</p> : <ul className="household-list">{household.invitations.map((invitation) => <li key={invitation.invitationId} className="household-row invitation-row">
-          <div><span className={`status household-status status-${invitation.effectiveStatus}`}>{text[invitation.effectiveStatus]}</span><bdi>{invitation.invitationId}</bdi></div>
+          <div><span className={`status household-status status-${invitation.effectiveStatus}`}>{text[invitation.effectiveStatus]}</span></div>
           <dl><div><dt>{text.created}</dt><dd>{formatDate(invitation.createdAt)}</dd></div><div><dt>{text.expires}</dt><dd>{formatDate(invitation.expiresAt)}</dd></div></dl>
           {invitation.effectiveStatus === 'pending' || invitation.effectiveStatus === 'expired' ? <button type="button" className="text-button danger-text" aria-label={`${text.cancelInvitation} ${invitation.invitationId}`} onClick={() => setConfirmation({ kind: 'cancel', invitation })}>{text.cancelInvitation}</button> : null}
         </li>)}</ul>}
@@ -133,7 +133,7 @@ export function HouseholdPage(props: HouseholdPageProps) {
       <dl><div><dt>{text.role}</dt><dd>{text[household.self?.role ?? 'member']}</dd></div><div><dt>{text.status}</dt><dd>{text[household.self?.status ?? 'active']}</dd></div></dl>
     </section>}
     <footer className="household-leave"><button type="button" className="secondary danger-text" onClick={() => setConfirmation({ kind: 'leave' })}>{text.leave}</button></footer>
-    {inviteOpen ? <InviteHouseholdDialog locale={props.locale} pending={pending} succeeded={household.actionSuccess === 'invitation-created'} error={actionError} onClose={closeInvite} onSubmit={household.createInvitation} /> : null}
+    {inviteOpen ? <InviteHouseholdDialog locale={props.locale} pending={pending} succeeded={household.actionSuccess === 'invitation-created'} error={actionError} onClose={closeInvite} onSubmit={(email) => household.createInvitation(email, props.locale)} /> : null}
     {confirmation && confirmationText ? <HouseholdConfirmDialog
       title={confirmationText.title}
       description={confirmationText.description}

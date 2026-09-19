@@ -282,3 +282,8 @@ Household management UI, token acceptance UI, delivery webhooks, durable queues,
 delivery-status persistence, provider dashboards, DNS changes, suppression
 automation, custom domains, deployment, and real-email evidence remain separate
 milestones. None may alter or bypass the protected membership commands.
+
+Update 2026-09-19: the browser UI half of this integration is specified in
+`2026-09-19-household-invitation-delivery-ui-design.md` (same-origin delivery
+call, Send-again resend, register copy). Live provider configuration and real
+sends remain owner-gated as described above.

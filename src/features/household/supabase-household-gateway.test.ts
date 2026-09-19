@@ -126,7 +126,7 @@ describe('Supabase Household gateway', () => {
   it('uses only approved mutation RPCs and discards invitation tokens', async () => {
     const { client, rpcCalls } = recordingClient();
     const gateway = createSupabaseHouseholdGateway(client);
-    const created = await gateway.createInvitation({ spaceId: SPACE_ID, requestId: REQUEST_ID, email: 'member@example.com' });
+    const created = await gateway.createInvitation({ spaceId: SPACE_ID, requestId: REQUEST_ID, email: 'member@example.com', locale: 'en' });
     expect(created).toEqual({ invitationId: INVITATION_ID, expiresAt: invitationRow.expires_at });
     expect(JSON.stringify(created)).not.toContain('secret-token');
     await gateway.acceptInvitation({ requestId: REQUEST_ID, token: 'A'.repeat(43) });
@@ -168,6 +168,7 @@ describe('Supabase Household gateway', () => {
         spaceId: SPACE_ID,
         requestId: REQUEST_ID,
         email: 'member@example.com',
+        locale: 'en',
       })).rejects.toThrow('exactly one');
     },
   );

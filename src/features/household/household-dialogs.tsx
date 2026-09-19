@@ -68,30 +68,32 @@ interface InviteDialogProps {
 export function InviteHouseholdDialog(props: InviteDialogProps) {
   const [email, setEmail] = useState('');
   const ar = props.locale === 'ar';
-  const title = ar ? 'إنشاء سجل دعوة' : 'Create invitation record';
+  const title = ar ? 'دعوة عضو' : 'Invite member';
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (await props.onSubmit(email)) setEmail('');
+    await props.onSubmit(email);
   }
   return <HouseholdDialogFrame title={title} closeLabel={ar ? 'إغلاق' : 'Close'} pending={props.pending} onClose={props.onClose}>
     <p className="dialog-intro">{ar
-      ? 'ينشئ هذا الإجراء سجل دعوة لمدة سبعة أيام. خدمة الإرسال غير مهيأة.'
-      : 'This creates a seven-day invitation record. Delivery is not configured.'}</p>
+      ? 'يرسل رسالة دعوة إلى هذا العنوان مدتها سبعة أيام. يفتح المدعو الرابط من الرسالة للانضمام إلى هذه المساحة.'
+      : 'Sends a seven-day invitation email to this address. The recipient opens the link from the email to join this household.'}</p>
     <form onSubmit={(event) => void submit(event)}>
       <label>{ar ? 'البريد الإلكتروني للعضو' : 'Member email'}
-        <input type="email" required maxLength={254} autoComplete="email" data-initial-focus value={email} onChange={(event) => setEmail(event.target.value)} />
+        <input type="email" required maxLength={254} autoComplete="email" data-initial-focus disabled={props.succeeded} value={email} onChange={(event) => setEmail(event.target.value)} />
       </label>
       {props.error}
       {props.succeeded ? <p role="status" className="success-notice">{ar
-        ? 'تم إنشاء سجل الدعوة. خدمة الإرسال غير مهيأة.'
-        : 'Invitation record created. Delivery is not configured.'}</p> : null}
+        ? `تم إرسال الدعوة إلى ${email}.`
+        : `Invitation sent to ${email}.`}</p> : null}
       <div className="dialog-actions">
         <button type="button" className="secondary" disabled={props.pending} onClick={props.onClose}>{props.succeeded
           ? (ar ? 'إغلاق' : 'Close')
           : (ar ? 'إلغاء' : 'Cancel')}</button>
-        <button type="submit" disabled={props.pending || props.succeeded}>{props.pending
-          ? (ar ? 'جارٍ الإنشاء…' : 'Creating…')
-          : title}</button>
+        <button type="submit" disabled={props.pending}>{props.pending
+          ? (ar ? 'جارٍ الإرسال…' : 'Sending…')
+          : props.succeeded
+            ? (ar ? 'إرسال مجددًا' : 'Send again')
+            : (ar ? 'إرسال الدعوة' : 'Send invitation')}</button>
       </div>
     </form>
   </HouseholdDialogFrame>;

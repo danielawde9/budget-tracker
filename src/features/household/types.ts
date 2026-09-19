@@ -30,7 +30,7 @@ export interface HouseholdGateway {
   getSelfMembership(spaceId: string, userId: string): Promise<HouseholdMembership | null>;
   listMembers(spaceId: string, afterUserId?: string, limit?: number): Promise<readonly HouseholdMembership[]>;
   listInvitations(spaceId: string, cursor?: InvitationCursor, limit?: number): Promise<readonly HouseholdInvitation[]>;
-  createInvitation(input: { readonly spaceId: string; readonly requestId: string; readonly email: string }): Promise<{ readonly invitationId: string; readonly expiresAt: string }>;
+  createInvitation(input: { readonly spaceId: string; readonly requestId: string; readonly email: string; readonly locale: 'en' | 'ar' }): Promise<{ readonly invitationId: string; readonly expiresAt: string }>;
   acceptInvitation(input: { readonly requestId: string; readonly token: string }): Promise<{ readonly spaceId: string; readonly status: 'active'; readonly role: 'member' }>;
   cancelInvitation(input: { readonly spaceId: string; readonly requestId: string; readonly invitationId: string }): Promise<void>;
   setMemberRole(input: { readonly spaceId: string; readonly requestId: string; readonly userId: string; readonly role: MemberRole }): Promise<void>;

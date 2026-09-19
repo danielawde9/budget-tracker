@@ -119,10 +119,44 @@ export async function installHouseholdApiFixture(page: Page, options: HouseholdF
     },
   ];
   const protectedMutationCalls = new Set<string>();
+  const deliverCalls: unknown[] = [];
+  const deliveredByRequestId = new Map<string, string>();
   let householdFailuresRemaining = options.failHouseholdOnce ? 1 : 0;
   let invitationSequence = 1;
 
   await page.addInitScript((value) => localStorage.setItem('sb-127-auth-token', JSON.stringify(value)), authSession());
+
+  await page.route('**/api/household-invitations/deliver', async (route) => {
+    const request = route.request();
+    if (request.method() === 'OPTIONS') {
+      return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' } });
+    }
+    const authorization = request.headers()['authorization'] ?? '';
+    if (!authorization.startsWith('Bearer ')) {
+      return json(route, { error: 'invalid_authorization' }, 401);
+    }
+    const body = request.postDataJSON() as { spaceId: string; requestId: string; inviteeEmail: string; locale: 'en' | 'ar' };
+    deliverCalls.push(body);
+    // Simulated Worker boundary: the reviewed Worker forwards the caller's
+    // bearer token to the protected RPC and re-sends on idempotent replay.
+    protectedMutationCalls.add('create_household_invitation');
+    const replayInvitationId = deliveredByRequestId.get(body.requestId);
+    if (replayInvitationId) {
+      return json(route, { invitationId: replayInvitationId, expiresAt: '2026-09-17T10:00:00Z', delivery: 'accepted' });
+    }
+    invitationSequence += 1;
+    const invitationId = `40000000-0000-4000-8000-${String(invitationSequence).padStart(12, '0')}`;
+    deliveredByRequestId.set(body.requestId, invitationId);
+    invitations.unshift({
+      invitation_id: invitationId,
+      effective_status: 'pending',
+      created_at: '2026-09-10T10:00:00Z',
+      expires_at: '2026-09-17T10:00:00Z',
+      accepted_at: null,
+      cancelled_at: null,
+    });
+    return json(route, { invitationId, expiresAt: '2026-09-17T10:00:00Z', delivery: 'accepted' });
+  });
 
   await page.route('http://127.0.0.1:55432/auth/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -148,6 +182,7 @@ export async function installHouseholdApiFixture(page: Page, options: HouseholdF
         boundary: 'simulated-local-http',
         database: 'in-memory-fixture-state',
         protectedMutationCalls: [...protectedMutationCalls],
+        deliverCalls,
       });
     }
     if (path.endsWith('/spaces')) return json(route, visibleSpaces);

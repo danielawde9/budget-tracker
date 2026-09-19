@@ -75,7 +75,7 @@ describe('useHousehold', () => {
     expect(result.current.invitations).toEqual([]);
   });
 
-  it('reuses a failed action request ID and creates a new ID after success', async () => {
+  it('reuses a failed action request ID, retains it for Send again, and creates a new ID for a new address', async () => {
     const gateway = new InMemoryHouseholdGateway();
     const firstId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     const secondId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -84,11 +84,21 @@ describe('useHousehold', () => {
     const { result } = renderHook(() => useHousehold({ gateway, spaceId: householdSpaceId, userId: householdOwnerId, onSpaceUnavailable: vi.fn(), requestId }));
     await waitFor(() => expect(result.current.status).toBe('owner-ready'));
     gateway.failOnce = new Error('Failed to fetch');
-    await act(() => result.current.createInvitation('person@example.com'));
-    await act(() => result.current.createInvitation('person@example.com'));
-    await act(() => result.current.createInvitation('other@example.com'));
+    await act(() => result.current.createInvitation('person@example.com', 'en'));
+    await act(() => result.current.createInvitation('person@example.com', 'en'));
+    await act(() => result.current.createInvitation('person@example.com', 'en'));
+    await act(() => result.current.createInvitation('other@example.com', 'en'));
     const calls = gateway.calls.filter((call) => call.name === 'createInvitation').map((call) => call.input as { requestId: string });
-    expect(calls.map((call) => call.requestId)).toEqual([firstId, firstId, secondId]);
+    expect(calls.map((call) => call.requestId)).toEqual([firstId, firstId, firstId, secondId]);
+  });
+
+  it('passes the page locale through to invitation creation', async () => {
+    const gateway = new InMemoryHouseholdGateway();
+    const { result } = renderHook(() => useHousehold({ gateway, spaceId: householdSpaceId, userId: householdOwnerId, onSpaceUnavailable: vi.fn() }));
+    await waitFor(() => expect(result.current.status).toBe('owner-ready'));
+    await act(() => result.current.createInvitation('person@example.com', 'ar'));
+    const call = gateway.calls.find((entry) => entry.name === 'createInvitation');
+    expect(call?.input).toMatchObject({ email: 'person@example.com', locale: 'ar' });
   });
 
   it('reports inactive self membership as unavailable without retaining projections', async () => {

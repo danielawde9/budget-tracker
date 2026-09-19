@@ -56,7 +56,7 @@ export class InMemoryHouseholdGateway implements HouseholdGateway {
     return this.invitations.slice(start, start + (this.pageSize ?? limit));
   }
 
-  async createInvitation(input: { spaceId: string; requestId: string; email: string }) {
+  async createInvitation(input: { spaceId: string; requestId: string; email: string; locale: 'en' | 'ar' }) {
     this.calls.push({ name: 'createInvitation', input });
     this.rejectIfNeeded();
     const invitationId = `55555555-5555-4555-8555-${String(this.invitations.length + 1).padStart(12, '0')}`;
