@@ -104,6 +104,7 @@
   margin-inline-start: var(--cr-space-2);
   color: var(--cr-ink-soft);
   font-size: 11px;
+  white-space: nowrap;
 }
 
 .alloc-bar-visual {

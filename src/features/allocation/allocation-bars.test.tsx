@@ -35,6 +35,17 @@ describe('AllocationBars', () => {
     expect(screen.getByText('65%')).toBeInTheDocument();
   });
 
+  it('names the bar column so header and body column counts match in both languages', () => {
+    const { rerender } = render(<AllocationBars locale="en" currency="USD" monthHasPlan rows={[group()]} />);
+    const headers = screen.getAllByRole('columnheader');
+    expect(headers).toHaveLength(6);
+    expect(screen.getByRole('columnheader', { name: 'Progress' })).toBeInTheDocument();
+
+    rerender(<AllocationBars locale="ar" currency="USD" monthHasPlan rows={[group()]} />);
+    expect(screen.getAllByRole('columnheader')).toHaveLength(6);
+    expect(screen.getByRole('columnheader', { name: 'التقدّم' })).toBeInTheDocument();
+  });
+
   it('U08-03 shows "No target" for a zero-target row without a plan, and an explicit numeric zero when planned', () => {
     const noPlanRow = group({ rowKind: 'unmapped', groupId: null, targetMinor: '0', actualMinor: '500', hasPlan: false, basisPoints: null, nameEn: null, nameAr: null });
     const { rerender } = render(<AllocationBars locale="en" currency="USD" monthHasPlan={false} rows={[noPlanRow]} />);

@@ -168,7 +168,7 @@ export function PlanPage(props: PlanPageProps) {
         if (!summary) {
           return (
             <section key={currency} className="cr-card" aria-label={t(locale, 'Set planned income', 'حدد الدخل المخطط')}>
-              <button type="button" className="cr-button" onClick={() => openEdit({ kind: 'income', currency, currentMinor: null, expectedRevisionId: null })}>
+              <button type="button" className="cr-button cr-button--primary cr-button--block" onClick={() => openEdit({ kind: 'income', currency, currentMinor: null, expectedRevisionId: null })}>
                 {t(locale, 'Set planned income', 'حدد الدخل المخطط')}
                 {' '}
                 <span className="cr-chip">{currency}</span>

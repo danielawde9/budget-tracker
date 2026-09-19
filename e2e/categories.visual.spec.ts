@@ -49,6 +49,14 @@ test('desktop category register separates active income and expense labels', asy
   await expect(page.getByRole('button', { name: 'Archive Essentials' })).toHaveCount(0);
   await expect(page.getByText('Archive subcategories first')).toBeVisible();
   await expect(page.getByText('Archived travel')).toHaveCount(0);
+  // The root name and its actions must not collide when the archive note wraps.
+  const essentialsRow = page.getByText('Essentials').locator('xpath=ancestor-or-self::bdi').locator('..').locator('..');
+  const nameBox = await page.getByText('Essentials').locator('xpath=ancestor-or-self::bdi').boundingBox();
+  const actionsBox = await essentialsRow.locator('.category-actions').boundingBox();
+  expect(nameBox).not.toBeNull();
+  expect(actionsBox).not.toBeNull();
+  const overlap = Math.min(nameBox!.x + nameBox!.width, actionsBox!.x + actionsBox!.width) - Math.max(nameBox!.x, actionsBox!.x);
+  expect(overlap).toBeLessThanOrEqual(0);
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-category-register.png'), fullPage: true });
 });
 

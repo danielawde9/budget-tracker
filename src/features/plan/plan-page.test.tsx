@@ -84,6 +84,13 @@ describe('PlanPage', () => {
     expect(screen.getByText('Set planned income')).toBeInTheDocument();
   });
 
+  it('presents the missing-income state as one primary call to action without a nested box', () => {
+    setup();
+    const button = screen.getByRole('button', { name: /Set planned income/ });
+    expect(button.className).toContain('cr-button--primary');
+    expect(button.className).toContain('cr-button--block');
+  });
+
   it('shows the left-to-allocate amount, or the overallocated amount in danger styling', () => {
     const { container, rerender } = setup();
     const allocateCard = screen.getByRole('region', { name: 'Left to allocate USD' });

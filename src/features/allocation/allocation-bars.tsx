@@ -41,6 +41,7 @@ export function AllocationBars(props: AllocationBarsProps) {
             <th scope="col">{t(locale, 'Actual', 'الفعلي')}</th>
             <th scope="col">{t(locale, 'Variance', 'الفرق')}</th>
             <th scope="col">{t(locale, '% of income', 'نسبة من الدخل')}</th>
+            <th scope="col" className="alloc-visually-hidden">{t(locale, 'Progress', 'التقدّم')}</th>
           </tr>
         </thead>
         <tbody>

@@ -299,7 +299,9 @@ dd { margin: 6px 0 0; font-weight: 700; white-space: nowrap; }
 .category-name > bdi { font-size: 1.05rem; font-weight: 700; }
 .category-list small { color: var(--cr-ink-soft, #55605a); }
 .category-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px 14px; }
-.category-archive-note { max-inline-size: 130px; color: var(--cr-ink-soft, #55605a); font-size: 0.75rem; line-height: 1.35; text-align: end; }
+/* The archive hint spans its own grid row beneath name and actions so it can
+   never squeeze the root name out of its column. */
+.category-root-row .category-archive-note { grid-column: 1 / -1; justify-self: end; max-inline-size: 220px; color: var(--cr-ink-soft, #55605a); font-size: 0.75rem; line-height: 1.35; text-align: end; }
 .subcategory-list {
   list-style: none;
   margin-block: 0 16px;
