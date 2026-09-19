@@ -793,6 +793,7 @@ export function RecordSheet(props: RecordSheetProps) {
           {t(locale, 'Person', 'الشخص')}
           <input
             type="text"
+            list="cr-person-list"
             value={personName}
             onChange={(event) => setPersonName(event.target.value)}
           />
@@ -828,6 +829,9 @@ export function RecordSheet(props: RecordSheetProps) {
       </label>
       <datalist id="cr-payee-list">
         {props.payees.map((payee) => <option key={payee} value={payee}>{payee}</option>)}
+      </datalist>
+      <datalist id="cr-person-list">
+        {[...new Set(props.loans.map((loan) => loan.personName))].sort().map((person) => <option key={person} value={person}>{person}</option>)}
       </datalist>
       <button
         type="button"

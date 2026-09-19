@@ -248,6 +248,33 @@ describe('RecordSheet', () => {
     });
   });
 
+  it('offers known loan counterparties as a deduplicated person dropdown while allowing a new name', async () => {
+    const user = userEvent.setup();
+    const props = makeProps({
+      loans: [
+        { loanId: 'loan-1', personName: 'Sara', currency: 'USD' as Currency, outstandingMinor: '5000' },
+        { loanId: 'loan-2', personName: 'Maya', currency: 'USD' as Currency, outstandingMinor: '3000' },
+        { loanId: 'loan-3', personName: 'Sara', currency: 'USD' as Currency, outstandingMinor: '2000' },
+      ],
+    });
+    render(<RecordSheet {...props} />);
+
+    await user.click(screen.getByRole('button', { name: 'Lend' }));
+    await enterAmount(user, '2 0');
+    await user.click(screen.getByRole('button', { name: 'Cash USD' }));
+
+    const personInput = screen.getByLabelText('Person');
+    expect(personInput).toHaveAttribute('list', 'cr-person-list');
+    const datalist = document.getElementById('cr-person-list');
+    expect(datalist).not.toBeNull();
+    expect([...datalist!.querySelectorAll('option')].map((option) => option.value)).toEqual(['Maya', 'Sara']);
+
+    await user.type(personInput, 'Omar');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(props.onSubmitLoan).toHaveBeenCalledWith(expect.objectContaining({ personName: 'Omar' }));
+  });
+
   it('records a repayment against an outstanding loan', async () => {
     const user = userEvent.setup();
     const props = makeProps();
