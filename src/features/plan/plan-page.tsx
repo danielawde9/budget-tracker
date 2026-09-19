@@ -98,14 +98,19 @@ function EditDialog(props: EditDialogProps) {
           {t(locale, 'Amount', 'المبلغ')}
           <input
             type="text"
-            inputMode="decimal"
+            inputMode={props.currency === 'USD' ? 'decimal' : 'numeric'}
             value={value}
             aria-invalid={inputError ? true : undefined}
-            aria-describedby={inputError ? 'cr-plan-edit-error' : undefined}
+            aria-describedby={inputError ? 'cr-plan-edit-error' : props.currency === 'LBP' ? 'cr-plan-lbp-hint' : undefined}
             onChange={(event) => setValue(event.target.value.replace(props.currency === 'USD' ? /[^0-9.]/g : /[^0-9]/g, ''))}
           />
         </label>
         <span className="cr-label">{props.currency}</span>
+        {props.currency === 'LBP' ? (
+          <small id="cr-plan-lbp-hint" className="cr-helper">
+            {t(locale, 'LBP amounts are whole numbers, no decimals.', 'مبالغ الليرة مقررة بالأعداد الصحيحة دون كسور.')}
+          </small>
+        ) : null}
         {inputError ? (
           <div className="cr-sheet-error" role="alert" id="cr-plan-edit-error">
             <span className="cr-danger-text">{inputError}</span>
@@ -216,13 +221,16 @@ export function PlanPage(props: PlanPageProps) {
                 const raw = (BigInt(row.actualSpentMinor) * 100n) / BigInt(row.targetMinor);
                 width = Number(raw > 100n ? 100n : raw);
               }
+              const targetText = row.targetMinor !== null
+                ? formatMinorAmount(row.targetMinor, row.currency, locale)
+                : t(locale, 'No target', 'بدون هدف');
               return (
-                <li key={`${row.categoryId}-${row.currency}`}>
+                <li key={`${row.categoryId}-${row.currency}`} className="cr-plan-category">
                   <div className="cr-row">
-                    <span>{categoryName(row, locale)}</span>
+                    <span className="cr-plan-category-name">{categoryName(row, locale)}</span>
                     <button
                       type="button"
-                      className="cr-button"
+                      className="cr-button cr-button--sm"
                       aria-label={t(locale, `Edit ${categoryName(row, locale)} target`, `تعديل هدف ${categoryName(row, locale)}`)}
                       onClick={() => openEdit({
                         kind: 'target',
@@ -236,13 +244,11 @@ export function PlanPage(props: PlanPageProps) {
                       {t(locale, 'Edit', 'تعديل')}
                     </button>
                   </div>
-                  <div className="cr-row" style={{ fontSize: 13 }}>
+                  <div className="cr-row cr-plan-category-amounts">
                     <span className={overspent ? 'cr-warn-text' : undefined}>
                       {formatMinorAmount(row.actualSpentMinor, row.currency, locale)}
                     </span>
-                    <span className="cr-label">
-                      {row.targetMinor !== null ? formatMinorAmount(row.targetMinor, row.currency, locale) : t(locale, 'No target', 'بدون هدف')}
-                    </span>
+                    <span className="cr-label">/ {targetText}</span>
                   </div>
                   {width !== null ? (
                     <div className={overspent ? 'cr-progress cr-progress--over' : 'cr-progress'} aria-hidden="true">

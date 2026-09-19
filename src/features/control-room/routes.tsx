@@ -698,6 +698,27 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
           await loans.recordRepayment({ spaceId, ...draft });
           props.onCloseRecord();
         }}
+        onCreateCategory={async (draft) => {
+          const requestId = crypto.randomUUID();
+          if ('parentCategoryId' in draft) {
+            const result = await gateways.categories.createSubcategory({
+              spaceId,
+              requestId,
+              parentCategoryId: draft.parentCategoryId,
+              nameEn: draft.nameEn || null,
+              nameAr: draft.nameAr || null,
+            });
+            return { id: result.id ?? requestId };
+          }
+          const result = await gateways.categories.createCategory({
+            spaceId,
+            requestId,
+            kind: draft.kind,
+            nameEn: draft.nameEn || null,
+            nameAr: draft.nameAr || null,
+          });
+          return { id: result.id ?? requestId };
+        }}
       />
     </>
   );

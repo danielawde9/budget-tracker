@@ -1,7 +1,6 @@
-import { useId, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import type { Currency, Locale } from '../loans/types.js';
 import { formatMinorAmount, parsePositiveMinorAmount } from '../wallets/money.js';
-import { DialogShell } from '../wallets/dialog-shell.js';
 import { classifyGoalsError, localizeGoalsError } from './errors.js';
 import type { CommandOutcome } from './use-goals.js';
 import type { GoalDefinitionInput, GoalMilestoneInput, GoalKind, GoalMilestoneKind, GoalContributionMode, GoalState } from './types.js';
@@ -49,6 +48,72 @@ interface GoalEditorProps {
 
 const t = (locale: Locale, en: string, ar: string) => locale === 'ar' ? ar : en;
 const MAX_MILESTONES = 20;
+
+interface GoalSheetFrameProps {
+  locale: Locale;
+  title: string;
+  closeLabel: string;
+  pending?: boolean;
+  onClose(): void;
+  children: ReactNode;
+}
+
+function GoalSheetFrame({ locale, title, closeLabel, pending = false, onClose, children }: GoalSheetFrameProps) {
+  const panel = useRef<HTMLDivElement>(null);
+  const returnFocus = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    returnFocus.current = document.activeElement as HTMLElement | null;
+    const target = panel.current?.querySelector<HTMLElement>('[data-autofocus]') ?? panel.current;
+    target?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !pending) {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab' || !panel.current) return;
+      const controls = [...panel.current.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]',
+      )];
+      const first = controls[0];
+      const last = controls.at(-1);
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === panel.current)) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      returnFocus.current?.focus();
+    };
+  }, [onClose, pending]);
+
+  return (
+    <div className="overlay" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget && !pending) onClose();
+    }}>
+      <div
+        ref={panel}
+        className="dialog goal-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
+      >
+        <header className="dialog-header">
+          <h2>{title}</h2>
+          <button type="button" className="icon-button" aria-label={closeLabel} disabled={pending} onClick={onClose}>×</button>
+        </header>
+        <div className="dialog-body">{children}</div>
+      </div>
+    </div>
+  );
+}
 
 function draftFromMilestone(milestone: GoalMilestoneInput): MilestoneDraft {
   return {
@@ -178,16 +243,16 @@ export function GoalEditor(props: GoalEditorProps) {
     }
   }
 
-  if (success) return <DialogShell title={t(props.locale, 'Goal saved', 'تم حفظ الهدف')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} descriptionId={descriptionId} focusVersion="success">
+  if (success) return <GoalSheetFrame locale={props.locale} title={t(props.locale, 'Goal saved', 'تم حفظ الهدف')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose}>
     <div className="dialog-result" role="status">
       <strong>{t(props.locale, 'Saved', 'تم الحفظ')}</strong>
       <p id={descriptionId}>{props.mode === 'create' ? t(props.locale, 'The goal has been created.', 'تم إنشاء الهدف.') : t(props.locale, 'The goal has been updated.', 'تم تحديث الهدف.')}</p>
       <button type="button" data-autofocus onClick={props.onClose}>{t(props.locale, 'Done', 'تم')}</button>
     </div>
-  </DialogShell>;
+  </GoalSheetFrame>;
 
-  return <DialogShell title={props.mode === 'create' ? t(props.locale, 'New goal', 'هدف جديد') : t(props.locale, 'Edit goal', 'تعديل الهدف')}
-    closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} pending={props.pending} wide descriptionId={descriptionId}>
+  return <GoalSheetFrame locale={props.locale} title={props.mode === 'create' ? t(props.locale, 'New goal', 'هدف جديد') : t(props.locale, 'Edit goal', 'تعديل الهدف')}
+    closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} pending={props.pending}>
     <form aria-label={t(props.locale, 'Goal details', 'تفاصيل الهدف')} onSubmit={submit}>
       <p id={descriptionId} className="dialog-intro">{t(props.locale, 'Reserve saves toward a general amount; purchase tracks a specific thing you plan to buy.', 'يوفر الحجز لمبلغ عام؛ يتتبع الشراء شيئًا معينًا تخطط لشرائه.')}</p>
 
@@ -270,5 +335,5 @@ export function GoalEditor(props: GoalEditorProps) {
         <button type="submit" disabled={props.pending}>{props.pending ? t(props.locale, 'Saving…', 'جارٍ الحفظ…') : t(props.locale, 'Save', 'حفظ')}</button>
       </div>
     </form>
-  </DialogShell>;
+  </GoalSheetFrame>;
 }

@@ -74,6 +74,13 @@ export function AllocationOverview(props: AllocationOverviewProps) {
         ) : null}
       </div>
 
+      {monthState.hasPlan && monthState.plannedIncomeMinor !== null ? (
+        <p className="alloc-income-link">
+          {t(locale,
+            'Bars show actual spending as a share of planned income.',
+            'تعرض الأشرطة الإنفاق الفعلي كنسبة من الدخل المخطط.')}
+        </p>
+      ) : null}
       {!monthState.hasPlan ? (
         <p>{t(locale, 'No allocation plan for this month yet.', 'لا توجد خطة تخصيص لهذا الشهر بعد.')}</p>
       ) : null}

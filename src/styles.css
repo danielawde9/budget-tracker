@@ -292,23 +292,23 @@ dd { margin: 6px 0 0; font-weight: 700; white-space: nowrap; }
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 18px;
-  min-block-size: 76px;
-  padding-block: 14px;
+  min-block-size: 84px;
+  padding-block: 20px;
 }
-.category-name { display: grid; gap: 4px; }
+.category-name { display: grid; gap: 6px; }
 .category-name > bdi { font-size: 1.05rem; font-weight: 700; }
 .category-list small { color: var(--cr-ink-soft, #55605a); }
 .category-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px 14px; }
 .category-archive-note { max-inline-size: 130px; color: var(--cr-ink-soft, #55605a); font-size: 0.75rem; line-height: 1.35; text-align: end; }
 .subcategory-list {
   list-style: none;
-  margin-block: 0 12px;
+  margin-block: 0 16px;
   margin-inline: 0;
   padding-block: 0;
-  padding-inline: 20px 0;
+  padding-inline: 24px 0;
   border-inline-start: 2px solid var(--cr-accent-soft, #e2f2ec);
 }
-.subcategory-row { min-block-size: 62px; padding-block: 9px; }
+.subcategory-row { min-block-size: 68px; padding-block: 14px; }
 .subcategory-row .category-name > bdi { font-size: 1rem; font-weight: 650; }
 .category-parent-note {
   display: grid;

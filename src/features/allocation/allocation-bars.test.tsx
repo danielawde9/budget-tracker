@@ -26,12 +26,13 @@ describe('AllocationBars', () => {
     expect(screen.getByText('$0.20')).toBeInTheDocument();
   });
 
-  it('shows the exact target/actual/variance amounts and the group percentage', () => {
+  it('shows the exact target/actual/variance amounts and the group percentages', () => {
     render(<AllocationBars locale="en" currency="USD" monthHasPlan rows={[group()]} />);
     expect(screen.getByText('$1,120.00')).toBeInTheDocument();
     expect(screen.getByText('$1,180.00')).toBeInTheDocument();
     expect(screen.getByText('-$60.00')).toBeInTheDocument();
-    expect(screen.getByText('56%')).toBeInTheDocument();
+    expect(screen.getByText('56% target')).toBeInTheDocument();
+    expect(screen.getByText('65%')).toBeInTheDocument();
   });
 
   it('U08-03 shows "No target" for a zero-target row without a plan, and an explicit numeric zero when planned', () => {

@@ -40,6 +40,7 @@ export function AllocationBars(props: AllocationBarsProps) {
             <th scope="col">{t(locale, 'Target', 'الهدف')}</th>
             <th scope="col">{t(locale, 'Actual', 'الفعلي')}</th>
             <th scope="col">{t(locale, 'Variance', 'الفرق')}</th>
+            <th scope="col">{t(locale, '% of income', 'نسبة من الدخل')}</th>
           </tr>
         </thead>
         <tbody>
@@ -59,7 +60,7 @@ export function AllocationBars(props: AllocationBarsProps) {
               <tr key={key} className="alloc-bar-row">
                 <th scope="row" className="alloc-bar-label">
                   <bdi>{label}</bdi>
-                  {row.basisPoints !== null ? <span className="alloc-bar-bps">{(row.basisPoints / 100).toString()}%</span> : null}
+                  {row.basisPoints !== null ? <span className="alloc-bar-bps">{(row.basisPoints / 100).toString()}% {t(locale, 'target', 'هدف')}</span> : null}
                 </th>
                 <td data-label={t(locale, 'Target', 'الهدف')}>
                   {target === null ? (
@@ -79,6 +80,13 @@ export function AllocationBars(props: AllocationBarsProps) {
                     <bdi className={BigInt(row.varianceMinor) < 0n ? 'alloc-danger-text' : undefined}>
                       {formatMinorAmount(row.varianceMinor, currency, locale)}
                     </bdi>
+                  )}
+                </td>
+                <td data-label={t(locale, '% of income', 'نسبة من الدخل')}>
+                  {row.actualShareOfIncomeBps !== null && row.actualShareOfIncomeBps !== '0' ? (
+                    <bdi>{(BigInt(row.actualShareOfIncomeBps) / 100n).toString()}%</bdi>
+                  ) : (
+                    <span className="alloc-label-muted">—</span>
                   )}
                 </td>
                 <td className="alloc-bar-visual">

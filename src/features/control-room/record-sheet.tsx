@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ArrowDownLeft,
   ArrowLeftRight,
@@ -61,6 +61,18 @@ export interface RepaymentDraft {
   effectiveDate: string;
 }
 
+export interface CreateCategoryDraft {
+  readonly kind: 'income' | 'expense';
+  readonly nameEn: string;
+  readonly nameAr: string;
+}
+
+export interface CreateSubcategoryDraft {
+  readonly parentCategoryId: string;
+  readonly nameEn: string;
+  readonly nameAr: string;
+}
+
 export interface RecordSheetProps {
   open: boolean;
   locale: Locale;
@@ -82,6 +94,7 @@ export interface RecordSheetProps {
   onSubmitExchange(draft: ExchangeDraft): Promise<unknown>;
   onSubmitLoan(draft: LoanDraft): Promise<unknown>;
   onSubmitRepayment(draft: RepaymentDraft): Promise<unknown>;
+  onCreateCategory?(draft: CreateCategoryDraft | CreateSubcategoryDraft): Promise<{ id: string }>;
 }
 
 const TILES: readonly { kind: RecordKind; en: string; ar: string; icon: typeof ArrowDownLeft }[] = [
@@ -165,6 +178,57 @@ function Keypad(props: KeypadProps) {
   );
 }
 
+const STEP_ORDER: readonly Step[] = ['type', 'amount', 'wallet', 'category', 'details', 'confirm'];
+
+function stepIndex(step: Step): number {
+  return STEP_ORDER.indexOf(step);
+}
+
+function stepLabel(locale: Locale, step: Step, kind: RecordKind | null, loanId: string | null): string {
+  switch (step) {
+    case 'type': return t(locale, 'Type', 'النوع');
+    case 'amount':
+      if (kind === 'repay' && loanId === null) return t(locale, 'Loan', 'الدين');
+      return t(locale, 'Amount', 'المبلغ');
+    case 'wallet': return t(locale, 'Wallet', 'المحفظة');
+    case 'category': return t(locale, 'Category', 'الفئة');
+    case 'details': return t(locale, 'Details', 'التفاصيل');
+    case 'confirm': return t(locale, 'Confirm', 'تأكيد');
+  }
+}
+
+function StepIndicator({ locale, step, kind, loanId }: { locale: Locale; step: Step; kind: RecordKind | null; loanId: string | null }) {
+  const currentIndex = stepIndex(step);
+  return (
+    <div className="cr-record-steps" aria-label={t(locale, 'Progress', 'التقدم')}>
+      {STEP_ORDER.map((candidate, index) => {
+        // Skip category/details for flows that don't use them.
+        if (candidate === 'category' && (!kind || kind === 'transfer' || kind === 'exchange' || kind === 'repay')) return null;
+        if (candidate === 'details' && (!kind || kind === 'transfer' || kind === 'exchange' || kind === 'repay')) return null;
+        if (candidate === 'wallet' && kind === 'exchange') return null; // wallet step is split into two picks
+        let state: 'done' | 'current' | 'upcoming';
+        if (index < currentIndex) state = 'done';
+        else if (index === currentIndex) state = 'current';
+        else state = 'upcoming';
+        return (
+          <span key={candidate} className={`cr-record-step cr-record-step--${state}`}>
+            <span className="cr-record-step-dot" />
+            <span className="cr-record-step-label">{stepLabel(locale, candidate, kind, loanId)}</span>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function StepContent({ step, children }: { step: Step; children: ReactNode }) {
+  return (
+    <div key={step} className="cr-record-step-content" role="group" aria-label={String(step)}>
+      {children}
+    </div>
+  );
+}
+
 export function RecordSheet(props: RecordSheetProps) {
   const { locale } = props;
   const [kind, setKind] = useState<RecordKind | null>(null);
@@ -177,6 +241,11 @@ export function RecordSheet(props: RecordSheetProps) {
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [categoryChosen, setCategoryChosen] = useState(false);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const [categorySearch, setCategorySearch] = useState('');
+  const [createFormOpen, setCreateFormOpen] = useState(false);
+  const [createNameEn, setCreateNameEn] = useState('');
+  const [createNameAr, setCreateNameAr] = useState('');
+  const [createPending, setCreatePending] = useState(false);
   const [payeeName, setPayeeName] = useState('');
   const [note, setNote] = useState('');
   const [personName, setPersonName] = useState('');
@@ -200,6 +269,11 @@ export function RecordSheet(props: RecordSheetProps) {
     setCategoryId(null);
     setCategoryChosen(false);
     setExpandedCategory(null);
+    setCategorySearch('');
+    setCreateFormOpen(false);
+    setCreateNameEn('');
+    setCreateNameAr('');
+    setCreatePending(false);
     setPayeeName('');
     setNote('');
     setPersonName('');
@@ -221,6 +295,24 @@ export function RecordSheet(props: RecordSheetProps) {
     return () => { openerRef.current?.focus(); };
   }, [props.open]);
 
+  // Auto-select the only available wallet once the amount is entered.
+  useEffect(() => {
+    if (!amountDone || !kind) return;
+    if (kind === 'exchange') {
+      const usd = props.wallets.find((candidate) => candidate.currency === 'USD');
+      const lbp = props.wallets.find((candidate) => candidate.currency === 'LBP');
+      if (usd && lbp && props.wallets.filter((candidate) => candidate.currency === 'USD').length === 1 && props.wallets.filter((candidate) => candidate.currency === 'LBP').length === 1) {
+        setWalletId(usd.id);
+        setDestWalletId(lbp.id);
+      }
+      return;
+    }
+    if (kind === 'transfer') return;
+    if (props.wallets.length === 1) {
+      setWalletId(props.wallets[0]!.id);
+    }
+  }, [amountDone, kind, props.wallets]);
+
   const pickKind = (next: RecordKind) => {
     resetFlow();
     setKind(next);
@@ -238,6 +330,45 @@ export function RecordSheet(props: RecordSheetProps) {
     () => props.loans.find((candidate) => candidate.loanId === loanId) ?? null,
     [props.loans, loanId],
   );
+
+  const searchNormalized = categorySearch.trim().toLowerCase();
+  const filteredCategoryTree = useMemo(() => {
+    if (!searchNormalized) return props.categoryTree;
+    return props.categoryTree
+      .map((root) => {
+        const rootMatches =
+          root.nameEn.toLowerCase().includes(searchNormalized) ||
+          root.nameAr.toLowerCase().includes(searchNormalized);
+        const matchingChildren = root.children.filter(
+          (child) =>
+            child.nameEn.toLowerCase().includes(searchNormalized) ||
+            child.nameAr.toLowerCase().includes(searchNormalized),
+        );
+        if (rootMatches) return { ...root, children: root.children };
+        if (matchingChildren.length > 0) return { ...root, children: matchingChildren };
+        return null;
+      })
+      .filter((root): root is RecordCategoryNode => root !== null);
+  }, [props.categoryTree, searchNormalized]);
+
+  const categoryNameExists = (nameEn: string, nameAr: string, parentCategoryId?: string): boolean => {
+    const en = nameEn.trim().toLowerCase();
+    const ar = nameAr.trim().toLowerCase();
+    if (!en && !ar) return false;
+    return props.categoryTree.some((root) => {
+      const inRoot =
+        (en && root.nameEn.toLowerCase() === en) ||
+        (ar && root.nameAr.toLowerCase() === ar);
+      const inChild = root.children.some(
+        (child) =>
+          (en && child.nameEn.toLowerCase() === en) ||
+          (ar && child.nameAr.toLowerCase() === ar),
+      );
+      if (parentCategoryId === undefined) return inRoot || inChild;
+      if (root.id === parentCategoryId) return inChild;
+      return false;
+    });
+  };
 
   const amountValid = display.trim().length > 0 && /^\d+(\.\d{1,2})?$/.test(display.trim());
   const exchangeAmountsValid =
@@ -473,53 +604,169 @@ export function RecordSheet(props: RecordSheetProps) {
     );
   };
 
+  const resolveCreateTargetRoot = (): RecordCategoryNode | null => {
+    if (!isCategorizedKind(kind!)) return null;
+    if (expandedCategory) return props.categoryTree.find((root) => root.id === expandedCategory) ?? null;
+    const rootsOfKind = filteredCategoryTree.filter((root) => root.kind === kind);
+    if (rootsOfKind.length === 1) return rootsOfKind[0] ?? null;
+    return null;
+  };
+
+  const createAndSelectCategory = async () => {
+    if (!isCategorizedKind(kind!) || !props.onCreateCategory) return;
+    const nameEn = createNameEn.trim();
+    const nameAr = createNameAr.trim();
+    if (!nameEn && !nameAr) return;
+
+    const targetRoot = resolveCreateTargetRoot();
+    if (targetRoot && categoryNameExists(nameEn, nameAr, targetRoot.id)) return;
+    if (!targetRoot && categoryNameExists(nameEn, nameAr)) return;
+
+    setCreatePending(true);
+    try {
+      const result = targetRoot
+        ? await props.onCreateCategory({ parentCategoryId: targetRoot.id, nameEn, nameAr })
+        : await props.onCreateCategory({ kind, nameEn, nameAr });
+      setCategoryId(result.id);
+      setCategoryChosen(true);
+      setCreateFormOpen(false);
+      setCreateNameEn('');
+      setCreateNameAr('');
+    } finally {
+      setCreatePending(false);
+    }
+  };
+
   const renderCategoryStep = () => {
-    const roots = props.categoryTree.filter((root) => root.kind === kind);
+    const roots = filteredCategoryTree.filter((root) => root.kind === kind);
+    const showCreateForm = createFormOpen || (searchNormalized.length > 0 && roots.length === 0);
+    const targetRoot = resolveCreateTargetRoot();
+    const createNameExists = targetRoot
+      ? categoryNameExists(createNameEn, createNameAr, targetRoot.id)
+      : categoryNameExists(createNameEn, createNameAr);
+    const createDisabled =
+      createPending ||
+      (!createNameEn.trim() && !createNameAr.trim()) ||
+      createNameExists;
+
     return (
-      <div>
-        <ul className="cr-record-categories">
-          {roots.map((root) => (
-            <li key={root.id}>
-              <div className="cr-row">
-                <button
-                  type="button"
-                  className="cr-record-category"
-                  aria-pressed={categoryId === root.id}
-                  onClick={() => { setCategoryId(root.id); setCategoryChosen(true); }}
-                >
-                  {categoryName(root, locale)}
-                </button>
-                {root.children.length > 0 ? (
+      <div className="cr-record-category-step">
+        <label className="cr-label">
+          {t(locale, 'Search categories', 'البحث في الفئات')}
+          <input
+            type="text"
+            value={categorySearch}
+            placeholder={t(locale, 'Type to filter or create', 'اكتب للتصفية أو الإنشاء')}
+            onChange={(event) => {
+              setCategorySearch(event.target.value);
+              if (createFormOpen && !event.target.value.trim()) setCreateFormOpen(false);
+            }}
+          />
+        </label>
+
+        {showCreateForm ? (
+          <div className="cr-record-create-category">
+            <p className="cr-label">
+              {targetRoot
+                ? t(locale, `Create subcategory under ${categoryName(targetRoot, locale)}`, `إنشاء فئة فرعية ضمن ${categoryName(targetRoot, locale)}`)
+                : t(locale, 'Create new category', 'إنشاء فئة جديدة')}
+            </p>
+            <label className="cr-label">
+              {t(locale, 'Name (English)', 'الاسم (إنجليزي)')}
+              <input
+                type="text"
+                value={createNameEn}
+                onChange={(event) => setCreateNameEn(event.target.value)}
+              />
+            </label>
+            <label className="cr-label">
+              {t(locale, 'Name (Arabic)', 'الاسم (عربي)')}
+              <input
+                type="text"
+                value={createNameAr}
+                onChange={(event) => setCreateNameAr(event.target.value)}
+              />
+            </label>
+            {createNameExists ? (
+              <p className="cr-record-create-error" role="alert">
+                {t(locale, 'A category with this name already exists.', 'توجد فئة بهذا الاسم بالفعل.')}
+              </p>
+            ) : null}
+            <div className="cr-record-create-actions">
+              <button
+                type="button"
+                className="cr-button cr-button--sm"
+                disabled={createPending}
+                onClick={() => {
+                  setCreateFormOpen(false);
+                  setCreateNameEn('');
+                  setCreateNameAr('');
+                }}
+              >
+                {t(locale, 'Cancel', 'إلغاء')}
+              </button>
+              <button
+                type="button"
+                className="cr-button cr-button--primary cr-button--sm"
+                disabled={createDisabled}
+                onClick={() => void createAndSelectCategory()}
+              >
+                {createPending
+                  ? t(locale, 'Creating…', 'جارٍ الإنشاء…')
+                  : t(locale, 'Create & select', 'إنشاء وتحديد')}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {roots.length > 0 ? (
+          <ul className="cr-record-categories">
+            {roots.map((root) => (
+              <li key={root.id}>
+                <div className="cr-row">
                   <button
                     type="button"
-                    className="cr-button"
-                    aria-label={t(locale, `Expand ${categoryName(root, locale)}`, `عرض ${categoryName(root, locale)}`)}
-                    aria-expanded={expandedCategory === root.id}
-                    onClick={() => setExpandedCategory(expandedCategory === root.id ? null : root.id)}
+                    className="cr-record-category"
+                    aria-pressed={categoryId === root.id}
+                    onClick={() => { setCategoryId(root.id); setCategoryChosen(true); }}
                   >
-                    {expandedCategory === root.id ? '−' : '+'}
+                    {categoryName(root, locale)}
                   </button>
+                  {root.children.length > 0 ? (
+                    <button
+                      type="button"
+                      className="cr-button cr-button--sm"
+                      aria-label={t(locale, `Expand ${categoryName(root, locale)}`, `عرض ${categoryName(root, locale)}`)}
+                      aria-expanded={expandedCategory === root.id}
+                      onClick={() => setExpandedCategory(expandedCategory === root.id ? null : root.id)}
+                    >
+                      {expandedCategory === root.id ? '−' : '+'}
+                    </button>
+                  ) : null}
+                </div>
+                {expandedCategory === root.id || searchNormalized ? (
+                  <ul className="cr-record-subcategories">
+                    {root.children.map((child) => (
+                      <li key={child.id}>
+                        <button
+                          type="button"
+                          className="cr-record-category"
+                          aria-pressed={categoryId === child.id}
+                          onClick={() => { setCategoryId(child.id); setCategoryChosen(true); }}
+                        >
+                          {categoryName(child, locale)}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 ) : null}
-              </div>
-              {expandedCategory === root.id ? (
-                <ul className="cr-record-subcategories">
-                  {root.children.map((child) => (
-                    <li key={child.id}>
-                      <button
-                        type="button"
-                        className="cr-record-category"
-                        aria-pressed={categoryId === child.id}
-                        onClick={() => { setCategoryId(child.id); setCategoryChosen(true); }}
-                      >
-                        {categoryName(child, locale)}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+        ) : !showCreateForm ? (
+          <p className="cr-record-empty">{t(locale, 'No categories match your search.', 'لا توجد فئات مطابقة لبحثك.')}</p>
+        ) : null}
+
         <button
           type="button"
           className="cr-button cr-button--block"
@@ -708,6 +955,8 @@ export function RecordSheet(props: RecordSheetProps) {
     }
   };
 
+
+  const currentStepIndex = stepIndex(step);
   const stepTitle = (() => {
     switch (step) {
       case 'type': return t(locale, 'Record', 'سجّل');
@@ -725,7 +974,7 @@ export function RecordSheet(props: RecordSheetProps) {
     <div className="cr-sheet-backdrop" onClick={props.onClose}>
       <div
         ref={sheetRef}
-        className="cr-sheet"
+        className="cr-sheet cr-record-sheet"
         role="dialog"
         aria-modal="true"
         aria-label={t(locale, 'Record', 'تسجيل')}
@@ -733,20 +982,24 @@ export function RecordSheet(props: RecordSheetProps) {
         onClick={(click) => click.stopPropagation()}
         onKeyDown={(event) => { if (event.key === 'Escape') props.onClose(); }}
       >
-        <div className="cr-row">
-          {step !== 'type' ? (
-            <button type="button" className="cr-button" onClick={goBack}>
-              {t(locale, 'Back', 'رجوع')}
-            </button>
-          ) : null}
-          <h2>{stepTitle}</h2>
-        </div>
+        <header className="cr-record-header">
+          <div className="cr-record-header-row">
+            {step !== 'type' ? (
+              <button type="button" className="cr-button cr-button--sm cr-record-back" onClick={goBack}>
+                {t(locale, 'Back', 'رجوع')}
+              </button>
+            ) : <span />}
+            <h2>{stepTitle}</h2>
+            <button type="button" className="cr-button cr-button--sm cr-record-close" aria-label={t(locale, 'Close', 'إغلاق')} onClick={props.onClose}>×</button>
+          </div>
+          <StepIndicator locale={locale} step={step} kind={kind} loanId={loanId} />
+        </header>
         {props.error ? (
           <div className="cr-sheet-error" role="alert">
             <span className="cr-danger-text">{props.error}</span>
           </div>
         ) : null}
-        {renderStep()}
+        <StepContent step={step}>{renderStep()}</StepContent>
         {walletPickError ? (
           <div className="cr-sheet-error" role="alert">
             <span className="cr-danger-text">{walletPickError}</span>

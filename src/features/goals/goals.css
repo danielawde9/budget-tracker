@@ -166,6 +166,40 @@
   margin-block-end: var(--cr-space-2);
 }
 
+/* ---- Sheet frame ---------------------------------------------------------- */
+
+.goal-sheet {
+  inline-size: 100%;
+  max-inline-size: 560px;
+  max-block-size: 90dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--cr-radius) var(--cr-radius) 0 0;
+  padding: var(--cr-space-5) var(--cr-space-4);
+}
+
+@media (min-width: 1024px) {
+  .goal-sheet {
+    border-radius: var(--cr-radius);
+    max-block-size: 85dvh;
+  }
+}
+
+.goal-sheet .dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--cr-space-3);
+  padding-block-end: var(--cr-space-3);
+  border-block-end: 1px solid var(--cr-hairline);
+  margin-block-end: var(--cr-space-4);
+}
+.goal-sheet .dialog-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+}
+
 /* ---- Editor / funding forms ----------------------------------------------- */
 
 .goal-editor-mode,

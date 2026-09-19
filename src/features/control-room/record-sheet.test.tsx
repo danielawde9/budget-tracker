@@ -49,6 +49,7 @@ function makeProps(overrides: Partial<RecordSheetProps> = {}): RecordSheetProps 
     onSubmitExchange: vi.fn(async () => undefined),
     onSubmitLoan: vi.fn(async () => undefined),
     onSubmitRepayment: vi.fn(async () => undefined),
+    onCreateCategory: vi.fn(async ({ nameEn }) => ({ id: `new-${nameEn?.toLowerCase().replace(/\s+/g, '-') ?? 'cat'}` })),
     ...overrides,
   };
 }
@@ -550,5 +551,99 @@ describe('RecordSheet', () => {
     expect(screen.getByRole('button', { name: 'حذف' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'متابعة' }));
     expect(screen.getByRole('button', { name: 'رجوع' })).toBeInTheDocument();
+  });
+
+  it('auto-selects the only wallet and skips the wallet step', async () => {
+    const user = userEvent.setup();
+    const props = makeProps({
+      wallets: [{ id: 'w-only', spaceId: 'space-1', name: 'Only', currency: 'USD', archivedAt: null, balanceMinor: '10000' }],
+    });
+    render(<RecordSheet {...props} />);
+
+    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    await enterAmount(user, '1 0');
+
+    // Should land directly on category step, skipping wallet picker.
+    expect(screen.getByRole('button', { name: 'Groceries' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Only USD' })).not.toBeInTheDocument();
+  });
+
+  it('filters categories by search and creates a new root category when no match exists', async () => {
+    const user = userEvent.setup();
+    const props = makeProps();
+    render(<RecordSheet {...props} />);
+
+    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    await enterAmount(user, '1 0');
+    await user.click(screen.getByRole('button', { name: 'Cash USD' }));
+
+    const searchInput = screen.getByPlaceholderText('Type to filter or create');
+    await user.type(searchInput, 'Transport');
+
+    expect(screen.queryByRole('button', { name: 'Groceries' })).not.toBeInTheDocument();
+    expect(screen.getByText('Create new category')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Name (English)'), 'Transport');
+    await user.click(screen.getByRole('button', { name: 'Create & select' }));
+
+    expect(props.onCreateCategory).toHaveBeenCalledWith({ kind: 'expense', nameEn: 'Transport', nameAr: '' });
+    // After create the sheet advances to details.
+    expect(screen.getByLabelText('Payee')).toBeInTheDocument();
+  });
+
+  it('creates a subcategory when the user expands a root and types a new name', async () => {
+    const user = userEvent.setup();
+    const props = makeProps();
+    render(<RecordSheet {...props} />);
+
+    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    await enterAmount(user, '1 0');
+    await user.click(screen.getByRole('button', { name: 'Cash USD' }));
+
+    // Expand Groceries to signal subcategory intent, then type a non-matching child name.
+    await user.click(screen.getByRole('button', { name: 'Expand Groceries' }));
+    await user.type(screen.getByPlaceholderText('Type to filter or create'), 'Bakery');
+    await user.type(screen.getByLabelText('Name (English)'), 'Bakery');
+    await user.click(screen.getByRole('button', { name: 'Create & select' }));
+
+    expect(props.onCreateCategory).toHaveBeenCalledWith({
+      parentCategoryId: 'cat-groceries',
+      nameEn: 'Bakery',
+      nameAr: '',
+    });
+  });
+
+  it('prevents creating a duplicate category name', async () => {
+    const user = userEvent.setup();
+    const props = makeProps();
+    render(<RecordSheet {...props} />);
+
+    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    await enterAmount(user, '1 0');
+    await user.click(screen.getByRole('button', { name: 'Cash USD' }));
+
+    // Open the create form with a new name.
+    await user.type(screen.getByPlaceholderText('Type to filter or create'), 'Transport');
+    expect(screen.getByText('Create new category')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Name (English)'), 'Transport');
+
+    // Then change the name to an existing one.
+    await user.clear(screen.getByLabelText('Name (English)'));
+    await user.type(screen.getByLabelText('Name (English)'), 'Groceries');
+    expect(screen.getByText('A category with this name already exists.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create & select' })).toBeDisabled();
+    expect(props.onCreateCategory).not.toHaveBeenCalled();
+  });
+
+  it('shows a step indicator highlighting the current step', async () => {
+    const user = userEvent.setup();
+    render(<RecordSheet {...makeProps()} />);
+
+    const progress = screen.getByLabelText('Progress');
+    expect(progress).toBeInTheDocument();
+    expect(progress.querySelector('.cr-record-step--current')).toHaveTextContent('Type');
+
+    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    expect(progress.querySelector('.cr-record-step--current')).toHaveTextContent('Amount');
   });
 });

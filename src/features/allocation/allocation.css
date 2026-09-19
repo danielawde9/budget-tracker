@@ -140,6 +140,12 @@
   padding: var(--cr-space-1) var(--cr-space-2);
 }
 
+.alloc-income-link {
+  color: var(--cr-ink-soft);
+  font-size: 13px;
+  margin: 0;
+}
+
 /* ---- Setup / editor ------------------------------------------------------ */
 
 .alloc-editor {
