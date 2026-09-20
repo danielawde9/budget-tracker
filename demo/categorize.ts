@@ -1,30 +1,37 @@
 /**
- * Expense categorisation: Jev (TypeSafe AI) vs Claude Haiku 4.5.
+ * Expense categorisation: Jev (TypeSafe AI) vs general-purpose LLMs.
  *
- * Both models get the same expense, the same category list and the same
- * descriptions, and both are constrained to return one label from that list.
- * We record the label, the latency, and the tokens each one reports, then
- * score every answer against the dataset's expected label.
+ * Every arm gets the same expense, the same ten categories and the same
+ * descriptions, and must answer with one label from that list. We record the
+ * label, the latency and the cost each request actually incurred, then score
+ * every answer against the dataset's expected label.
  *
- * Run:  pnpm demo:categorize [--check] [--limit N] [--only jev|claude]
+ * Arms run only when their key is present in .env.local:
+ *   JEV_API_KEY, ANTHROPIC_API_KEY, DEEPSEEK_API_KEY
+ *
+ * Run:  pnpm demo:categorize [--check] [--limit N] [--only jev,deepseek]
  */
 import { writeFileSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
+import OpenAI from 'openai';
 import { TypeSafeClient, choice } from '@typesafe-ai/sdk';
 import { z } from 'zod';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
-/** Published list prices, 2026-09-20. Output tokens are free on Jev. */
-const PRICE_PER_MTOK = {
-  jev: { input: 0.042, output: 0 },
-  claude: { input: 1.0, output: 5.0 },
+/** Published list prices per million tokens, read 2026-09-20. */
+const CLAUDE_MODEL = 'claude-haiku-4-5';
+const CLAUDE_PRICE = { input: 1.0, output: 5.0 } as const;
+const JEV_INPUT_PRICE = 0.042; // output tokens are free on Jev
+const DEEPSEEK_MODEL = 'deepseek-flash';
+const DEEPSEEK_PRICE = {
+  peak: { miss: 0.3, hit: 0.006, output: 1.2 },
+  offPeak: { miss: 0.15, hit: 0.003, output: 0.6 },
 } as const;
 
-const CLAUDE_MODEL = 'claude-haiku-4-5';
 const REQUEST_TIMEOUT_MS = 20_000;
 const QUESTION = 'Which budget category does this expense belong to?';
 
@@ -40,33 +47,38 @@ type Attempt = {
   readonly label: string | null;
   readonly confidence: number | null;
   readonly ms: number;
-  readonly inputTokens: number;
-  readonly outputTokens: number;
+  readonly cost: number;
   readonly error: string | null;
 };
 
-type Row = { readonly expense: Expense; readonly jev: Attempt | null; readonly claude: Attempt | null };
+type Arm = {
+  readonly name: string;
+  readonly model: string;
+  readonly classify: (expense: Expense) => Promise<Attempt>;
+};
 
-type Options = { readonly check: boolean; readonly limit: number; readonly arms: readonly string[] };
+type Row = { readonly expense: Expense; readonly attempts: ReadonlyMap<string, Attempt> };
+
+type Options = { readonly check: boolean; readonly limit: number; readonly only: readonly string[] | null };
 
 function parseArgs(argv: readonly string[]): Options {
-  const only = argv.includes('--only') ? argv[argv.indexOf('--only') + 1] : undefined;
-  if (only !== undefined && only !== 'jev' && only !== 'claude') {
-    throw new Error(`--only takes "jev" or "claude", got "${only}"`);
-  }
-  const limitArg = argv.includes('--limit') ? argv[argv.indexOf('--limit') + 1] : undefined;
+  const value = (flag: string): string | undefined =>
+    argv.includes(flag) ? argv[argv.indexOf(flag) + 1] : undefined;
+  const onlyArg = value('--only');
+  const limitArg = value('--limit');
   const limit = limitArg === undefined ? Number.MAX_SAFE_INTEGER : Number.parseInt(limitArg, 10);
   if (!Number.isInteger(limit) || limit < 1) throw new Error(`--limit takes a positive integer, got "${limitArg}"`);
-  return { check: argv.includes('--check'), limit, arms: only === undefined ? ['jev', 'claude'] : [only] };
-}
-
-function readJson(name: string): unknown {
-  return JSON.parse(readFileSync(join(HERE, name), 'utf8'));
+  return {
+    check: argv.includes('--check'),
+    limit,
+    only: onlyArg === undefined ? null : onlyArg.split(',').map((name) => name.trim()),
+  };
 }
 
 function loadDataset(): { expenses: readonly Expense[]; criteria: Readonly<Record<string, string>> } {
-  const criteria = readJson('categories.json') as Record<string, string>;
-  const expenses = readJson('expenses.json') as Expense[];
+  const read = (name: string): unknown => JSON.parse(readFileSync(join(HERE, name), 'utf8'));
+  const criteria = read('categories.json') as Record<string, string>;
+  const expenses = read('expenses.json') as Expense[];
   const labels = new Set(Object.keys(criteria));
   const ids = new Set<number>();
   for (const expense of expenses) {
@@ -77,58 +89,15 @@ function loadDataset(): { expenses: readonly Expense[]; criteria: Readonly<Recor
   return { expenses, criteria };
 }
 
-/** The only thing either model is told about an expense. */
+/** The only thing any model is told about an expense. */
 function stateOf(expense: Expense): Record<string, string> {
   return { payee: expense.payee, note: expense.note, amount: expense.amount };
 }
 
-async function askJev(
-  client: TypeSafeClient,
-  expense: Expense,
-  criteria: Readonly<Record<string, string>>,
-): Promise<Attempt> {
-  const started = performance.now();
-  try {
-    const response = await client.systemOne({
-      state: stateOf(expense),
-      questions: { category: choice(QUESTION, criteria) },
-    });
-    const answer = response.answers.category;
-    return {
-      label: answer.choice,
-      confidence: answer.confidence,
-      ms: performance.now() - started,
-      inputTokens: response.usage?.input_tokens ?? 0,
-      outputTokens: response.usage?.output_tokens ?? 0,
-      error: null,
-    };
-  } catch (error) {
-    return failed(error, performance.now() - started);
-  }
-}
-
-async function askClaude(client: Anthropic, expense: Expense, criteria: Readonly<Record<string, string>>): Promise<Attempt> {
-  const labels = Object.keys(criteria) as [string, ...string[]];
-  const started = performance.now();
-  try {
-    const response = await client.messages.parse({
-      model: CLAUDE_MODEL,
-      max_tokens: 256,
-      system: `${QUESTION}\n\nCategories:\n${labels.map((l) => `- ${l}: ${criteria[l]}`).join('\n')}`,
-      messages: [{ role: 'user', content: JSON.stringify(stateOf(expense)) }],
-      output_config: { format: zodOutputFormat(z.object({ category: z.enum(labels) })) },
-    });
-    return {
-      label: response.parsed_output?.category ?? null,
-      confidence: null,
-      ms: performance.now() - started,
-      inputTokens: response.usage.input_tokens,
-      outputTokens: response.usage.output_tokens,
-      error: response.parsed_output === null ? 'no parsed output' : null,
-    };
-  } catch (error) {
-    return failed(error, performance.now() - started);
-  }
+function categoryList(criteria: Readonly<Record<string, string>>): string {
+  return Object.entries(criteria)
+    .map(([label, description]) => `- ${label}: ${description}`)
+    .join('\n');
 }
 
 function failed(error: unknown, ms: number): Attempt {
@@ -136,10 +105,151 @@ function failed(error: unknown, ms: number): Attempt {
     label: null,
     confidence: null,
     ms,
-    inputTokens: 0,
-    outputTokens: 0,
+    cost: 0,
     error: error instanceof Error ? error.message : String(error),
   };
+}
+
+function jevArm(apiKey: string, criteria: Readonly<Record<string, string>>): Arm {
+  const client = new TypeSafeClient({ apiKey, timeout: REQUEST_TIMEOUT_MS });
+  return {
+    name: 'jev',
+    model: 'jev-latest',
+    classify: async (expense) => {
+      const started = performance.now();
+      try {
+        const response = await client.systemOne({
+          state: stateOf(expense),
+          questions: { category: choice(QUESTION, criteria) },
+        });
+        const answer = response.answers.category;
+        return {
+          label: answer.choice,
+          confidence: answer.confidence,
+          ms: performance.now() - started,
+          cost: ((response.usage?.input_tokens ?? 0) * JEV_INPUT_PRICE) / 1_000_000,
+          error: null,
+        };
+      } catch (error) {
+        return failed(error, performance.now() - started);
+      }
+    },
+  };
+}
+
+function claudeArm(apiKey: string, criteria: Readonly<Record<string, string>>): Arm {
+  const client = new Anthropic({ apiKey, timeout: REQUEST_TIMEOUT_MS });
+  const labels = Object.keys(criteria) as [string, ...string[]];
+  const system = `${QUESTION}\n\nCategories:\n${categoryList(criteria)}`;
+  return {
+    name: 'claude',
+    model: CLAUDE_MODEL,
+    classify: async (expense) => {
+      const started = performance.now();
+      try {
+        const response = await client.messages.parse({
+          model: CLAUDE_MODEL,
+          max_tokens: 256,
+          system,
+          messages: [{ role: 'user', content: JSON.stringify(stateOf(expense)) }],
+          output_config: { format: zodOutputFormat(z.object({ category: z.enum(labels) })) },
+        });
+        const cost =
+          (response.usage.input_tokens * CLAUDE_PRICE.input + response.usage.output_tokens * CLAUDE_PRICE.output) /
+          1_000_000;
+        return {
+          label: response.parsed_output?.category ?? null,
+          confidence: null,
+          ms: performance.now() - started,
+          cost,
+          error: response.parsed_output === null ? 'no parsed output' : null,
+        };
+      } catch (error) {
+        return failed(error, performance.now() - started);
+      }
+    },
+  };
+}
+
+/** DeepSeek charges peak rates 01:00-04:00 and 06:00-10:00 UTC, Mon-Fri. */
+export function deepSeekRates(now: Date): { readonly miss: number; readonly hit: number; readonly output: number; readonly window: string } {
+  const day = now.getUTCDay();
+  const hour = now.getUTCHours();
+  const weekday = day >= 1 && day <= 5;
+  const peakHour = (hour >= 1 && hour < 4) || (hour >= 6 && hour < 10);
+  return weekday && peakHour
+    ? { ...DEEPSEEK_PRICE.peak, window: 'peak' }
+    : { ...DEEPSEEK_PRICE.offPeak, window: 'off-peak' };
+}
+
+function deepSeekArm(apiKey: string, criteria: Readonly<Record<string, string>>): Arm {
+  const client = new OpenAI({ apiKey, baseURL: 'https://api.deepseek.com', timeout: REQUEST_TIMEOUT_MS });
+  const labels = new Set(Object.keys(criteria));
+  // DeepSeek's JSON mode has no schema, so the prompt must show the shape and
+  // the answer is validated here instead of by the API.
+  const system = `${QUESTION}\n\nCategories:\n${categoryList(criteria)}\n\nAnswer with json in exactly this shape, using one label from the list above:\n{"category": "groceries"}`;
+  return {
+    name: 'deepseek',
+    model: DEEPSEEK_MODEL,
+    classify: async (expense) => {
+      const started = performance.now();
+      try {
+        const completion = await client.chat.completions.create({
+          model: DEEPSEEK_MODEL,
+          max_tokens: 64,
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: JSON.stringify(stateOf(expense)) },
+          ],
+          response_format: { type: 'json_object' },
+        });
+        const ms = performance.now() - started;
+        // Cache fields are DeepSeek extensions, absent from the OpenAI types.
+        const usage = completion.usage as
+          | (OpenAI.CompletionUsage & { prompt_cache_hit_tokens?: number; prompt_cache_miss_tokens?: number })
+          | undefined;
+        const rates = deepSeekRates(new Date());
+        const hit = usage?.prompt_cache_hit_tokens ?? 0;
+        const miss = usage?.prompt_cache_miss_tokens ?? usage?.prompt_tokens ?? 0;
+        const cost = (hit * rates.hit + miss * rates.miss + (usage?.completion_tokens ?? 0) * rates.output) / 1_000_000;
+        const parsed: unknown = JSON.parse(completion.choices[0]?.message?.content ?? 'null');
+        const label = (parsed as { category?: unknown } | null)?.category;
+        if (typeof label !== 'string' || !labels.has(label)) {
+          return { label: null, confidence: null, ms, cost, error: `invalid answer: ${JSON.stringify(label)}` };
+        }
+        return { label, confidence: null, ms, cost, error: null };
+      } catch (error) {
+        return failed(error, performance.now() - started);
+      }
+    },
+  };
+}
+
+function buildArms(criteria: Readonly<Record<string, string>>, only: readonly string[] | null): readonly Arm[] {
+  const keys = {
+    jev: process.env.JEV_API_KEY ?? process.env.TYPESAFE_API_KEY,
+    claude: process.env.ANTHROPIC_API_KEY,
+    deepseek: process.env.DEEPSEEK_API_KEY,
+  };
+  const builders: Record<string, (key: string) => Arm> = {
+    jev: (key) => jevArm(key, criteria),
+    claude: (key) => claudeArm(key, criteria),
+    deepseek: (key) => deepSeekArm(key, criteria),
+  };
+  const wanted = only ?? Object.keys(builders);
+  const arms: Arm[] = [];
+  for (const name of wanted) {
+    const build = builders[name];
+    if (build === undefined) throw new Error(`unknown arm "${name}" (jev, claude, deepseek)`);
+    const key = keys[name as keyof typeof keys];
+    if (key === undefined) {
+      if (only !== null) throw new Error(`${name.toUpperCase()}_API_KEY is not set (put it in .env.local)`);
+      continue;
+    }
+    arms.push(build(key));
+  }
+  if (arms.length === 0) throw new Error('no API keys found in .env.local');
+  return arms;
 }
 
 function pad(text: string, width: number): string {
@@ -147,23 +257,21 @@ function pad(text: string, width: number): string {
   return trimmed + ' '.repeat(Math.max(0, width - [...trimmed].length));
 }
 
-function cell(attempt: Attempt | null, expected: string): string {
-  if (attempt === null) return pad('-', 22);
-  if (attempt.error !== null) return pad(`error: ${attempt.error}`, 22);
-  const mark = attempt.label === expected ? '✓' : '✗';
-  return pad(`${attempt.label} ${mark} ${(attempt.ms / 1000).toFixed(2)}s`, 22);
+function cell(attempt: Attempt | undefined, expected: string): string {
+  if (attempt === undefined) return pad('-', 19);
+  if (attempt.error !== null) return pad('error', 19);
+  return pad(`${attempt.label} ${attempt.label === expected ? '✓' : '✗'} ${(attempt.ms / 1000).toFixed(2)}s`, 19);
 }
 
 function median(values: readonly number[]): number {
+  if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
-  if (sorted.length === 0) return 0;
   if (sorted.length % 2 === 1) return sorted[middle] ?? 0;
   return ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2;
 }
 
 type Summary = {
-  readonly name: string;
   readonly model: string;
   readonly correct: number;
   readonly total: number;
@@ -172,18 +280,13 @@ type Summary = {
   readonly costPerThousand: number;
 };
 
-function summarise(name: 'jev' | 'claude', model: string, rows: readonly Row[]): Summary {
-  const attempts = rows.map((row) => (name === 'jev' ? row.jev : row.claude)).filter((a): a is Attempt => a !== null);
-  const price = PRICE_PER_MTOK[name];
-  const cost = attempts.reduce(
-    (total, a) => total + (a.inputTokens * price.input + a.outputTokens * price.output) / 1_000_000,
-    0,
-  );
+function summarise(arm: Arm, rows: readonly Row[]): Summary {
+  const attempts = rows.map((row) => row.attempts.get(arm.name)).filter((a): a is Attempt => a !== undefined);
   const latencies = attempts.map((a) => a.ms);
+  const cost = attempts.reduce((total, a) => total + a.cost, 0);
   return {
-    name,
-    model,
-    correct: rows.filter((row) => (name === 'jev' ? row.jev : row.claude)?.label === row.expense.expected).length,
+    model: arm.model,
+    correct: rows.filter((row) => row.attempts.get(arm.name)?.label === row.expense.expected).length,
     total: attempts.length,
     medianMs: median(latencies),
     slowestMs: Math.max(0, ...latencies),
@@ -192,41 +295,45 @@ function summarise(name: 'jev' | 'claude', model: string, rows: readonly Row[]):
 }
 
 function summaryTable(summaries: readonly Summary[]): string {
-  const header = `| model | accuracy | median | slowest | cost / 1,000 expenses |\n| --- | --- | --- | --- | --- |`;
-  const lines = summaries.map((s) => {
+  const rows = summaries.map((s) => {
     const accuracy = s.total === 0 ? '-' : `${s.correct}/${s.total} (${((s.correct / s.total) * 100).toFixed(1)}%)`;
     return `| \`${s.model}\` | ${accuracy} | ${(s.medianMs / 1000).toFixed(2)}s | ${(s.slowestMs / 1000).toFixed(2)}s | $${s.costPerThousand.toFixed(4)} |`;
   });
-  return [header, ...lines].join('\n');
+  return ['| model | accuracy | median | slowest | cost / 1,000 expenses |', '| --- | --- | --- | --- | --- |', ...rows].join('\n');
 }
 
-function disagreements(rows: readonly Row[]): string {
-  const interesting = rows.filter(
-    (row) => row.jev?.label !== row.claude?.label || row.jev?.label !== row.expense.expected,
-  );
-  if (interesting.length === 0) return '_Both models matched the dataset on every expense._';
-  const header = `| # | expense | expected | jev | claude |\n| --- | --- | --- | --- | --- |`;
-  const lines = interesting.map(
-    (row) =>
-      `| ${row.expense.id} | ${row.expense.payee} — ${row.expense.note} | ${row.expense.expected} | ${row.jev?.label ?? '-'} | ${row.claude?.label ?? '-'} |`,
-  );
-  return [header, ...lines].join('\n');
+function disagreements(rows: readonly Row[], arms: readonly Arm[]): string {
+  const interesting = rows.filter((row) => arms.some((arm) => row.attempts.get(arm.name)?.label !== row.expense.expected));
+  if (interesting.length === 0) return '_Every model matched the dataset on every expense._';
+  const header = `| # | expense | expected | ${arms.map((a) => a.name).join(' | ')} |`;
+  const divider = `| --- | --- | --- | ${arms.map(() => '---').join(' | ')} |`;
+  const lines = interesting.map((row) => {
+    const cells = arms.map((arm) => row.attempts.get(arm.name)?.label ?? 'error');
+    return `| ${row.expense.id} | ${row.expense.payee} — ${row.expense.note} | ${row.expense.expected} | ${cells.join(' | ')} |`;
+  });
+  return [header, divider, ...lines].join('\n');
 }
 
-function writeResults(rows: readonly Row[], summaries: readonly Summary[]): string {
+function writeResults(rows: readonly Row[], arms: readonly Arm[], summaries: readonly Summary[]): string {
   const path = join(HERE, 'results.md');
+  const rates = deepSeekRates(new Date());
   const body = [
-    '# Expense categorisation: Jev vs Claude Haiku 4.5',
+    '# Expense categorisation: a decision model vs general-purpose LLMs',
     '',
-    `Run on ${new Date().toISOString().slice(0, 10)} over ${rows.length} expenses (English and Arabic), same prompt and same category list for both.`,
+    `Run on ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC over ${rows.length} expenses (English and Arabic).`,
+    'Same expense, same ten categories, same descriptions for every model.',
     '',
     summaryTable(summaries),
     '',
-    `Prices used: Jev $${PRICE_PER_MTOK.jev.input}/M input tokens (output free), Claude Haiku 4.5 $${PRICE_PER_MTOK.claude.input}/M input and $${PRICE_PER_MTOK.claude.output}/M output.`,
+    '## Prices used',
+    '',
+    `- Jev: $${JEV_INPUT_PRICE}/M input tokens, output free.`,
+    `- Claude Haiku 4.5: $${CLAUDE_PRICE.input}/M input, $${CLAUDE_PRICE.output}/M output.`,
+    `- DeepSeek ${DEEPSEEK_MODEL} (${rates.window} rates): $${rates.miss}/M input on a cache miss, $${rates.hit}/M on a cache hit, $${rates.output}/M output.`,
     '',
     '## Where they differed',
     '',
-    disagreements(rows),
+    disagreements(rows, arms),
     '',
   ].join('\n');
   writeFileSync(path, body);
@@ -236,43 +343,43 @@ function writeResults(rows: readonly Row[], summaries: readonly Summary[]): stri
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
   const { expenses, criteria } = loadDataset();
-  const selected = expenses.slice(0, options.limit);
-  const jevKey = process.env.JEV_API_KEY ?? process.env.TYPESAFE_API_KEY;
-  const claudeKey = process.env.ANTHROPIC_API_KEY;
-  const wantJev = options.arms.includes('jev');
-  const wantClaude = options.arms.includes('claude');
-
   console.log(`${expenses.length} expenses, ${Object.keys(criteria).length} categories, dataset valid.`);
-  console.log(`JEV_API_KEY: ${jevKey === undefined ? 'MISSING' : 'found'}`);
-  console.log(`ANTHROPIC_API_KEY: ${claudeKey === undefined ? 'MISSING' : 'found'}`);
+  for (const [name, variable] of [
+    ['jev', 'JEV_API_KEY'],
+    ['claude', 'ANTHROPIC_API_KEY'],
+    ['deepseek', 'DEEPSEEK_API_KEY'],
+  ] as const) {
+    console.log(`  ${pad(name, 9)} ${variable}: ${process.env[variable] === undefined ? 'MISSING' : 'found'}`);
+  }
   if (options.check) {
+    buildArms(criteria, options.only);
     console.log('\n--check only: no requests sent.');
     return;
   }
-  if (wantJev && jevKey === undefined) throw new Error('JEV_API_KEY is not set (put it in .env.local)');
-  if (wantClaude && claudeKey === undefined) throw new Error('ANTHROPIC_API_KEY is not set (put it in .env.local)');
 
-  const jevClient = new TypeSafeClient({ apiKey: jevKey ?? '', timeout: REQUEST_TIMEOUT_MS });
-  const claudeClient = new Anthropic({ apiKey: claudeKey ?? '', timeout: REQUEST_TIMEOUT_MS });
+  const arms = buildArms(criteria, options.only);
+  const selected = expenses.slice(0, options.limit);
+  const errors: string[] = [];
+  console.log(`\n ${pad('#', 3)}${pad('expense', 30)}${pad('expected', 12)}${arms.map((a) => pad(a.name, 19)).join('')}`);
 
-  console.log(`\n ${pad('#', 3)}${pad('expense', 40)}${pad('expected', 15)}${pad('jev', 22)}claude`);
   const rows: Row[] = [];
   for (const expense of selected) {
-    const jev = wantJev ? await askJev(jevClient, expense, criteria) : null;
-    const claude = wantClaude ? await askClaude(claudeClient, expense, criteria) : null;
-    rows.push({ expense, jev, claude });
+    const attempts = new Map<string, Attempt>();
+    for (const arm of arms) {
+      const attempt = await arm.classify(expense);
+      attempts.set(arm.name, attempt);
+      if (attempt.error !== null) errors.push(`#${expense.id} ${arm.name}: ${attempt.error}`);
+    }
+    rows.push({ expense, attempts });
     const label = `${expense.payee} — ${expense.note}`;
-    console.log(
-      ` ${pad(String(expense.id), 3)}${pad(label, 40)}${pad(expense.expected, 15)}${cell(jev, expense.expected)}${cell(claude, expense.expected)}`,
-    );
+    const cells = arms.map((arm) => cell(attempts.get(arm.name), expense.expected)).join('');
+    console.log(` ${pad(String(expense.id), 3)}${pad(label, 30)}${pad(expense.expected, 12)}${cells}`);
   }
 
-  const summaries = [
-    ...(wantJev ? [summarise('jev', 'jev-latest', rows)] : []),
-    ...(wantClaude ? [summarise('claude', CLAUDE_MODEL, rows)] : []),
-  ];
+  const summaries = arms.map((arm) => summarise(arm, rows));
   console.log(`\n${summaryTable(summaries)}`);
-  console.log(`\nWrote ${writeResults(rows, summaries)}`);
+  if (errors.length > 0) console.log(`\n${errors.length} failed request(s):\n${errors.slice(0, 10).join('\n')}`);
+  console.log(`\nWrote ${writeResults(rows, arms, summaries)}`);
 }
 
 await main();
