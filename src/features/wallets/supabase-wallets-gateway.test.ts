@@ -38,7 +38,7 @@ class RecordingBuilder implements WalletsQueryBuilder {
 
 function clientWith(
   overrides: Partial<Record<string, unknown[]>> = {},
-  rpcOverrides: Partial<Record<string, readonly unknown[] | null>> = {},
+  rpcOverrides: Partial<Record<string, readonly unknown[] | null | ((args: Record<string, unknown>) => readonly unknown[])>> = {},
 ) {
   const operations: Operation[] = [];
   const rpcCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
@@ -57,7 +57,8 @@ function clientWith(
     async rpc(name, args) {
       rpcCalls.push({ name, args });
       if (Object.hasOwn(rpcOverrides, name)) {
-        const data = rpcOverrides[name];
+        const override = rpcOverrides[name];
+        const data = typeof override === 'function' ? override(args) : override;
         return { data: data === null ? null : [...(data ?? [])], error: null };
       }
       const walletCommandNames = new Set(['create_wallet', 'rename_wallet', 'archive_wallet', 'restore_wallet']);
@@ -294,5 +295,71 @@ describe('Supabase Wallets gateway', () => {
     const { client } = clientWith({}, { get_wallet_command_result: [{ command_kind: 'create_wallet', wallet_id: 'wallet-1' }] });
     await expect(createSupabaseWalletsGateway(client).getWalletCommandResult('space-1', 'request-1'))
       .rejects.toThrow(/unsupported wallet command kind/);
+  });
+
+  it('searches journal pages through journal_search_page with one-row lookahead', async () => {
+    const searchRows = [
+      { id: 'event-2', space_id: 'space-1', request_id: 'request-2', kind: 'expense', effective_date: '2026-09-07', actor_id: '33333333-3333-4333-8333-333333333333', reversal_of: null, created_at: '2026-09-07T09:00:00Z' },
+      { id: 'event-1', space_id: 'space-1', request_id: 'request-1', kind: 'income', effective_date: '2026-09-08', actor_id: '33333333-3333-4333-8333-333333333333', reversal_of: null, created_at: '2026-09-08T10:00:00Z' },
+      { id: 'event-3', space_id: 'space-1', request_id: 'request-3', kind: 'expense', effective_date: '2026-09-06', actor_id: '33333333-3333-4333-8333-333333333333', reversal_of: null, created_at: '2026-09-06T08:00:00Z' },
+    ];
+    const { client, rpcCalls } = clientWith({}, {
+      journal_search_page: (args) => (args['p_cursor'] ? [searchRows[2]!] : searchRows),
+    });
+    const gateway = createSupabaseWalletsGateway(client);
+
+    const page = await gateway.searchJournal('space-1', { query: ' market ', limit: 2 });
+
+    expect(page.events.map((event) => event.id)).toEqual(['event-2', 'event-1']);
+    expect(page.events[1]?.movements).toEqual([{ walletId: 'wallet-1', walletName: 'Daily', currency: 'USD', amountMinor: '1250', walletArchived: false }]);
+    expect(page.nextCursor).toBe('2026-09-08|2026-09-08T10:00:00Z|event-1');
+    expect(rpcCalls).toEqual([
+      {
+        name: 'journal_search_page',
+        args: {
+          p_space_id: 'space-1',
+          p_from: null,
+          p_to: null,
+          p_query: 'market',
+          p_cursor: null,
+          p_limit: 3,
+        },
+      },
+    ]);
+
+    const followUp = await gateway.searchJournal('space-1', { query: 'market', limit: 2, cursor: page.nextCursor });
+    expect(followUp.events.map((event) => event.id)).toEqual(['event-3']);
+    expect(followUp.nextCursor).toBeNull();
+    expect(rpcCalls[1]).toEqual({
+      name: 'journal_search_page',
+      args: {
+        p_space_id: 'space-1',
+        p_from: null,
+        p_to: null,
+        p_query: 'market',
+        p_cursor: '2026-09-08|2026-09-08T10:00:00Z|event-1',
+        p_limit: 3,
+      },
+    });
+  });
+
+  it('returns no cursor when the search page has no lookahead row', async () => {
+    const { client } = clientWith({}, {
+      journal_search_page: [{ id: 'event-1', space_id: 'space-1', request_id: 'request-1', kind: 'income', effective_date: '2026-09-08', actor_id: '33333333-3333-4333-8333-333333333333', reversal_of: null, created_at: '2026-09-08T10:00:00Z' }],
+    });
+    const page = await createSupabaseWalletsGateway(client).searchJournal('space-1', { query: 'market' });
+    expect(page.events).toHaveLength(1);
+    expect(page.nextCursor).toBeNull();
+  });
+
+  it('validates journal search inputs before calling the RPC', async () => {
+    const { client, rpcCalls } = clientWith();
+    const gateway = createSupabaseWalletsGateway(client);
+    await expect(gateway.searchJournal('space-1', { limit: 0 })).rejects.toThrow(/between 1 and 100/);
+    await expect(gateway.searchJournal('space-1', { limit: 101 })).rejects.toThrow(/between 1 and 100/);
+    await expect(gateway.searchJournal('space-1', { query: 'x'.repeat(121) })).rejects.toThrow(/120/);
+    await expect(gateway.searchJournal('space-1', { from: '2026-09-09', to: '2026-09-01' })).rejects.toThrow(/from/);
+    await expect(gateway.searchJournal('space-1', { cursor: 'not-a-cursor' })).rejects.toThrow(/cursor/);
+    expect(rpcCalls.filter((call) => call.name === 'journal_search_page')).toHaveLength(0);
   });
 });

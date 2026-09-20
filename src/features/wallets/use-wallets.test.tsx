@@ -23,6 +23,7 @@ function gateway(overrides: Partial<WalletsGateway> = {}): WalletsGateway {
   return {
     loadSnapshot: vi.fn(async () => emptySnapshot),
     loadHistoryPage: vi.fn(async () => ({ events: [], nextCursor: null })),
+    searchJournal: vi.fn(async () => ({ events: [], nextCursor: null })),
     createWallet: vi.fn(async () => ({ id: 'wallet-new' })),
     renameWallet: vi.fn(async () => ({ id: 'wallet-1' })),
     archiveWallet: vi.fn(async () => ({ id: 'wallet-1' })),
@@ -33,6 +34,14 @@ function gateway(overrides: Partial<WalletsGateway> = {}): WalletsGateway {
     reverseEvent: vi.fn(async () => ({ eventId: 'reversal-new' })),
     findEventByRequestId: vi.fn(async () => null),
     ...overrides,
+  };
+}
+
+function journalEvent(id: string): JournalEvent {
+  return {
+    id, spaceId: 'space-1', requestId: `request-${id}`, kind: 'expense',
+    effectiveDate: '2026-09-10', createdAt: '2026-09-10T10:00:00Z', reversalOf: null, reversedBy: null, loanLinked: false,
+    movements: [{ walletId: 'wallet-1', walletName: 'Daily', currency: 'USD', amountMinor: '-1000', walletArchived: false }],
   };
 }
 
@@ -727,5 +736,49 @@ describe('useWallets', () => {
     const { result } = renderHook(() => useWallets(service, 'space-1'));
     await waitFor(() => expect(result.current.status).toBe('ready'));
     expect(result.current.archivedWallets).toEqual([archived]);
+  });
+
+  it('debounces journal search and merges pages by cursor', async () => {
+    const searchJournal = vi.fn()
+      .mockResolvedValueOnce({ events: [journalEvent('event-1')], nextCursor: 'cursor-1' })
+      .mockResolvedValueOnce({ events: [journalEvent('event-2')], nextCursor: null });
+    const service = gateway({ searchJournal });
+    const categories = categoriesGateway();
+    const { result } = renderHook(() => useWallets(service, 'space-1', undefined, undefined, categories));
+
+    act(() => result.current.searchJournal('market'));
+    act(() => result.current.searchJournal('market'));
+    await waitFor(() => expect(result.current.journalSearch?.pending).toBe(false));
+
+    expect(searchJournal).toHaveBeenCalledTimes(1);
+    expect(searchJournal).toHaveBeenCalledWith('space-1', { query: 'market', cursor: null, limit: 20 });
+    expect(result.current.journalSearch?.events.map((event) => event.id)).toEqual(['event-1']);
+    expect(result.current.journalSearch?.nextCursor).toBe('cursor-1');
+
+    await act(async () => { result.current.loadMoreJournalSearch(); });
+    await waitFor(() => expect(result.current.journalSearch?.loadingMore).toBe(false));
+    expect(searchJournal).toHaveBeenLastCalledWith('space-1', { query: 'market', cursor: 'cursor-1', limit: 20 });
+    expect(result.current.journalSearch?.events.map((event) => event.id)).toEqual(['event-1', 'event-2']);
+    expect(result.current.journalSearch?.nextCursor).toBeNull();
+  });
+
+  it('clears journal search when the query empties and hides it for other spaces', async () => {
+    const searchJournal = vi.fn(async () => ({ events: [journalEvent('event-1')], nextCursor: null }));
+    const service = gateway({ searchJournal });
+    const categories = categoriesGateway();
+    const { result, rerender } = renderHook(
+      ({ spaceId }) => useWallets(service, spaceId, undefined, undefined, categories),
+      { initialProps: { spaceId: 'space-1' } },
+    );
+
+    act(() => result.current.searchJournal('market'));
+    await waitFor(() => expect(result.current.journalSearch?.pending).toBe(false));
+    act(() => result.current.searchJournal(''));
+    expect(result.current.journalSearch).toBeNull();
+
+    act(() => result.current.searchJournal('market'));
+    await waitFor(() => expect(result.current.journalSearch?.pending).toBe(false));
+    rerender({ spaceId: 'space-2' });
+    expect(result.current.journalSearch).toBeNull();
   });
 });

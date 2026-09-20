@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { formatMinorAmount } from '../wallets/money.js';
 import type { JournalEvent } from '../wallets/types.js';
 import { JournalScreen } from './journal-screen.js';
+import type { JournalSearchView } from './journal-screen.js';
 
 function byExactText(expected: string) {
   return (_content: string, element: Element | null) =>
@@ -28,7 +29,14 @@ const baseProps = {
   onLoadMore: vi.fn(),
   onReverse: vi.fn(),
   reversePending: false,
+  search: null,
+  onSearchQueryChange: vi.fn(),
+  onLoadMoreSearch: vi.fn(),
 };
+
+function searchView(overrides: Partial<JournalSearchView> = {}): JournalSearchView {
+  return { query: 'market', events: [], nextCursor: null, pending: false, loadingMore: false, error: null, ...overrides };
+}
 
 describe('JournalScreen', () => {
   it('renders events with payee labels and signed formatted amounts', () => {
@@ -231,86 +239,79 @@ describe('JournalScreen', () => {
     expect(document.querySelector('.cr-reversal-text')).not.toBeNull();
   });
 
-  it('filters events by case-insensitive search across label, note, and wallet name', async () => {
+  it('requests server search as the query changes and renders its results', async () => {
     const user = userEvent.setup();
-    render(<JournalScreen {...baseProps} events={[
-      event({ id: 'income-1', kind: 'income', payeeName: 'Employer', note: 'September salary' }),
-      event({
-        id: 'expense-1', kind: 'expense', payeeName: 'Groceries store',
-        movements: [{ walletId: 'wallet-2', walletName: 'Bank', currency: 'USD', amountMinor: '-12500', walletArchived: false }],
-      }),
-      event({
-        id: 'expense-2', kind: 'expense', payeeName: 'Pharmacy',
-        movements: [{ walletId: 'wallet-1', walletName: 'Cash', currency: 'USD', amountMinor: '-8000', walletArchived: false }],
-      }),
+    const onSearchQueryChange = vi.fn();
+    const searched = [
+      event({ id: 'found-1', kind: 'expense', payeeName: 'Farmer market', note: 'weekly vegetables' }),
+    ];
+    render(<JournalScreen {...baseProps} onSearchQueryChange={onSearchQueryChange} search={searchView({ query: 'market', events: searched })} events={[
+      event({ id: 'other-1', kind: 'expense', payeeName: 'Pharmacy' }),
     ]} />);
 
-    await user.type(screen.getByLabelText('Search'), 'employer');
-    expect(screen.getByText('Employer')).toBeInTheDocument();
-    expect(screen.queryByText('Groceries store')).not.toBeInTheDocument();
-
-    await user.clear(screen.getByLabelText('Search'));
-    await user.type(screen.getByLabelText('Search'), 'SALARY');
-    expect(screen.getByText('Employer')).toBeInTheDocument();
+    expect(screen.getByText('Pharmacy')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Search'), 'market');
+    expect(onSearchQueryChange).toHaveBeenCalled();
+    expect(screen.getByText('Farmer market')).toBeInTheDocument();
     expect(screen.queryByText('Pharmacy')).not.toBeInTheDocument();
-
-    await user.clear(screen.getByLabelText('Search'));
-    await user.type(screen.getByLabelText('Search'), 'bank');
-    expect(screen.getByText('Groceries store')).toBeInTheDocument();
-    expect(screen.queryByText('Employer')).not.toBeInTheDocument();
   });
 
-  it('combines the search text with the kind chips', async () => {
+  it('combines the active server search with the kind chips', async () => {
     const user = userEvent.setup();
-    render(<JournalScreen {...baseProps} events={[
+    const searched = [
       event({ id: 'income-1', kind: 'income', payeeName: 'Shop rent' }),
       event({
         id: 'expense-1', kind: 'expense', payeeName: 'Shop',
         movements: [{ walletId: 'wallet-1', walletName: 'Cash', currency: 'USD', amountMinor: '-5000', walletArchived: false }],
       }),
-      event({
-        id: 'expense-2', kind: 'expense', payeeName: 'Bakery',
-        movements: [{ walletId: 'wallet-1', walletName: 'Cash', currency: 'USD', amountMinor: '-9000', walletArchived: false }],
-      }),
-    ]} />);
-
+    ];
+    render(<JournalScreen {...baseProps} search={searchView({ query: 'shop', events: searched })} />);
     await user.type(screen.getByLabelText('Search'), 'shop');
+
     expect(screen.getByText('Shop rent')).toBeInTheDocument();
     expect(screen.getByText('Shop')).toBeInTheDocument();
-    expect(screen.queryByText('Bakery')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Expense' }));
     expect(screen.getByText('Shop')).toBeInTheDocument();
     expect(screen.queryByText('Shop rent')).not.toBeInTheDocument();
-    expect(screen.queryByText('Bakery')).not.toBeInTheDocument();
   });
 
-  it('shows an explicit empty state when the search or chips exclude everything', async () => {
+  it('shows searching status, an explicit empty state, and the search error', async () => {
     const user = userEvent.setup();
-    render(<JournalScreen {...baseProps} events={[event({ payeeName: 'Employer' })]} />);
+    const { rerender } = render(<JournalScreen {...baseProps} search={searchView({ query: 'shop', pending: true })} />);
+    await user.type(screen.getByLabelText('Search'), 'shop');
+    expect(screen.getByText('Searching…')).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText('Search'), 'missing');
+    rerender(<JournalScreen {...baseProps} search={searchView({ query: 'shop', events: [] })} />);
     expect(screen.getByText('No journal entries match.')).toBeInTheDocument();
+
+    rerender(<JournalScreen {...baseProps} search={searchView({ query: 'shop', events: [], error: 'broken' })} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('The journal search was not accepted.');
   });
 
-  it('notes that search covers loaded entries while more pages remain', async () => {
+  it('pages the active server search through its own cursor', async () => {
     const user = userEvent.setup();
-    const { rerender } = render(<JournalScreen {...baseProps} nextCursor="20" events={[event({ payeeName: 'Employer' })]} />);
+    const onLoadMoreSearch = vi.fn();
+    const { rerender } = render(<JournalScreen {...baseProps} onLoadMoreSearch={onLoadMoreSearch} search={searchView({ query: 'market', nextCursor: '2026-09-08|2026-09-08T10:00:00Z|event-1' })} />);
+    await user.type(screen.getByLabelText('Search'), 'market');
 
-    await user.type(screen.getByLabelText('Search'), 'employer');
-    expect(screen.getByText('Matches are limited to loaded entries.')).toBeInTheDocument();
+    const loadMore = screen.getByRole('button', { name: 'Load more' });
+    await user.click(loadMore);
+    expect(onLoadMoreSearch).toHaveBeenCalledOnce();
 
-    rerender(<JournalScreen {...baseProps} nextCursor={null} events={[event({ payeeName: 'Employer' })]} />);
-    expect(screen.queryByText('Matches are limited to loaded entries.')).not.toBeInTheDocument();
+    rerender(<JournalScreen {...baseProps} search={searchView({ query: 'market', nextCursor: null })} />);
+    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
   });
 
-  it('localizes the search field and loaded-entries note in Arabic', async () => {
+  it('localizes the search field, searching status, and empty state in Arabic', async () => {
     const user = userEvent.setup();
-    render(<JournalScreen {...baseProps} locale="ar" nextCursor="20" events={[event({ payeeName: 'Employer' })]} />);
-
-    await user.type(screen.getByLabelText('بحث'), 'Employer');
-    expect(screen.getByText('النتائج محصورة في القيود المحمّلة.')).toBeInTheDocument();
+    const { rerender } = render(<JournalScreen {...baseProps} locale="ar" search={searchView({ query: 'متجر', pending: true })} />);
+    await user.type(screen.getByLabelText('بحث'), 'متجر');
+    expect(screen.getByText('جارٍ البحث…')).toBeInTheDocument();
     expect(screen.queryByLabelText('Search')).not.toBeInTheDocument();
+
+    rerender(<JournalScreen {...baseProps} locale="ar" search={searchView({ query: 'متجر', events: [] })} />);
+    expect(screen.getByText('لا توجد قيود مطابقة.')).toBeInTheDocument();
   });
 
   it('shows a Load more button only when a cursor exists', async () => {    const user = userEvent.setup();

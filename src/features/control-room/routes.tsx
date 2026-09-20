@@ -296,6 +296,9 @@ function JournalRoutes(props: JournalRoutesProps) {
         onLoadMore={() => void wallets.loadMore()}
         onReverse={(id) => wallets.reverseEvent({ eventId: id, effectiveDate: todayIso() })}
         reversePending={wallets.pending}
+        search={wallets.journalSearch}
+        onSearchQueryChange={wallets.searchJournal}
+        onLoadMoreSearch={() => void wallets.loadMoreJournalSearch()}
       />
       <AmbiguousBanner
         locale={locale}

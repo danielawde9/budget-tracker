@@ -3,6 +3,7 @@ import type {
   DescribeEventInput,
   JournalEvent,
   JournalPage,
+  JournalSearchInput,
   RecordEventInput,
   RenameWalletInput,
   ReverseEventInput,
@@ -58,6 +59,14 @@ export class InMemoryWalletsGateway implements WalletsGateway {
     this.calls.push({ name: 'loadHistoryPage', input: { spaceId, cursor } });
     this.failIfNeeded();
     return { events: [], nextCursor: null };
+  }
+
+  journalSearchResults: JournalPage[] = [];
+
+  async searchJournal(spaceId: string, input: JournalSearchInput): Promise<JournalPage> {
+    this.calls.push({ name: 'searchJournal', input: { spaceId, ...input } });
+    this.failIfNeeded();
+    return this.journalSearchResults.shift() ?? { events: [], nextCursor: null };
   }
 
   async createWallet(input: CreateWalletInput) {

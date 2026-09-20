@@ -428,6 +428,25 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       const result = walletCommandResults.get(body.p_request_id);
       return json(route, result ? [result] : []);
     }
+    if (path.endsWith('/rpc/journal_search_page')) {
+      const body = request.postDataJSON() as { p_space_id: string; p_query: string | null; p_limit: number | null };
+      const needle = (body.p_query ?? '').trim().toLowerCase();
+      const matched = visibleEvents.filter((event) => {
+        if (event.space_id !== body.p_space_id) return false;
+        if (needle === '') return true;
+        const haystack: string[] = [];
+        for (const association of visibleEventCategories.filter((row) => row.event_id === event.id)) {
+          const category = visibleCategories.find((item) => item.id === association.category_id);
+          if (category) haystack.push(category.name_en ?? '', category.name_ar ?? '');
+        }
+        for (const movement of visibleMovements.filter((row) => row.event_id === event.id)) {
+          const wallet = visibleWallets.find((item) => item.id === movement.wallet_id);
+          if (wallet) haystack.push(wallet.name);
+        }
+        return haystack.join('\n').toLowerCase().includes(needle);
+      });
+      return json(route, matched.slice(0, body.p_limit ?? 50));
+    }
     if (path.endsWith('/rpc/create_category')) {
       const body = request.postDataJSON() as { p_space_id: string; p_request_id: string; p_kind: 'income' | 'expense'; p_name_en: string | null; p_name_ar: string | null };
       if (categoryCreateRejectionsRemaining > 0) {

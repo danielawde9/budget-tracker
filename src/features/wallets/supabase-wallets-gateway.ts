@@ -320,6 +320,47 @@ export function createSupabaseWalletsGateway(client: WalletsDataClient): Wallets
       return loadPage(spaceId, parseCursor(cursor), walletById, new Map(payees.map((payee) => [payee.id, payee])));
     },
 
+    async searchJournal(spaceId, input) {
+      const limit = input.limit ?? HISTORY_PAGE_SIZE;
+      if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+        throw new Error('Journal search page size must be between 1 and 100.');
+      }
+      const query = input.query?.trim() ?? '';
+      if (query.length > 120) {
+        throw new Error('Journal search query must be at most 120 characters.');
+      }
+      if (input.from !== undefined && input.to !== undefined && input.from > input.to) {
+        throw new Error('Journal search from date must not be after the to date.');
+      }
+      const cursor = input.cursor ?? null;
+      if (cursor !== null && !/^[^|]+\|[^|]+\|[^|]+$/.test(cursor)) {
+        throw new Error('Journal search cursor is invalid.');
+      }
+      const rpcLimit = limit < 100 ? limit + 1 : 100;
+      const [walletRows, payees] = await Promise.all([loadWalletRows(spaceId), loadPayees(spaceId)]);
+      const values = await rows(
+        client.rpc('journal_search_page', {
+          p_space_id: spaceId,
+          p_from: input.from ?? null,
+          p_to: input.to ?? null,
+          p_query: query === '' ? null : query,
+          p_cursor: cursor,
+          p_limit: rpcLimit,
+        }),
+        'Journal search',
+        rpcLimit + 1,
+      );
+      const hasMore = values.length > limit;
+      const visibleRows = values.slice(0, limit);
+      const last = visibleRows.at(-1);
+      return {
+        events: await composeEvents(spaceId, visibleRows, walletMap(walletRows, spaceId), new Map(payees.map((payee) => [payee.id, payee]))),
+        nextCursor: hasMore && last
+          ? `${textValue(last, 'effective_date')}|${textValue(last, 'created_at')}|${textValue(last, 'id')}`
+          : null,
+      };
+    },
+
     createWallet(input: CreateWalletInput) {
       return runCommand('create_wallet', {
         p_space_id: input.spaceId,

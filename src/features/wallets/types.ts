@@ -63,6 +63,14 @@ export interface JournalPage {
   nextCursor: string | null;
 }
 
+export interface JournalSearchInput {
+  query?: string;
+  from?: string;
+  to?: string;
+  cursor?: string | null;
+  limit?: number;
+}
+
 export interface WalletsSnapshot {
   wallets: readonly WalletProjection[];
   archivedWallets: readonly WalletProjection[];
@@ -132,6 +140,7 @@ export interface CommandResult {
 export interface WalletsGateway {
   loadSnapshot(spaceId: string): Promise<WalletsSnapshot>;
   loadHistoryPage(spaceId: string, cursor: string): Promise<JournalPage>;
+  searchJournal(spaceId: string, input: JournalSearchInput): Promise<JournalPage>;
   createWallet(input: CreateWalletInput): Promise<CommandResult>;
   renameWallet(input: RenameWalletInput): Promise<CommandResult>;
   archiveWallet(input: WalletLifecycleInput): Promise<CommandResult>;

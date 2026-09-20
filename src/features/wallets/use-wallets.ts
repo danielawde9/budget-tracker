@@ -49,6 +49,19 @@ interface HistoryPaginationError {
   categoryError: CategoryErrorView | null;
 }
 
+interface JournalSearchState {
+  spaceId: string;
+  query: string;
+  events: readonly JournalEvent[];
+  nextCursor: string | null;
+  pending: boolean;
+  loadingMore: boolean;
+  error: string | null;
+}
+
+const JOURNAL_SEARCH_PAGE_SIZE = 20;
+const JOURNAL_SEARCH_DEBOUNCE_MS = 300;
+
 const emptyView = (spaceId: string): WalletsView => ({
   loadedSpaceId: spaceId,
   status: 'loading',
@@ -125,6 +138,8 @@ export function useWallets(
   const [pending, setPending] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [historyPaginationError, setHistoryPaginationError] = useState<HistoryPaginationError | null>(null);
+  const [journalSearch, setJournalSearch] = useState<JournalSearchState | null>(null);
+  const journalSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [retry, setRetry] = useState<RetryCommand | null>(null);
   const requestSequence = useRef(0);
   const commandPending = useRef(false);
@@ -431,6 +446,56 @@ export function useWallets(
     }
   }, [enrichEvents, gateway, loadingMore, onSpaceUnavailable, spaceId, view.loadedSpaceId, view.nextCursor]);
 
+  useEffect(() => () => {
+    if (journalSearchTimer.current) clearTimeout(journalSearchTimer.current);
+  }, []);
+
+  const runJournalSearch = useCallback(async (targetSpaceId: string, query: string, cursor: string | null) => {
+    const requestId = requestSequence.current;
+    setJournalSearch((current) => ({
+      spaceId: targetSpaceId,
+      query,
+      events: cursor !== null && current?.spaceId === targetSpaceId && current.query === query ? current.events : [],
+      nextCursor: cursor !== null && current?.spaceId === targetSpaceId && current.query === query ? current.nextCursor : null,
+      pending: cursor === null,
+      loadingMore: cursor !== null,
+      error: null,
+    }));
+    try {
+      const page = await gateway.searchJournal(targetSpaceId, { query, cursor, limit: JOURNAL_SEARCH_PAGE_SIZE });
+      const events = await enrichEvents(targetSpaceId, page.events);
+      if (requestSequence.current !== requestId || currentSpace.current !== targetSpaceId) return;
+      setJournalSearch((current) => {
+        if (!current || current.spaceId !== targetSpaceId || current.query !== query) return current;
+        const byId = new Map(cursor !== null ? current.events.map((event) => [event.id, event]) : []);
+        for (const event of events) byId.set(event.id, event);
+        return { spaceId: targetSpaceId, query, events: [...byId.values()], nextCursor: page.nextCursor, pending: false, loadingMore: false, error: null };
+      });
+    } catch (cause) {
+      if (requestSequence.current !== requestId || currentSpace.current !== targetSpaceId) return;
+      setJournalSearch((current) => current && current.spaceId === targetSpaceId && current.query === query
+        ? { ...current, pending: false, loadingMore: false, error: errorMessage(cause) }
+        : current);
+      if (isSpaceUnavailable(cause)) onSpaceUnavailable?.();
+    }
+  }, [enrichEvents, gateway, onSpaceUnavailable]);
+
+  const searchJournal = useCallback((rawQuery: string) => {
+    const query = rawQuery.trim();
+    if (journalSearchTimer.current) clearTimeout(journalSearchTimer.current);
+    if (query === '') {
+      setJournalSearch(null);
+      return;
+    }
+    journalSearchTimer.current = setTimeout(() => { void runJournalSearch(spaceId, query, null); }, JOURNAL_SEARCH_DEBOUNCE_MS);
+  }, [runJournalSearch, spaceId]);
+
+  const loadMoreJournalSearch = useCallback(() => {
+    const active = journalSearch !== null && journalSearch.spaceId === spaceId ? journalSearch : null;
+    if (!active || active.pending || active.loadingMore || !active.nextCursor) return;
+    void runJournalSearch(spaceId, active.query, active.nextCursor);
+  }, [journalSearch, runJournalSearch, spaceId]);
+
   const visible = view.loadedSpaceId === spaceId;
   return {
     status: visible ? view.status : 'loading' as const,
@@ -443,6 +508,9 @@ export function useWallets(
     error: visible ? view.error : null,
     categoryError: visible ? view.categoryError : null,
     historyPaginationError: visible ? historyPaginationError : null,
+    journalSearch: journalSearch !== null && journalSearch.spaceId === spaceId ? journalSearch : null,
+    searchJournal,
+    loadMoreJournalSearch,
     pending,
     loadingMore,
     ambiguous: retry ? { kind: retry.kind, requestId: retry.requestId } : null,
