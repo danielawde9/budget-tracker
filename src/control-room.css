@@ -450,6 +450,25 @@
 }
 
 .cr-chips { display: flex; gap: var(--cr-space-2); flex-wrap: wrap; }
+
+/* Toolbar row: filter chips (or other controls) on the start edge, the
+   single secondary action on the end edge, one rhythm below the search. */
+.cr-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cr-space-3);
+  margin-block: 0 var(--cr-space-3);
+}
+.cr-toolbar .cr-chips {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.cr-toolbar .cr-chips::-webkit-scrollbar { display: none; }
+.cr-toolbar > .cr-button { flex: none; }
 .cr-plan-nav {
   display: flex;
   flex-wrap: wrap;

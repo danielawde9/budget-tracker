@@ -130,6 +130,14 @@ test('Journal feed and entry detail sheet stay contained', async ({ page }, test
   await search.fill('');
   await expect(page.getByRole('button', { name: /Archived travel/ })).toBeVisible();
 
+  const exportBox = await page.getByRole('button', { name: 'Export CSV' }).boundingBox();
+  const chipsBox = await page.locator('.cr-chips').first().boundingBox();
+  const cardBox = await page.locator('.cr-card').first().boundingBox();
+  const searchBox = await page.getByLabel('Search').boundingBox();
+  expect(Math.abs(exportBox!.y + exportBox!.height / 2 - (chipsBox!.y + chipsBox!.height / 2))).toBeLessThanOrEqual(8);
+  expect(chipsBox!.y - (searchBox!.y + searchBox!.height)).toBeGreaterThanOrEqual(12);
+  expect(cardBox!.y - (chipsBox!.y + chipsBox!.height)).toBeGreaterThanOrEqual(12);
+
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export CSV' }).click();
   const download = await downloadPromise;

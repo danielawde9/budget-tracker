@@ -151,14 +151,6 @@ export function JournalScreen(props: JournalScreenProps) {
     <>
       <header className="cr-row">
         <h1>{t(locale, 'Journal', 'القيود')}</h1>
-        <button
-          type="button"
-          className="cr-button cr-button--sm"
-          disabled={exportPending}
-          onClick={() => void runExport()}
-        >
-          {exportPending ? t(locale, 'Exporting…', 'جارٍ التصدير…') : t(locale, 'Export CSV', 'تصدير CSV')}
-        </button>
       </header>
       {exportFailed ? (
         <div role="alert">
@@ -180,18 +172,28 @@ export function JournalScreen(props: JournalScreenProps) {
           onChange={(event) => setQuery(event.target.value)}
         />
       </label>
-      <div className="cr-chips" role="group" aria-label={t(locale, 'Filter by type', 'تصفية حسب النوع')}>
-        {FILTER_CHIPS.map((chip) => (
-          <button
-            key={chip.filter}
-            type="button"
-            className={kindFilter === chip.filter ? 'cr-chip cr-chip--active' : 'cr-chip'}
-            aria-pressed={kindFilter === chip.filter}
-            onClick={() => setKindFilter(chip.filter)}
-          >
-            {t(locale, chip.en, chip.ar)}
-          </button>
-        ))}
+      <div className="cr-toolbar">
+        <div className="cr-chips" role="group" aria-label={t(locale, 'Filter by type', 'تصفية حسب النوع')}>
+          {FILTER_CHIPS.map((chip) => (
+            <button
+              key={chip.filter}
+              type="button"
+              className={kindFilter === chip.filter ? 'cr-chip cr-chip--active' : 'cr-chip'}
+              aria-pressed={kindFilter === chip.filter}
+              onClick={() => setKindFilter(chip.filter)}
+            >
+              {t(locale, chip.en, chip.ar)}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          className="cr-button cr-button--sm"
+          disabled={exportPending}
+          onClick={() => void runExport()}
+        >
+          {exportPending ? t(locale, 'Exporting…', 'جارٍ التصدير…') : t(locale, 'Export CSV', 'تصدير CSV')}
+        </button>
       </div>
       <section className="cr-card" aria-label={t(locale, 'Journal entries', 'قيود اليومية')}>
         {searchActive && searchView?.pending === true && sourceEvents.length === 0 ? (
