@@ -237,14 +237,20 @@ export function AllocationMonthEditor(props: AllocationMonthEditorProps) {
           <legend>{t(locale, 'Groups', 'المجموعات')}</legend>
           {groups.map((group) => (
             <div key={group.id} className="alloc-group-row">
-              <select
-                aria-label={t(locale, 'Purpose', 'الغرض')}
-                value={group.purpose}
-                onChange={(event) => updateGroup(group.id, { purpose: event.target.value as 'spending' | 'future' })}
-              >
-                <option value="spending">{t(locale, 'Spending', 'إنفاق')}</option>
-                <option value="future">{t(locale, 'Future', 'مستقبلي')}</option>
-              </select>
+              <fieldset className="segmented alloc-purpose">
+                <legend>{t(locale, 'Purpose', 'الغرض')}</legend>
+                {(['spending', 'future'] as const).map((option) => (
+                  <label key={option}>
+                    <input
+                      type="radio"
+                      name={`alloc-purpose-${group.id}`}
+                      checked={group.purpose === option}
+                      onChange={() => updateGroup(group.id, { purpose: option })}
+                    />
+                    {t(locale, option === 'spending' ? 'Spending' : 'Future', option === 'spending' ? 'إنفاق' : 'مستقبلي')}
+                  </label>
+                ))}
+              </fieldset>
               <input
                 type="text" aria-label={t(locale, 'Group name', 'اسم المجموعة')}
                 value={locale === 'ar' ? group.nameAr : group.nameEn}

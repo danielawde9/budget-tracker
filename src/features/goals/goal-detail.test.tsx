@@ -142,7 +142,7 @@ describe('GoalDetail', () => {
     render(<GoalDetail locale="en" currency="USD" goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Definition updated', { exact: false })).toBeInTheDocument());
     await userEvent.click(screen.getByRole('button', { name: 'Load more history' }));
-    await waitFor(() => expect(screen.getByText('Earmark: reserve 10000', { exact: false })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Earmark: reserve $100.00', { exact: false })).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: 'Load more history' })).not.toBeInTheDocument();
   });
 

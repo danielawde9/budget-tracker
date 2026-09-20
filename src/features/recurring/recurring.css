@@ -49,7 +49,7 @@
 
 .rec-filter-tabs button[aria-selected="true"] {
   background: var(--cr-accent);
-  color: var(--cr-surface-sunken);
+  color: var(--cr-accent-ink);
 }
 
 .rec-skeleton-rows {

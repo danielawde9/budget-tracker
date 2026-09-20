@@ -69,11 +69,17 @@ function GoalProgressBar({ locale, currency, summary }: { locale: Locale; curren
   </div>;
 }
 
-function historyDescription(locale: Locale, row: GoalHistoryRow): string {
+function formatHistoryDate(locale: Locale, value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(locale === 'ar' ? 'ar-LB' : 'en-US', { dateStyle: 'medium' }).format(date);
+}
+
+function historyDescription(locale: Locale, currency: Currency, row: GoalHistoryRow): string {
   const detail = row.detail as Record<string, unknown>;
   switch (row.sourceKind) {
     case 'definition': return t(locale, 'Definition updated', 'تم تحديث التعريف');
-    case 'earmark': return `${t(locale, 'Earmark', 'حجز')}: ${String(detail['operation'] ?? '')} ${String(detail['amountMinor'] ?? '')}`;
+    case 'earmark': return `${t(locale, 'Earmark', 'حجز')}: ${String(detail['operation'] ?? '')} ${formatMinorAmount(String(detail['amountMinor'] ?? '0'), currency, locale)}`;
     case 'purchase_link': return t(locale, 'Purchase linked', 'تم ربط شراء');
     case 'checklist': return `${t(locale, 'Checklist', 'قائمة تحقق')}: ${String(detail['action'] ?? '')}`;
     case 'monthly_target': return t(locale, 'Monthly target set', 'تم تعيين هدف شهري');
@@ -202,7 +208,7 @@ export function GoalDetail(props: GoalDetailProps) {
 
     <h3>{t(props.locale, 'History', 'السجل')}</h3>
     <ul className="goal-history-list">
-      {historyRows.map((row) => <li key={`${row.sourceKind}-${row.sourceId}`}>{historyDescription(props.locale, row)} — <small>{row.createdAt}</small></li>)}
+      {historyRows.map((row) => <li key={`${row.sourceKind}-${row.sourceId}`}>{historyDescription(props.locale, props.currency, row)} — <small>{formatHistoryDate(props.locale, row.createdAt)}</small></li>)}
     </ul>
     {historyHasMore && <button type="button" className="cr-button" onClick={() => void loadMoreHistory()}>{t(props.locale, 'Load more history', 'تحميل المزيد من السجل')}</button>}
 

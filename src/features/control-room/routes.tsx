@@ -372,6 +372,7 @@ function GoalsCurrencySection(props: {
 function UpcomingBillsSection(props: {
   locale: Locale;
   spaceId: string;
+  currency: Currency;
   gateway: RecurringGateway;
   onSpaceUnavailable?: (() => void) | undefined;
 }) {
@@ -499,7 +500,7 @@ function PlanRoutes(props: PlanRoutesProps) {
           </button>
         ))}
       </nav>
-      {section === 'allocation' || section === 'goals' || section === 'cash' ? (
+      {section === 'allocation' || section === 'goals' || section === 'cash' || section === 'bills' ? (
         <div className="cr-tabs" role="tablist" aria-label={locale === 'ar' ? 'العملة' : 'Currency'}>
           {PLAN_CURRENCY_OPTIONS.map((option) => (
             <button
@@ -553,6 +554,7 @@ function PlanRoutes(props: PlanRoutesProps) {
         <UpcomingBillsSection
           locale={locale}
           spaceId={spaceId}
+          currency={planCurrency}
           gateway={gateways.recurring ?? unavailableRecurringGateway}
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
