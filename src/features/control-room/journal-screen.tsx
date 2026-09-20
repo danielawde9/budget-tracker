@@ -149,7 +149,7 @@ export function JournalScreen(props: JournalScreenProps) {
 
   return (
     <>
-      <header className="cr-row">
+      <header className="cr-header">
         <h1>{t(locale, 'Journal', 'القيود')}</h1>
       </header>
       {exportFailed ? (

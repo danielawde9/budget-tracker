@@ -47,7 +47,7 @@ export function ManageScreen(props: ManageScreenProps) {
     const sections = SECTIONS.filter((item) => item.id !== 'household' || spaceKind === 'household');
     return (
       <>
-        <header className="cr-row">
+        <header className="cr-header">
           <h1>{t(locale, 'Manage', 'الإدارة')}</h1>
         </header>
         <nav className="cr-card cr-manage-menu" aria-label={t(locale, 'Manage sections', 'أقسام الإدارة')}>
@@ -67,8 +67,10 @@ export function ManageScreen(props: ManageScreenProps) {
             <span className="cr-label">{locale === 'ar' ? 'العربية' : 'English'}</span>
           </button>
           <div className="cr-manage-row cr-manage-account" role="group" aria-label={t(locale, 'Account', 'الحساب')}>
-            <span>{t(locale, 'Account', 'الحساب')}</span>
-            <span className="cr-label">{props.userEmail ?? t(locale, 'No email on file', 'لا يوجد بريد مسجّل')}</span>
+            <span className="cr-manage-identity">
+              <span>{t(locale, 'Account', 'الحساب')}</span>
+              <span className="cr-label">{props.userEmail ?? t(locale, 'No email on file', 'لا يوجد بريد مسجّل')}</span>
+            </span>
             <button type="button" className="cr-button" onClick={props.onSignOut}>
               {t(locale, 'Sign out', 'تسجيل الخروج')}
             </button>

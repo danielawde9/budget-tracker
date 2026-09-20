@@ -158,7 +158,7 @@ export function PlanPage(props: PlanPageProps) {
 
   return (
     <>
-      <header className="cr-row">
+      <header className="cr-header cr-plan-header">
         <h1>{t(locale, 'Monthly plan', 'الخطة الشهرية')}</h1>
         <span className="cr-label">{monthLabel(month, locale)}</span>
       </header>

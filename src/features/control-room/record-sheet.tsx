@@ -577,9 +577,9 @@ export function RecordSheet(props: RecordSheetProps) {
     if (kind === 'exchange') {
       return (
         <div>
-          <h3>{t(locale, 'USD wallet', 'محفظة الدولار')}</h3>
+          <p className="cr-label">{t(locale, 'USD wallet', 'محفظة الدولار')}</p>
           {renderWalletList(props.wallets.filter((candidate) => candidate.currency === 'USD'))}
-          <h3>{t(locale, 'LBP wallet', 'محفظة الليرة')}</h3>
+          <p className="cr-label">{t(locale, 'LBP wallet', 'محفظة الليرة')}</p>
           {renderWalletList(props.wallets.filter((candidate) => candidate.currency === 'LBP'))}
         </div>
       );
@@ -587,7 +587,7 @@ export function RecordSheet(props: RecordSheetProps) {
     if (kind === 'transfer' && walletId !== null) {
       return (
         <div>
-          <h3>{t(locale, 'To', 'إلى')}</h3>
+          <p className="cr-label">{t(locale, 'To', 'إلى')}</p>
           {renderWalletList(props.wallets.filter((candidate) =>
             candidate.id !== walletId && candidate.currency === wallet?.currency))}
         </div>
@@ -598,7 +598,7 @@ export function RecordSheet(props: RecordSheetProps) {
       : props.wallets;
     return (
       <div>
-        {kind === 'transfer' ? <h3>{t(locale, 'From', 'من')}</h3> : null}
+        {kind === 'transfer' ? <p className="cr-label">{t(locale, 'From', 'من')}</p> : null}
         {renderWalletList(list)}
       </div>
     );

@@ -122,7 +122,7 @@ export function HouseholdPage(props: HouseholdPageProps) {
       <section className="household-register" aria-labelledby="household-invitations-heading">
         <h2 id="household-invitations-heading">{text.invitations}</h2>
         {household.invitations.length === 0 ? <p className="empty">{text.noInvitations}</p> : <ul className="household-list">{household.invitations.map((invitation) => <li key={invitation.invitationId} className="household-row invitation-row">
-          <div><span className={`status household-status status-${invitation.effectiveStatus}`}>{text[invitation.effectiveStatus]}</span></div>
+          <span className={`status household-status status-${invitation.effectiveStatus}`}>{text[invitation.effectiveStatus]}</span>
           <dl><div><dt>{text.created}</dt><dd>{formatDate(invitation.createdAt)}</dd></div><div><dt>{text.expires}</dt><dd>{formatDate(invitation.expiresAt)}</dd></div></dl>
           {invitation.effectiveStatus === 'pending' || invitation.effectiveStatus === 'expired' ? <button type="button" className="text-button danger-text" aria-label={`${text.cancelInvitation} ${invitation.invitationId}`} onClick={() => setConfirmation({ kind: 'cancel', invitation })}>{text.cancelInvitation}</button> : null}
         </li>)}</ul>}
