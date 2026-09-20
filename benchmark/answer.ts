@@ -1,4 +1,4 @@
-/** Pure helpers for the categorisation demo, kept here so they can be tested. */
+/** Pure helpers for the categorisation benchmark, kept here so they can be tested. */
 
 /** Published DeepSeek list prices per million tokens, read 2026-09-20. */
 const DEEPSEEK_PRICE = {

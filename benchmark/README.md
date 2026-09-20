@@ -36,13 +36,13 @@ connected to Claude Code, and nothing here changes what your coding agent sends.
 3. Confirm the keys load and the dataset is valid. This sends no requests:
 
    ```bash
-   pnpm demo:categorize --check
+   pnpm categorize --check
    ```
 
 4. Rehearse with a few rows, to be sure every arm answers:
 
    ```bash
-   pnpm demo:categorize --limit 5
+   pnpm categorize --limit 5
    ```
 
    `--only jev,deepseek` restricts the arms; `--limit N` restricts the rows.
@@ -51,40 +51,42 @@ connected to Claude Code, and nothing here changes what your coding agent sends.
 
 | model | overall | clean | messy | median | cost / 1,000 |
 | --- | --- | --- | --- | --- | --- |
-| `jev-latest` | 78/80 (98%) | 60/60 | 18/20 | 0.34s | $0.0260 |
-| `deepseek-flash` | 80/80 (100%) | 60/60 | 20/20 | 1.11s | $0.0684 |
-| Jev → DeepSeek under 70% confidence | 80/80 (100%) | 60/60 | 20/20 | 0.34s | $0.0337 |
+| `jev-latest` | 80/80 (100%) | 60/60 | 20/20 | 0.32s | $0.0259 |
+| `deepseek-flash` | 80/80 (100%) | 60/60 | 20/20 | 1.13s | $0.0623 |
+| Jev → DeepSeek under 70% confidence | 80/80 (100%) | 60/60 | 20/20 | 0.32s | $0.0271 |
 
-Both models are perfect on tidy entries. Jev's two misses are both Lebanese transliteration
-that needs world knowledge — `sarvis Hamra-Achrafieh` (a shared taxi, called `dining`) and
-`MOTEUR HAJ ALI / eshtirak 5A` (a generator subscription, called `other`) — and it reported
-52% and 35% confidence on them. So a 70% threshold catches both: 6 of 80 expenses route to
-the LLM, accuracy matches the LLM, and the median stays at the decision model's speed.
+Both models read every expense correctly, including the messy tier: processor codes
+(`CB*AMZN MKTP US*2K4LP`), abbreviations (`PWR SUB 5A FEB`), typos (`rice,sugr,tea,cofe`)
+and empty notes. So the result is speed and cost, not accuracy: **3.5× faster and 2.4×
+cheaper for the same answers.** One expense in 80 fell under 70% confidence.
 
-That blend is the interesting result, and the script computes it from answers both models
-already gave in the same run — no extra requests.
+An earlier version of the dataset used local merchant names and transliterated Arabic, and
+there the decision model missed two — each time reporting low confidence, which is what the
+cascade row exists to exploit. On generic data there is nothing to catch, so the cascade
+costs almost nothing and changes nothing. Keep the row: on your own data it is the number
+that tells you whether the cheap model is safe to use alone.
 
 ## Recording
 
-The messy tier is where something actually happens: 20 rows, about 40 seconds, both misses
-and the cascade line. Show the full 80-row table afterwards from a run you did beforehand.
+The messy tier is the interesting 20 rows and runs in about 40 seconds. Show the full
+80-row table afterwards from a run you did beforehand.
 
 ```bash
-pnpm demo:categorize --tier messy
+pnpm categorize --tier messy
 ```
 
 Shot list, about 60–90 seconds:
 
 1. **The app** (10 s) — open the add-expense screen, point at the payee and note fields.
    These are the only two things any model gets. The app itself is unchanged.
-2. **The data** (5 s) — `demo/expenses.json`: 60 real-shaped expenses, half English, half
+2. **The data** (5 s) — `benchmark/expenses.json`: 60 real-shaped expenses, half English, half
    Arabic, each with the category it should get.
 3. **The run** (40 s) — the command above. Each row prints the expense, then each model's
    answer with ✓ or ✗ and how long it took.
 4. **The table** (10 s) — accuracy, median latency and cost per 1,000 expenses per model.
-5. **The code** (5 s) — `demo/categorize.ts`, the three `…Arm` functions, about 25 lines each.
+5. **The code** (5 s) — `benchmark/categorize.ts`, the three `…Arm` functions, about 25 lines each.
 
-After the run, `demo/results.md` holds the table and every expense any model got wrong.
+After the run, `benchmark/results.md` holds the table and every expense any model got wrong.
 That file is the raw material for the post.
 
 ## Before you publish the numbers
@@ -116,10 +118,8 @@ That file is the raw material for the post.
 - **The dataset is written for the demo**, not sampled from real spending. Say so.
 - **One run is not a benchmark.** Run it two or three times: latency moves a lot, and a
   model that gets 57/60 once may get 55/60 next time.
-- **The 70% threshold was picked after seeing the results, on two misses.** That is
-  overfitting, and you should say so: it demonstrates that calibrated confidence is
-  actionable, it does not establish 70% as the right number. On real data, set it from a
-  held-out sample.
+- **The 70% threshold is illustrative.** On this dataset nothing falls below it that matters.
+  On real data, set it from a held-out sample rather than by eye.
 - **Jev's confidence could also route to a human** instead of to another model: auto-apply
   above the threshold, ask the user below it. In an app where the user is right there, that
   is often the better design, and the cheaper one.

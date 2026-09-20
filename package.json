@@ -31,7 +31,7 @@
     "check:uat:scope": "bash scripts/check-private-uat-scope.sh",
     "check:uat:offline": "pnpm check:uat:scope && pnpm check:ops && pnpm typecheck && pnpm test:ui && pnpm build && pnpm test:e2e",
     "check": "pnpm check:ops && pnpm typecheck && pnpm test:db && pnpm test:worker && pnpm test:ui && pnpm build",
-    "demo:categorize": "node --env-file=.env.local demo/categorize.ts"
+    "categorize": "node --env-file=.env.local benchmark/categorize.ts"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.127.0",

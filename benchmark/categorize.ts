@@ -9,7 +9,7 @@
  * Arms run only when their key is present in .env.local:
  *   JEV_API_KEY, ANTHROPIC_API_KEY, DEEPSEEK_API_KEY
  *
- * Run:  pnpm demo:categorize [--check] [--limit N] [--only jev,deepseek]
+ * Run:  pnpm categorize [--check] [--limit N] [--only jev,deepseek]
  */
 import { writeFileSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -296,14 +296,43 @@ function accuracy(counted: Tally | undefined): string {
   return `${counted.correct}/${counted.total} (${((counted.correct / counted.total) * 100).toFixed(0)}%)`;
 }
 
-function summaryTable(summaries: readonly Summary[], tiers: readonly string[]): string {
-  const header = `| model | overall | ${tiers.join(' | ')} | median | slowest | cost / 1,000 expenses |`;
-  const divider = `| --- | --- | ${tiers.map(() => '---').join(' | ')} | --- | --- | --- |`;
-  const rows = summaries.map((s) => {
-    const perTier = tiers.map((tier) => accuracy(s.byTier.get(tier))).join(' | ');
-    return `| \`${s.model}\` | ${accuracy(s.all)} | ${perTier} | ${(s.medianMs / 1000).toFixed(2)}s | ${(s.slowestMs / 1000).toFixed(2)}s | $${s.costPerThousand.toFixed(4)} |`;
-  });
-  return [header, divider, ...rows].join('\n');
+type Table = { readonly headers: readonly string[]; readonly rows: readonly (readonly string[])[] };
+
+/** One accuracy column per tier; an overall column only when there is more than one. */
+function summaryCells(summaries: readonly Summary[], tiers: readonly string[]): Table {
+  const withOverall = tiers.length > 1;
+  return {
+    headers: ['model', ...(withOverall ? ['overall'] : []), ...tiers, 'median', 'slowest', 'cost / 1,000'],
+    rows: summaries.map((s) => [
+      s.model,
+      ...(withOverall ? [accuracy(s.all)] : []),
+      ...tiers.map((tier) => accuracy(s.byTier.get(tier))),
+      `${(s.medianMs / 1000).toFixed(2)}s`,
+      `${(s.slowestMs / 1000).toFixed(2)}s`,
+      `$${s.costPerThousand.toFixed(4)}`,
+    ]),
+  };
+}
+
+/** Aligned columns for the terminal; markdown pipes are for the file, not the screen. */
+function consoleTable(table: Table): string {
+  const widths = table.headers.map((header, column) =>
+    Math.max([...header].length, ...table.rows.map((row) => [...(row[column] ?? '')].length)),
+  );
+  const line = (cells: readonly string[]): string =>
+    cells
+      .map((cell, column) => pad(cell, (widths[column] ?? 0) + 3))
+      .join('')
+      .trimEnd();
+  return [line(table.headers), ...table.rows.map(line)].join('\n');
+}
+
+function markdownTable(table: Table): string {
+  return [
+    `| ${table.headers.join(' | ')} |`,
+    `| ${table.headers.map(() => '---').join(' | ')} |`,
+    ...table.rows.map((row) => `| ${row.join(' | ')} |`),
+  ].join('\n');
 }
 
 function disagreements(rows: readonly Row[], arms: readonly Arm[]): string {
@@ -383,7 +412,7 @@ function writeResults(rows: readonly Row[], arms: readonly Arm[], summaries: rea
     '`clean` rows are tidy entries; `messy` rows are bank-statement noise: abbreviated merchants,',
     'POS codes, transliterated Arabic, French, and empty notes.',
     '',
-    summaryTable(summaries, tiersOf(rows)),
+    markdownTable(summaryCells(summaries, tiersOf(rows))),
     '',
     '## Prices used',
     '',
@@ -445,7 +474,7 @@ async function main(): Promise<void> {
   const fallback = arms.find((arm) => arm.name !== 'jev');
   const blended = primary !== undefined && fallback !== undefined ? cascadeSummary(rows, primary, fallback) : null;
   const all = blended === null ? summaries : [...summaries, blended.summary];
-  console.log(`\n${summaryTable(all, tiersOf(rows))}`);
+  console.log(`\n${consoleTable(summaryCells(all, tiersOf(rows)))}`);
   if (blended !== null) {
     console.log(`\n${blended.routed} of ${rows.length} expenses fell below ${CASCADE_THRESHOLD * 100}% confidence and were sent to ${fallback?.model}.`);
   }

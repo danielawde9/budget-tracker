@@ -10,4 +10,4 @@ playwright-report/
 .supabase/
 .worktrees/
 .superpowers/
-demo/results.md
+benchmark/results.md
