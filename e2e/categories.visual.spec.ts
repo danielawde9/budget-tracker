@@ -112,7 +112,7 @@ test('category create and archive refresh only the active register', async ({ pa
   await opener.click();
   const createDialog = page.getByRole('dialog', { name: 'Create a category' });
   await expect(createDialog.getByLabel('English name')).toBeFocused();
-  await createDialog.getByLabel('Type').selectOption('expense');
+  await createDialog.getByRole('radio', { name: /^(?:Expense|مصروف)$/ }).check();
   await createDialog.getByLabel('English name').fill('Transport');
   await createDialog.getByLabel('Arabic name').fill('مواصلات');
   await createDialog.getByRole('button', { name: 'Create category' }).click();
@@ -160,7 +160,7 @@ test('categorized and uncategorized income preserve exact history labels', async
   await chooseWorkspaceDestination(page, 'Wallets');
   await page.getByRole('button', { name: 'Add transaction' }).click();
   let dialog = page.getByRole('dialog', { name: 'Add a transaction' });
-  await dialog.getByLabel('Type').selectOption('income');
+  await dialog.getByRole('radio', { name: /^(?:Income|دخل)$/ }).check();
   await dialog.getByRole('radio', { name: 'Salary' }).check();
   await dialog.getByLabel('Effective date').fill('2026-09-08');
   await dialog.getByLabel('Amount').fill('45.25');
@@ -175,7 +175,7 @@ test('categorized and uncategorized income preserve exact history labels', async
 
   await page.getByRole('button', { name: 'Add transaction' }).click();
   dialog = page.getByRole('dialog', { name: 'Add a transaction' });
-  await dialog.getByLabel('Type').selectOption('income');
+  await dialog.getByRole('radio', { name: /^(?:Income|دخل)$/ }).check();
   await expect(dialog.getByRole('radio', { name: 'Uncategorized' })).toBeChecked();
   await dialog.getByLabel('Amount').fill('7');
   await dialog.getByRole('button', { name: 'Review transaction' }).click();
@@ -191,7 +191,7 @@ test('a child category posts its exact identity without changing signed minor un
   await chooseWorkspaceDestination(page, 'Wallets');
   await page.getByRole('button', { name: 'Add transaction' }).click();
   const dialog = page.getByRole('dialog', { name: 'Add a transaction' });
-  await dialog.getByLabel('Type').selectOption('expense');
+  await dialog.getByRole('radio', { name: /^(?:Expense|مصروف)$/ }).check();
   const children = dialog.getByRole('group', { name: 'Subcategories of Essentials' });
   await children.getByRole('radio', { name: 'Groceries' }).check();
   await dialog.getByLabel('Effective date').fill('2026-09-10');
@@ -215,7 +215,7 @@ test('archived historical label remains while ambiguity reconciles without dupli
   await expect(page.getByText('Archived', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Add transaction' }).click();
   const dialog = page.getByRole('dialog', { name: 'Add a transaction' });
-  await dialog.getByLabel('Type').selectOption('income');
+  await dialog.getByRole('radio', { name: /^(?:Income|دخل)$/ }).check();
   await dialog.getByRole('radio', { name: 'Salary' }).check();
   await dialog.getByLabel('Amount').fill('9');
   await dialog.getByRole('button', { name: 'Review transaction' }).click();

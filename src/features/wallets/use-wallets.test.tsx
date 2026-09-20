@@ -416,7 +416,7 @@ describe('useWallets', () => {
         effectiveDate: '2026-09-08',
         movements: [{ walletId: 'wallet-1', amountMinor: '500' }],
         categoryId: 'category-salary',
-      })).resolves.toEqual({ status: 'refresh-required', reconciled: false });
+      })).resolves.toEqual({ status: 'refresh-required', reconciled: false, eventId: 'event-new' });
     });
     expect(result.current.status).toBe('ready');
     expect(categories.recordCategorizedEvent).toHaveBeenCalledOnce();

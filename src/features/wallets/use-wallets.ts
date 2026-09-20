@@ -7,7 +7,9 @@ import type { CategoriesGateway, CategorizedEventInput, EventCategory } from '..
 import type {
   CreateWalletInput,
   DescribeEventInput,
+  GeneralEventKind,
   JournalEvent,
+  MovementInput,
   RecordEventInput,
   RenameWalletInput,
   ReverseEventInput,
@@ -20,7 +22,7 @@ import type {
 } from './types.js';
 
 export type WalletsStatus = 'loading' | 'ready' | 'error';
-export interface CommandOutcome { status: 'success' | 'ambiguous' | 'refresh-required'; reconciled: boolean }
+export interface CommandOutcome { status: 'success' | 'ambiguous' | 'refresh-required'; reconciled: boolean; eventId?: string }
 
 type RecordDraft = Omit<RecordEventInput, 'spaceId' | 'requestId'> & { categoryId?: string | null; payeeName?: string | null; note?: string | null };
 type ReverseDraft = Omit<ReverseEventInput, 'spaceId' | 'requestId'>;
@@ -129,12 +131,27 @@ function errorMessage(cause: unknown): string {
   return 'We could not load this wallet journal. Check your connection and try again.';
 }
 
+export interface RecordedExpenseInfo {
+  readonly eventId: string;
+  readonly kind: GeneralEventKind;
+  readonly effectiveDate: string;
+  readonly movements: readonly MovementInput[];
+  readonly categoryId: string | null;
+}
+
+export interface UseWalletsOptions {
+  /** Called after an event is recorded so callers can react (e.g. settle a
+   * matching upcoming bill). Never called for failed or ambiguous records. */
+  onExpenseRecorded?(info: RecordedExpenseInfo): void | Promise<void>;
+}
+
 export function useWallets(
   gateway: WalletsGateway,
   spaceId: string,
   onSpaceUnavailable?: () => void,
   createRequestId: () => string = defaultCreateRequestId,
   categoriesGateway?: CategoriesGateway,
+  options: UseWalletsOptions = {},
 ) {
   const [view, setView] = useState<WalletsView>(() => emptyView(spaceId));
   const [pending, setPending] = useState(false);
@@ -335,7 +352,20 @@ export function useWallets(
         });
       }
       const refreshed = await refreshAfterCommand(true);
-      return { status: refreshed ? 'success' : 'refresh-required', reconciled: false };
+      if (command.kind === 'record' && recordedEventId) {
+        await options.onExpenseRecorded?.({
+          eventId: recordedEventId,
+          kind: command.input.kind,
+          effectiveDate: command.input.effectiveDate,
+          movements: command.input.movements,
+          categoryId: command.categoryId ?? null,
+        });
+      }
+      return {
+        status: refreshed ? 'success' : 'refresh-required',
+        reconciled: false,
+        ...(recordedEventId ? { eventId: recordedEventId } : {}),
+      };
     } catch (cause) {
       if (!isAmbiguousTransportFailure(cause)) throw cause;
       let event;

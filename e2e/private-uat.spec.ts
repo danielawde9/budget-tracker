@@ -36,7 +36,7 @@ async function fixtureAudit(page: Page) {
 async function finishWalletTransaction(page: Page, kind: 'opening_balance' | 'income' | 'expense' | 'transfer', amount: string) {
   await page.getByRole('button', { name: 'Add transaction' }).click();
   const dialog = page.getByRole('dialog', { name: 'Add a transaction' });
-  await dialog.getByLabel('Type').selectOption(kind);
+  await dialog.getByRole('radio', { name: kind === 'income' ? 'Income' : kind === 'transfer' ? 'Transfer' : kind === 'opening_balance' ? 'Opening balance' : 'Expense' }).check();
   await dialog.getByLabel('Amount').fill(amount);
   if (kind === 'transfer') await dialog.getByLabel('To wallet').selectOption('reserve-usd-wallet');
   await dialog.getByRole('button', { name: 'Review transaction' }).click();
@@ -100,7 +100,7 @@ test('desktop English rehearsal exercises every protected financial mutation and
   await chooseWorkspaceDestination(page, 'Categories');
   await page.getByRole('button', { name: 'New category' }).click();
   dialog = page.getByRole('dialog', { name: 'Create a category' });
-  await dialog.getByLabel('Type').selectOption('expense');
+  await dialog.getByRole('radio', { name: /^(?:Expense|مصروف)$/ }).check();
   await dialog.getByLabel('English name').fill('Synthetic transport');
   await dialog.getByLabel('Arabic name').fill('نقل تجريبي');
   await dialog.getByRole('button', { name: 'Create category' }).click();
@@ -110,7 +110,7 @@ test('desktop English rehearsal exercises every protected financial mutation and
   await chooseWorkspaceDestination(page, 'Wallets');
   await page.getByRole('button', { name: 'Add transaction' }).click();
   dialog = page.getByRole('dialog', { name: 'Add a transaction' });
-  await dialog.getByLabel('Type').selectOption('expense');
+  await dialog.getByRole('radio', { name: /^(?:Expense|مصروف)$/ }).check();
   await dialog.getByRole('radio', { name: 'Synthetic transport' }).check();
   await dialog.getByLabel('Amount').fill('4.25');
   await dialog.getByRole('button', { name: 'Review transaction' }).click();

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { AllocationSetup } from '../allocation/allocation-setup.js';
 import type { CategoryOption } from '../allocation/allocation-month-editor.js';
@@ -18,6 +18,7 @@ import type { GoalsGateway } from '../goals/types.js';
 import { useGoals } from '../goals/use-goals.js';
 import type { HouseholdGateway } from '../household/types.js';
 import type { RecurringGateway } from '../recurring/types.js';
+import { autoSettleExpense } from '../recurring/auto-settle.js';
 import { useRecurring } from '../recurring/use-recurring.js';
 import { UpcomingPage } from '../recurring/upcoming-page.js';
 import type { InsightsClient, CategoryBudgetRow } from '../insights/types.js';
@@ -563,7 +564,23 @@ function PlanRoutes(props: PlanRoutesProps) {
 export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
   const { locale, spaceId, gateways } = props;
   const [month, setMonth] = useState(currentMonthStart);
-  const wallets = useWallets(gateways.wallets, spaceId, props.onSpaceUnavailable, undefined, gateways.categories);
+  const walletListRef = useRef<readonly { id: string; currency: Currency }[]>([]);
+  const settleRecordedExpense = useCallback(async (info: { eventId: string; kind: string; effectiveDate: string; movements: readonly { walletId: string; amountMinor: string }[]; categoryId: string | null }) => {
+    if (info.kind !== 'expense' || !gateways.recurring) return;
+    const wallet = walletListRef.current.find((candidate) => candidate.id === info.movements[0]?.walletId);
+    if (!wallet) return;
+    const totalMinor = info.movements.reduce((sum, movement) => sum + BigInt(movement.amountMinor), 0n);
+    const amountMinor = (totalMinor < 0n ? -totalMinor : totalMinor).toString();
+    await autoSettleExpense(gateways.recurring, spaceId, {
+      eventId: info.eventId,
+      categoryId: info.categoryId,
+      amountMinor,
+      currency: wallet.currency,
+      effectiveDate: info.effectiveDate,
+    });
+  }, [gateways.recurring, spaceId]);
+  const wallets = useWallets(gateways.wallets, spaceId, props.onSpaceUnavailable, undefined, gateways.categories, { onExpenseRecorded: settleRecordedExpense });
+  walletListRef.current = wallets.wallets;
   const loans = useLoans(gateways.loans, { spaceId, ...(props.onSpaceUnavailable ? { onSpaceUnavailable: props.onSpaceUnavailable } : {}) });
   const categories = useCategories(gateways.categories, spaceId, props.onSpaceUnavailable);
   const exchangeReceipts = useMemo(() => ({
