@@ -69,7 +69,7 @@ describe('TransactionDialog category hierarchy', () => {
   it('groups children beneath their root and submits the exact child with exact minor units', async () => {
     const { onSubmit, user } = renderDialog();
     const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
-    await user.selectOptions(within(dialog).getByLabelText('Type'), 'expense');
+    await user.click(within(dialog).getByRole('radio', { name: 'Expense' }));
 
     const children = within(dialog).getByRole('group', { name: 'Subcategories of Essentials' });
     expect(within(children).getByText('Groceries').closest('bdi')).not.toBeNull();
@@ -89,7 +89,7 @@ describe('TransactionDialog category hierarchy', () => {
   it('exposes equivalent Arabic hierarchy labels without changing stored names', async () => {
     const { user } = renderDialog('ar');
     const dialog = screen.getByRole('dialog', { name: 'إضافة معاملة' });
-    await user.selectOptions(within(dialog).getByLabelText('النوع'), 'expense');
+    await user.click(within(dialog).getByRole('radio', { name: 'مصروف' }));
     const children = within(dialog).getByRole('group', { name: 'الفئات الفرعية ضمن الأساسيات' });
     expect(within(children).getByText('بقالة').closest('bdi')).not.toBeNull();
   });

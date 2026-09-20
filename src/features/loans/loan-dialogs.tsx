@@ -100,9 +100,17 @@ export function CreateLoanDialog({ spaceId, wallets, locale, onClose, onSave }: 
         <label><input type="radio" name="mode" checked={mode === 'cash' && direction === 'i_owe_them'} onChange={() => { setMode('cash'); setDirection('i_owe_them'); }} /> {localized(locale, 'I borrowed money', 'اقترضت مالًا')}</label>
       </fieldset>
       {mode === 'opening' ? <fieldset className="segmented"><legend>{localized(locale, 'Direction', 'اتجاه الدين')}</legend><label><input type="radio" name="direction" checked={direction === 'they_owe_me'} onChange={() => setDirection('they_owe_me')} /> {localized(locale, 'They owe me', 'لديهم دين لي')}</label><label><input type="radio" name="direction" checked={direction === 'i_owe_them'} onChange={() => setDirection('i_owe_them')} /> {localized(locale, 'I owe them', 'عليّ دين لهم')}</label></fieldset> : null}
+      <fieldset className="segmented">
+        <legend>{localized(locale, 'Currency', 'العملة')}</legend>
+        {(['USD', 'LBP'] as const).map((option) => (
+          <label key={option}>
+            <input type="radio" name="loan-currency" checked={currency === option} onChange={() => setCurrency(option)} />
+            {option}
+          </label>
+        ))}
+      </fieldset>
       <div className="form-grid">
         <label>{localized(locale, 'Person', 'الشخص')}<input name="person" required maxLength={120} autoFocus /></label>
-        <label>{localized(locale, 'Currency', 'العملة')}<select name="currency" value={currency} onChange={(event) => setCurrency(event.target.value as Currency)}><option>USD</option><option>LBP</option></select></label>
         <label>{localized(locale, 'Amount', 'المبلغ')}<input name="amount" required inputMode="decimal" placeholder={currency === 'USD' ? '0.00' : '0'} /></label>
         {mode === 'cash' ? <label>{localized(locale, 'Wallet', 'المحفظة')}<select name="wallet" required>{matchingWallets.map((wallet) => <option value={wallet.id} key={wallet.id}>{wallet.name}</option>)}</select>{matchingWallets.length === 0 ? <small className="field-error">{localized(locale, `No active ${currency} wallet is available in this space.`, `لا توجد محفظة ${currency} فعالة في هذه المساحة.`)}</small> : null}</label> : null}
         <label>{localized(locale, 'Loan date', 'تاريخ القرض')}<input name="effectiveDate" type="date" defaultValue={today()} required /></label>
