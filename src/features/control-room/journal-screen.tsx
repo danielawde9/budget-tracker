@@ -168,6 +168,7 @@ export function JournalScreen(props: JournalScreenProps) {
         <span className="cr-label">{t(locale, 'Search', 'بحث')}</span>
         <input
           type="search"
+          placeholder={t(locale, 'Notes, labels, wallets…', 'ملاحظات، أسماء، محافظ…')}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />

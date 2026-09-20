@@ -281,14 +281,14 @@ export function GoalEditor(props: GoalEditorProps) {
 
       <div className="form-grid">
         <label className="full-field">{t(props.locale, 'Name (English)', 'الاسم (إنجليزي)')}
-          <input data-autofocus type="text" value={nameEn} onChange={(event) => { setNameEn(event.target.value); setError(null); }} /></label>
+          <input data-autofocus type="text" placeholder={t(props.locale, 'e.g. Emergency fund', 'مثال: صندوق الطوارئ')} value={nameEn} onChange={(event) => { setNameEn(event.target.value); setError(null); }} /></label>
         <label className="full-field">{t(props.locale, 'Name (Arabic)', 'الاسم (عربي)')}
           <input type="text" value={nameAr} onChange={(event) => { setNameAr(event.target.value); setError(null); }} /></label>
       </div>
       <label className="full-field">{t(props.locale, 'Note', 'ملاحظة')}
-        <textarea value={note} onChange={(event) => setNote(event.target.value)} /></label>
+        <textarea placeholder={t(props.locale, 'Optional', 'اختياري')} value={note} onChange={(event) => setNote(event.target.value)} /></label>
       <label className="full-field">{t(props.locale, 'Target amount', 'مبلغ الهدف')}
-        <input type="text" inputMode="decimal" value={targetMajor} onChange={(event) => { setTargetMajor(event.target.value); setError(null); }} /></label>
+        <input type="text" inputMode="decimal" placeholder={currency === 'USD' ? '0.00' : '0'} value={targetMajor} onChange={(event) => { setTargetMajor(event.target.value); setError(null); }} /></label>
 
       <fieldset>
         <legend>{t(props.locale, 'Contribution', 'المساهمة')}</legend>
@@ -297,7 +297,7 @@ export function GoalEditor(props: GoalEditorProps) {
       </fieldset>
       {contributionMode === 'manual_monthly'
         ? <label className="full-field">{t(props.locale, 'Monthly amount', 'المبلغ الشهري')}
-          <input type="text" inputMode="decimal" value={monthlyMajor} onChange={(event) => { setMonthlyMajor(event.target.value); setError(null); }} /></label>
+          <input type="text" inputMode="decimal" placeholder={currency === 'USD' ? '0.00' : '0'} value={monthlyMajor} onChange={(event) => { setMonthlyMajor(event.target.value); setError(null); }} /></label>
         : <label className="full-field">{t(props.locale, 'Deadline', 'الموعد النهائي')}
           <input type="date" value={deadline} onChange={(event) => { setDeadline(event.target.value); setError(null); }} /></label>}
       <label className="full-field">{t(props.locale, 'Priority (0 = highest)', 'الأولوية (0 = الأعلى)')}
@@ -313,13 +313,13 @@ export function GoalEditor(props: GoalEditorProps) {
           </div>
           <div className="form-grid">
             <label>{t(props.locale, 'Milestone name (English)', 'اسم المعلم (إنجليزي)')}
-              <input type="text" value={row.labelEn} onChange={(event) => updateMilestone(row.id, { labelEn: event.target.value })} /></label>
+              <input type="text" placeholder={t(props.locale, 'e.g. Halfway there', 'مثال: منتصف الطريق')} value={row.labelEn} onChange={(event) => updateMilestone(row.id, { labelEn: event.target.value })} /></label>
             <label>{t(props.locale, 'Milestone name (Arabic)', 'اسم المعلم (عربي)')}
-              <input type="text" value={row.labelAr} onChange={(event) => updateMilestone(row.id, { labelAr: event.target.value })} /></label>
+              <input type="text" placeholder={t(props.locale, 'بالعربية', 'بالعربية')} value={row.labelAr} onChange={(event) => updateMilestone(row.id, { labelAr: event.target.value })} /></label>
           </div>
           {row.kind === 'amount' ? (
             <label className="full-field">{t(props.locale, 'Amount for this milestone', 'مبلغ هذا المعلم')}
-              <input type="text" inputMode="decimal" value={row.thresholdMajor} onChange={(event) => updateMilestone(row.id, { thresholdMajor: event.target.value })} /></label>
+              <input type="text" inputMode="decimal" placeholder={currency === 'USD' ? '0.00' : '0'} value={row.thresholdMajor} onChange={(event) => updateMilestone(row.id, { thresholdMajor: event.target.value })} /></label>
           ) : null}
           <label className="full-field">{t(props.locale, 'Due date (optional)', 'تاريخ الاستحقاق (اختياري)')}
             <input type="date" value={row.dueDate} onChange={(event) => updateMilestone(row.id, { dueDate: event.target.value })} /></label>

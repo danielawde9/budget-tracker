@@ -734,7 +734,8 @@
 .cr-keypad {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: var(--cr-space-2);
+  gap: var(--cr-space-3);
+  padding-block: var(--cr-space-2) var(--cr-space-4);
   direction: ltr;
 }
 .cr-keypad button {
@@ -806,12 +807,12 @@
   display: block;
   text-align: center;
   font-family: var(--cr-font);
-  font-size: 36px;
+  font-size: 44px;
   font-weight: 800;
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
-  padding-block: var(--cr-space-3);
-  min-block-size: 48px;
+  padding-block: var(--cr-space-5);
+  min-block-size: 88px;
 }
 
 .cr-record-wallets,
@@ -916,6 +917,7 @@
   justify-content: center;
   gap: var(--cr-space-1);
   flex-wrap: wrap;
+  margin-block: var(--cr-space-2) var(--cr-space-1);
 }
 .cr-record-step {
   display: flex;
@@ -938,6 +940,7 @@
 
 .cr-record-step-content {
   animation: cr-step-in var(--cr-duration) var(--cr-ease);
+  padding-block: var(--cr-space-4);
 }
 @keyframes cr-step-in {
   from { opacity: 0; transform: translateY(8px); }

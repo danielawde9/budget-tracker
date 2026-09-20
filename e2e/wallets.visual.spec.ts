@@ -25,7 +25,7 @@ async function openWallets(page: Page, options: WalletsFixtureOptions = {}) {
 async function postTransaction(page: Page, kind: 'income' | 'expense' | 'transfer', amount: string) {
   await page.getByRole('button', { name: 'Add transaction' }).click();
   const dialog = page.getByRole('dialog', { name: 'Add a transaction' });
-  await dialog.getByRole('radio', { name: kind === 'income' ? 'Income' : kind === 'transfer' ? 'Transfer' : kind === 'opening_balance' ? 'Opening balance' : 'Expense' }).check();
+  await dialog.getByRole('radio', { name: ({ income: 'Income', transfer: 'Transfer', opening_balance: 'Opening balance', expense: 'Expense' } as Record<string, string>)[kind] ?? 'Expense' }).check();
   await dialog.getByLabel('Amount').fill(amount);
   if (kind === 'transfer') await dialog.getByLabel('To wallet').selectOption('reserve-usd-wallet');
   await dialog.getByRole('button', { name: 'Review transaction' }).click();
@@ -201,7 +201,7 @@ test('archiving a zero-balance wallet with history gates its Undo actions, and r
   for (const kind of ['income', 'expense'] as const) {
     await page.getByRole('button', { name: 'Add transaction' }).click();
     const txDialog = page.getByRole('dialog', { name: 'Add a transaction' });
-    await txDialog.getByRole('radio', { name: kind === 'income' ? 'Income' : kind === 'transfer' ? 'Transfer' : kind === 'opening_balance' ? 'Opening balance' : 'Expense' }).check();
+    await txDialog.getByRole('radio', { name: ({ income: 'Income', transfer: 'Transfer', opening_balance: 'Opening balance', expense: 'Expense' } as Record<string, string>)[kind] ?? 'Expense' }).check();
     await txDialog.getByLabel('Wallet').selectOption({ label: 'Travel fund · USD' });
     await txDialog.getByLabel('Amount').fill('10');
     await txDialog.getByRole('button', { name: 'Review transaction' }).click();

@@ -99,6 +99,7 @@ function EditDialog(props: EditDialogProps) {
           <span className="cr-plan-edit-field">
             <input
               type="text"
+              placeholder={props.currency === 'USD' ? '0.00' : '0'}
               inputMode={props.currency === 'USD' ? 'decimal' : 'numeric'}
               value={value}
               aria-invalid={inputError ? true : undefined}

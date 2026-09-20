@@ -114,8 +114,8 @@ export function CategoryDialog(props: CategoryDialogProps) {
           ))}
         </fieldset>
         <div className="category-name-note">{t(props.locale, 'At least one name is required.', 'مطلوب اسم واحد على الأقل.')}</div>
-        <label>{t(props.locale, 'English name', 'الاسم بالإنجليزية')}<input data-autofocus dir="ltr" maxLength={120} value={nameEn} disabled={refreshRequired} onChange={(event) => edit(() => setNameEn(event.target.value))} /></label>
-        <label>{t(props.locale, 'Arabic name', 'الاسم بالعربية')}<input dir="rtl" maxLength={120} value={nameAr} disabled={refreshRequired} onChange={(event) => edit(() => setNameAr(event.target.value))} /></label>
+        <label>{t(props.locale, 'English name', 'الاسم بالإنجليزية')}<input data-autofocus dir="ltr" maxLength={120} placeholder={t(props.locale, 'e.g. Transport', 'مثال: مواصلات')} value={nameEn} disabled={refreshRequired} onChange={(event) => edit(() => setNameEn(event.target.value))} /></label>
+        <label>{t(props.locale, 'Arabic name', 'الاسم بالعربية')}<input dir="rtl" maxLength={120} placeholder={t(props.locale, 'مثال: مواصلات', 'مثال: مواصلات')} value={nameAr} disabled={refreshRequired} onChange={(event) => edit(() => setNameAr(event.target.value))} /></label>
       </div>
       <div className="dialog-actions"><button type="button" className="button-secondary" disabled={props.pending || refreshing} onClick={props.onClose}>{t(props.locale, refreshRequired ? 'Close' : 'Cancel', refreshRequired ? 'إغلاق' : 'إلغاء')}</button><button type="submit" disabled={props.pending || refreshRequired}>{props.pending ? t(props.locale, 'Creating…', 'جارٍ الإنشاء…') : t(props.locale, 'Create category', 'إنشاء الفئة')}</button></div>
     </form>

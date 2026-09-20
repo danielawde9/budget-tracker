@@ -166,7 +166,7 @@ export function ScheduleEditor(props: ScheduleEditorProps) {
 
       <div className="form-grid">
         <label className="full-field">{t(props.locale, 'Name (English)', 'الاسم (إنجليزي)')}
-          <input data-autofocus type="text" value={nameEn} onChange={(event) => { setNameEn(event.target.value); setError(null); }} /></label>
+          <input data-autofocus type="text" placeholder={t(props.locale, 'e.g. Internet bill', 'مثال: فاتورة الإنترنت')} value={nameEn} onChange={(event) => { setNameEn(event.target.value); setError(null); }} /></label>
         <label className="full-field">{t(props.locale, 'Name (Arabic)', 'الاسم (عربي)')}
           <input type="text" value={nameAr} onChange={(event) => { setNameAr(event.target.value); setError(null); }} /></label>
       </div>

@@ -79,7 +79,7 @@ export function InviteHouseholdDialog(props: InviteDialogProps) {
       : 'Sends a seven-day invitation email to this address. The recipient opens the link from the email to join this household.'}</p>
     <form onSubmit={(event) => void submit(event)}>
       <label>{ar ? 'البريد الإلكتروني للعضو' : 'Member email'}
-        <input type="email" required maxLength={254} autoComplete="email" data-initial-focus disabled={props.succeeded} value={email} onChange={(event) => setEmail(event.target.value)} />
+        <input type="email" required maxLength={254} autoComplete="email" data-initial-focus disabled={props.succeeded} placeholder="name@example.com" value={email} onChange={(event) => setEmail(event.target.value)} />
       </label>
       {props.error}
       {props.succeeded ? <p role="status" className="success-notice">{ar

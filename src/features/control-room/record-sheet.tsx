@@ -793,6 +793,7 @@ export function RecordSheet(props: RecordSheetProps) {
           {t(locale, 'Person', 'الشخص')}
           <input
             type="text"
+            placeholder={t(locale, 'Who owes or lent', 'من الدائن أو المدين')}
             list="cr-person-list"
             value={personName}
             onChange={(event) => setPersonName(event.target.value)}
@@ -803,6 +804,7 @@ export function RecordSheet(props: RecordSheetProps) {
           {t(locale, 'Payee', 'المستفيد')}
           <input
             type="text"
+            placeholder={t(locale, 'e.g. Market or Landlord', 'مثال: متجر أو المالك')}
             list="cr-payee-list"
             value={payeeName}
             onChange={(event) => setPayeeName(event.target.value)}
@@ -823,6 +825,7 @@ export function RecordSheet(props: RecordSheetProps) {
         {t(locale, 'Note', 'ملاحظة')}
         <input
           type="text"
+          placeholder={t(locale, 'Optional', 'اختياري')}
           value={note}
           onChange={(event) => setNote(event.target.value)}
         />
