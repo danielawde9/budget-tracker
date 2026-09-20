@@ -95,7 +95,7 @@ describe('CategoriesPage', () => {
     const { gateway, user } = await renderPage();
     await user.click(screen.getByRole('button', { name: 'New category' }));
     let dialog = screen.getByRole('dialog', { name: 'Create a category' });
-    await user.selectOptions(within(dialog).getByLabelText('Type'), 'expense');
+    await user.click(within(dialog).getByRole('radio', { name: 'Expense' }));
     await user.type(within(dialog).getByLabelText('English name'), 'Transport');
     await user.click(within(dialog).getByRole('button', { name: 'Create category' }));
     await within(dialog).findByText('Category created');

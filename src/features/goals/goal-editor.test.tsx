@@ -55,12 +55,12 @@ describe('GoalEditor: create', () => {
     await userEvent.type(screen.getByRole('textbox', { name: 'Name (English)' }), 'Emergency fund');
     await userEvent.type(screen.getByRole('textbox', { name: 'Target amount' }), '6000');
     await userEvent.click(screen.getByRole('button', { name: 'Add amount milestone' }));
-    await userEvent.type(screen.getByRole('textbox', { name: 'Milestone label (English)' }), 'Halfway');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Milestone name (English)' }), 'Halfway');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(screen.getByRole('alert')).toHaveTextContent('Every amount milestone needs a valid positive threshold.');
     expect(onCreate).not.toHaveBeenCalled();
 
-    await userEvent.type(screen.getByRole('textbox', { name: 'Milestone threshold' }), '3000');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Amount for this milestone' }), '3000');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(1));
     expect(onCreate.mock.calls[0]![0].milestones).toEqual([

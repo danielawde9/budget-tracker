@@ -1027,6 +1027,35 @@
   color: var(--cr-ink-soft);
 }
 
+/* Amount field with a trailing currency affix inside one control */
+.cr-plan-edit-field {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius-sm);
+  background: var(--cr-surface);
+  overflow: hidden;
+}
+.cr-plan-edit-field input {
+  flex: 1;
+  min-inline-size: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.cr-plan-edit-field input:focus-visible { outline-offset: -2px; }
+.cr-plan-edit-currency {
+  flex: none;
+  padding-inline: 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--cr-ink-soft);
+  border-inline-start: 1px solid var(--cr-hairline);
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+}
+
 /* ==========================================================================
    Manage screen
    ========================================================================== */

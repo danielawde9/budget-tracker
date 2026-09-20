@@ -104,7 +104,15 @@ export function CategoryDialog(props: CategoryDialogProps) {
       <p id={descriptionId} className="dialog-intro dialog-consequence">{t(props.locale, 'Add an income or expense label. Enter either language or both; missing names are never invented.', 'أضف تسمية للدخل أو المصروف. أدخل لغة واحدة أو كلتيهما؛ لا يتم اختلاق الاسم المفقود.')}</p>
       {error && <div className="error-notice" role="alert">{error}{refreshRequired ? <div><button type="button" className="button-secondary retry-command" disabled={refreshing} onClick={() => void refreshAcceptedCommand()}>{refreshing ? t(props.locale, 'Refreshing…', 'جارٍ التحديث…') : t(props.locale, 'Refresh categories', 'تحديث الفئات')}</button></div> : props.ambiguous && <div><button type="button" className="button-secondary retry-command" disabled={props.pending} onClick={() => void run(props.onRetry)}>{t(props.locale, 'Retry unchanged category', 'إعادة الفئة دون تغيير')}</button></div>}</div>}
       <div className="form-grid category-form-grid">
-        <label>{t(props.locale, 'Type', 'النوع')}<select value={kind} disabled={refreshRequired} onChange={(event) => edit(() => setKind(event.target.value as CategoryKind))}><option value="income">{t(props.locale, 'Income', 'دخل')}</option><option value="expense">{t(props.locale, 'Expense', 'مصروف')}</option></select></label>
+        <fieldset className="segmented">
+          <legend>{t(props.locale, 'Type', 'النوع')}</legend>
+          {(['income', 'expense'] as const).map((option) => (
+            <label key={option}>
+              <input type="radio" name="category-kind" checked={kind === option} disabled={refreshRequired} onChange={() => edit(() => setKind(option))} />
+              {t(props.locale, option === 'income' ? 'Income' : 'Expense', option === 'income' ? 'دخل' : 'مصروف')}
+            </label>
+          ))}
+        </fieldset>
         <div className="category-name-note">{t(props.locale, 'At least one name is required.', 'مطلوب اسم واحد على الأقل.')}</div>
         <label>{t(props.locale, 'English name', 'الاسم بالإنجليزية')}<input data-autofocus dir="ltr" maxLength={120} value={nameEn} disabled={refreshRequired} onChange={(event) => edit(() => setNameEn(event.target.value))} /></label>
         <label>{t(props.locale, 'Arabic name', 'الاسم بالعربية')}<input dir="rtl" maxLength={120} value={nameAr} disabled={refreshRequired} onChange={(event) => edit(() => setNameAr(event.target.value))} /></label>

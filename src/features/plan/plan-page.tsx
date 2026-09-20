@@ -96,16 +96,18 @@ function EditDialog(props: EditDialogProps) {
         <h2>{props.title}</h2>
         <label className="cr-label">
           {t(locale, 'Amount', 'المبلغ')}
-          <input
-            type="text"
-            inputMode={props.currency === 'USD' ? 'decimal' : 'numeric'}
-            value={value}
-            aria-invalid={inputError ? true : undefined}
-            aria-describedby={inputError ? 'cr-plan-edit-error' : props.currency === 'LBP' ? 'cr-plan-lbp-hint' : undefined}
-            onChange={(event) => setValue(event.target.value.replace(props.currency === 'USD' ? /[^0-9.]/g : /[^0-9]/g, ''))}
-          />
+          <span className="cr-plan-edit-field">
+            <input
+              type="text"
+              inputMode={props.currency === 'USD' ? 'decimal' : 'numeric'}
+              value={value}
+              aria-invalid={inputError ? true : undefined}
+              aria-describedby={inputError ? 'cr-plan-edit-error' : props.currency === 'LBP' ? 'cr-plan-lbp-hint' : undefined}
+              onChange={(event) => setValue(event.target.value.replace(props.currency === 'USD' ? /[^0-9.]/g : /[^0-9]/g, ''))}
+            />
+            <span className="cr-plan-edit-currency">{props.currency}</span>
+          </span>
         </label>
-        <span className="cr-label">{props.currency}</span>
         {props.currency === 'LBP' ? (
           <small id="cr-plan-lbp-hint" className="cr-helper">
             {t(locale, 'LBP amounts are whole numbers, no decimals.', 'مبالغ الليرة مقررة بالأعداد الصحيحة دون كسور.')}

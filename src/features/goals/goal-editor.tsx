@@ -312,11 +312,17 @@ export function GoalEditor(props: GoalEditorProps) {
             <button type="button" className="cr-button" onClick={() => removeMilestone(row.id)}>{t(props.locale, 'Remove', 'إزالة')}</button>
           </div>
           <div className="form-grid">
-            <input type="text" aria-label={t(props.locale, 'Milestone label (English)', 'تسمية المعلم (إنجليزي)')} value={row.labelEn} onChange={(event) => updateMilestone(row.id, { labelEn: event.target.value })} />
-            <input type="text" aria-label={t(props.locale, 'Milestone label (Arabic)', 'تسمية المعلم (عربي)')} value={row.labelAr} onChange={(event) => updateMilestone(row.id, { labelAr: event.target.value })} />
+            <label>{t(props.locale, 'Milestone name (English)', 'اسم المعلم (إنجليزي)')}
+              <input type="text" value={row.labelEn} onChange={(event) => updateMilestone(row.id, { labelEn: event.target.value })} /></label>
+            <label>{t(props.locale, 'Milestone name (Arabic)', 'اسم المعلم (عربي)')}
+              <input type="text" value={row.labelAr} onChange={(event) => updateMilestone(row.id, { labelAr: event.target.value })} /></label>
           </div>
-          {row.kind === 'amount' && <input type="text" inputMode="decimal" aria-label={t(props.locale, 'Milestone threshold', 'حد المعلم')} value={row.thresholdMajor} onChange={(event) => updateMilestone(row.id, { thresholdMajor: event.target.value })} />}
-          <input type="date" aria-label={t(props.locale, 'Milestone due date', 'تاريخ استحقاق المعلم')} value={row.dueDate} onChange={(event) => updateMilestone(row.id, { dueDate: event.target.value })} />
+          {row.kind === 'amount' ? (
+            <label className="full-field">{t(props.locale, 'Amount for this milestone', 'مبلغ هذا المعلم')}
+              <input type="text" inputMode="decimal" value={row.thresholdMajor} onChange={(event) => updateMilestone(row.id, { thresholdMajor: event.target.value })} /></label>
+          ) : null}
+          <label className="full-field">{t(props.locale, 'Due date (optional)', 'تاريخ الاستحقاق (اختياري)')}
+            <input type="date" value={row.dueDate} onChange={(event) => updateMilestone(row.id, { dueDate: event.target.value })} /></label>
           {index > 0 && <span className="goal-label-muted">{t(props.locale, 'Order', 'الترتيب')}: {index + 1}</span>}
         </div>)}
         <div className="goal-row">

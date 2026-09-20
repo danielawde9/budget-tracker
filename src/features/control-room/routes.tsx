@@ -421,6 +421,7 @@ function CashControlSection(props: {
 const ALLOCATION_CURRENCIES = ['USD', 'LBP'] as const;
 const GOAL_CURRENCIES = ['USD', 'LBP'] as const;
 const CASH_CONTROL_CURRENCIES = ['USD', 'LBP'] as const;
+const PLAN_CURRENCY_OPTIONS = ['USD', 'LBP'] as const;
 
 type PlanSection = 'plan' | 'allocation' | 'goals' | 'cash' | 'bills';
 
@@ -435,6 +436,7 @@ const PLAN_SECTIONS: readonly { id: PlanSection; en: string; ar: string }[] = [
 function PlanRoutes(props: PlanRoutesProps) {
   const { locale, spaceId, gateways } = props;
   const [section, setSection] = useState<PlanSection>('plan');
+  const [planCurrency, setPlanCurrency] = useState<Currency>('USD');
   const plan = usePlan(gateways.plan ?? unavailablePlanClient, spaceId, props.month);
 
   const categoryTargetsByCurrency = useMemo(() => {
@@ -496,8 +498,24 @@ function PlanRoutes(props: PlanRoutesProps) {
           </button>
         ))}
       </nav>
+      {section === 'allocation' || section === 'goals' || section === 'cash' ? (
+        <div className="cr-tabs" role="tablist" aria-label={locale === 'ar' ? 'العملة' : 'Currency'}>
+          {PLAN_CURRENCY_OPTIONS.map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="tab"
+              aria-selected={planCurrency === option}
+              className={planCurrency === option ? 'cr-tab cr-tab--active' : 'cr-tab'}
+              onClick={() => setPlanCurrency(option)}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {section === 'plan' ? planSection : null}
-      {section === 'allocation' ? ALLOCATION_CURRENCIES.map((currency) => (
+      {section === 'allocation' ? [planCurrency].map((currency) => (
         <AllocationCurrencySection
           key={currency}
           locale={locale}
@@ -510,7 +528,7 @@ function PlanRoutes(props: PlanRoutesProps) {
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
       )) : null}
-      {section === 'goals' ? GOAL_CURRENCIES.map((currency) => (
+      {section === 'goals' ? [planCurrency].map((currency) => (
         <GoalsCurrencySection
           key={currency}
           locale={locale}
@@ -520,7 +538,7 @@ function PlanRoutes(props: PlanRoutesProps) {
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
       )) : null}
-      {section === 'cash' ? CASH_CONTROL_CURRENCIES.map((currency) => (
+      {section === 'cash' ? [planCurrency].map((currency) => (
         <CashControlSection
           key={currency}
           locale={locale}
