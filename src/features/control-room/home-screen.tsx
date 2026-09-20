@@ -5,7 +5,7 @@ import type { CashReadSlice } from '../cash-control/use-cash-control.js';
 import type { MonthlyCashSummary } from '../reports/types.js';
 import type { CategoryBudgetRow } from '../insights/types.js';
 import type { Currency, Locale, SpaceKind } from '../loans/types.js';
-import { formatMinorAmount, sumMinorAmounts } from '../wallets/money.js';
+import { formatMinorAmount } from '../wallets/money.js';
 import type { JournalEvent, JournalEventKind } from '../wallets/types.js';
 import { HomeSkeleton } from './skeletons.js';
 
@@ -48,11 +48,7 @@ export function eventLabel(event: JournalEvent, locale: Locale): string {
   return t(locale, kind?.en ?? event.kind, kind?.ar ?? event.kind);
 }
 
-function eventNet(event: JournalEvent): { currency: Currency; amountMinor: string } | null {
-  const movement = event.movements[0];
-  if (!movement) return null;
-  return { currency: movement.currency, amountMinor: sumMinorAmounts(event.movements.map((m) => m.amountMinor)) };
-}
+
 
 export interface HomeScreenProps {
   locale: Locale;
@@ -198,15 +194,18 @@ function RecentActivity({ events, locale, onRecord, onSeeAll }: { events: readon
       {events.length === 0 ? (
         <p>{t(locale, 'No transactions yet', 'لا توجد معاملات بعد')}</p>
       ) : events.map((event) => {
-        const net = eventNet(event);
-        const positive = event.kind === 'income' && net !== null && BigInt(net.amountMinor) > 0n;
-        const amount: ReactNode = net
-          ? <span className={positive ? 'cr-positive' : undefined}>{formatMinorAmount(net.amountMinor, net.currency, locale)}</span>
-          : null;
+        const amounts = event.movements.map((movement, index) => (
+          <span
+            key={`${event.id}-${movement.walletId}-${movement.currency}-${index}`}
+            className={event.kind === 'income' && BigInt(movement.amountMinor) > 0n ? 'cr-positive' : undefined}
+          >
+            {formatMinorAmount(movement.amountMinor, movement.currency, locale)}
+          </span>
+        ));
         return (
           <div key={event.id} className="cr-journal-row">
             <span>{eventLabel(event, locale)}</span>
-            {amount}
+            {amounts.length > 0 ? <span className="cr-journal-amounts">{amounts}</span> : null}
           </div>
         );
       })}

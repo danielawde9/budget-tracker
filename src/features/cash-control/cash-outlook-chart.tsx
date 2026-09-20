@@ -151,9 +151,9 @@ function OutlookTable({ locale, currency, outlook }: { locale: Locale; currency:
                 <td className="cc-bar-visual">
                   {ratio && (
                     <div className="cc-signed-bar" aria-hidden="true">
-                      <span className="cc-signed-bar-negative" style={{ inlineSize: ratio.negative ? `${ratio.percent}%` : '0%' }} />
+                      <span className="cc-signed-bar-negative"><span style={{ inlineSize: ratio.negative ? `${ratio.percent}%` : '0%' }} /></span>
                       <span className="cc-signed-bar-zero" />
-                      <span className="cc-signed-bar-positive" style={{ inlineSize: ratio.negative ? '0%' : `${ratio.percent}%` }} />
+                      <span className="cc-signed-bar-positive"><span style={{ inlineSize: ratio.negative ? '0%' : `${ratio.percent}%` }} /></span>
                     </div>
                   )}
                 </td>

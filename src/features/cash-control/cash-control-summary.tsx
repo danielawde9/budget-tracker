@@ -166,9 +166,9 @@ export function CashControlSummary({ locale, currency, available, variant }: Cas
           to double-match text queries. */}
       {ratio.hasScale && (
         <div className="cc-signed-bar cc-signed-bar--summary" aria-hidden="true">
-          <span className="cc-signed-bar-negative" style={{ inlineSize: ratio.negative ? `${ratio.percent}%` : '0%' }} />
+          <span className="cc-signed-bar-negative"><span style={{ inlineSize: ratio.negative ? `${ratio.percent}%` : '0%' }} /></span>
           <span className="cc-signed-bar-zero" />
-          <span className="cc-signed-bar-positive" style={{ inlineSize: ratio.negative ? '0%' : `${ratio.percent}%` }} />
+          <span className="cc-signed-bar-positive"><span style={{ inlineSize: ratio.negative ? '0%' : `${ratio.percent}%` }} /></span>
         </div>
       )}
 

@@ -667,6 +667,9 @@
   animation: cr-fade-in var(--cr-duration) var(--cr-ease);
 }
 .cr-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-3);
   background: var(--cr-surface);
   inline-size: 100%;
   max-inline-size: 560px;
@@ -855,6 +858,12 @@
 }
 
 .cr-record-details { display: flex; flex-direction: column; gap: var(--cr-space-3); }
+/* Caption labels that wrap a control outside a <form> still stack with a gap */
+.cr-record-details .cr-label,
+.cr-record-category-step .cr-label {
+  display: grid;
+  gap: 7px;
+}
 .cr-record-details input {
   inline-size: 100%;
   min-height: 44px;

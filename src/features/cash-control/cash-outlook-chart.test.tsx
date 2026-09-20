@@ -107,10 +107,10 @@ describe('CashOutlookChart', () => {
     const negativeRow = screen.getByText('2026-09-16').closest('tr')!;
     expect(negativeRow).toHaveAttribute('data-first-negative', 'true');
     expect(negativeRow.querySelector('.cc-danger-text')).toBeInTheDocument();
-    const negativeSegment = negativeRow.querySelector('.cc-signed-bar-negative') as HTMLElement;
+    const negativeSegment = negativeRow.querySelector('.cc-signed-bar-negative > span') as HTMLElement;
     expect(negativeSegment.style.inlineSize).not.toBe('0%');
     const positiveRow = screen.getByText('2026-09-15').closest('tr')!;
-    const positiveSegment = positiveRow.querySelector('.cc-signed-bar-positive') as HTMLElement;
+    const positiveSegment = positiveRow.querySelector('.cc-signed-bar-positive > span') as HTMLElement;
     expect(positiveSegment.style.inlineSize).not.toBe('0%');
   });
 

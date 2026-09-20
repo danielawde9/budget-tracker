@@ -176,18 +176,17 @@
 }
 .cc-signed-bar-negative,
 .cc-signed-bar-positive {
+  flex: 0 0 50%;
   block-size: 100%;
-  flex: 1 1 50%;
+  display: flex;
 }
-.cc-signed-bar-negative {
-  background: var(--cr-danger);
-  /* Grows from the zero baseline outward: aligned to the end of its own
-     (start) half so a wider inline-size extends away from zero, not into
-     it. */
-  margin-inline-start: auto;
-}
-.cc-signed-bar-positive {
-  background: var(--cr-accent);
+.cc-signed-bar-negative { justify-content: flex-end; }
+.cc-signed-bar-negative > span { background: var(--cr-danger); }
+.cc-signed-bar-positive > span { background: var(--cr-accent); }
+.cc-signed-bar-negative > span,
+.cc-signed-bar-positive > span {
+  display: block;
+  block-size: 100%;
 }
 .cc-signed-bar-zero {
   inline-size: 2px;
