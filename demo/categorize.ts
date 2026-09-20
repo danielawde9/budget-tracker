@@ -19,7 +19,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import OpenAI from 'openai';
 import { TypeSafeClient, choice } from '@typesafe-ai/sdk';
 import { z } from 'zod';
-import { deepSeekRates, parseDeepSeekAnswer } from './answer.ts';
+import { cascade, deepSeekRates, median, parseDeepSeekAnswer, tally, type CascadeEntry, type Tally } from './answer.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -41,6 +41,8 @@ type Expense = {
   readonly note: string;
   readonly amount: string;
   readonly expected: string;
+  /** "clean" for tidy entries, "messy" for bank-statement noise. */
+  readonly tier: string;
 };
 
 type Attempt = {
@@ -59,7 +61,12 @@ type Arm = {
 
 type Row = { readonly expense: Expense; readonly attempts: ReadonlyMap<string, Attempt> };
 
-type Options = { readonly check: boolean; readonly limit: number; readonly only: readonly string[] | null };
+type Options = {
+  readonly check: boolean;
+  readonly limit: number;
+  readonly only: readonly string[] | null;
+  readonly tier: string | null;
+};
 
 function parseArgs(argv: readonly string[]): Options {
   const value = (flag: string): string | undefined =>
@@ -72,6 +79,7 @@ function parseArgs(argv: readonly string[]): Options {
     check: argv.includes('--check'),
     limit,
     only: onlyArg === undefined ? null : onlyArg.split(',').map((name) => name.trim()),
+    tier: value('--tier') ?? null,
   };
 }
 
@@ -84,6 +92,7 @@ function loadDataset(): { expenses: readonly Expense[]; criteria: Readonly<Recor
   for (const expense of expenses) {
     if (!labels.has(expense.expected)) throw new Error(`expense ${expense.id}: unknown label "${expense.expected}"`);
     if (ids.has(expense.id)) throw new Error(`duplicate expense id ${expense.id}`);
+    if (typeof expense.tier !== 'string' || expense.tier === '') throw new Error(`expense ${expense.id}: missing tier`);
     ids.add(expense.id);
   }
   return { expenses, criteria };
@@ -253,18 +262,10 @@ function cell(attempt: Attempt | undefined, expected: string): string {
   return pad(`${attempt.label} ${attempt.label === expected ? '✓' : '✗'} ${(attempt.ms / 1000).toFixed(2)}s`, 22);
 }
 
-function median(values: readonly number[]): number {
-  if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-  if (sorted.length % 2 === 1) return sorted[middle] ?? 0;
-  return ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2;
-}
-
 type Summary = {
   readonly model: string;
-  readonly correct: number;
-  readonly total: number;
+  readonly all: Tally;
+  readonly byTier: ReadonlyMap<string, Tally>;
   readonly medianMs: number;
   readonly slowestMs: number;
   readonly costPerThousand: number;
@@ -274,22 +275,35 @@ function summarise(arm: Arm, rows: readonly Row[]): Summary {
   const attempts = rows.map((row) => row.attempts.get(arm.name)).filter((a): a is Attempt => a !== undefined);
   const latencies = attempts.map((a) => a.ms);
   const cost = attempts.reduce((total, a) => total + a.cost, 0);
+  const scored = rows.map((row) => ({
+    tier: row.expense.tier,
+    expected: row.expense.expected,
+    label: row.attempts.get(arm.name)?.label ?? null,
+  }));
+  const counted = tally(scored);
   return {
     model: arm.model,
-    correct: rows.filter((row) => row.attempts.get(arm.name)?.label === row.expense.expected).length,
-    total: attempts.length,
+    all: counted.all,
+    byTier: counted.byTier,
     medianMs: median(latencies),
     slowestMs: Math.max(0, ...latencies),
     costPerThousand: attempts.length === 0 ? 0 : (cost / attempts.length) * 1000,
   };
 }
 
-function summaryTable(summaries: readonly Summary[]): string {
+function accuracy(counted: Tally | undefined): string {
+  if (counted === undefined || counted.total === 0) return '-';
+  return `${counted.correct}/${counted.total} (${((counted.correct / counted.total) * 100).toFixed(0)}%)`;
+}
+
+function summaryTable(summaries: readonly Summary[], tiers: readonly string[]): string {
+  const header = `| model | overall | ${tiers.join(' | ')} | median | slowest | cost / 1,000 expenses |`;
+  const divider = `| --- | --- | ${tiers.map(() => '---').join(' | ')} | --- | --- | --- |`;
   const rows = summaries.map((s) => {
-    const accuracy = s.total === 0 ? '-' : `${s.correct}/${s.total} (${((s.correct / s.total) * 100).toFixed(1)}%)`;
-    return `| \`${s.model}\` | ${accuracy} | ${(s.medianMs / 1000).toFixed(2)}s | ${(s.slowestMs / 1000).toFixed(2)}s | $${s.costPerThousand.toFixed(4)} |`;
+    const perTier = tiers.map((tier) => accuracy(s.byTier.get(tier))).join(' | ');
+    return `| \`${s.model}\` | ${accuracy(s.all)} | ${perTier} | ${(s.medianMs / 1000).toFixed(2)}s | ${(s.slowestMs / 1000).toFixed(2)}s | $${s.costPerThousand.toFixed(4)} |`;
   });
-  return ['| model | accuracy | median | slowest | cost / 1,000 expenses |', '| --- | --- | --- | --- | --- |', ...rows].join('\n');
+  return [header, divider, ...rows].join('\n');
 }
 
 function disagreements(rows: readonly Row[], arms: readonly Arm[]): string {
@@ -298,10 +312,64 @@ function disagreements(rows: readonly Row[], arms: readonly Arm[]): string {
   const header = `| # | expense | expected | ${arms.map((a) => a.name).join(' | ')} |`;
   const divider = `| --- | --- | --- | ${arms.map(() => '---').join(' | ')} |`;
   const lines = interesting.map((row) => {
-    const cells = arms.map((arm) => row.attempts.get(arm.name)?.label ?? 'error');
+    const cells = arms.map((arm) => {
+      const attempt = row.attempts.get(arm.name);
+      if (attempt === undefined) return '-';
+      const label = attempt.label ?? `error: ${attempt.error ?? 'unknown'}`;
+      // A confidence next to a wrong answer is the interesting part: it says
+      // whether the model knew it was guessing.
+      return attempt.confidence === null ? label : `${label} (${(attempt.confidence * 100).toFixed(0)}%)`;
+    });
     return `| ${row.expense.id} | ${row.expense.payee} — ${row.expense.note} | ${row.expense.expected} | ${cells.join(' | ')} |`;
   });
   return [header, divider, ...lines].join('\n');
+}
+
+/** Ask the fallback model whenever the decision model is less sure than this. */
+const CASCADE_THRESHOLD = 0.7;
+
+function cascadeEntries(rows: readonly Row[], primary: Arm, fallback: Arm): readonly (CascadeEntry & { tier: string })[] {
+  return rows.map((row) => {
+    const first = row.attempts.get(primary.name);
+    const second = row.attempts.get(fallback.name);
+    return {
+      tier: row.expense.tier,
+      expected: row.expense.expected,
+      primaryLabel: first?.label ?? null,
+      primaryConfidence: first?.confidence ?? null,
+      primaryCost: first?.cost ?? 0,
+      primaryMs: first?.ms ?? 0,
+      fallbackLabel: second?.label ?? null,
+      fallbackCost: second?.cost ?? 0,
+      fallbackMs: second?.ms ?? 0,
+    };
+  });
+}
+
+/** A blended arm, scored from answers both models already gave in this run. */
+function cascadeSummary(rows: readonly Row[], primary: Arm, fallback: Arm): { summary: Summary; routed: number } {
+  const entries = cascadeEntries(rows, primary, fallback);
+  const overall = cascade(entries, CASCADE_THRESHOLD);
+  const byTier = new Map<string, Tally>();
+  for (const tier of tiersOf(rows)) {
+    const scoped = cascade(entries.filter((entry) => entry.tier === tier), CASCADE_THRESHOLD);
+    byTier.set(tier, { correct: scoped.correct, total: scoped.total });
+  }
+  return {
+    routed: overall.routed,
+    summary: {
+      model: `${primary.model} → ${fallback.model} under ${CASCADE_THRESHOLD * 100}%`,
+      all: { correct: overall.correct, total: overall.total },
+      byTier,
+      medianMs: median(overall.latencies),
+      slowestMs: Math.max(0, ...overall.latencies),
+      costPerThousand: overall.total === 0 ? 0 : (overall.cost / overall.total) * 1000,
+    },
+  };
+}
+
+function tiersOf(rows: readonly Row[]): readonly string[] {
+  return [...new Set(rows.map((row) => row.expense.tier))];
 }
 
 function writeResults(rows: readonly Row[], arms: readonly Arm[], summaries: readonly Summary[]): string {
@@ -312,8 +380,10 @@ function writeResults(rows: readonly Row[], arms: readonly Arm[], summaries: rea
     '',
     `Run on ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC over ${rows.length} expenses (English and Arabic).`,
     'Same expense, same ten categories, same descriptions for every model.',
+    '`clean` rows are tidy entries; `messy` rows are bank-statement noise: abbreviated merchants,',
+    'POS codes, transliterated Arabic, French, and empty notes.',
     '',
-    summaryTable(summaries),
+    summaryTable(summaries, tiersOf(rows)),
     '',
     '## Prices used',
     '',
@@ -348,7 +418,9 @@ async function main(): Promise<void> {
   }
 
   const arms = buildArms(criteria, options.only);
-  const selected = expenses.slice(0, options.limit);
+  const inTier = options.tier === null ? expenses : expenses.filter((expense) => expense.tier === options.tier);
+  if (inTier.length === 0) throw new Error(`no expenses in tier "${options.tier}"`);
+  const selected = inTier.slice(0, options.limit);
   const errors: string[] = [];
   console.log(`\n ${pad('#', 3)}${pad('expense', 30)}${pad('expected', 14)}${arms.map((a) => pad(a.name, 22)).join('')}`);
 
@@ -367,9 +439,18 @@ async function main(): Promise<void> {
   }
 
   const summaries = arms.map((arm) => summarise(arm, rows));
-  console.log(`\n${summaryTable(summaries)}`);
+  // With a decision model and at least one LLM in the run, the blend is free to
+  // compute: both answers already exist for every row.
+  const primary = arms.find((arm) => arm.name === 'jev');
+  const fallback = arms.find((arm) => arm.name !== 'jev');
+  const blended = primary !== undefined && fallback !== undefined ? cascadeSummary(rows, primary, fallback) : null;
+  const all = blended === null ? summaries : [...summaries, blended.summary];
+  console.log(`\n${summaryTable(all, tiersOf(rows))}`);
+  if (blended !== null) {
+    console.log(`\n${blended.routed} of ${rows.length} expenses fell below ${CASCADE_THRESHOLD * 100}% confidence and were sent to ${fallback?.model}.`);
+  }
   if (errors.length > 0) console.log(`\n${errors.length} failed request(s):\n${errors.slice(0, 10).join('\n')}`);
-  console.log(`\nWrote ${writeResults(rows, arms, summaries)}`);
+  console.log(`\nWrote ${writeResults(rows, arms, all)}`);
 }
 
 await main();

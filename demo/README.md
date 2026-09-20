@@ -47,13 +47,30 @@ connected to Claude Code, and nothing here changes what your coding agent sends.
 
    `--only jev,deepseek` restricts the arms; `--limit N` restricts the rows.
 
+## What it found (run of 2026-09-20, 80 expenses, Jev and DeepSeek)
+
+| model | overall | clean | messy | median | cost / 1,000 |
+| --- | --- | --- | --- | --- | --- |
+| `jev-latest` | 78/80 (98%) | 60/60 | 18/20 | 0.34s | $0.0260 |
+| `deepseek-flash` | 80/80 (100%) | 60/60 | 20/20 | 1.11s | $0.0684 |
+| Jev → DeepSeek under 70% confidence | 80/80 (100%) | 60/60 | 20/20 | 0.34s | $0.0337 |
+
+Both models are perfect on tidy entries. Jev's two misses are both Lebanese transliteration
+that needs world knowledge — `sarvis Hamra-Achrafieh` (a shared taxi, called `dining`) and
+`MOTEUR HAJ ALI / eshtirak 5A` (a generator subscription, called `other`) — and it reported
+52% and 35% confidence on them. So a 70% threshold catches both: 6 of 80 expenses route to
+the LLM, accuracy matches the LLM, and the median stays at the decision model's speed.
+
+That blend is the interesting result, and the script computes it from answers both models
+already gave in the same run — no extra requests.
+
 ## Recording
 
-The full run is 60 expenses and takes a few minutes. For the video, record 20 rows and
-show the full table from a run you did beforehand.
+The messy tier is where something actually happens: 20 rows, about 40 seconds, both misses
+and the cascade line. Show the full 80-row table afterwards from a run you did beforehand.
 
 ```bash
-pnpm demo:categorize --limit 20
+pnpm demo:categorize --tier messy
 ```
 
 Shot list, about 60–90 seconds:
@@ -99,6 +116,10 @@ That file is the raw material for the post.
 - **The dataset is written for the demo**, not sampled from real spending. Say so.
 - **One run is not a benchmark.** Run it two or three times: latency moves a lot, and a
   model that gets 57/60 once may get 55/60 next time.
-- **Jev also returns a confidence** per answer, which the app could use to auto-apply a
-  category above a threshold and ask the user below it. That is the actual product idea
-  behind the demo, if you want a second post.
+- **The 70% threshold was picked after seeing the results, on two misses.** That is
+  overfitting, and you should say so: it demonstrates that calibrated confidence is
+  actionable, it does not establish 70% as the right number. On real data, set it from a
+  held-out sample.
+- **Jev's confidence could also route to a human** instead of to another model: auto-apply
+  above the threshold, ask the user below it. In an app where the user is right there, that
+  is often the better design, and the cheaper one.

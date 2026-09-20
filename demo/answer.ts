@@ -27,6 +27,71 @@ export function deepSeekRates(now: Date): Rates {
     : { ...DEEPSEEK_PRICE.offPeak, window: 'off-peak' };
 }
 
+export type Tally = { readonly correct: number; readonly total: number };
+export type Scored = { readonly tier: string; readonly expected: string; readonly label: string | null };
+
+/** Accuracy overall and per tier, so clean and messy expenses read separately. */
+export function tally(scored: readonly Scored[]): { readonly all: Tally; readonly byTier: ReadonlyMap<string, Tally> } {
+  const byTier = new Map<string, Tally>();
+  let correct = 0;
+  for (const entry of scored) {
+    const hit = entry.label === entry.expected;
+    if (hit) correct += 1;
+    const current = byTier.get(entry.tier) ?? { correct: 0, total: 0 };
+    byTier.set(entry.tier, { correct: current.correct + (hit ? 1 : 0), total: current.total + 1 });
+  }
+  return { all: { correct, total: scored.length }, byTier };
+}
+
+export type CascadeEntry = {
+  readonly expected: string;
+  readonly primaryLabel: string | null;
+  readonly primaryConfidence: number | null;
+  readonly primaryCost: number;
+  readonly primaryMs: number;
+  readonly fallbackLabel: string | null;
+  readonly fallbackCost: number;
+  readonly fallbackMs: number;
+};
+
+export type CascadeResult = {
+  readonly routed: number;
+  readonly correct: number;
+  readonly total: number;
+  readonly cost: number;
+  readonly latencies: readonly number[];
+};
+
+/**
+ * Keep the primary model's answer when it is confident, and ask the fallback
+ * model otherwise. Computed from answers both models already gave in one run,
+ * so no extra requests are made. An answer with no confidence (or none at all)
+ * always routes.
+ */
+export function cascade(entries: readonly CascadeEntry[], threshold: number): CascadeResult {
+  let routed = 0;
+  let correct = 0;
+  let cost = 0;
+  const latencies: number[] = [];
+  for (const entry of entries) {
+    const confident = entry.primaryConfidence !== null && entry.primaryConfidence >= threshold && entry.primaryLabel !== null;
+    const label = confident ? entry.primaryLabel : entry.fallbackLabel;
+    if (!confident) routed += 1;
+    if (label === entry.expected) correct += 1;
+    cost += entry.primaryCost + (confident ? 0 : entry.fallbackCost);
+    latencies.push(entry.primaryMs + (confident ? 0 : entry.fallbackMs));
+  }
+  return { routed, correct, total: entries.length, cost, latencies };
+}
+
+export function median(values: readonly number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 1) return sorted[middle] ?? 0;
+  return ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2;
+}
+
 export type ParsedAnswer = { readonly label: string; readonly error: null } | { readonly label: null; readonly error: string };
 
 /**

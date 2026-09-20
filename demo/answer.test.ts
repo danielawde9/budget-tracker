@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deepSeekRates, parseDeepSeekAnswer } from './answer.ts';
+import { cascade, deepSeekRates, parseDeepSeekAnswer, tally } from './answer.ts';
 
 const LABELS = new Set(['groceries', 'dining', 'transport']);
 
@@ -33,6 +33,67 @@ describe('parseDeepSeekAnswer', () => {
     const result = parseDeepSeekAnswer(null, 'stop', LABELS);
     expect(result.label).toBeNull();
     expect(result.error).toMatch(/empty/i);
+  });
+});
+
+describe('tally', () => {
+  const scored = [
+    { tier: 'clean', expected: 'dining', label: 'dining' },
+    { tier: 'clean', expected: 'groceries', label: 'groceries' },
+    { tier: 'messy', expected: 'health', label: 'health' },
+    { tier: 'messy', expected: 'transport', label: 'other' },
+    { tier: 'messy', expected: 'other', label: null },
+  ];
+
+  it('counts overall accuracy', () => {
+    expect(tally(scored).all).toEqual({ correct: 3, total: 5 });
+  });
+
+  it('separates the tiers, counting a failed request as wrong', () => {
+    const { byTier } = tally(scored);
+    expect(byTier.get('clean')).toEqual({ correct: 2, total: 2 });
+    expect(byTier.get('messy')).toEqual({ correct: 1, total: 3 });
+  });
+
+  it('handles an empty run', () => {
+    expect(tally([])).toEqual({ all: { correct: 0, total: 0 }, byTier: new Map() });
+  });
+});
+
+describe('cascade', () => {
+  const entry = (over: Partial<Parameters<typeof cascade>[0][number]>) => ({
+    expected: 'transport',
+    primaryLabel: 'transport',
+    primaryConfidence: 0.95,
+    primaryCost: 0.001,
+    primaryMs: 300,
+    fallbackLabel: 'transport',
+    fallbackCost: 0.01,
+    fallbackMs: 1200,
+    ...over,
+  });
+
+  it('keeps a confident answer without paying the fallback', () => {
+    const result = cascade([entry({})], 0.7);
+    expect(result).toMatchObject({ routed: 0, correct: 1, total: 1, cost: 0.001 });
+    expect(result.latencies).toEqual([300]);
+  });
+
+  it('routes a low-confidence answer and pays both', () => {
+    const result = cascade([entry({ primaryLabel: 'dining', primaryConfidence: 0.52 })], 0.7);
+    expect(result).toMatchObject({ routed: 1, correct: 1, total: 1 });
+    expect(result.cost).toBeCloseTo(0.011);
+    expect(result.latencies).toEqual([1500]);
+  });
+
+  it('counts a routed answer as wrong when the fallback is also wrong', () => {
+    const result = cascade([entry({ primaryConfidence: 0.1, fallbackLabel: 'dining' })], 0.7);
+    expect(result).toMatchObject({ routed: 1, correct: 0 });
+  });
+
+  it('routes when the primary reports no confidence or failed', () => {
+    expect(cascade([entry({ primaryConfidence: null })], 0.7).routed).toBe(1);
+    expect(cascade([entry({ primaryLabel: null, primaryConfidence: 0.99 })], 0.7).routed).toBe(1);
   });
 });
 
