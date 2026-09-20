@@ -19,6 +19,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import OpenAI from 'openai';
 import { TypeSafeClient, choice } from '@typesafe-ai/sdk';
 import { z } from 'zod';
+import { deepSeekRates, parseDeepSeekAnswer } from './answer.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -27,10 +28,9 @@ const CLAUDE_MODEL = 'claude-haiku-4-5';
 const CLAUDE_PRICE = { input: 1.0, output: 5.0 } as const;
 const JEV_INPUT_PRICE = 0.042; // output tokens are free on Jev
 const DEEPSEEK_MODEL = 'deepseek-flash';
-const DEEPSEEK_PRICE = {
-  peak: { miss: 0.3, hit: 0.006, output: 1.2 },
-  offPeak: { miss: 0.15, hit: 0.003, output: 0.6 },
-} as const;
+/** deepseek-flash reasons before it answers, and that reasoning is billed as
+ *  output and counted against this cap. 64 truncated the harder expenses. */
+const DEEPSEEK_MAX_TOKENS = 512;
 
 const REQUEST_TIMEOUT_MS = 20_000;
 const QUESTION = 'Which budget category does this expense belong to?';
@@ -171,17 +171,6 @@ function claudeArm(apiKey: string, criteria: Readonly<Record<string, string>>): 
   };
 }
 
-/** DeepSeek charges peak rates 01:00-04:00 and 06:00-10:00 UTC, Mon-Fri. */
-export function deepSeekRates(now: Date): { readonly miss: number; readonly hit: number; readonly output: number; readonly window: string } {
-  const day = now.getUTCDay();
-  const hour = now.getUTCHours();
-  const weekday = day >= 1 && day <= 5;
-  const peakHour = (hour >= 1 && hour < 4) || (hour >= 6 && hour < 10);
-  return weekday && peakHour
-    ? { ...DEEPSEEK_PRICE.peak, window: 'peak' }
-    : { ...DEEPSEEK_PRICE.offPeak, window: 'off-peak' };
-}
-
 function deepSeekArm(apiKey: string, criteria: Readonly<Record<string, string>>): Arm {
   const client = new OpenAI({ apiKey, baseURL: 'https://api.deepseek.com', timeout: REQUEST_TIMEOUT_MS });
   const labels = new Set(Object.keys(criteria));
@@ -196,7 +185,7 @@ function deepSeekArm(apiKey: string, criteria: Readonly<Record<string, string>>)
       try {
         const completion = await client.chat.completions.create({
           model: DEEPSEEK_MODEL,
-          max_tokens: 64,
+          max_tokens: DEEPSEEK_MAX_TOKENS,
           messages: [
             { role: 'system', content: system },
             { role: 'user', content: JSON.stringify(stateOf(expense)) },
@@ -212,12 +201,12 @@ function deepSeekArm(apiKey: string, criteria: Readonly<Record<string, string>>)
         const hit = usage?.prompt_cache_hit_tokens ?? 0;
         const miss = usage?.prompt_cache_miss_tokens ?? usage?.prompt_tokens ?? 0;
         const cost = (hit * rates.hit + miss * rates.miss + (usage?.completion_tokens ?? 0) * rates.output) / 1_000_000;
-        const parsed: unknown = JSON.parse(completion.choices[0]?.message?.content ?? 'null');
-        const label = (parsed as { category?: unknown } | null)?.category;
-        if (typeof label !== 'string' || !labels.has(label)) {
-          return { label: null, confidence: null, ms, cost, error: `invalid answer: ${JSON.stringify(label)}` };
-        }
-        return { label, confidence: null, ms, cost, error: null };
+        const answer = parseDeepSeekAnswer(
+          completion.choices[0]?.message?.content,
+          completion.choices[0]?.finish_reason,
+          labels,
+        );
+        return { label: answer.label, confidence: null, ms, cost, error: answer.error };
       } catch (error) {
         return failed(error, performance.now() - started);
       }
@@ -252,9 +241,10 @@ function buildArms(criteria: Readonly<Record<string, string>>, only: readonly st
   return arms;
 }
 
+/** Pads to `width` characters, always leaving one space before the next column. */
 function pad(text: string, width: number): string {
-  const trimmed = [...text].slice(0, width).join('');
-  return trimmed + ' '.repeat(Math.max(0, width - [...trimmed].length));
+  const trimmed = [...text].slice(0, width - 1).join('');
+  return trimmed + ' '.repeat(Math.max(1, width - [...trimmed].length));
 }
 
 function cell(attempt: Attempt | undefined, expected: string): string {

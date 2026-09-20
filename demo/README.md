@@ -81,6 +81,11 @@ That file is the raw material for the post.
   runs and names it in `results.md`. Run both arms in the same session or the comparison
   drifts. (The published rates also exclude Chinese public holidays; the script does not
   model those.)
+- **DeepSeek reasons before it answers, and you pay for it.** `deepseek-flash` emits
+  `reasoning_content` first; those tokens are billed as output and count against
+  `max_tokens`. The cap is 512 here — at 64 the harder expenses were cut off mid-thought
+  and returned nothing, which looked like wrong answers. If you lower it, check the run
+  for `truncated` errors before trusting the accuracy column.
 - **DeepSeek's cache makes later rows cheaper.** The shared system prompt is cached
   automatically after the first call, so cost per expense falls during a run and a repeat
   run starts cheaper. That is real production behaviour — just say which run you quoted.
