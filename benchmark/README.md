@@ -1,4 +1,4 @@
-# Demo: expense categorisation, a decision model vs general-purpose LLMs
+# Expense categorisation: a decision model vs general-purpose LLMs
 
 A side-by-side comparison for a screen recording. Every model reads the same expense
 (payee, note, amount), gets the same ten categories with the same descriptions, and must
@@ -13,7 +13,7 @@ Arms (each one runs only if its key is in `.env.local`):
 | `deepseek` | `deepseek-flash` | `DEEPSEEK_API_KEY` |
 | `claude` | `claude-haiku-4-5` | `ANTHROPIC_API_KEY` |
 
-**What this demo claims:** moving one small decision out of a general-purpose LLM and onto
+**What this measures:** moving one small decision out of a general-purpose LLM and onto
 a decision model changes cost and latency by a large factor, at a measured accuracy.
 **What it does not claim:** it does not reduce Claude Code's token usage. Jev is not
 connected to Claude Code, and nothing here changes what your coding agent sends.
@@ -79,7 +79,7 @@ Shot list, about 60–90 seconds:
 
 1. **The app** (10 s) — open the add-expense screen, point at the payee and note fields.
    These are the only two things any model gets. The app itself is unchanged.
-2. **The data** (5 s) — `benchmark/expenses.json`: 60 real-shaped expenses, half English, half
+2. **The data** (5 s) — `benchmark/expenses.json`: 80 expenses, 60 tidy and 20 messy, English and
    Arabic, each with the category it should get.
 3. **The run** (40 s) — the command above. Each row prints the expense, then each model's
    answer with ✓ or ✗ and how long it took.
@@ -115,7 +115,7 @@ That file is the raw material for the post.
 - **The cheap fast models are the fair comparison**, not a frontier model. TypeSafe's own
   "238× cheaper" figure compares against Claude Fable 5.1. Your gap will be smaller and
   will hold up when someone checks it.
-- **The dataset is written for the demo**, not sampled from real spending. Say so.
+- **The dataset is written for this benchmark**, not sampled from real spending. Say so.
 - **One run is not a benchmark.** Run it two or three times: latency moves a lot, and a
   model that gets 57/60 once may get 55/60 next time.
 - **The 70% threshold is illustrative.** On this dataset nothing falls below it that matters.
