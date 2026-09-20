@@ -38,6 +38,23 @@ async function openPlan(page: import('@playwright/test').Page, options: Paramete
   await openPlanSection(page, 'Goals');
 }
 
+test('the goal editor keeps every radio beside its label in one compact row', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop');
+  await openPlan(page, {});
+  await page.getByRole('button', { name: 'New goal' }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'New goal' });
+  const rows = dialog.locator('fieldset label:has(> input[type="radio"])');
+  const count = await rows.count();
+  expect(count).toBeGreaterThanOrEqual(6);
+  for (let index = 0; index < count; index += 1) {
+    const box = await rows.nth(index).boundingBox();
+    expect(box, `radio label row ${index} must have a box`).not.toBeNull();
+    expect(box!.height, `radio label row ${index} must be one compact row`).toBeLessThanOrEqual(48);
+    const inputBox = await rows.nth(index).locator('input').boundingBox();
+    expect(inputBox!.height, `radio ${index} keeps a 44px target`).toBeGreaterThanOrEqual(44);
+  }
+});
+
 test('U13-01/U13-04 shows target, earmarked, cash-covered, fulfilled, shortage, and a checklist milestone distinctly', async ({ page }, testInfo) => {
   await openPlan(page, { seedGoals: [coreGoal], goalMilestones: coreMilestones });
   const usdSection = page.getByRole('region', { name: 'Goals USD' });

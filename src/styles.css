@@ -117,6 +117,7 @@ dd { margin: 6px 0 0; font-weight: 700; white-space: nowrap; }
   font-weight: 650;
   color: var(--cr-ink, #121614);
 }
+
 .controls select, .controls input, form select, form input, form textarea {
   border: 1px solid var(--cr-border, #dde4e1);
   border-radius: var(--cr-radius-sm, 12px);
@@ -124,6 +125,70 @@ dd { margin: 6px 0 0; font-weight: 700; white-space: nowrap; }
   color: var(--cr-ink, #121614);
   padding: 0.65rem 0.75rem;
 }
+
+/* Choice controls keep their label beside them in one compact row; the
+   input keeps its 44px target box while the drawn control stays modest. */
+form label:has(> input[type="radio"]),
+form label:has(> input[type="checkbox"]),
+.controls label:has(> input[type="radio"]),
+.controls label:has(> input[type="checkbox"]) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+input[type="radio"],
+input[type="checkbox"] {
+  appearance: none;
+  inline-size: 44px;
+  block-size: 44px;
+  margin: 0;
+  padding: 0;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 0;
+  position: relative;
+}
+input[type="radio"]::before {
+  content: "";
+  inline-size: 20px;
+  block-size: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--cr-border, #dde4e1);
+  background: var(--cr-surface, #ffffff);
+}
+input[type="radio"]:checked::before {
+  border-color: var(--cr-accent, #177f63);
+  background: radial-gradient(circle, var(--cr-accent, #177f63) 0 6px, var(--cr-surface, #ffffff) 7px);
+}
+input[type="radio"]:disabled::before {
+  border-color: var(--cr-hairline, #e8edea);
+  background: var(--cr-surface-sunken, #ecefee);
+}
+input[type="checkbox"]::before {
+  content: "";
+  inline-size: 20px;
+  block-size: 20px;
+  border-radius: 6px;
+  border: 2px solid var(--cr-border, #dde4e1);
+  background: var(--cr-surface, #ffffff);
+}
+input[type="checkbox"]:checked::before {
+  border-color: var(--cr-accent, #177f63);
+  background: var(--cr-accent, #177f63);
+}
+input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  inline-size: 12px;
+  block-size: 6px;
+  border-left: 2.5px solid var(--cr-surface, #ffffff);
+  border-bottom: 2.5px solid var(--cr-surface, #ffffff);
+  transform: rotate(-45deg) translate(0.5px, -1px);
+  opacity: 0;
+}
+input[type="checkbox"]:checked::after { opacity: 1; }
 .controls button { margin-inline-start: auto; }
 .space-kind {
   border: 1px solid var(--cr-border, #dde4e1);
