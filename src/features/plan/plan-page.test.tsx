@@ -76,16 +76,55 @@ function setup(overrides: Partial<Parameters<typeof PlanPage>[0]> = {}) {
 }
 
 describe('PlanPage', () => {
-  it('renders a planned-income card per currency with the amount and an Edit button', () => {
+  it('separates the whole plan by currency tabs, defaulting to USD', async () => {
+    const user = userEvent.setup();
+    setup({
+      summaries: [
+        summary(),
+        summary({ currency: 'LBP', plannedIncomeMinor: '5000000', incomePlanRevisionId: 'rev-income-2', unallocatedMinor: '1000000' }),
+      ],
+      categoryRows: [
+        categoryRow(),
+        categoryRow({ categoryId: 'cat-fuel', nameEn: 'Fuel', currency: 'LBP', targetMinor: '2000000', targetRevisionId: 'rev-cat-2' }),
+      ],
+      loansSummary: [loansSummary(), loansSummary({ currency: 'LBP', targetMinor: '1500000' })],
+    });
+
+    const tablist = screen.getByRole('tablist', { name: 'Currency' });
+    expect(within(tablist).getByRole('tab', { name: 'USD' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(tablist).getByRole('tab', { name: 'LBP' })).toHaveAttribute('aria-selected', 'false');
+
+    expect(screen.getByRole('region', { name: 'Planned income USD' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Planned income LBP' })).not.toBeInTheDocument();
+    expect(screen.getByText('Groceries')).toBeInTheDocument();
+    expect(screen.queryByText('Fuel')).not.toBeInTheDocument();
+    expect(screen.queryByText('LBP 1,500,000')).not.toBeInTheDocument();
+
+    await user.click(within(tablist).getByRole('tab', { name: 'LBP' }));
+
+    expect(screen.getByRole('region', { name: 'Planned income LBP' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Planned income USD' })).not.toBeInTheDocument();
+    expect(screen.getByText('Fuel')).toBeInTheDocument();
+    expect(screen.queryByText('Groceries')).not.toBeInTheDocument();
+    expect(screen.getByText('LBP 1,500,000')).toBeInTheDocument();
+  });
+
+  it('renders the planned-income card for the active currency tab', async () => {
+    const user = userEvent.setup();
     setup();
     const card = screen.getByRole('region', { name: 'Planned income USD' });
     expect(within(card).getByText(formatMinorAmount('300000', 'USD', 'en'))).toBeInTheDocument();
     expect(within(card).getByRole('button', { name: 'Edit planned income USD' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'LBP' }));
+    expect(screen.queryByRole('region', { name: 'Planned income USD' })).not.toBeInTheDocument();
     expect(screen.getByText('Set planned income')).toBeInTheDocument();
   });
 
-  it('presents the missing-income state as one primary call to action without a nested box', () => {
+  it('presents the missing-income state as one primary call to action without a nested box', async () => {
+    const user = userEvent.setup();
     setup();
+    await user.click(screen.getByRole('tab', { name: 'LBP' }));
     const button = screen.getByRole('button', { name: /Set planned income/ });
     expect(button.className).toContain('cr-button--primary');
     expect(button.className).toContain('cr-button--block');

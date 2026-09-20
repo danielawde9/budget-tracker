@@ -451,6 +451,30 @@
 
 .cr-chips { display: flex; gap: var(--cr-space-2); flex-wrap: wrap; }
 
+/* Segmented currency tabs — one plan currency at a time */
+.cr-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--cr-surface-sunken);
+  border-radius: 999px;
+  margin-block-end: var(--cr-space-3);
+}
+.cr-tab {
+  min-height: 36px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--cr-ink-soft);
+  font-weight: 700;
+}
+.cr-tab--active {
+  background: var(--cr-surface);
+  color: var(--cr-ink);
+  box-shadow: 0 1px 2px rgb(18 22 20 / 0.12);
+}
+
 /* Toolbar row: filter chips (or other controls) on the start edge, the
    single secondary action on the end edge, one rhythm below the search. */
 .cr-toolbar {

@@ -131,6 +131,7 @@ function EditDialog(props: EditDialogProps) {
 
 export function PlanPage(props: PlanPageProps) {
   const { locale, month, summaries } = props;
+  const [currency, setCurrency] = useState<Currency>(() => summaries[0]?.currency ?? props.categoryRows[0]?.currency ?? 'USD');
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
 
@@ -158,12 +159,26 @@ export function PlanPage(props: PlanPageProps) {
         <h1>{t(locale, 'Monthly plan', 'الخطة الشهرية')}</h1>
         <span className="cr-label">{monthLabel(month, locale)}</span>
       </header>
+      <div className="cr-tabs" role="tablist" aria-label={t(locale, 'Currency', 'العملة')}>
+        {PLAN_CURRENCIES.map((option) => (
+          <button
+            key={option}
+            type="button"
+            role="tab"
+            aria-selected={currency === option}
+            className={currency === option ? 'cr-tab cr-tab--active' : 'cr-tab'}
+            onClick={() => setCurrency(option)}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
       {saveFailed ? (
         <div className="cr-card" role="alert">
           <span className="cr-danger-text">{failureMessage}</span>
         </div>
       ) : null}
-      {PLAN_CURRENCIES.map((currency) => {
+      {PLAN_CURRENCIES.filter((option) => option === currency).map((currency) => {
         const summary = summaryFor(currency);
         if (!summary) {
           return (
@@ -193,7 +208,7 @@ export function PlanPage(props: PlanPageProps) {
           </section>
         );
       })}
-      {summaries.map((summary) => {
+      {summaries.filter((summary) => summary.currency === currency).map((summary) => {
         const overallocated = BigInt(summary.overallocatedMinor) !== 0n;
         return (
           <section key={`allocate-${summary.currency}`} className="cr-card" aria-label={t(locale, 'Left to allocate', 'المتبقي للتخصيص') + ' ' + summary.currency}>
@@ -214,7 +229,7 @@ export function PlanPage(props: PlanPageProps) {
           <p>{t(locale, 'No category targets this month.', 'لا توجد أهداف فئات هذا الشهر.')}</p>
         ) : (
           <ul aria-label={t(locale, 'Category targets', 'أهداف الفئات')}>
-            {activeRows.map((row) => {
+            {activeRows.filter((row) => row.currency === currency).map((row) => {
               const overspent = row.overspentMinor !== '0';
               let width: number | null = null;
               if (row.targetMinor !== null && BigInt(row.targetMinor) > 0n) {
@@ -265,7 +280,7 @@ export function PlanPage(props: PlanPageProps) {
         <h2 className="cr-label">{t(locale, 'Loan commitments', 'التزامات الديون')}</h2>
         {props.loansSummary.length === 0 ? (
           <p>{t(locale, 'No loan commitments this month.', 'لا توجد التزامات ديون هذا الشهر.')}</p>
-        ) : props.loansSummary.map((row) => (
+        ) : props.loansSummary.filter((row) => row.currency === currency).map((row) => (
           <div key={row.currency} className="cr-journal-row">
             <span className="cr-chip">{row.currency}</span>
             <span className="cr-amount">{formatMinorAmount(row.targetMinor, row.currency, locale)}</span>
