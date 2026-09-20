@@ -1,0 +1,12 @@
+{
+  "groceries": "Supermarkets, mini-markets, butcher, bakery, fruit and vegetables bought to cook or eat at home.",
+  "dining": "Restaurants, cafes, bars, food delivery and coffee or snacks consumed outside the home.",
+  "transport": "Taxi, service, bus, fuel, car repair, parking, airport rides and travel tickets.",
+  "utilities": "Electricity, generator subscription, water, internet, mobile plans and cooking gas.",
+  "housing": "Rent, building charges, concierge and repairs to the home itself.",
+  "health": "Pharmacy, doctor, dentist, laboratory tests, hospital and health insurance.",
+  "education": "School and university fees, textbooks, courses, tutoring and school stationery.",
+  "shopping": "Clothes, shoes, electronics, household goods, gifts and other retail purchases.",
+  "entertainment": "Cinema, streaming subscriptions, games, concerts, sports and hobbies.",
+  "other": "Anything that fits nothing above: bank fees, charity, taxes, grooming and money given to family."
+}
