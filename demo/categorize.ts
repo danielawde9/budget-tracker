@@ -248,9 +248,9 @@ function pad(text: string, width: number): string {
 }
 
 function cell(attempt: Attempt | undefined, expected: string): string {
-  if (attempt === undefined) return pad('-', 19);
-  if (attempt.error !== null) return pad('error', 19);
-  return pad(`${attempt.label} ${attempt.label === expected ? '✓' : '✗'} ${(attempt.ms / 1000).toFixed(2)}s`, 19);
+  if (attempt === undefined) return pad('-', 22);
+  if (attempt.error !== null) return pad('error', 22);
+  return pad(`${attempt.label} ${attempt.label === expected ? '✓' : '✗'} ${(attempt.ms / 1000).toFixed(2)}s`, 22);
 }
 
 function median(values: readonly number[]): number {
@@ -350,7 +350,7 @@ async function main(): Promise<void> {
   const arms = buildArms(criteria, options.only);
   const selected = expenses.slice(0, options.limit);
   const errors: string[] = [];
-  console.log(`\n ${pad('#', 3)}${pad('expense', 30)}${pad('expected', 12)}${arms.map((a) => pad(a.name, 19)).join('')}`);
+  console.log(`\n ${pad('#', 3)}${pad('expense', 30)}${pad('expected', 14)}${arms.map((a) => pad(a.name, 22)).join('')}`);
 
   const rows: Row[] = [];
   for (const expense of selected) {
@@ -363,7 +363,7 @@ async function main(): Promise<void> {
     rows.push({ expense, attempts });
     const label = `${expense.payee} — ${expense.note}`;
     const cells = arms.map((arm) => cell(attempts.get(arm.name), expense.expected)).join('');
-    console.log(` ${pad(String(expense.id), 3)}${pad(label, 30)}${pad(expense.expected, 12)}${cells}`);
+    console.log(` ${pad(String(expense.id), 3)}${pad(label, 30)}${pad(expense.expected, 14)}${cells}`);
   }
 
   const summaries = arms.map((arm) => summarise(arm, rows));
