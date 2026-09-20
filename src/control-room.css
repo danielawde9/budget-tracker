@@ -1186,29 +1186,9 @@
   .cr-main .loan-columns { gap: var(--cr-space-5); }
 }
 
-/* The transaction table's 6-column grid needs ~600px and was only given the
-   narrow, stacked treatment below a 1023px viewport; inside this shell the
-   journal column is capped at --cr-content-w, so apply the narrow treatment
-   unconditionally. */
+/* The journal is a compact three-zone row (date, details, amount) that
+   adapts on its own; no special narrow treatment is needed inside the shell. */
 .cr-main .wallet-journal-layout { display: flex; flex-direction: column; }
 .cr-main .journal,
 .cr-main .wallet-context { inline-size: 100%; }
-.cr-main .journal-column-headings { display: none; }
-.cr-main .journal-movement { grid-template-columns: minmax(0, 1fr) auto; gap: 4px var(--cr-space-4); padding-block: 12px; }
-.cr-main .journal-filters { grid-template-columns: 1fr; }
-.cr-main .journal-movement time { grid-column: 1; grid-row: 1; }
-.cr-main .journal-movement strong { grid-column: 1; grid-row: 2; }
-.cr-main .journal-movement > bdi:first-of-type { grid-column: 1; grid-row: 3; }
-.cr-main .journal-category-cell { grid-column: 1; grid-row: 4; }
-.cr-main .journal-movement > bdi:last-child { grid-column: 2; grid-row: 1 / span 5; }
-.cr-main .journal-movement [role="cell"]::before {
-  content: attr(data-label);
-  display: block;
-  color: var(--cr-ink-soft);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.cr-main .journal-movement > bdi:last-child::before { text-align: end; }
 .cr-main .journal-state { justify-content: flex-start; }

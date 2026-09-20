@@ -68,16 +68,12 @@ describe('WalletsPage', () => {
     expect(screen.getAllByRole('button', { name: 'Add transaction' })).toHaveLength(1);
     expect(screen.getByRole('heading', { name: 'Active balances' }).closest('.wallet-context')).not.toBeNull();
     const table = screen.getByRole('table', { name: 'Transaction history entries' });
-    expect(within(table).getAllByRole('columnheader').map((header) => header.textContent)).toEqual(['Date', 'Event', 'Wallet', 'Category', 'Entered by', 'Amount']);
-    const firstDataRow = within(table).getAllByRole('row').at(1);
-    expect(firstDataRow).toBeDefined();
-    expect(within(firstDataRow!).getByRole('cell', { name: 'Date: 2026-09-07' })).toBeInTheDocument();
-    expect(within(firstDataRow!).getByRole('cell', { name: 'Event: Income' })).toBeInTheDocument();
-    expect(within(firstDataRow!).getByRole('cell', { name: 'Wallet: Daily USD' })).toBeInTheDocument();
-    expect(within(firstDataRow!).getByRole('cell', { name: 'Category: —' })).toBeInTheDocument();
-    expect(within(firstDataRow!).getByRole('cell', { name: /Entered by:/ })).toBeInTheDocument();
-    expect(within(firstDataRow!).getByRole('cell', { name: 'Amount: $250.50' })).toBeInTheDocument();
-    expect(within(firstDataRow!).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['2026-09-07', 'Income', 'Daily USD', '—', 'You', '$250.50']);
+    const firstRow = within(table).getByText('Income').closest('.journal-movement') as HTMLElement | null;
+    expect(firstRow).not.toBeNull();
+    expect(within(firstRow!).getByText('2026-09-07')).toBeInTheDocument();
+    expect(within(firstRow!).getByText('Daily USD')).toBeInTheDocument();
+    expect(within(firstRow!).getByText('You')).toBeInTheDocument();
+    expect(within(firstRow!).getByText('$250.50')).toBeInTheDocument();
   });
 
   it('filters the loaded journal by event kind without requesting a different space', async () => {
@@ -85,8 +81,9 @@ describe('WalletsPage', () => {
 
     await user.selectOptions(screen.getByLabelText('Event'), 'income');
 
-    expect(screen.getByRole('cell', { name: 'Event: Income' })).toBeInTheDocument();
-    expect(screen.queryByRole('cell', { name: 'Event: Loan payment' })).not.toBeInTheDocument();
+    const journalTable = screen.getByRole('table', { name: 'Transaction history entries' });
+    expect(within(journalTable).getByText('Income')).toBeInTheDocument();
+    expect(within(journalTable).queryByText('Loan payment')).not.toBeInTheDocument();
     expect(gateway.calls.filter((call) => call.name === 'loadSnapshot').map((call) => call.input)).toEqual(['personal-space']);
   });
 
@@ -117,7 +114,7 @@ describe('WalletsPage', () => {
     expect(screen.getByText('$1,250.50').closest('bdi')).not.toBeNull();
     expect(screen.getAllByText('Daily LBP').filter((element) => element.tagName !== 'OPTION').every((element) => element.closest('bdi') !== null)).toBe(true);
     expect(screen.getByRole('heading', { name: 'Transaction history' })).toBeInTheDocument();
-    expect(screen.getAllByText('Loan payment').some((element) => element.getAttribute('role') === 'cell')).toBe(true);
+    expect(screen.getAllByText('Loan payment').length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: /delete/i })).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Undo income' })).toHaveLength(1);
     expect(screen.queryByRole('button', { name: 'Undo loan payment' })).not.toBeInTheDocument();
@@ -645,7 +642,7 @@ describe('WalletsPage', () => {
 
     const label = screen.getByText('Former salary');
     expect(label.closest('bdi')).not.toBeNull();
-    expect(label.closest('.journal-category')).toHaveTextContent('Archived');
+    expect(label.closest('.journal-category-tag')).toHaveTextContent('Archived');
     await user.click(screen.getByRole('button', { name: 'Add transaction' }));
     await user.click(within(screen.getByRole('dialog')).getByRole('radio', { name: 'Income' }));
     expect(within(screen.getByRole('dialog')).getByRole('radio', { name: 'Salary' })).toBeInTheDocument();

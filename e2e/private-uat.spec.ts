@@ -176,7 +176,7 @@ test('desktop English rehearsal exercises every protected financial mutation and
   await expect(page.getByRole('region', { name: 'Net position' })).toBeVisible();
   await chooseWorkspaceDestination(page, 'Wallets');
   await expect(activeWalletName(page, 'Synthetic UAT wallet')).toBeVisible();
-  const archivedSyntheticEvent = page.getByRole('row').filter({ hasText: 'Synthetic transport' });
+  const archivedSyntheticEvent = page.locator('.journal-row').filter({ hasText: 'Synthetic transport' });
   await expect(archivedSyntheticEvent).toContainText('Archived');
   await page.screenshot({ path: testInfo.outputPath('desktop-en-reload-retention.png'), fullPage: true });
 });

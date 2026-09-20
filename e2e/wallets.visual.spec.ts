@@ -89,8 +89,8 @@ test('income and expense refresh the protected journal', async ({ page }, testIn
   await openWallets(page);
   await postTransaction(page, 'income', '45.25');
   await postTransaction(page, 'expense', '12');
-  await expect(page.locator('.journal-table [role="cell"][aria-label="Event: Income"]').last()).toBeVisible();
-  await expect(page.locator('.journal-table [role="cell"][aria-label="Event: Expense"]').last()).toBeVisible();
+  await expect(page.locator('.journal-movement', { hasText: 'Income' }).last()).toBeVisible();
+  await expect(page.locator('.journal-movement', { hasText: 'Expense' }).last()).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-income-expense.png'), fullPage: true });
 });
 
@@ -98,7 +98,7 @@ test('same-currency transfer records equal and opposite effects', async ({ page 
   test.skip(testInfo.project.name !== 'desktop');
   await openWallets(page);
   await postTransaction(page, 'transfer', '10');
-  await expect(page.getByRole('cell', { name: 'Event: Transfer' })).toBeVisible();
+  await expect(page.locator('.journal-movement', { hasText: 'Transfer' })).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-transfer.png'), fullPage: true });
 });
 
@@ -170,7 +170,7 @@ test('renaming a wallet updates its name everywhere, including posted history', 
   await expect(dialog.getByRole('status')).toContainText('Wallet renamed');
   await dialog.getByRole('button', { name: 'Done' }).click();
   await expect(activeWalletName(page, 'Everyday USD')).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'Event: Loan payment' })).toBeVisible();
+  await expect(page.locator('.journal-movement', { hasText: 'Loan payment' })).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-wallet-renamed.png'), fullPage: true });
 });
 
