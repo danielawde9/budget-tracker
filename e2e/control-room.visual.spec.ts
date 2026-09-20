@@ -130,6 +130,11 @@ test('Journal feed and entry detail sheet stay contained', async ({ page }, test
   await search.fill('');
   await expect(page.getByRole('button', { name: /Archived travel/ })).toBeVisible();
 
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export CSV' }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/^journal-\d{4}-\d{2}-\d{2}-en\.csv$/);
+
   await expectContainedControls(page);
   await page.screenshot({ path: screenshotPath(testInfo, `journal-${testInfo.project.name}.png`), fullPage: true });
 

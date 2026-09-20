@@ -34,6 +34,7 @@ import type { WalletsGateway } from '../wallets/types.js';
 import { sumMinorAmounts } from '../wallets/money.js';
 import { AmbiguousBanner } from './ambiguous-banner.js';
 import { HomeScreen } from './home-screen.js';
+import { eventLabel } from './home-screen.js';
 import { JournalScreen } from './journal-screen.js';
 import { ManageScreen } from './manage-screen.js';
 import { RecordSheet } from './record-sheet.js';
@@ -299,6 +300,7 @@ function JournalRoutes(props: JournalRoutesProps) {
         search={wallets.journalSearch}
         onSearchQueryChange={wallets.searchJournal}
         onLoadMoreSearch={() => void wallets.loadMoreJournalSearch()}
+        onExportCsv={() => wallets.exportJournalCsv(locale, (event) => eventLabel(event, locale))}
       />
       <AmbiguousBanner
         locale={locale}

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+
+import type { JournalCsvResult } from '../wallets/journal-csv.js';
 import type { Locale } from '../loans/types.js';
 import { formatMinorAmount } from '../wallets/money.js';
 import type { JournalEvent, JournalEventKind } from '../wallets/types.js';
@@ -65,6 +67,7 @@ export interface JournalScreenProps {
   search: JournalSearchView | null;
   onSearchQueryChange(query: string): void;
   onLoadMoreSearch(): void;
+  onExportCsv(): Promise<JournalCsvResult>;
 }
 
 export function JournalScreen(props: JournalScreenProps) {
@@ -73,6 +76,9 @@ export function JournalScreen(props: JournalScreenProps) {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<JournalEvent | null>(null);
   const [reverseError, setReverseError] = useState<string | null>(null);
+  const [exportPending, setExportPending] = useState(false);
+  const [exportFailed, setExportFailed] = useState(false);
+  const [exportTruncated, setExportTruncated] = useState(false);
   const openerRef = useRef<HTMLButtonElement | null>(null);
   const sheetRef = useRef<HTMLDivElement | null>(null);
 
@@ -111,6 +117,29 @@ export function JournalScreen(props: JournalScreenProps) {
     }
   };
 
+  const runExport = async () => {
+    if (exportPending) return;
+    setExportPending(true);
+    setExportFailed(false);
+    setExportTruncated(false);
+    try {
+      const result = await props.onExportCsv();
+      setExportTruncated(result.truncated);
+      const blob = new Blob([result.csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      const day = result.highWaterMark?.createdAt.slice(0, 10) ?? 'empty';
+      anchor.download = `journal-${day}-${locale}.csv`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setExportFailed(true);
+    } finally {
+      setExportPending(false);
+    }
+  };
+
   const trimmedQuery = query.trim();
   const searchActive = trimmedQuery !== '';
   const searchView = props.search !== null && props.search.query === trimmedQuery ? props.search : null;
@@ -122,7 +151,27 @@ export function JournalScreen(props: JournalScreenProps) {
     <>
       <header className="cr-row">
         <h1>{t(locale, 'Journal', 'القيود')}</h1>
+        <button
+          type="button"
+          className="cr-button cr-button--sm"
+          disabled={exportPending}
+          onClick={() => void runExport()}
+        >
+          {exportPending ? t(locale, 'Exporting…', 'جارٍ التصدير…') : t(locale, 'Export CSV', 'تصدير CSV')}
+        </button>
       </header>
+      {exportFailed ? (
+        <div role="alert">
+          <span className="cr-danger-text">
+            {t(locale, 'The export was not created. Check the current space access and try again.', 'لم يتم إنشاء التصدير. تحقق من صلاحية المساحة الحالية وحاول مجددًا.')}
+          </span>
+        </div>
+      ) : null}
+      {exportTruncated ? (
+        <p role="status">
+          {t(locale, 'The export reached the row limit. Narrow the range and export again.', 'بلغ التصدير حد الصفوف. ضيّق النطاق وصدّر مجددًا.')}
+        </p>
+      ) : null}
       <label className="cr-field cr-journal-search">
         <span className="cr-label">{t(locale, 'Search', 'بحث')}</span>
         <input

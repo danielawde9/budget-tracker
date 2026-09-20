@@ -32,6 +32,7 @@ const baseProps = {
   search: null,
   onSearchQueryChange: vi.fn(),
   onLoadMoreSearch: vi.fn(),
+  onExportCsv: vi.fn(async () => ({ csv: '', rowCount: 0, totals: [], truncated: false, highWaterMark: null })),
 };
 
 function searchView(overrides: Partial<JournalSearchView> = {}): JournalSearchView {
@@ -312,6 +313,50 @@ describe('JournalScreen', () => {
 
     rerender(<JournalScreen {...baseProps} locale="ar" search={searchView({ query: 'متجر', events: [] })} />);
     expect(screen.getByText('لا توجد قيود مطابقة.')).toBeInTheDocument();
+  });
+
+  it('downloads the CSV only from the explicit export action', async () => {
+    const user = userEvent.setup();
+    const createObjectURL = vi.fn(() => 'blob:budget');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const onExportCsv = vi.fn(async () => ({
+      csv: 'csv-body',
+      rowCount: 1,
+      totals: [{ currency: 'USD', netMinor: '100' }],
+      truncated: false,
+      highWaterMark: { createdAt: '2026-09-08T10:00:00Z', eventId: 'event-1' },
+    }));
+    render(<JournalScreen {...baseProps} onExportCsv={onExportCsv} />);
+
+    expect(onExportCsv).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Export CSV' }));
+    expect(onExportCsv).toHaveBeenCalledOnce();
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    expect(click).toHaveBeenCalledOnce();
+    const anchor = click.mock.contexts[0] as HTMLAnchorElement;
+    expect(anchor.download).toBe('journal-2026-09-08-en.csv');
+    click.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
+  it('shows export failure and truncated notes, and disables the button while pending', async () => {
+    const user = userEvent.setup();
+    const onExportCsv = vi.fn()
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValueOnce({
+        csv: 'csv', rowCount: 100000, totals: [], truncated: true, highWaterMark: null,
+      });
+    render(<JournalScreen {...baseProps} onExportCsv={onExportCsv} />);
+    const button = screen.getByRole('button', { name: 'Export CSV' });
+
+    await user.click(button);
+    expect(await screen.findByRole('alert')).toHaveTextContent('The export was not created.');
+    expect(button).not.toBeDisabled();
+
+    await user.click(button);
+    expect(await screen.findByText(/reached the row limit/i)).toBeInTheDocument();
   });
 
   it('shows a Load more button only when a cursor exists', async () => {    const user = userEvent.setup();

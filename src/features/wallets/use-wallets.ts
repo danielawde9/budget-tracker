@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { buildJournalCsv, type ExportLocale } from './journal-csv.js';
+
 import { classifyCategoryError, type CategoryErrorView } from '../categories/errors.js';
 import type { CategoriesGateway, CategorizedEventInput, EventCategory } from '../categories/types.js';
 import type {
@@ -490,6 +492,32 @@ export function useWallets(
     journalSearchTimer.current = setTimeout(() => { void runJournalSearch(spaceId, query, null); }, JOURNAL_SEARCH_DEBOUNCE_MS);
   }, [runJournalSearch, spaceId]);
 
+  const exportJournalCsv = useCallback(async (
+    locale: ExportLocale,
+    labelFor: (event: JournalEvent) => string,
+    options: { maxEvents?: number } = {},
+  ) => {
+    const targetSpaceId = spaceId;
+    const maxEvents = options.maxEvents ?? 100_000;
+    const byId = new Map<string, JournalEvent>();
+    let cursor: string | null = null;
+    let capped = false;
+    do {
+      const page = await gateway.loadHistoryPage(targetSpaceId, cursor ?? '0');
+      for (const event of page.events) {
+        if (byId.size >= maxEvents) {
+          capped = true;
+          break;
+        }
+        byId.set(event.id, event);
+      }
+      cursor = page.nextCursor;
+      if (capped) break;
+    } while (cursor !== null);
+    const result = buildJournalCsv([...byId.values()], locale, labelFor);
+    return capped ? { ...result, truncated: true } : result;
+  }, [gateway, spaceId]);
+
   const loadMoreJournalSearch = useCallback(() => {
     const active = journalSearch !== null && journalSearch.spaceId === spaceId ? journalSearch : null;
     if (!active || active.pending || active.loadingMore || !active.nextCursor) return;
@@ -511,6 +539,7 @@ export function useWallets(
     journalSearch: journalSearch !== null && journalSearch.spaceId === spaceId ? journalSearch : null,
     searchJournal,
     loadMoreJournalSearch,
+    exportJournalCsv,
     pending,
     loadingMore,
     ambiguous: retry ? { kind: retry.kind, requestId: retry.requestId } : null,

@@ -762,6 +762,47 @@ describe('useWallets', () => {
     expect(result.current.journalSearch?.nextCursor).toBeNull();
   });
 
+  it('assembles the CSV export across history pages, deduplicated in order', async () => {
+    const loadHistoryPage = vi.fn()
+      .mockResolvedValueOnce({ events: [journalEvent('event-1'), journalEvent('event-2')], nextCursor: '20' })
+      .mockResolvedValueOnce({ events: [journalEvent('event-2'), journalEvent('event-3')], nextCursor: null });
+    const service = gateway({ loadHistoryPage });
+    const categories = categoriesGateway();
+    const { result } = renderHook(() => useWallets(service, 'space-1', undefined, undefined, categories));
+
+    const exported = await act(async () => result.current.exportJournalCsv('en', (event) => `label:${event.id}`));
+    expect(loadHistoryPage).toHaveBeenCalledTimes(2);
+    expect(loadHistoryPage).toHaveBeenNthCalledWith(2, 'space-1', '20');
+    expect(exported.rowCount).toBe(3);
+    expect(exported.truncated).toBe(false);
+    expect(exported.csv).toContain('label:event-3');
+    expect(exported.csv).toContain('# snapshot: 2026-09-10T10:00:00Z | event-3');
+  });
+
+  it('marks the export truncated when the event cap stops paging early', async () => {
+    let sequence = 0;
+    const loadHistoryPage = vi.fn(async () => {
+      const page = Array.from({ length: 20 }, () => journalEvent(`event-${sequence += 1}`));
+      return { events: page, nextCursor: 'more' };
+    });
+    const service = gateway({ loadHistoryPage });
+    const categories = categoriesGateway();
+    const { result } = renderHook(() => useWallets(service, 'space-1', undefined, undefined, categories));
+
+    const exported = await act(async () => result.current.exportJournalCsv('en', (event) => event.id, { maxEvents: 50 }));
+    expect(loadHistoryPage.mock.calls.length).toBeGreaterThan(1);
+    expect(exported.truncated).toBe(true);
+    expect(exported.rowCount).toBe(50);
+  });
+
+  it('propagates export assembly failures', async () => {
+    const service = gateway({ loadHistoryPage: vi.fn(async () => { throw new Error('network down'); }) });
+    const categories = categoriesGateway();
+    const { result } = renderHook(() => useWallets(service, 'space-1', undefined, undefined, categories));
+    await expect(act(async () => result.current.exportJournalCsv('en', (event) => event.id)))
+      .rejects.toThrow('network down');
+  });
+
   it('clears journal search when the query empties and hides it for other spaces', async () => {
     const searchJournal = vi.fn(async () => ({ events: [journalEvent('event-1')], nextCursor: null }));
     const service = gateway({ searchJournal });
