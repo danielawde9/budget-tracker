@@ -10,6 +10,9 @@ import { GoalsSkeleton } from '../control-room/skeletons.js';
 interface GoalsPageProps {
   locale: Locale;
   currency: Currency;
+  /** Integer-minor planned income for this page's currency from the monthly
+   * plan; forwarded to the create editor's 'Planned income' amount source. */
+  plannedIncomeMinor: string | null;
   goals: GoalsState;
 }
 
@@ -40,7 +43,7 @@ export function GoalsPage(props: GoalsPageProps) {
 
   if (selectedGoalId) {
     return <GoalDetail locale={props.locale} currency={props.currency} goals={goals} goalId={selectedGoalId}
-      otherGoals={goals.page.rows} onBack={() => setSelectedGoalId(null)} />;
+      otherGoals={goals.page.rows} plannedIncomeMinor={props.plannedIncomeMinor} onBack={() => setSelectedGoalId(null)} />;
   }
 
   return <section className="goal-page" aria-label={t(props.locale, 'Goals', 'الأهداف')}>
@@ -89,7 +92,7 @@ export function GoalsPage(props: GoalsPageProps) {
         </ul>
     )}
 
-    {creating && <GoalEditor locale={props.locale} mode="create"
+    {creating && <GoalEditor locale={props.locale} mode="create" plannedIncomeMinor={props.plannedIncomeMinor}
       pending={goals.pending} ambiguous={goals.ambiguous !== null}
       onClose={() => setCreating(false)} onClearAmbiguous={goals.clearAmbiguous} onRetry={goals.retryAmbiguous}
       onCreate={goals.create} onRevise={goals.revise} />}

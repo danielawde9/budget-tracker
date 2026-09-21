@@ -1,0 +1,183 @@
+/* ==========================================================================
+   Categories workspace + category dialogs (cg- prefix).
+   Only --cr-* tokens, logical properties, mobile-first.
+   ========================================================================== */
+
+/* ---- Registers as clean cards ---- */
+.cg-register {
+  background: var(--cr-surface);
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius);
+  padding: var(--cr-space-4);
+  box-shadow: var(--cr-shadow-card);
+}
+
+.cg-register-header {
+  padding-block-end: var(--cr-space-3);
+  margin-block-end: var(--cr-space-2);
+  border-block-end: 1px solid var(--cr-hairline);
+}
+
+.cg-count {
+  border-color: transparent;
+  background: var(--cr-accent-soft);
+  color: var(--cr-accent-strong);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Category tree rows ----
+   Two-track grid rows: the name sits in minmax(0, 1fr) so it wraps (never
+   overflows 390px and never pushes actions out), actions sit in an auto
+   column at the inline end. Rhythm is min 44px + 8px block padding, and
+   align-items: center centers the action track on the row, not on the name,
+   so a two-line name cannot shift the Archive button the way a 1-line name
+   does. The tracks are split by a 12px column gap and the name track can
+   shrink to 0, so the actions box can never overlap the name box.
+   Selectors are list-scoped because the legacy .category-* sheet loads
+   after this one: .cg-list .cg-row outranks .category-row/.subcategory-row,
+   so root AND subcategory rows share this one rhythm. */
+.cg-list > li:last-child {
+  border-block-end: 0;
+}
+
+.cg-list .cg-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--cr-space-2) var(--cr-space-3);
+  min-block-size: 44px;
+  padding-block: var(--cr-space-2);
+}
+
+.cg-list .cg-name {
+  min-inline-size: 0;
+  gap: var(--cr-space-1);
+}
+
+.cg-name > bdi {
+  overflow-wrap: anywhere;
+}
+
+.cg-list .cg-actions {
+  align-self: center;
+  gap: var(--cr-space-1) var(--cr-space-2);
+}
+
+.cg-row .cg-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cr-space-1);
+  padding-inline: var(--cr-space-2);
+  border-radius: var(--cr-radius-sm);
+}
+
+.cg-row .cg-action-archive {
+  color: var(--cr-ink-soft);
+}
+
+.cg-row .cg-action-archive:hover {
+  background: var(--cr-danger-soft);
+  color: var(--cr-danger);
+}
+
+/* Children indented beneath a clear accent border. */
+.cg-list .cg-subcategory-list {
+  margin-block: var(--cr-space-1) var(--cr-space-3);
+  margin-inline: 0;
+  padding-block: 0;
+  padding-inline-start: var(--cr-space-4);
+  border-inline-start: 2px solid var(--cr-accent);
+}
+
+/* Archive hint stays a muted helper line (cr-helper style) on its own
+   full-width row at the inline end; no badge chrome. The triple scope
+   outranks the legacy .category-root-row .category-archive-note rule that
+   owns its placement. */
+.cg-list .cg-row .cg-archive-note {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ---- Rich empty state ---- */
+.cg-empty {
+  display: grid;
+  justify-items: start;
+  gap: var(--cr-space-2);
+  border-block-end: 0;
+  padding: var(--cr-space-5) var(--cr-space-3);
+}
+
+.cg-empty p {
+  margin: 0;
+}
+
+.cg-empty-action {
+  margin-block-start: var(--cr-space-2);
+}
+
+/* ---- Mobile kind tabs ---- */
+.cg-kind-tabs button {
+  font-weight: 700;
+  border-radius: calc(var(--cr-radius-sm) - 4px);
+  transition: background-color var(--cr-duration) var(--cr-ease), color var(--cr-duration) var(--cr-ease);
+}
+
+/* ---- Dialog internals ---- */
+.cg-form {
+  gap: var(--cr-space-4);
+  margin-block-start: var(--cr-space-4);
+}
+
+.cg-form .segmented.cg-kind {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.cg-kind label {
+  justify-content: center;
+  font-weight: 650;
+  transition: border-color var(--cr-duration) var(--cr-ease), background-color var(--cr-duration) var(--cr-ease);
+}
+
+.cg-kind label:has(input:checked) {
+  border-color: var(--cr-accent);
+  background: var(--cr-accent-soft);
+}
+
+.cg-name-note {
+  grid-column: 1 / -1;
+  align-self: start;
+  padding-block-end: 0;
+  font-size: 13px;
+}
+
+.cg-parent-note {
+  grid-column: 1 / -1;
+  border-color: transparent;
+  background: var(--cr-accent-soft);
+}
+
+.cg-parent-note > span {
+  color: var(--cr-accent-strong);
+}
+
+.cg-confirm {
+  gap: var(--cr-space-2);
+  margin-block-start: var(--cr-space-4);
+  padding: var(--cr-space-3);
+  border-radius: var(--cr-radius-sm);
+  background: var(--cr-surface-sunken);
+}
+
+.cg-result {
+  padding-block: var(--cr-space-5) var(--cr-space-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cg-kind-tabs button,
+  .cg-kind label,
+  .cg-action {
+    transition: none;
+  }
+}

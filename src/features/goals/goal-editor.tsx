@@ -37,6 +37,10 @@ interface GoalEditorProps {
   /** Pre-selects the state radio for a one-click-feeling pause/resume/close
    * action from the detail page; the user still reviews before submitting. */
   initialState?: GoalState | undefined;
+  /** Integer-minor planned income for this goal's currency from the monthly
+   * plan. When null, the 'Planned income' monthly-amount source is disabled
+   * with a hint pointing at the Plan section. */
+  plannedIncomeMinor: string | null;
   pending: boolean;
   ambiguous: boolean;
   onClose(): void;
@@ -48,6 +52,27 @@ interface GoalEditorProps {
 
 const t = (locale: Locale, en: string, ar: string) => locale === 'ar' ? ar : en;
 const MAX_MILESTONES = 20;
+
+const WIZARD_STEPS = ['type', 'target', 'contributions', 'milestones', 'review'] as const;
+type WizardStep = (typeof WIZARD_STEPS)[number];
+
+function wizardStepIndex(step: WizardStep): number {
+  return WIZARD_STEPS.indexOf(step);
+}
+
+function stepLabel(locale: Locale, step: WizardStep): string {
+  switch (step) {
+    case 'type': return t(locale, 'Type', 'النوع');
+    case 'target': return t(locale, 'Target', 'الهدف');
+    case 'contributions': return t(locale, 'Contributions', 'المساهمات');
+    case 'milestones': return t(locale, 'Milestones', 'المعالم');
+    case 'review': return t(locale, 'Review', 'مراجعة');
+  }
+}
+
+function kindLabel(locale: Locale, kind: GoalKind): string {
+  return kind === 'reserve' ? t(locale, 'Reserve', 'احتياطي') : t(locale, 'Purchase', 'شراء');
+}
 
 interface GoalSheetFrameProps {
   locale: Locale;
@@ -125,7 +150,11 @@ function draftFromMilestone(milestone: GoalMilestoneInput): MilestoneDraft {
 
 export function GoalEditor(props: GoalEditorProps) {
   const descriptionId = useId();
+  const plannedHintId = useId();
+  const plannedUnavailableHintId = useId();
   const existing = props.existing;
+  const plannedIncomeMinor = props.plannedIncomeMinor ?? null;
+  const [step, setStep] = useState<WizardStep>('type');
   const [kind, setKind] = useState<GoalKind>(existing?.definition.kind ?? 'reserve');
   const [currency, setCurrency] = useState<Currency>(existing?.definition.currency ?? 'USD');
   const [nameEn, setNameEn] = useState(existing?.definition.nameEn ?? '');
@@ -133,6 +162,10 @@ export function GoalEditor(props: GoalEditorProps) {
   const [note, setNote] = useState(existing?.definition.note ?? '');
   const [targetMajor, setTargetMajor] = useState(existing ? (BigInt(existing.definition.targetMinor) / 100n).toString() : '');
   const [contributionMode, setContributionMode] = useState<GoalContributionMode>(existing?.definition.contributionMode ?? 'manual_monthly');
+  const [monthlySource, setMonthlySource] = useState<'custom' | 'planned'>(() =>
+    existing?.definition.monthlyAmountMinor != null && existing.definition.monthlyAmountMinor === plannedIncomeMinor
+      ? 'planned'
+      : 'custom');
   const [deadline, setDeadline] = useState(existing?.definition.deadline ?? '');
   const [monthlyMajor, setMonthlyMajor] = useState(existing?.definition.monthlyAmountMinor ? (BigInt(existing.definition.monthlyAmountMinor) / 100n).toString() : '');
   const [priorityText, setPriorityText] = useState(String(existing?.definition.priority ?? 0));
@@ -140,8 +173,11 @@ export function GoalEditor(props: GoalEditorProps) {
   const [milestones, setMilestones] = useState<MilestoneDraft[]>(() => (existing?.milestones ?? []).map(draftFromMilestone));
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const savingRef = useRef(false);
 
+  const stepIndex = wizardStepIndex(step);
   const canAddMilestone = milestones.length < MAX_MILESTONES;
+  const plannedIncomeLinked = contributionMode === 'manual_monthly' && monthlySource === 'planned' && plannedIncomeMinor !== null;
 
   function addMilestone(milestoneKind: GoalMilestoneKind) {
     setMilestones((current) => [...current, {
@@ -165,6 +201,16 @@ export function GoalEditor(props: GoalEditorProps) {
     }
   }, [targetMajor, currency]);
 
+  const reviewMonthlyMinor = useMemo(() => {
+    if (contributionMode !== 'manual_monthly') return null;
+    if (plannedIncomeLinked) return plannedIncomeMinor;
+    try {
+      return monthlyMajor.trim() ? parsePositiveMinorAmount(monthlyMajor, currency) : '0';
+    } catch {
+      return null;
+    }
+  }, [contributionMode, plannedIncomeLinked, plannedIncomeMinor, monthlyMajor, currency]);
+
   async function run(action: () => Promise<CommandOutcome>) {
     setError(null);
     try {
@@ -174,46 +220,58 @@ export function GoalEditor(props: GoalEditorProps) {
     } catch (cause) {
       const view = localizeGoalsError(classifyGoalsError(cause), props.locale);
       setError(`${view.message} ${view.recovery}`);
+    } finally {
+      savingRef.current = false;
     }
   }
 
-  function submit(event: FormEvent) {
-    event.preventDefault();
+  function validateTarget(): { targetMinor: string; priority: number } | null {
     if (!nameEn.trim() && !nameAr.trim()) {
       setError(t(props.locale, 'Enter a name in at least one language.', 'أدخل اسمًا بلغة واحدة على الأقل.'));
-      return;
+      return null;
     }
     let targetMinor: string;
     try {
       targetMinor = parsePositiveMinorAmount(targetMajor, currency);
     } catch {
       setError(t(props.locale, 'Enter a valid positive target amount.', 'أدخل مبلغ هدف موجب صالح.'));
-      return;
-    }
-    if (contributionMode === 'by_deadline' && !deadline) {
-      setError(t(props.locale, 'Choose a deadline for a by-deadline goal.', 'اختر موعدًا نهائيًا لهدف بموعد نهائي.'));
-      return;
-    }
-    let monthlyAmountMinor: string | null = null;
-    if (contributionMode === 'manual_monthly') {
-      try {
-        monthlyAmountMinor = monthlyMajor.trim() ? parsePositiveMinorAmount(monthlyMajor, currency) : '0';
-      } catch {
-        setError(t(props.locale, 'Enter a valid monthly amount.', 'أدخل مبلغًا شهريًا صالحًا.'));
-        return;
-      }
+      return null;
     }
     const priority = Number(priorityText);
     if (!Number.isInteger(priority) || priority < 0 || priority > 999) {
       setError(t(props.locale, 'Priority must be a whole number from 0 to 999.', 'يجب أن تكون الأولوية رقمًا صحيحًا من 0 إلى 999.'));
-      return;
+      return null;
     }
+    return { targetMinor, priority };
+  }
 
+  function validateContributions(): { monthlyAmountMinor: string | null } | null {
+    if (contributionMode === 'by_deadline' && !deadline) {
+      setError(t(props.locale, 'Choose a deadline for a by-deadline goal.', 'اختر موعدًا نهائيًا لهدف بموعد نهائي.'));
+      return null;
+    }
+    let monthlyAmountMinor: string | null = null;
+    if (contributionMode === 'manual_monthly') {
+      if (plannedIncomeLinked) {
+        monthlyAmountMinor = plannedIncomeMinor;
+      } else {
+        try {
+          monthlyAmountMinor = monthlyMajor.trim() ? parsePositiveMinorAmount(monthlyMajor, currency) : '0';
+        } catch {
+          setError(t(props.locale, 'Enter a valid monthly amount.', 'أدخل مبلغًا شهريًا صالحًا.'));
+          return null;
+        }
+      }
+    }
+    return { monthlyAmountMinor };
+  }
+
+  function buildMilestoneInputs(): GoalMilestoneInput[] | null {
     const milestoneInputs: GoalMilestoneInput[] = [];
     for (const [index, row] of milestones.entries()) {
       if (!row.labelEn.trim() && !row.labelAr.trim()) {
         setError(t(props.locale, 'Every milestone needs a label in at least one language.', 'يحتاج كل معلم إلى تسمية بلغة واحدة على الأقل.'));
-        return;
+        return null;
       }
       let thresholdMinor: string | null = null;
       if (row.kind === 'amount') {
@@ -221,7 +279,7 @@ export function GoalEditor(props: GoalEditorProps) {
           thresholdMinor = parsePositiveMinorAmount(row.thresholdMajor, currency);
         } catch {
           setError(t(props.locale, 'Every amount milestone needs a valid positive threshold.', 'يحتاج كل معلم مبلغ إلى حد أدنى موجب صالح.'));
-          return;
+          return null;
         }
       }
       milestoneInputs.push({
@@ -229,16 +287,50 @@ export function GoalEditor(props: GoalEditorProps) {
         thresholdMinor, dueDate: row.dueDate || null, ordinal: index,
       });
     }
+    return milestoneInputs;
+  }
+
+  function goNext() {
+    setError(null);
+    if (step === 'target' && !validateTarget()) return;
+    if (step === 'contributions' && !validateContributions()) return;
+    if (step === 'milestones' && !buildMilestoneInputs()) return;
+    const next = WIZARD_STEPS[stepIndex + 1];
+    if (next) setStep(next);
+  }
+
+  function goBack() {
+    setError(null);
+    const previous = WIZARD_STEPS[stepIndex - 1];
+    if (previous) setStep(previous);
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (step !== 'review') {
+      goNext();
+      return;
+    }
+    if (savingRef.current) return;
+    setError(null);
+    const target = validateTarget();
+    if (!target) return;
+    const contributions = validateContributions();
+    if (!contributions) return;
+    const milestoneInputs = buildMilestoneInputs();
+    if (!milestoneInputs) return;
 
     const definition: GoalDefinitionInput = {
       kind, currency, nameEn: nameEn.trim() || null, nameAr: nameAr.trim() || null, note: note.trim() || null,
-      targetMinor, deadline: contributionMode === 'by_deadline' ? deadline : null, contributionMode,
-      monthlyAmountMinor, priority,
+      targetMinor: target.targetMinor, deadline: contributionMode === 'by_deadline' ? deadline : null, contributionMode,
+      monthlyAmountMinor: contributions.monthlyAmountMinor, priority: target.priority,
     };
 
     if (props.mode === 'create') {
+      savingRef.current = true;
       void run(() => props.onCreate({ goalId: globalThis.crypto.randomUUID(), definition, milestones: milestoneInputs }));
     } else if (existing) {
+      savingRef.current = true;
       void run(() => props.onRevise({ goalId: existing.goalId, expectedRevisionId: existing.expectedRevisionId, definition, milestones: milestoneInputs, state }));
     }
   }
@@ -260,85 +352,162 @@ export function GoalEditor(props: GoalEditorProps) {
         {t(props.locale, 'The note and monthly base amount aren’t shown here yet — review them before saving, since this replaces the goal’s full definition.', 'لا تُعرض الملاحظة والمبلغ الشهري الأساسي هنا بعد — راجعهما قبل الحفظ، لأن هذا يستبدل تعريف الهدف بالكامل.')}
       </div>}
 
-      {props.mode === 'revise' && <fieldset>
-        <legend>{t(props.locale, 'State', 'الحالة')}</legend>
-        <label><input type="radio" name="goal-state" checked={state === 'active'} onChange={() => setState('active')} />{t(props.locale, 'Active', 'نشط')}</label>
-        <label><input type="radio" name="goal-state" checked={state === 'paused'} onChange={() => setState('paused')} />{t(props.locale, 'Paused', 'موقوف مؤقتًا')}</label>
-        <label><input type="radio" name="goal-state" checked={state === 'closed'} onChange={() => setState('closed')} />{t(props.locale, 'Closed', 'مغلق')}</label>
-      </fieldset>}
-
-      <fieldset className="goal-editor-mode" disabled={props.mode === 'revise'}>
-        <legend>{t(props.locale, 'Kind', 'النوع')}</legend>
-        <label><input type="radio" name="goal-kind" checked={kind === 'reserve'} onChange={() => setKind('reserve')} />{t(props.locale, 'Reserve', 'احتياطي')}</label>
-        <label><input type="radio" name="goal-kind" checked={kind === 'purchase'} onChange={() => setKind('purchase')} />{t(props.locale, 'Purchase', 'شراء')}</label>
-      </fieldset>
-
-      <fieldset className="goal-editor-mode" disabled={props.mode === 'revise'}>
-        <legend>{t(props.locale, 'Currency', 'العملة')}</legend>
-        <label><input type="radio" name="goal-currency" checked={currency === 'USD'} onChange={() => setCurrency('USD')} />USD</label>
-        <label><input type="radio" name="goal-currency" checked={currency === 'LBP'} onChange={() => setCurrency('LBP')} />LBP</label>
-      </fieldset>
-
-      <div className="form-grid">
-        <label className="full-field">{t(props.locale, 'Name (English)', 'الاسم (إنجليزي)')}
-          <input data-autofocus type="text" placeholder={t(props.locale, 'e.g. Emergency fund', 'مثال: صندوق الطوارئ')} value={nameEn} onChange={(event) => { setNameEn(event.target.value); setError(null); }} /></label>
-        <label className="full-field">{t(props.locale, 'Name (Arabic)', 'الاسم (عربي)')}
-          <input type="text" value={nameAr} onChange={(event) => { setNameAr(event.target.value); setError(null); }} /></label>
+      <div className="cr-wizard-steps" aria-label={t(props.locale, 'Progress', 'التقدم')}>
+        {WIZARD_STEPS.map((candidate, index) => {
+          const stateClass = index < stepIndex ? 'done' : index === stepIndex ? 'current' : 'upcoming';
+          return (
+            <span key={candidate} className={`cr-wizard-step cr-wizard-step--${stateClass}`}>
+              <span className="cr-wizard-step-dot" />
+              <span className="cr-wizard-step-label">{stepLabel(props.locale, candidate)}</span>
+            </span>
+          );
+        })}
       </div>
-      <label className="full-field">{t(props.locale, 'Note', 'ملاحظة')}
-        <textarea placeholder={t(props.locale, 'Optional', 'اختياري')} value={note} onChange={(event) => setNote(event.target.value)} /></label>
-      <label className="full-field">{t(props.locale, 'Target amount', 'مبلغ الهدف')}
-        <input type="text" inputMode="decimal" placeholder={currency === 'USD' ? '0.00' : '0'} value={targetMajor} onChange={(event) => { setTargetMajor(event.target.value); setError(null); }} /></label>
 
-      <fieldset>
-        <legend>{t(props.locale, 'Contribution', 'المساهمة')}</legend>
-        <label><input type="radio" name="goal-contribution-mode" checked={contributionMode === 'manual_monthly'} onChange={() => setContributionMode('manual_monthly')} />{t(props.locale, 'Manual monthly amount', 'مبلغ شهري يدوي')}</label>
-        <label><input type="radio" name="goal-contribution-mode" checked={contributionMode === 'by_deadline'} onChange={() => setContributionMode('by_deadline')} />{t(props.locale, 'By deadline', 'حسب موعد نهائي')}</label>
-      </fieldset>
-      {contributionMode === 'manual_monthly'
-        ? <label className="full-field">{t(props.locale, 'Monthly amount', 'المبلغ الشهري')}
-          <input type="text" inputMode="decimal" placeholder={currency === 'USD' ? '0.00' : '0'} value={monthlyMajor} onChange={(event) => { setMonthlyMajor(event.target.value); setError(null); }} /></label>
-        : <label className="full-field">{t(props.locale, 'Deadline', 'الموعد النهائي')}
-          <input type="date" value={deadline} onChange={(event) => { setDeadline(event.target.value); setError(null); }} /></label>}
-      <label className="full-field">{t(props.locale, 'Priority (0 = highest)', 'الأولوية (0 = الأعلى)')}
-        <input type="number" min={0} max={999} value={priorityText} onChange={(event) => { setPriorityText(event.target.value); setError(null); }} /></label>
+      <h3 className="cr-wizard-step-heading">{stepLabel(props.locale, step)}</h3>
 
-      <fieldset className="goal-milestone-editor">
-        <legend>{t(props.locale, 'Milestones', 'المعالم')}</legend>
-        {milestones.map((row, index) => <div key={row.id} className="goal-milestone-editor-row">
-          <div className="goal-row">
-            <label><input type="radio" name={`goal-milestone-kind-${row.id}`} checked={row.kind === 'amount'} onChange={() => updateMilestone(row.id, { kind: 'amount' })} />{t(props.locale, 'Amount', 'مبلغ')}</label>
-            <label><input type="radio" name={`goal-milestone-kind-${row.id}`} checked={row.kind === 'checklist'} onChange={() => updateMilestone(row.id, { kind: 'checklist', thresholdMajor: '' })} />{t(props.locale, 'Checklist', 'قائمة تحقق')}</label>
-            <button type="button" className="cr-button" onClick={() => removeMilestone(row.id)}>{t(props.locale, 'Remove', 'إزالة')}</button>
-          </div>
+      <div key={step} className="cr-wizard-content" role="group" aria-label={stepLabel(props.locale, step)}>
+        {step === 'type' && <>
+          <fieldset className="cr-choice" disabled={props.mode === 'revise'}>
+            <legend>{t(props.locale, 'Kind', 'النوع')}</legend>
+            <label><input type="radio" name="goal-kind" checked={kind === 'reserve'} onChange={() => setKind('reserve')} />{t(props.locale, 'Reserve', 'احتياطي')}</label>
+            <label><input type="radio" name="goal-kind" checked={kind === 'purchase'} onChange={() => setKind('purchase')} />{t(props.locale, 'Purchase', 'شراء')}</label>
+          </fieldset>
+          <fieldset className="cr-choice" disabled={props.mode === 'revise'}>
+            <legend>{t(props.locale, 'Currency', 'العملة')}</legend>
+            <label><input type="radio" name="goal-currency" checked={currency === 'USD'} onChange={() => { setCurrency('USD'); setMonthlySource('custom'); setError(null); }} />USD</label>
+            <label><input type="radio" name="goal-currency" checked={currency === 'LBP'} onChange={() => { setCurrency('LBP'); setMonthlySource('custom'); setError(null); }} />LBP</label>
+          </fieldset>
+          {props.mode === 'revise' && <fieldset className="cr-choice">
+            <legend>{t(props.locale, 'State', 'الحالة')}</legend>
+            <label><input type="radio" name="goal-state" checked={state === 'active'} onChange={() => setState('active')} />{t(props.locale, 'Active', 'نشط')}</label>
+            <label><input type="radio" name="goal-state" checked={state === 'paused'} onChange={() => setState('paused')} />{t(props.locale, 'Paused', 'موقوف مؤقتًا')}</label>
+            <label><input type="radio" name="goal-state" checked={state === 'closed'} onChange={() => setState('closed')} />{t(props.locale, 'Closed', 'مغلق')}</label>
+          </fieldset>}
+        </>}
+
+        {step === 'target' && <>
           <div className="form-grid">
-            <label>{t(props.locale, 'Milestone name (English)', 'اسم المعلم (إنجليزي)')}
-              <input type="text" placeholder={t(props.locale, 'e.g. Halfway there', 'مثال: منتصف الطريق')} value={row.labelEn} onChange={(event) => updateMilestone(row.id, { labelEn: event.target.value })} /></label>
-            <label>{t(props.locale, 'Milestone name (Arabic)', 'اسم المعلم (عربي)')}
-              <input type="text" placeholder={t(props.locale, 'بالعربية', 'بالعربية')} value={row.labelAr} onChange={(event) => updateMilestone(row.id, { labelAr: event.target.value })} /></label>
+            <label className="full-field">{t(props.locale, 'Name (English)', 'الاسم (إنجليزي)')}
+              <input data-autofocus type="text" placeholder={t(props.locale, 'e.g. Emergency fund', 'مثال: صندوق الطوارئ')} value={nameEn} onChange={(event) => { setNameEn(event.target.value); setError(null); }} /></label>
+            <label className="full-field">{t(props.locale, 'Name (Arabic)', 'الاسم (عربي)')}
+              <input type="text" placeholder={t(props.locale, 'مثال: صندوق الطوارئ', 'مثال: صندوق الطوارئ')} value={nameAr} onChange={(event) => { setNameAr(event.target.value); setError(null); }} /></label>
+            <label className="full-field">{t(props.locale, 'Note', 'ملاحظة')}
+              <textarea placeholder={t(props.locale, 'Optional', 'اختياري')} value={note} onChange={(event) => setNote(event.target.value)} /></label>
+            <label className="full-field">{t(props.locale, 'Target amount', 'مبلغ الهدف')}
+              <input type="text" inputMode="decimal" placeholder={currency === 'USD' ? '0.00' : '0'} value={targetMajor} onChange={(event) => { setTargetMajor(event.target.value); setError(null); }} /></label>
+            <label className="full-field">{t(props.locale, 'Priority (0 = highest)', 'الأولوية (0 = الأعلى)')}
+              <input type="number" min={0} max={999} placeholder="0" value={priorityText} onChange={(event) => { setPriorityText(event.target.value); setError(null); }} /></label>
           </div>
-          {row.kind === 'amount' ? (
-            <label className="full-field">{t(props.locale, 'Amount for this milestone', 'مبلغ هذا المعلم')}
-              <input type="text" inputMode="decimal" placeholder={currency === 'USD' ? '0.00' : '0'} value={row.thresholdMajor} onChange={(event) => updateMilestone(row.id, { thresholdMajor: event.target.value })} /></label>
-          ) : null}
-          <label className="full-field">{t(props.locale, 'Due date (optional)', 'تاريخ الاستحقاق (اختياري)')}
-            <input type="date" value={row.dueDate} onChange={(event) => updateMilestone(row.id, { dueDate: event.target.value })} /></label>
-          {index > 0 && <span className="goal-label-muted">{t(props.locale, 'Order', 'الترتيب')}: {index + 1}</span>}
-        </div>)}
-        <div className="goal-row">
-          <button type="button" className="cr-button" disabled={!canAddMilestone} onClick={() => addMilestone('amount')}>{t(props.locale, 'Add amount milestone', 'إضافة معلم مبلغ')}</button>
-          <button type="button" className="cr-button" disabled={!canAddMilestone} onClick={() => addMilestone('checklist')}>{t(props.locale, 'Add checklist milestone', 'إضافة معلم قائمة تحقق')}</button>
-        </div>
-      </fieldset>
+          {preview && <p className="goal-label-muted">{t(props.locale, 'Reviewable target', 'الهدف القابل للمراجعة')}: <bdi>{formatMinorAmount(preview.targetMinor, currency, props.locale)}</bdi></p>}
+        </>}
 
-      {preview && <p className="goal-label-muted">{t(props.locale, 'Reviewable target', 'الهدف القابل للمراجعة')}: <bdi>{formatMinorAmount(preview.targetMinor, currency, props.locale)}</bdi></p>}
+        {step === 'contributions' && <>
+          <fieldset className="cr-choice">
+            <legend>{t(props.locale, 'Contribution mode', 'وضع المساهمة')}</legend>
+            <label><input type="radio" name="goal-contribution-mode" checked={contributionMode === 'manual_monthly'} onChange={() => setContributionMode('manual_monthly')} />{t(props.locale, 'Manual monthly amount', 'مبلغ شهري يدوي')}</label>
+            <label><input type="radio" name="goal-contribution-mode" checked={contributionMode === 'by_deadline'} onChange={() => setContributionMode('by_deadline')} />{t(props.locale, 'By deadline', 'حسب موعد نهائي')}</label>
+          </fieldset>
+          {contributionMode === 'manual_monthly' && <fieldset className="cr-choice">
+            <legend>{t(props.locale, 'Monthly amount source', 'مصدر المبلغ الشهري')}</legend>
+            <label><input type="radio" name="goal-monthly-source" checked={monthlySource === 'custom'} onChange={() => { setMonthlySource('custom'); setError(null); }} />{t(props.locale, 'Custom amount', 'مبلغ مخصص')}</label>
+            <label><input type="radio" name="goal-monthly-source" checked={monthlySource === 'planned'} disabled={plannedIncomeMinor === null}
+              aria-describedby={plannedIncomeMinor === null ? plannedUnavailableHintId : undefined}
+              onChange={() => { setMonthlySource('planned'); setError(null); }} />{t(props.locale, 'Planned income', 'الدخل المخطط')}</label>
+            {plannedIncomeMinor === null && <p id={plannedUnavailableHintId} className="field-note">
+              {t(props.locale, `Set planned income for ${currency} in the Plan section first.`, `حدد الدخل المخطط لعملة ${currency} في قسم الخطة أولًا.`)}
+            </p>}
+          </fieldset>}
+          {contributionMode === 'manual_monthly'
+            ? plannedIncomeLinked
+              ? <><label className="full-field">{t(props.locale, 'Monthly amount', 'المبلغ الشهري')}
+                <output className="goal-metric-value" aria-describedby={plannedHintId}><bdi>{formatMinorAmount(plannedIncomeMinor, currency, props.locale)}</bdi></output></label>
+              <p id={plannedHintId} className="field-note">{t(props.locale, 'Linked from the monthly plan’s planned income.', 'مرتبط بالدخل المخطط في الخطة الشهرية.')}</p></>
+              : <label className="full-field">{t(props.locale, 'Monthly amount', 'المبلغ الشهري')}
+                <input type="text" inputMode="decimal" placeholder={currency === 'USD' ? '0.00' : '0'} value={monthlyMajor} onChange={(event) => { setMonthlyMajor(event.target.value); setError(null); }} /></label>
+            : <label className="full-field">{t(props.locale, 'Deadline', 'الموعد النهائي')}
+              <input type="date" value={deadline} onChange={(event) => { setDeadline(event.target.value); setError(null); }} /></label>}
+        </>}
+
+        {step === 'milestones' && <>
+          {milestones.map((row, index) => <div key={row.id} className="goal-milestone-editor-row">
+            <div className="goal-row">
+              <label><input type="radio" name={`goal-milestone-kind-${row.id}`} checked={row.kind === 'amount'} onChange={() => updateMilestone(row.id, { kind: 'amount' })} />{t(props.locale, 'Amount', 'مبلغ')}</label>
+              <label><input type="radio" name={`goal-milestone-kind-${row.id}`} checked={row.kind === 'checklist'} onChange={() => updateMilestone(row.id, { kind: 'checklist', thresholdMajor: '' })} />{t(props.locale, 'Checklist', 'قائمة تحقق')}</label>
+              <button type="button" className="text-button" onClick={() => removeMilestone(row.id)}>{t(props.locale, 'Remove', 'إزالة')}</button>
+            </div>
+            <div className="form-grid">
+              <label>{t(props.locale, 'Milestone name (English)', 'اسم المعلم (إنجليزي)')}
+                <input type="text" placeholder={t(props.locale, 'e.g. Halfway there', 'مثال: منتصف الطريق')} value={row.labelEn} onChange={(event) => updateMilestone(row.id, { labelEn: event.target.value })} /></label>
+              <label>{t(props.locale, 'Milestone name (Arabic)', 'اسم المعلم (عربي)')}
+                <input type="text" placeholder={t(props.locale, 'بالعربية', 'بالعربية')} value={row.labelAr} onChange={(event) => updateMilestone(row.id, { labelAr: event.target.value })} /></label>
+              {row.kind === 'amount' ? (
+                <label className="full-field">{t(props.locale, 'Amount for this milestone', 'مبلغ هذا المعلم')}
+                  <input type="text" inputMode="decimal" placeholder={currency === 'USD' ? '0.00' : '0'} value={row.thresholdMajor} onChange={(event) => updateMilestone(row.id, { thresholdMajor: event.target.value })} /></label>
+              ) : null}
+              <label className="full-field">{t(props.locale, 'Due date (optional)', 'تاريخ الاستحقاق (اختياري)')}
+                <input type="date" value={row.dueDate} onChange={(event) => updateMilestone(row.id, { dueDate: event.target.value })} /></label>
+            </div>
+            {index > 0 && <span className="goal-label-muted">{t(props.locale, 'Order', 'الترتيب')}: {index + 1}</span>}
+          </div>)}
+          <div className="goal-row">
+            <button type="button" className="cr-button" disabled={!canAddMilestone} onClick={() => addMilestone('amount')}>{t(props.locale, 'Add amount milestone', 'إضافة معلم مبلغ')}</button>
+            <button type="button" className="cr-button" disabled={!canAddMilestone} onClick={() => addMilestone('checklist')}>{t(props.locale, 'Add checklist milestone', 'إضافة معلم قائمة تحقق')}</button>
+          </div>
+        </>}
+
+        {step === 'review' && <div className="cr-wizard-review">
+          <div className="cr-wizard-review-row">
+            <span>{t(props.locale, 'Kind', 'النوع')}</span>
+            <span>{kindLabel(props.locale, kind)}</span>
+          </div>
+          <div className="cr-wizard-review-row">
+            <span>{t(props.locale, 'Currency', 'العملة')}</span>
+            <span>{currency}</span>
+          </div>
+          <div className="cr-wizard-review-row">
+            <span>{t(props.locale, 'Names', 'الأسماء')}</span>
+            <span><bdi>{nameEn.trim() || '—'}</bdi>{' · '}<bdi>{nameAr.trim() || '—'}</bdi></span>
+          </div>
+          <div className="cr-wizard-review-row">
+            <span>{t(props.locale, 'Note', 'ملاحظة')}</span>
+            <span>{note.trim() ? <bdi>{note.trim()}</bdi> : '—'}</span>
+          </div>
+          <div className="cr-wizard-review-row">
+            <span>{t(props.locale, 'Target amount', 'مبلغ الهدف')}</span>
+            <span>{preview ? <bdi>{formatMinorAmount(preview.targetMinor, currency, props.locale)}</bdi> : '—'}</span>
+          </div>
+          <div className="cr-wizard-review-row">
+            <span>{t(props.locale, 'Priority (0 = highest)', 'الأولوية (0 = الأعلى)')}</span>
+            <span>{priorityText}</span>
+          </div>
+          <div className="cr-wizard-review-row">
+            <span>{t(props.locale, 'Contribution mode', 'وضع المساهمة')}</span>
+            <span>
+              {contributionMode === 'manual_monthly'
+                ? <><bdi>{t(props.locale, 'Manual monthly amount', 'مبلغ شهري يدوي')}</bdi>{reviewMonthlyMinor ? <> · <bdi>{formatMinorAmount(reviewMonthlyMinor, currency, props.locale)}</bdi></> : null}</>
+                : <><bdi>{t(props.locale, 'By deadline', 'حسب موعد نهائي')}</bdi>{deadline ? <> · <bdi>{deadline}</bdi></> : null}</>}
+            </span>
+          </div>
+          <div className="cr-wizard-review-row">
+            <span>{t(props.locale, 'Milestones', 'المعالم')}</span>
+            <span>{milestones.length}</span>
+          </div>
+        </div>}
+      </div>
+
       {error && <div className="error-notice" role="alert">
         {error}
         {props.ambiguous && <div><button type="button" className="button-secondary retry-command" onClick={() => void run(props.onRetry)}>{t(props.locale, 'Retry unchanged request', 'إعادة الطلب دون تغيير')}</button></div>}
       </div>}
-      <div className="dialog-actions">
-        <button type="button" className="button-secondary" disabled={props.pending} onClick={props.onClose}>{t(props.locale, 'Cancel', 'إلغاء')}</button>
-        <button type="submit" disabled={props.pending}>{props.pending ? t(props.locale, 'Saving…', 'جارٍ الحفظ…') : t(props.locale, 'Save', 'حفظ')}</button>
+      <div className="cr-wizard-footer">
+        <button type="button" className="text-button" disabled={props.pending} onClick={props.onClose}>{t(props.locale, 'Cancel', 'إلغاء')}</button>
+        <div className="cr-wizard-footer-end">
+          {stepIndex > 0 && <button type="button" className="button-secondary" onClick={goBack}>{t(props.locale, 'Back', 'رجوع')}</button>}
+          {step === 'review'
+            ? <button type="submit" className="cr-button cr-button--primary" disabled={props.pending || savingRef.current}>{props.pending || savingRef.current ? t(props.locale, 'Saving…', 'جارٍ الحفظ…') : t(props.locale, 'Save', 'حفظ')}</button>
+            : <button type="submit" className="cr-button cr-button--primary">{t(props.locale, 'Next', 'التالي')}</button>}
+        </div>
       </div>
     </form>
   </GoalSheetFrame>;

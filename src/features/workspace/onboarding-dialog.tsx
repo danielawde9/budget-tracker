@@ -15,6 +15,7 @@ const copy = {
     spaceTitle: 'Create your first space', spaceTitleAdditional: 'Add another space',
     spaceIntro: 'A space keeps one set of wallets and loans together.',
     personal: 'Personal space', household: 'Household space', spaceName: 'Space name',
+    spaceNameHint: 'e.g. Home', walletNameHint: 'e.g. Cash',
     personalAction: 'Create personal space', householdAction: 'Create household space',
     walletTitle: 'Add your first wallet', walletIntro: 'Choose the currency you use first. You can add more wallets in a later milestone.',
     walletName: 'Wallet name', walletAction: (currency: Currency) => `Create ${currency} wallet`,
@@ -25,6 +26,7 @@ const copy = {
     spaceTitle: 'إنشاء مساحتك الأولى', spaceTitleAdditional: 'إضافة مساحة أخرى',
     spaceIntro: 'تجمع المساحة مجموعة واحدة من المحافظ والقروض.',
     personal: 'مساحة شخصية', household: 'مساحة منزلية', spaceName: 'اسم المساحة',
+    spaceNameHint: 'مثال: المنزل', walletNameHint: 'مثال: نقد',
     personalAction: 'إنشاء مساحة شخصية', householdAction: 'إنشاء مساحة منزلية',
     walletTitle: 'أضف محفظتك الأولى', walletIntro: 'اختر العملة التي تستخدمها أولًا. يمكنك إضافة محافظ أخرى في مرحلة لاحقة.',
     walletName: 'اسم المحفظة', walletAction: (currency: Currency) => `إنشاء محفظة ${currency}`,
@@ -125,10 +127,10 @@ export function OnboardingDialog({ locale, mode = 'first', createSpace, createWa
           <label><input type="radio" name="space-kind" checked={kind === 'personal'} onChange={() => setKind('personal')} />{text.personal}</label>
           <label><input type="radio" name="space-kind" checked={kind === 'household'} onChange={() => setKind('household')} />{text.household}</label>
         </fieldset>
-        <label>{text.spaceName}<input autoComplete="off" maxLength={120} value={spaceName} onChange={(event) => setSpaceName(event.target.value)} /></label>
+        <label>{text.spaceName}<input autoComplete="off" maxLength={120} placeholder={text.spaceNameHint} value={spaceName} onChange={(event) => setSpaceName(event.target.value)} /></label>
         {error ? <div className="error-notice" role="alert">{error}</div> : null}
         {pending ? <div role="status">{text.working}</div> : null}
-        <div className="dialog-actions"><button type="submit" disabled={pending}>{kind === 'personal' ? text.personalAction : text.householdAction}</button></div>
+        <div className="dialog-actions"><button type="submit" className="cr-button cr-button--primary" disabled={pending}>{kind === 'personal' ? text.personalAction : text.householdAction}</button></div>
       </form> : <form onSubmit={(event) => void submitWallet(event)}>
         <p className="dialog-intro">{text.walletIntro}</p>
         {kind === 'household' ? <p className="onboarding-boundary">{text.householdLater}</p> : null}
@@ -137,10 +139,10 @@ export function OnboardingDialog({ locale, mode = 'first', createSpace, createWa
           <label><input type="radio" name="currency" checked={currency === 'USD'} onChange={() => setCurrency('USD')} />USD</label>
           <label><input type="radio" name="currency" checked={currency === 'LBP'} onChange={() => setCurrency('LBP')} />LBP</label>
         </fieldset>
-        <label>{text.walletName}<input autoComplete="off" maxLength={120} value={walletName} onChange={(event) => setWalletName(event.target.value)} /></label>
+        <label>{text.walletName}<input autoComplete="off" maxLength={120} placeholder={text.walletNameHint} value={walletName} onChange={(event) => setWalletName(event.target.value)} /></label>
         {error ? <div className="error-notice" role="alert">{error}</div> : null}
         {pending ? <div role="status">{text.working}</div> : null}
-        <div className="dialog-actions"><button type="submit" disabled={pending}>{text.walletAction(currency)}</button></div>
+        <div className="dialog-actions"><button type="submit" className="cr-button cr-button--primary" disabled={pending}>{text.walletAction(currency)}</button></div>
       </form>}
     </section>
   </div>;

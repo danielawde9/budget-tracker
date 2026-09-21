@@ -229,7 +229,7 @@ export function HomeScreen(props: HomeScreenProps) {
         <h1 className="cr-title">{spaceLabel}</h1>
         <label className="cr-field">
           <span className="cr-label">{t(locale, 'Month', 'الشهر')}</span>
-          <select className="cr-select" value={month} onChange={(event) => onMonthChange(event.target.value)}>
+          <select value={month} onChange={(event) => onMonthChange(event.target.value)}>
             {monthOptions(month).map((option) => (
               <option key={option} value={option}>{monthLabel(option, locale)}</option>
             ))}

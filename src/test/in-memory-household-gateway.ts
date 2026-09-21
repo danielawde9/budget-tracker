@@ -15,8 +15,8 @@ const started = '2026-09-08T10:00:00.000Z';
 
 export class InMemoryHouseholdGateway implements HouseholdGateway {
   memberships: HouseholdMembership[] = [
-    { userId: householdOwnerId, role: 'owner', status: 'active', createdAt: started, activatedAt: started, endedAt: null, isSelf: true },
-    { userId: householdMemberId, role: 'member', status: 'active', createdAt: started, activatedAt: started, endedAt: null, isSelf: false },
+    { userId: householdOwnerId, email: null, role: 'owner', status: 'active', createdAt: started, activatedAt: started, endedAt: null, isSelf: true },
+    { userId: householdMemberId, email: null, role: 'member', status: 'active', createdAt: started, activatedAt: started, endedAt: null, isSelf: false },
   ];
   invitations: HouseholdInvitation[] = [
     { invitationId: householdInvitationId, effectiveStatus: 'pending', createdAt: '2026-09-10T10:00:00.000Z', expiresAt: '2026-09-17T10:00:00.000Z', acceptedAt: null, cancelledAt: null },

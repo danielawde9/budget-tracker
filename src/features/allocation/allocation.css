@@ -155,25 +155,15 @@
   gap: var(--cr-space-4);
 }
 
-.alloc-fieldset {
-  border: 1px solid var(--cr-hairline);
-  border-radius: var(--cr-radius);
-  padding: var(--cr-space-3);
-  display: flex;
-  flex-direction: column;
-  gap: var(--cr-space-2);
+/* Step form (wizard) chrome inside the inline editor: the form's own gap
+   provides the rhythm, so the shared wizard margins step aside, and Cancel +
+   Back ride the inline start as one cluster next to the end-aligned Next. */
+.alloc-editor .cr-wizard-steps,
+.alloc-editor .cr-wizard-step-heading,
+.alloc-editor .cr-wizard-footer {
+  margin-block: 0;
 }
-
-.alloc-fieldset legend {
-  padding-inline: var(--cr-space-1);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--cr-ink-soft);
-}
-
-.alloc-radio {
+.alloc-wizard-footer-start {
   display: flex;
   align-items: center;
   gap: var(--cr-space-2);
@@ -199,6 +189,34 @@
   flex: 1 1 auto;
 }
 
+/* Group rows: purpose toggle, growing name field, narrow percent input with
+   a visible "%" adornment, computed amount, and a subdued remove action.
+   Items flow in order with no auto-margin, so a wrap keeps the percent,
+   amount, and remove action adjacent as one trailing cluster. */
+.alloc-group-row .cr-affix input {
+  inline-size: 72px;
+  text-align: end;
+}
+
+.alloc-group-name {
+  flex: 1 1 140px;
+  min-inline-size: 120px;
+}
+
+.alloc-group-amount {
+  flex: 0 0 auto;
+  min-inline-size: 80px;
+  font-variant-numeric: tabular-nums;
+}
+
+.alloc-group-remove {
+  flex: 0 0 auto;
+  color: var(--cr-danger);
+}
+.alloc-group-remove:hover {
+  background: color-mix(in srgb, var(--cr-danger) 12%, transparent);
+}
+
 /* Phone-width layouts: let group/root rows wrap to their own lines rather
    than compressing inputs illegibly, per the 320/390px inspection matrix. */
 @media (max-width: 420px) {
@@ -206,6 +224,9 @@
   .alloc-root-row {
     flex-direction: column;
     align-items: stretch;
+  }
+  .alloc-group-row > .cr-affix {
+    align-self: flex-start;
   }
   .alloc-metrics {
     grid-template-columns: 1fr 1fr;

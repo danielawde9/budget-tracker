@@ -11,10 +11,15 @@ function baseProps() {
   return {
     locale: 'en' as const, currency: 'USD' as const,
     occurrence: { id: OCCURRENCE_ID, nameEn: 'Rent', nameAr: null, currentEventId: '3', remainingMinor: '30000' },
+    walletOptions: [{ id: WALLET_ID, name: 'Daily USD', currency: 'USD' }],
     allowConfirm: true, pending: false, ambiguous: false,
     onClose: vi.fn(), onClearAmbiguous: vi.fn(), onRetry: vi.fn(),
     onConfirm: vi.fn(), onLinkExisting: vi.fn(),
   };
+}
+
+async function choosePayingWallet() {
+  await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Paying wallet' }), WALLET_ID);
 }
 
 describe('ConfirmPaymentDialog', () => {
@@ -22,7 +27,7 @@ describe('ConfirmPaymentDialog', () => {
     const onConfirm = vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { occurrenceId: OCCURRENCE_ID, occurrenceEventId: '4', financialEventId: 'f1' } });
     render(<ConfirmPaymentDialog {...baseProps()} onConfirm={onConfirm} />);
     await userEvent.type(screen.getByRole('textbox', { name: 'Actual amount' }), '300');
-    await userEvent.type(screen.getByRole('textbox', { name: 'Paying wallet id' }), WALLET_ID);
+    await choosePayingWallet();
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByRole('status')).toBeInTheDocument();
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
@@ -35,6 +40,9 @@ describe('ConfirmPaymentDialog', () => {
     render(<ConfirmPaymentDialog {...baseProps()} onLinkExisting={onLinkExisting} />);
     await userEvent.click(screen.getByRole('radio', { name: 'Link an existing transaction' }));
     await userEvent.type(screen.getByRole('textbox', { name: 'Transaction reference id' }), EVENT_ID);
+    // No candidate-event list exists in this dialog's data scope, so the
+    // reference stays a pasted id -- the hint points at where it is shown.
+    expect(screen.getByText('Find the reference id on the transaction’s entry in the Wallets section.')).toBeInTheDocument();
     await userEvent.type(screen.getByRole('textbox', { name: 'Amount to link' }), '150');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(onLinkExisting).toHaveBeenCalledWith({ occurrenceId: OCCURRENCE_ID, eventId: EVENT_ID, amountMinor: '15000', expectedEventId: '3' });
@@ -56,13 +64,12 @@ describe('ConfirmPaymentDialog', () => {
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
-  it('rejects a non-uuid wallet id before calling the gateway, preserving the entered amount', async () => {
+  it('rejects saving with no paying wallet chosen, preserving the entered amount', async () => {
     const onConfirm = vi.fn();
     render(<ConfirmPaymentDialog {...baseProps()} onConfirm={onConfirm} />);
     await userEvent.type(screen.getByRole('textbox', { name: 'Actual amount' }), '300');
-    await userEvent.type(screen.getByRole('textbox', { name: 'Paying wallet id' }), 'not-a-uuid');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
-    expect(screen.getByRole('alert')).toHaveTextContent('Enter the paying wallet’s exact id.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Select the paying wallet.');
     expect(onConfirm).not.toHaveBeenCalled();
     expect(screen.getByRole('textbox', { name: 'Actual amount' })).toHaveValue('300');
   });
@@ -74,7 +81,7 @@ describe('ConfirmPaymentDialog', () => {
     const dateInput = screen.getByLabelText('Effective date');
     await userEvent.clear(dateInput);
     await userEvent.type(dateInput, future);
-    await userEvent.type(screen.getByRole('textbox', { name: 'Paying wallet id' }), WALLET_ID);
+    await choosePayingWallet();
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(screen.getByRole('alert')).toHaveTextContent('Choose today or an earlier date.');
   });
@@ -84,7 +91,7 @@ describe('ConfirmPaymentDialog', () => {
     const onConfirm = vi.fn().mockRejectedValue(new Error('network timeout'));
     render(<ConfirmPaymentDialog {...baseProps()} ambiguous onRetry={onRetry} onConfirm={onConfirm} />);
     await userEvent.type(screen.getByRole('textbox', { name: 'Actual amount' }), '300');
-    await userEvent.type(screen.getByRole('textbox', { name: 'Paying wallet id' }), WALLET_ID);
+    await choosePayingWallet();
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Retry unchanged request' }));
     expect(onRetry).toHaveBeenCalledTimes(1);
@@ -94,5 +101,11 @@ describe('ConfirmPaymentDialog', () => {
     render(<ConfirmPaymentDialog {...baseProps()} pending />);
     expect(screen.getByRole('button', { name: 'Saving…' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+  });
+
+  it('renders the paying-wallet field in Arabic', () => {
+    render(<ConfirmPaymentDialog {...baseProps()} locale="ar" />);
+    expect(screen.getByRole('combobox', { name: 'محفظة الدفع' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Daily USD · USD' })).toBeInTheDocument();
   });
 });

@@ -107,7 +107,7 @@ export function GoalFundingDialog(props: GoalFundingDialogProps) {
       <p id={descriptionId} className="dialog-intro">
         <bdi>{goalName}</bdi> — {t(props.locale, 'currently reserved', 'المحجوز حاليًا')}: <bdi>{formatMinorAmount(props.goal.earmarkedMinor, props.currency, props.locale)}</bdi>
       </p>
-      <fieldset className="goal-funding-mode">
+      <fieldset className="cr-choice">
         <legend>{t(props.locale, 'Action', 'الإجراء')}</legend>
         <label><input type="radio" name="goal-funding-mode" checked={mode === 'reserve'} onChange={() => { setMode('reserve'); setError(null); }} />{t(props.locale, 'Reserve', 'حجز')}</label>
         <label><input type="radio" name="goal-funding-mode" checked={mode === 'release'} onChange={() => { setMode('release'); setError(null); }} />{t(props.locale, 'Release', 'تحرير')}</label>
@@ -123,7 +123,7 @@ export function GoalFundingDialog(props: GoalFundingDialogProps) {
       </label>}
       <label className="full-field">
         {t(props.locale, 'Amount', 'المبلغ')}
-        <input data-autofocus type="text" inputMode="decimal" value={amountText} onChange={(event) => { setAmountText(event.target.value); setError(null); }} />
+        <input data-autofocus type="text" inputMode="decimal" placeholder={props.currency === 'USD' ? '0.00' : '0'} value={amountText} onChange={(event) => { setAmountText(event.target.value); setError(null); }} />
       </label>
       {error && <div className="error-notice" role="alert">
         {error}
@@ -135,7 +135,7 @@ export function GoalFundingDialog(props: GoalFundingDialogProps) {
       </div>}
       <div className="dialog-actions">
         <button type="button" className="button-secondary" disabled={props.pending} onClick={props.onClose}>{t(props.locale, 'Cancel', 'إلغاء')}</button>
-        <button type="submit" disabled={props.pending}>{props.pending ? t(props.locale, 'Saving…', 'جارٍ الحفظ…') : t(props.locale, 'Save', 'حفظ')}</button>
+        <button type="submit" className="cr-button cr-button--primary" disabled={props.pending}>{props.pending ? t(props.locale, 'Saving…', 'جارٍ الحفظ…') : t(props.locale, 'Save', 'حفظ')}</button>
       </div>
     </form>
   </DialogShell>;

@@ -13,6 +13,7 @@ interface HouseholdPageProps {
   readonly spaceId: string;
   readonly spaceName: string;
   readonly userId: string;
+  readonly userEmail: string | null;
   onSpaceUnavailable(): void;
 }
 
@@ -68,6 +69,10 @@ export function HouseholdPage(props: HouseholdPageProps) {
   const actionError = <ErrorNotice error={household.actionError} locale={props.locale} />;
   const pending = household.actionPending !== null;
 
+  function memberIdentity(membership: HouseholdMembership): string | null {
+    return membership.email ?? (membership.isSelf ? props.userEmail : null);
+  }
+
   async function confirmAction(): Promise<boolean> {
     if (!confirmation) return false;
     if (confirmation.kind === 'cancel') return household.cancelInvitation(confirmation.invitation.invitationId);
@@ -109,30 +114,33 @@ export function HouseholdPage(props: HouseholdPageProps) {
     {household.status === 'owner-ready' ? <div className="household-columns">
       <section className="household-register" aria-labelledby="household-members-heading">
         <h2 id="household-members-heading">{text.members}</h2>
-        {household.members.length === 0 ? <p className="empty">{text.noMembers}</p> : <ul className="household-list">{household.members.map((membership) => <li key={membership.userId} className="household-row">
-          <div className="household-identity"><bdi>{membership.userId}</bdi>{membership.isSelf ? <span className="household-self">{text.self}</span> : null}</div>
-          <dl><div><dt>{text.role}</dt><dd>{text[membership.role]}</dd></div><div><dt>{text.status}</dt><dd>{text[membership.status]}</dd></div>{membership.endedAt ? <div><dt>{text.ended}</dt><dd>{formatDate(membership.endedAt)}</dd></div> : null}</dl>
+        {household.members.length === 0 ? <p className="empty">{text.noMembers}</p> : <ul className="household-list mg-member-list">{household.members.map((membership) => {
+          const identity = memberIdentity(membership);
+          return <li key={membership.userId} className="household-row mg-member-row">
+          <div className="household-identity">{identity ? <bdi>{identity}</bdi> : <span className="household-member-fallback">{text.member} <bdi>{membership.userId.slice(0, 8)}</bdi></span>}{membership.isSelf ? <span className="household-self mg-self-pill">{text.self}</span> : null}</div>
+          <dl className="mg-meta"><div><dt>{text.role}</dt><dd>{text[membership.role]}</dd></div><div><dt>{text.status}</dt><dd>{text[membership.status]}</dd></div>{membership.endedAt ? <div><dt>{text.ended}</dt><dd>{formatDate(membership.endedAt)}</dd></div> : null}</dl>
           {!membership.isSelf && membership.status === 'active' ? <div className="household-actions">
             <button type="button" className="text-button" aria-label={props.locale === 'en' ? `${membership.role === 'member' ? 'Promote' : 'Demote'} ${membership.userId} to ${membership.role === 'member' ? 'owner' : 'member'}` : `${membership.role === 'member' ? text.promote : text.demote} ${membership.userId}`} onClick={() => setConfirmation({ kind: 'role', membership, role: membership.role === 'member' ? 'owner' : 'member' })}>{membership.role === 'member' ? text.promote : text.demote}</button>
-            <button type="button" className="text-button danger-text" aria-label={props.locale === 'en' ? `Remove ${membership.userId}` : `${text.remove} ${membership.userId}`} onClick={() => setConfirmation({ kind: 'remove', membership })}>{text.remove}</button>
+            <button type="button" className="text-button danger-text mg-danger-action" aria-label={props.locale === 'en' ? `Remove ${membership.userId}` : `${text.remove} ${membership.userId}`} onClick={() => setConfirmation({ kind: 'remove', membership })}>{text.remove}</button>
           </div> : null}
-        </li>)}</ul>}
-        {household.membersHasMore ? <button type="button" className="secondary" disabled={pending} onClick={() => void household.loadMoreMembers()}>{text.loadMore}</button> : null}
+        </li>;
+        })}</ul>}
+        {household.membersHasMore ? <button type="button" className="button-secondary" disabled={pending} onClick={() => void household.loadMoreMembers()}>{text.loadMore}</button> : null}
       </section>
       <section className="household-register" aria-labelledby="household-invitations-heading">
         <h2 id="household-invitations-heading">{text.invitations}</h2>
-        {household.invitations.length === 0 ? <p className="empty">{text.noInvitations}</p> : <ul className="household-list">{household.invitations.map((invitation) => <li key={invitation.invitationId} className="household-row invitation-row">
+        {household.invitations.length === 0 ? <p className="empty">{text.noInvitations}</p> : <ul className="household-list mg-member-list">{household.invitations.map((invitation) => <li key={invitation.invitationId} className="household-row invitation-row mg-member-row">
           <span className={`status household-status status-${invitation.effectiveStatus}`}>{text[invitation.effectiveStatus]}</span>
-          <dl><div><dt>{text.created}</dt><dd>{formatDate(invitation.createdAt)}</dd></div><div><dt>{text.expires}</dt><dd>{formatDate(invitation.expiresAt)}</dd></div></dl>
-          {invitation.effectiveStatus === 'pending' || invitation.effectiveStatus === 'expired' ? <button type="button" className="text-button danger-text" aria-label={`${text.cancelInvitation} ${invitation.invitationId}`} onClick={() => setConfirmation({ kind: 'cancel', invitation })}>{text.cancelInvitation}</button> : null}
+          <dl className="mg-meta"><div><dt>{text.created}</dt><dd>{formatDate(invitation.createdAt)}</dd></div><div><dt>{text.expires}</dt><dd>{formatDate(invitation.expiresAt)}</dd></div></dl>
+          {invitation.effectiveStatus === 'pending' || invitation.effectiveStatus === 'expired' ? <button type="button" className="text-button danger-text mg-danger-action" aria-label={`${text.cancelInvitation} ${invitation.invitationId}`} onClick={() => setConfirmation({ kind: 'cancel', invitation })}>{text.cancelInvitation}</button> : null}
         </li>)}</ul>}
-        {household.invitationsHasMore ? <button type="button" className="secondary" disabled={pending} onClick={() => void household.loadMoreInvitations()}>{text.loadMore}</button> : null}
+        {household.invitationsHasMore ? <button type="button" className="button-secondary" disabled={pending} onClick={() => void household.loadMoreInvitations()}>{text.loadMore}</button> : null}
       </section>
-    </div> : <section className="household-register household-self-access">
+    </div> : <section className="household-register household-self-access mg-self-access">
       <h2>{text.selfDetails}</h2>
-      <dl><div><dt>{text.role}</dt><dd>{text[household.self?.role ?? 'member']}</dd></div><div><dt>{text.status}</dt><dd>{text[household.self?.status ?? 'active']}</dd></div></dl>
+      <dl className="mg-meta"><div><dt>{text.role}</dt><dd>{text[household.self?.role ?? 'member']}</dd></div><div><dt>{text.status}</dt><dd>{text[household.self?.status ?? 'active']}</dd></div></dl>
     </section>}
-    <footer className="household-leave"><button type="button" className="secondary danger-text" onClick={() => setConfirmation({ kind: 'leave' })}>{text.leave}</button></footer>
+    <footer className="household-leave mg-leave"><button type="button" className="button-secondary danger-text mg-danger-action" onClick={() => setConfirmation({ kind: 'leave' })}>{text.leave}</button></footer>
     {inviteOpen ? <InviteHouseholdDialog locale={props.locale} pending={pending} succeeded={household.actionSuccess === 'invitation-created'} error={actionError} onClose={closeInvite} onSubmit={(email) => household.createInvitation(email, props.locale)} /> : null}
     {confirmation && confirmationText ? <HouseholdConfirmDialog
       title={confirmationText.title}

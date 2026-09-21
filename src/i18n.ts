@@ -7,7 +7,10 @@ const copy = {
     personal: 'Personal space', household: 'Household space', theyOwe: 'They owe me', iOwe: 'I owe them',
     outstanding: 'Outstanding', settled: 'Settled', overdue: 'Overdue', remaining: 'Remaining', due: 'Due amount',
     owedToMe: 'Owed to me', iOweTotal: 'I owe', target: 'Monthly target', paid: 'Paid this month',
-    reserved: 'Still reserved', expected: 'Expected collection', noLoans: 'No loans in this group.',
+    reserved: 'Still reserved', expected: 'Expected collection',
+    loansKicker: 'Lending & borrowing', emptyTheyOwe: 'Nothing owed to you yet.', emptyIOwe: 'Nothing you owe yet.',
+    modeOpeningHint: 'Already on the books — no money moves now.', modeLentHint: 'Cash leaves your wallet, then comes back over time.',
+    modeBorrowedHint: 'Cash enters your wallet and you pay it back.',
     tryAgain: 'Try again',
   },
   ar: {
@@ -16,7 +19,10 @@ const copy = {
     personal: 'مساحة شخصية', household: 'مساحة منزلية', theyOwe: 'لديهم دين لي', iOwe: 'عليّ دين لهم',
     outstanding: 'قائم', settled: 'مسدّد', overdue: 'متأخر', remaining: 'المتبقي', due: 'المبلغ المستحق',
     owedToMe: 'مستحق لي', iOweTotal: 'مستحق عليّ', target: 'هدف الشهر', paid: 'المدفوع هذا الشهر',
-    reserved: 'المحجوز المتبقي', expected: 'تحصيل متوقع', noLoans: 'لا توجد قروض في هذه المجموعة.',
+    reserved: 'المحجوز المتبقي', expected: 'تحصيل متوقع',
+    loansKicker: 'الإقراض والاستقراض', emptyTheyOwe: 'لا شيء مستحق لك بعد.', emptyIOwe: 'لا شيء مستحق عليك بعد.',
+    modeOpeningHint: 'رصيد قائم أصلًا — لا تتحرك الأموال الآن.', modeLentHint: 'نقد يخرج من محفظتك ثم يعود إليك تدريجيًا.',
+    modeBorrowedHint: 'نقد يدخل محفظتك وتسدّده لاحقًا.',
     tryAgain: 'المحاولة مجددًا',
   },
 } as const;

@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import type { Locale } from '../loans/types.js';
+import type { Currency, Locale } from '../loans/types.js';
 import { formatMinorAmount } from '../wallets/money.js';
 import { OccurrenceDetail, occurrenceBucket, occurrenceBucketLabel, type OccurrenceBucket } from './occurrence-detail.js';
-import { ScheduleEditor } from './schedule-editor.js';
+import { ScheduleEditor, type ScheduleReferenceOptions } from './schedule-editor.js';
 import { settlementProgress } from './settlement-progress.js';
 import type { RecurringState } from './use-recurring.js';
 import { SkeletonStatus } from '../control-room/skeletons.js';
@@ -16,6 +16,12 @@ interface UpcomingPageProps {
    * screen. */
   fromDate: string;
   toDate: string;
+  /** Named lists for the schedule editor's reference dropdowns. */
+  referenceOptions: ScheduleReferenceOptions;
+  /** Planned income per currency from the monthly plan (integer-minor). */
+  plannedIncomeByCurrency: Readonly<Record<Currency, string | null>>;
+  /** Wallets offered by the payment dialog's 'Paying wallet' dropdown. */
+  walletOptions: ReadonlyArray<{ readonly id: string; readonly name: string; readonly currency: string }>;
 }
 
 type FilterValue = 'all' | OccurrenceBucket;
@@ -49,7 +55,7 @@ export function UpcomingPage(props: UpcomingPageProps) {
   const recurring = props.recurring;
 
   if (selectedId) {
-    return <OccurrenceDetail locale={props.locale} recurring={recurring} occurrenceId={selectedId} onBack={() => setSelectedId(null)} />;
+    return <OccurrenceDetail locale={props.locale} recurring={recurring} occurrenceId={selectedId} onBack={() => setSelectedId(null)} walletOptions={props.walletOptions} />;
   }
 
   const rows = recurring.page.rows;
@@ -149,6 +155,7 @@ export function UpcomingPage(props: UpcomingPageProps) {
     )}
 
     {creating && <ScheduleEditor locale={props.locale}
+      referenceOptions={props.referenceOptions} plannedIncomeByCurrency={props.plannedIncomeByCurrency}
       pending={recurring.pending} ambiguous={recurring.ambiguous !== null}
       onClose={() => setCreating(false)} onClearAmbiguous={recurring.clearAmbiguous} onRetry={recurring.retryAmbiguous}
       onSave={recurring.saveSchedule} />}

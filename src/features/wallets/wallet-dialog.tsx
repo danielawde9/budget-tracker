@@ -64,10 +64,10 @@ export function WalletDialog({ locale, pending, onClose, onRefresh, onSubmit }: 
       <p className="dialog-intro">{t(locale, 'Create an active USD or LBP wallet. Its balance always comes from the immutable journal.', 'أنشئ محفظة فعالة بالدولار أو الليرة. يأتي رصيدها دائمًا من السجل غير القابل للتعديل.')}</p>
       {error && <div className="error-notice" role="alert">{error}{refreshRequired && <div><button type="button" className="button-secondary retry-command" disabled={refreshing} onClick={() => void refreshAcceptedWallet()}>{refreshing ? t(locale, 'Refreshing…', 'جارٍ التحديث…') : t(locale, 'Refresh wallets', 'تحديث المحافظ')}</button></div>}</div>}
       <div className="form-grid wallet-form-grid">
-        <label className="full-field">{t(locale, 'Wallet name', 'اسم المحفظة')}<input data-autofocus value={name} maxLength={120} disabled={locked} onChange={(event) => setName(event.target.value)} /></label>
+        <label className="full-field">{t(locale, 'Wallet name', 'اسم المحفظة')}<input data-autofocus value={name} maxLength={120} placeholder={t(locale, 'e.g. Cash', 'مثال: نقد')} disabled={locked} onChange={(event) => setName(event.target.value)} /></label>
         <label className="full-field">{t(locale, 'Currency', 'العملة')}<select value={currency} disabled={locked} onChange={(event) => setCurrency(event.target.value as Currency)}><option value="USD">USD</option><option value="LBP">LBP</option></select></label>
       </div>
-      <div className="dialog-actions"><button type="button" className="button-secondary" disabled={pending || refreshing} onClick={onClose}>{t(locale, refreshRequired ? 'Close' : 'Cancel', refreshRequired ? 'إغلاق' : 'إلغاء')}</button><button type="submit" disabled={locked}>{pending ? t(locale, 'Creating…', 'جارٍ الإنشاء…') : t(locale, 'Create wallet', 'إنشاء المحفظة')}</button></div>
+      <div className="dialog-actions"><button type="button" className="button-secondary" disabled={pending || refreshing} onClick={onClose}>{t(locale, refreshRequired ? 'Close' : 'Cancel', refreshRequired ? 'إغلاق' : 'إلغاء')}</button><button type="submit" className="cr-button cr-button--primary" disabled={locked}>{pending ? t(locale, 'Creating…', 'جارٍ الإنشاء…') : t(locale, 'Create wallet', 'إنشاء المحفظة')}</button></div>
     </form>}
   </DialogShell>;
 }

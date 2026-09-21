@@ -71,7 +71,7 @@ export function CorrectionDialog(props: CorrectionDialogProps) {
       {error && <div className="error-notice" role="alert">{error}{props.ambiguous && <div><button type="button" className="button-secondary retry-command" onClick={() => void run(props.onRetry)}>{t(props.locale, 'Retry unchanged undo', 'إعادة التراجع دون تغيير')}</button></div>}</div>}
       <label>{t(props.locale, 'Undo date', 'تاريخ التراجع')}<input data-autofocus type="date" value={effectiveDate} onChange={(event) => { setEffectiveDate(event.target.value); setError(null); props.onClearAmbiguous(); }} /></label>
       <label className="confirm"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />{t(props.locale, 'I understand the original stays in history, marked as undone.', 'أفهم أن المعاملة الأصلية تبقى في السجل مع إشارة إلى التراجع عنها.')}</label>
-      <div className="dialog-actions"><button type="button" className="button-secondary" disabled={props.pending} onClick={props.onClose}>{t(props.locale, 'Cancel', 'إلغاء')}</button><button type="submit" disabled={props.pending}>{props.pending ? t(props.locale, 'Undoing…', 'جارٍ التراجع…') : t(props.locale, 'Undo transaction', 'التراجع عن المعاملة')}</button></div>
+      <div className="dialog-actions"><button type="button" className="button-secondary" disabled={props.pending} onClick={props.onClose}>{t(props.locale, 'Cancel', 'إلغاء')}</button><button type="submit" className="cr-button cr-button--primary" disabled={props.pending}>{props.pending ? t(props.locale, 'Undoing…', 'جارٍ التراجع…') : t(props.locale, 'Undo transaction', 'التراجع عن المعاملة')}</button></div>
     </form>
   </DialogShell>;
 }

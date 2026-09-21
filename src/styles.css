@@ -42,6 +42,41 @@ textarea {
 }
 textarea { min-height: 96px; }
 
+/* Selects share one designed anatomy everywhere: no native arrow, custom
+   chevron, room for it on the inline-end, hover border, accent focus. */
+select {
+  appearance: none;
+  padding-inline-end: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2355605a' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  font-weight: 650;
+}
+select:hover { border-color: var(--cr-ink-soft, #55605a); }
+[dir="rtl"] select {
+  padding-inline: 36px 0.75rem;
+  background-position: left 12px center;
+}
+
+/* Text fields, selects, and textareas get the accent focus ring (choice
+   controls and buttons keep their own treatments). */
+input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--cr-accent, #177f63);
+  outline-offset: 2px;
+  border-color: var(--cr-accent, #177f63);
+}
+
+/* Placeholders are hints, not values: `button, input, select, textarea
+   { color: inherit }` above would otherwise render them at full ink
+   strength, making empty fields look pre-filled. */
+input::placeholder,
+textarea::placeholder {
+  color: var(--cr-ink-soft, #55605a);
+  opacity: 1;
+}
+
 button {
   border: 1px solid var(--cr-border, #dde4e1);
   border-radius: var(--cr-radius-sm, 12px);
@@ -104,26 +139,11 @@ dd { margin: 6px 0 0; font-weight: 700; white-space: nowrap; }
 }
 .page-header-action { flex: 0 0 auto; }
 
-.controls, .workspace-toolbar {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--cr-space-3, 12px);
-  padding-block: var(--cr-space-3, 12px);
-  border-bottom: 0;
-}
 .controls label, form label {
   display: grid;
   gap: 7px;
   font-weight: 650;
   color: var(--cr-ink, #121614);
-}
-
-.controls select, .controls input, form select, form input, form textarea {
-  border: 1px solid var(--cr-border, #dde4e1);
-  border-radius: var(--cr-radius-sm, 12px);
-  background: var(--cr-surface, #ffffff);
-  color: var(--cr-ink, #121614);
-  padding: 0.65rem 0.75rem;
 }
 
 /* Choice controls keep their label beside them in one compact row; the
@@ -189,13 +209,6 @@ input[type="checkbox"]::after {
   opacity: 0;
 }
 input[type="checkbox"]:checked::after { opacity: 1; }
-.controls button { margin-inline-start: auto; }
-.space-kind {
-  border: 1px solid var(--cr-border, #dde4e1);
-  border-radius: 999px;
-  padding: 7px 11px;
-  color: var(--cr-ink-soft, #55605a);
-}
 
 /* ---- Buttons ---- */
 .locale-button, .button-secondary {
@@ -229,7 +242,7 @@ input[type="checkbox"]:checked::after { opacity: 1; }
 }
 
 /* ---- Workspace widths ---- */
-.loans-workspace, .wallets-workspace, .categories-workspace, .household-workspace {
+.wallets-workspace, .categories-workspace, .household-workspace {
   width: min(1000px, 100%);
   margin-inline: auto;
 }
@@ -314,12 +327,6 @@ input[type="checkbox"]:checked::after { opacity: 1; }
 .household-dialog form > label { margin-block-start: 22px; }
 .household-dialog form input { inline-size: 100%; max-inline-size: 100%; }
 .household-dialog bdi { overflow-wrap: anywhere; }
-.household-workspace .secondary, .household-dialog .secondary {
-  border: 1px solid var(--cr-border, #dde4e1);
-  background: var(--cr-surface, #ffffff);
-  color: var(--cr-ink, #121614);
-}
-.household-workspace .secondary:hover, .household-dialog .secondary:hover { background: var(--cr-surface-sunken, #ecefee); }
 
 .success-notice {
   margin: 18px 0 0;
@@ -414,13 +421,6 @@ input[type="checkbox"]:checked::after { opacity: 1; }
    ========================================================================== */
 
 .wallet-actions { display: flex; gap: 10px; flex: 0 0 auto; }
-.wallet-journal-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.42fr);
-  align-items: start;
-  gap: var(--cr-space-5, 24px);
-  margin-block-start: var(--cr-space-5, 24px);
-}
 .wallet-context { min-inline-size: 0; }
 .wallet-context .section-heading, .journal .section-heading {
   margin: 0;
@@ -516,15 +516,9 @@ input[type="checkbox"]:checked::after { opacity: 1; }
 .journal-filters select { min-height: 40px; padding-block: 6px; }
 .journal-state { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .journal-state span { padding: 4px 8px; border: 1px solid var(--cr-border, #dde4e1); border-radius: 999px; }
-.amount-positive { color: var(--cr-accent-strong, #0d5d48); }
-.amount-negative { color: var(--cr-danger, #c4372b); }
 .journal-row footer { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px 12px; margin-block-start: 4px; }
 .wallet-list li > footer { grid-column: 1 / -1; display: flex; gap: 4px; margin-block-start: 4px; }
-.archived-wallets { margin-block-start: 20px; }
-.archived-wallets > summary { cursor: pointer; font-weight: 700; padding-block: 10px; list-style: none; }
-.archived-wallets > summary::-webkit-details-marker { display: none; }
 .undo-gated { color: var(--cr-ink-soft, #55605a); font-size: 0.82rem; }
-.journal-reversal { background: linear-gradient(90deg, rgb(183 121 12 / 0.08), transparent 70%); }
 .load-more { margin-block-start: 20px; }
 
 /* ==========================================================================
@@ -594,7 +588,6 @@ input[type="checkbox"]:checked::after { opacity: 1; }
   margin-top: 24px;
   border-top: 1px solid var(--cr-hairline, #e8edea);
 }
-.field-error { color: var(--cr-danger, #c4372b); }
 .field-note { color: var(--cr-ink-soft, #55605a); line-height: 1.5; }
 .error-notice {
   margin: 18px 0;
@@ -605,31 +598,8 @@ input[type="checkbox"]:checked::after { opacity: 1; }
   border-radius: var(--cr-radius-sm, 12px);
 }
 .error-notice p { margin: 6px 0 0; }
-.detail-hero { display: flex; justify-content: space-between; align-items: flex-end; padding: 24px 0; }
-.detail-hero p { margin: 10px 0 0; color: var(--cr-ink-soft, #55605a); }
-.detail-hero > strong { display: grid; text-align: end; font-size: 2rem; }
-.detail-hero small { font-weight: 500; }
-.detail-figures {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  border-block: 1px solid var(--cr-border, #dde4e1);
-  margin: 0 0 20px;
-}
-.detail-figures-three { grid-template-columns: repeat(3, 1fr); }
-.detail-figures div { padding: 16px 10px; border-inline-end: 1px solid var(--cr-hairline, #e8edea); }
 .section-heading { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; }
 .section-heading h3 { font-size: 1.2rem; font-weight: 800; letter-spacing: -0.02em; }
-.history { list-style: none; padding: 0; border-top: 0; }
-.history li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--cr-hairline, #e8edea);
-}
-.history li div { display: grid; gap: 4px; }
-.history li strong { text-transform: capitalize; }
-.history li span { color: var(--cr-ink-soft, #55605a); font-size: 0.85rem; }
 .confirm { display: flex; align-items: center; margin-top: 22px; }
 
 /* ---- Wallet / category dialog internals ---- */
@@ -691,53 +661,7 @@ input[type="checkbox"]:checked::after { opacity: 1; }
    Loans
    ========================================================================== */
 
-.loans-workspace .topbar { padding-block-end: var(--cr-space-4, 16px); }
-.loans-workspace .topbar h1 { font-size: clamp(1.75rem, 5vw, 2.5rem); }
-.summary { margin: var(--cr-space-4, 16px) 0 var(--cr-space-5, 24px); border-top: 0; }
-.summary-row {
-  display: grid;
-  grid-template-columns: 90px 1fr;
-  gap: 20px;
-  align-items: stretch;
-  border-bottom: 1px solid var(--cr-hairline, #e8edea);
-}
-.summary-row h2 { margin: 0; padding: 20px 0; font-size: 1.15rem; font-weight: 800; }
-.summary-row dl {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(120px, 1fr));
-  margin: 0;
-  overflow-x: auto;
-}
-.summary-row dl div { padding: 18px 14px; border-inline-start: 1px solid var(--cr-hairline, #e8edea); }
 .loan-columns { display: grid; grid-template-columns: 1fr 1fr; gap: var(--cr-space-5, 24px); }
-.loan-group > header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border-bottom: 0;
-  padding-bottom: 12px;
-}
-.loan-group h2 { margin: 0; font-size: 1.25rem; letter-spacing: -0.02em; font-weight: 800; }
-.loan-group header .count-badge { min-inline-size: 28px; padding: 3px 8px; }
-.loan-group ul { list-style: none; padding: 0; margin: 0; }
-.loan-row { border-bottom: 1px solid var(--cr-hairline, #e8edea); }
-.loan-row-button {
-  width: 100%;
-  display: grid;
-  grid-template-columns: minmax(130px, 1fr) auto minmax(110px, auto);
-  gap: 12px;
-  align-items: center;
-  text-align: start;
-  background: transparent;
-  color: var(--cr-ink, #121614);
-  border: 0;
-  border-radius: 0;
-  padding: 18px 4px;
-}
-.loan-row-button:hover { background: var(--cr-surface-sunken, #ecefee); }
-.loan-person, .loan-amount, .loan-due, .loan-plan { display: grid; gap: 4px; }
-.loan-due, .loan-plan { grid-column: span 1; }
-.loan-person bdi { font-size: 1.1rem; font-weight: 700; }
 .status { display: inline-flex; width: max-content; border-radius: 999px; padding: 5px 9px; font-size: 0.75rem; font-weight: 700; }
 .status-outstanding { background: #f7edd6; color: var(--cr-warn-strong, #7c4f05); }
 .status-settled { background: var(--cr-accent-soft, #e2f2ec); color: var(--cr-accent-strong, #0d5d48); }
@@ -855,7 +779,7 @@ input[type="checkbox"]:checked::after { opacity: 1; }
    Responsive
    ========================================================================== */
 
-[dir="rtl"] .topbar, [dir="rtl"] .loan-row-button { text-align: start; }
+[dir="rtl"] .topbar { text-align: start; }
 
 @media (min-width: 1024px) {
   .topbar, .page-header { gap: var(--cr-space-3, 12px); padding-bottom: var(--cr-space-4, 16px); }
@@ -889,7 +813,6 @@ input[type="checkbox"]:checked::after { opacity: 1; }
   .category-register-mobile-active { display: block; }
   .wallet-actions { inline-size: 100%; }
   .wallet-actions button { flex: 1; }
-  .wallet-journal-layout { display: flex; flex-direction: column; gap: var(--cr-space-5, 24px); }
   .journal, .wallet-context { inline-size: 100%; }
   .journal-filters { grid-template-columns: 1fr; }
   .journal-movement { grid-template-columns: 72px minmax(0, 1fr) auto; gap: 4px 10px; }
@@ -898,17 +821,7 @@ input[type="checkbox"]:checked::after { opacity: 1; }
   .auth-boundary { padding: 32px 24px; }
   .auth-form { padding: 26px 0 34px; }
   .auth-language { inset-block-start: 16px; inset-inline-end: 16px; }
-  .controls { display: grid; grid-template-columns: 1fr 1fr; }
-  .controls button { margin-inline-start: 0; }
-  .space-kind { align-self: center; text-align: center; }
-  .summary-row { grid-template-columns: 64px 1fr; }
-  .summary-row dl { grid-template-columns: repeat(7, 125px); }
   .loan-columns { grid-template-columns: 1fr; gap: var(--cr-space-5, 24px); }
-  .mobile-safe-row { grid-template-columns: minmax(0, 1fr) auto; gap: var(--cr-space-2, 8px) var(--cr-space-3, 12px); padding-block: var(--cr-space-3, 12px); }
-  .mobile-safe-row .loan-person { min-inline-size: 0; }
-  .mobile-safe-row .loan-person small, .mobile-safe-row .loan-person bdi { overflow-wrap: anywhere; }
-  .mobile-safe-row .loan-amount, .mobile-safe-row .loan-due, .mobile-safe-row .loan-plan { grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; }
-  .mobile-safe-row .loan-amount strong, .mobile-safe-row .loan-due > bdi, .mobile-safe-row .loan-plan > bdi { text-align: end; }
   .overlay { padding: 0; place-items: stretch; }
   .dialog, .dialog-wide { width: 100%; max-height: 100vh; min-height: 100dvh; border-radius: 0; padding: 20px; }
   .transaction-form .dialog-actions {
@@ -918,8 +831,7 @@ input[type="checkbox"]:checked::after { opacity: 1; }
     padding: 16px 20px max(16px, env(safe-area-inset-bottom));
     background: var(--cr-surface, #ffffff);
   }
-  .choice-grid, .segmented, .form-grid, .detail-figures { grid-template-columns: 1fr; }
-  .detail-figures div { border-inline-end: 0; border-bottom: 1px solid var(--cr-hairline, #e8edea); }
+  .choice-grid, .segmented, .form-grid { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

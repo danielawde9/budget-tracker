@@ -81,10 +81,10 @@ export function AuthScreen(props: AuthScreenProps) {
         <p>{signingUp ? copy.createIntro : copy.intro}</p>
       </div>
       <form className="auth-form" onSubmit={(event) => void submit(event)}>
-        <label>{copy.email}<input type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+        <label>{copy.email}<input type="email" autoComplete="email" required placeholder="name@example.com" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
         <label>{copy.password}<input type="password" autoComplete={signingUp ? 'new-password' : 'current-password'} minLength={8} required value={password} onChange={(event) => setPassword(event.target.value)} /></label>
         {props.error ? <div className="error-notice" role="alert">{props.error}</div> : null}
-        <button type="submit" disabled={props.pending}>{signingUp ? copy.create : copy.signIn}</button>
+        <button type="submit" className="cr-button cr-button--primary" disabled={props.pending}>{signingUp ? copy.create : copy.signIn}</button>
         <button type="button" className="text-button" onClick={() => setMode(signingUp ? 'sign-in' : 'sign-up')} disabled={props.pending}>{signingUp ? copy.haveAccount : copy.create}</button>
       </form>
     </section>

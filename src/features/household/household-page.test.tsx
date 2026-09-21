@@ -10,10 +10,10 @@ import {
 } from '../../test/in-memory-household-gateway.js';
 import { HouseholdPage } from './household-page.js';
 
-async function renderPage(gateway = new InMemoryHouseholdGateway(), locale: 'en' | 'ar' = 'en', userId = householdOwnerId) {
+async function renderPage(gateway = new InMemoryHouseholdGateway(), locale: 'en' | 'ar' = 'en', userId = householdOwnerId, userEmail: string | null = null) {
   const user = userEvent.setup();
   const unavailable = vi.fn();
-  render(<HouseholdPage gateway={gateway} locale={locale} spaceId={householdSpaceId} spaceName="Home budget" userId={userId} onSpaceUnavailable={unavailable} />);
+  render(<HouseholdPage gateway={gateway} locale={locale} spaceId={householdSpaceId} spaceName="Home budget" userId={userId} userEmail={userEmail} onSpaceUnavailable={unavailable} />);
   await waitFor(() => expect(screen.queryByRole('status', { name: /Loading household|تحميل المساحة/i })).not.toBeInTheDocument());
   return { gateway, unavailable, user };
 }
@@ -31,10 +31,29 @@ describe('HouseholdPage', () => {
     expect(screen.getByRole('heading', { name: 'Household access' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Members' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Invitations' })).toBeInTheDocument();
-    expect(screen.getAllByText(householdMemberId).every((node) => node.closest('bdi') !== null)).toBe(true);
+    expect(screen.getAllByText(householdMemberId.slice(0, 8)).every((node) => node.closest('bdi') !== null)).toBe(true);
+    expect(screen.queryByText(householdMemberId)).not.toBeInTheDocument();
     expect(screen.getAllByText('Home budget').every((node) => node.closest('bdi') !== null)).toBe(true);
     expect(screen.getByText('Pending')).toBeInTheDocument();
     expect(screen.queryByText(/email|recipient/i)).not.toBeInTheDocument();
+  });
+
+  it('prefers member emails, falls back to the account email for self, then to a labelled short id', async () => {
+    const gateway = new InMemoryHouseholdGateway();
+    gateway.memberships = gateway.memberships.map((entry) => entry.userId === householdMemberId ? { ...entry, email: 'member@example.test' } : entry);
+    await renderPage(gateway, 'en', householdOwnerId, 'owner@example.test');
+    expect(screen.getByText('member@example.test').closest('bdi')).not.toBeNull();
+    expect(screen.getByText('owner@example.test').closest('bdi')).not.toBeNull();
+    expect(screen.queryByText(householdOwnerId)).not.toBeInTheDocument();
+    expect(screen.queryByText(householdMemberId)).not.toBeInTheDocument();
+    expect(screen.getByText('You')).toBeInTheDocument();
+  });
+
+  it('labels the short id fallback when no email identity exists in any locale', async () => {
+    await renderPage(new InMemoryHouseholdGateway(), 'ar', householdOwnerId, null);
+    expect(screen.getByText(householdMemberId.slice(0, 8)).closest('bdi')).not.toBeNull();
+    expect(screen.getByText('أنت')).toBeInTheDocument();
+    expect(screen.queryByText(householdMemberId)).not.toBeInTheDocument();
   });
 
   it('sends an invitation without rendering a token and offers Send again', async () => {
@@ -123,7 +142,7 @@ describe('HouseholdPage', () => {
     const gateway = new InMemoryHouseholdGateway();
     gateway.error = new Error('household_invitation_token_digest leaked');
     const user = userEvent.setup();
-    render(<HouseholdPage gateway={gateway} locale="en" spaceId={householdSpaceId} spaceName="Home budget" userId={householdOwnerId} onSpaceUnavailable={vi.fn()} />);
+    render(<HouseholdPage gateway={gateway} locale="en" spaceId={householdSpaceId} spaceName="Home budget" userId={householdOwnerId} userEmail={null} onSpaceUnavailable={vi.fn()} />);
     expect(await screen.findByRole('alert')).toHaveTextContent('household request was not accepted');
     expect(screen.getByRole('alert')).not.toHaveTextContent('token_digest');
     gateway.error = null;

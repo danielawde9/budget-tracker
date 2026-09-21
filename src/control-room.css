@@ -134,35 +134,24 @@
 }
 .cr-journal-search input { inline-size: 100%; }
 
-/* Designed select — filled, bordered, clearly a control (no underline) */
-.cr-select {
-  appearance: none;
-  -webkit-appearance: none;
-  min-height: 44px;
-  padding-block: 8px;
-  padding-inline: var(--cr-space-3) 36px;
-  border: 1px solid var(--cr-border);
-  border-radius: var(--cr-radius-sm);
-  background-color: var(--cr-surface);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2355605a' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  color: var(--cr-ink);
-  font-family: inherit;
-  font-size: 15px;
-  font-weight: 650;
-  cursor: pointer;
-  transition: border-color var(--cr-duration) var(--cr-ease), box-shadow var(--cr-duration) var(--cr-ease);
+/* Journal date range — stacked full-width fields on small screens, inline
+   auto-width fields on desktop; the clear action rides the same row. */
+.cr-journal-dates {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-2);
+  margin-block-end: var(--cr-space-3);
 }
-.cr-select:hover { border-color: var(--cr-ink-soft); }
-.cr-select:focus-visible {
-  outline: 2px solid var(--cr-accent);
-  outline-offset: 2px;
-  border-color: var(--cr-accent);
-}
-[dir="rtl"] .cr-select {
-  padding-inline: 36px var(--cr-space-3);
-  background-position: left 12px center;
+.cr-journal-date input { inline-size: 100%; }
+.cr-journal-clear { align-self: flex-start; }
+@media (min-width: 1024px) {
+  .cr-journal-dates {
+    flex-direction: row;
+    align-items: flex-end;
+    gap: var(--cr-space-3);
+  }
+  .cr-journal-date { flex: none; }
+  .cr-journal-date input { inline-size: auto; }
 }
 
 /* ==========================================================================
@@ -493,6 +482,176 @@
 }
 .cr-toolbar .cr-chips::-webkit-scrollbar { display: none; }
 .cr-toolbar > .cr-button { flex: none; }
+
+/* ==========================================================================
+   Form patterns (see docs/design-guidelines.md — the canonical section,
+   choice-group, and affix treatments; feature stylesheets must not fork
+   these).
+   ========================================================================== */
+
+/* Form section: groups related fields inside a dialog or editor. One level
+   only — never nest sections inside sections. */
+.cr-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-3);
+  min-inline-size: 0;
+  margin: 0;
+  margin-block-end: var(--cr-space-4);
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius-sm);
+  padding: var(--cr-space-3);
+}
+
+/* Choice group: one boxed row of radios (or checkboxes) per decision. */
+.cr-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cr-space-2);
+  margin: 0;
+  margin-block-end: var(--cr-space-4);
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius-sm);
+  padding: var(--cr-space-3);
+}
+
+.cr-form-section legend,
+.cr-choice legend {
+  padding-inline: var(--cr-space-1);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cr-ink-soft);
+}
+
+.cr-choice > label {
+  display: flex;
+  align-items: center;
+  gap: var(--cr-space-2);
+  min-height: 44px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cr-choice > label:has(> input:disabled) {
+  color: var(--cr-ink-soft);
+  cursor: not-allowed;
+}
+
+/* Field with a unit suffix (%, weeks/months/years): the suffix is a visual
+   hint only, always aria-hidden, never inside the label. */
+.cr-affix {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--cr-space-2);
+}
+
+.cr-affix > label {
+  flex: 1 1 12rem;
+  min-inline-size: 0;
+}
+
+.cr-affix-suffix {
+  padding-block-end: 0.65rem;
+  color: var(--cr-ink-soft);
+  font-size: 13px;
+}
+
+/* ==========================================================================
+   Wizard (multi-step form) pattern — see docs/design-guidelines.md §13.
+   Same step language as the Record sheet; shared by every stepped form.
+   ========================================================================== */
+
+.cr-wizard-steps {
+  display: flex;
+  justify-content: center;
+  gap: var(--cr-space-1);
+  flex-wrap: wrap;
+  margin-block: var(--cr-space-2) var(--cr-space-3);
+}
+
+.cr-wizard-step {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cr-ink-soft);
+}
+
+.cr-wizard-step-dot {
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: var(--cr-radius-full);
+  background: var(--cr-hairline);
+}
+
+.cr-wizard-step--current { color: var(--cr-accent); }
+.cr-wizard-step--current .cr-wizard-step-dot { background: var(--cr-accent); }
+.cr-wizard-step--done { color: var(--cr-accent-strong); }
+.cr-wizard-step--done .cr-wizard-step-dot { background: var(--cr-accent-strong); }
+
+.cr-wizard-step-heading {
+  margin: 0 0 var(--cr-space-3);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.cr-wizard-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-3);
+  padding-block: var(--cr-space-2) var(--cr-space-4);
+  animation: cr-step-in var(--cr-duration) var(--cr-ease);
+}
+
+.cr-wizard-review {
+  display: flex;
+  flex-direction: column;
+}
+
+.cr-wizard-review-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--cr-space-3);
+  padding-block: var(--cr-space-2);
+  border-block-end: 1px solid var(--cr-hairline);
+  font-size: 15px;
+}
+
+.cr-wizard-review-row > span:first-child {
+  flex: none;
+  color: var(--cr-ink-soft);
+  font-size: 13px;
+}
+
+.cr-wizard-review-row > span:last-child {
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+
+.cr-wizard-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cr-space-3);
+  margin-block-start: var(--cr-space-4);
+}
+
+/* The single primary (Next/Save) rides the inline end; Back and Cancel stay
+   clustered on the inline start so the footer mirrors cleanly in RTL. */
+.cr-wizard-footer .cr-wizard-footer-end {
+  display: flex;
+  align-items: center;
+  gap: var(--cr-space-2);
+  margin-inline-start: auto;
+}
+
 .cr-plan-nav {
   display: flex;
   flex-wrap: wrap;
@@ -560,12 +719,18 @@
 .cr-journal-row {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   gap: var(--cr-space-3);
-  padding-block: var(--cr-space-4);
+  min-block-size: 44px;
+  padding-block: var(--cr-space-3);
   border-block-end: 1px solid var(--cr-hairline);
   font-size: 15px;
   animation: cr-row-in var(--cr-duration) var(--cr-ease);
+}
+.cr-journal-row > span:last-child {
+  text-align: end;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 .cr-journal-row:last-child { border-block-end: 0; }
 @keyframes cr-row-in { from { opacity: 0; transform: translateY(-4px); } }
@@ -760,7 +925,10 @@
    Buttons
    ========================================================================== */
 
-.cr-shell .cr-button {
+/* The .cr-button family is the app-wide button system; it is not shell-scoped
+   so standalone screens (the auth screen renders outside .cr-shell) get the
+   same chrome from the :root tokens. */
+.cr-button {
   min-height: 44px;
   padding-inline: var(--cr-space-4);
   border: 1px solid var(--cr-border);
@@ -772,35 +940,35 @@
   cursor: pointer;
   transition: background-color var(--cr-duration) var(--cr-ease), border-color var(--cr-duration) var(--cr-ease), color var(--cr-duration) var(--cr-ease), box-shadow var(--cr-duration) var(--cr-ease);
 }
-.cr-shell .cr-button:hover:not(:disabled) { background: var(--cr-surface-sunken); }
-.cr-shell .cr-button:active:not(:disabled) { background: var(--cr-border); }
+.cr-button:hover:not(:disabled) { background: var(--cr-surface-sunken); }
+.cr-button:active:not(:disabled) { background: var(--cr-border); }
 
-.cr-shell .cr-button--primary {
+.cr-button--primary {
   background: var(--cr-accent);
   border-color: var(--cr-accent);
   color: var(--cr-accent-ink);
   box-shadow: 0 2px 8px rgb(23 127 99 / 0.24);
 }
-.cr-shell .cr-button--primary:hover:not(:disabled) { background: var(--cr-accent-strong); border-color: var(--cr-accent-strong); }
-.cr-shell .cr-button--primary:active:not(:disabled) { background: var(--cr-accent-strong); }
+.cr-button--primary:hover:not(:disabled) { background: var(--cr-accent-strong); border-color: var(--cr-accent-strong); }
+.cr-button--primary:active:not(:disabled) { background: var(--cr-accent-strong); }
 
-.cr-shell .cr-button--danger {
+.cr-button--danger {
   background: var(--cr-surface);
   border-color: var(--cr-danger);
   color: var(--cr-danger);
 }
-.cr-shell .cr-button--danger:hover:not(:disabled) { background: var(--cr-danger-soft); }
+.cr-button--danger:hover:not(:disabled) { background: var(--cr-danger-soft); }
 
-.cr-shell .cr-button--block { inline-size: 100%; }
+.cr-button--block { inline-size: 100%; }
 
 /* Compact inline action (card headers, rows) */
-.cr-shell .cr-button--sm {
+.cr-button--sm {
   min-height: 34px;
   padding-inline: var(--cr-space-3);
   font-size: 13px;
 }
 
-.cr-shell .cr-button:disabled { cursor: not-allowed; opacity: 0.5; }
+.cr-button:disabled { cursor: not-allowed; opacity: 0.5; }
 
 /* ==========================================================================
    Record sheet internals
@@ -1122,7 +1290,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cr-sheet-backdrop, .cr-sheet, .cr-skeleton, .cr-journal-row { animation: none; }
+  .cr-sheet-backdrop, .cr-sheet, .cr-skeleton, .cr-journal-row, .cr-wizard-content { animation: none; }
   .cr-skeleton { background: var(--cr-surface-sunken); }
   .cr-tab, .cr-fab, .cr-rail-record, .cr-button, .cr-chip, .cr-type-tile, .cr-keypad button,
   .cr-journal-row--button, .cr-record-wallet, .cr-record-category,
@@ -1159,16 +1327,13 @@
   font-size: 14px;
 }
 .cr-main .household-columns,
-.cr-main .category-registers,
-.cr-main .wallet-journal-layout {
+.cr-main .category-registers {
   gap: var(--cr-space-5);
   margin-block-start: var(--cr-space-5);
 }
 .cr-main .household-columns,
 .cr-main .category-registers,
-.cr-main .wallet-journal-layout,
-.cr-main .loan-columns,
-.cr-main .summary {
+.cr-main .loan-columns {
   background: var(--cr-surface);
   border: 1px solid var(--cr-border);
   border-radius: var(--cr-radius);
@@ -1176,13 +1341,7 @@
   box-shadow: var(--cr-shadow-card);
 }
 .cr-main .household-self-access { margin-block-start: var(--cr-space-5); }
-.cr-main .controls,
-.cr-main .workspace-toolbar {
-  gap: var(--cr-space-3);
-  padding-block: var(--cr-space-3);
-}
 .cr-main .loan-columns { gap: var(--cr-space-5); }
-.cr-main .summary { margin: var(--cr-space-4) 0 var(--cr-space-5); }
 .cr-main .state-panel,
 .cr-main .empty { padding: var(--cr-space-4) var(--cr-space-1); }
 .cr-main button,
@@ -1191,13 +1350,9 @@
 .cr-main textarea { border-radius: var(--cr-radius-sm); }
 @media (max-width: 1023px) {
   .cr-main .household-columns { margin-block-start: var(--cr-space-4); }
-  .cr-main .wallet-journal-layout { gap: var(--cr-space-5); }
   .cr-main .loan-columns { gap: var(--cr-space-5); }
 }
 
-/* The journal is a compact three-zone row (date, details, amount) that
-   adapts on its own; no special narrow treatment is needed inside the shell. */
-.cr-main .wallet-journal-layout { display: flex; flex-direction: column; }
 .cr-main .journal,
 .cr-main .wallet-context { inline-size: 100%; }
 .cr-main .journal-state { justify-content: flex-start; }

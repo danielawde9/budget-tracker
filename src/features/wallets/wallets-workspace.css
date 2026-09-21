@@ -1,0 +1,439 @@
+/* ==========================================================================
+   Wallets workspace — scoped styles on top of the Control Room design
+   system. Colors/spacing/radius/shadow/motion resolve from the --cr-*
+   tokens in control-room.css; layout uses logical properties for RTL.
+   Mobile-first: one column below 1024px (matches .cr-main). Legacy global
+   classes (.wallet-list, .journal-*) are re-skinned here, never edited in
+   styles.css.
+   ========================================================================== */
+
+/* ---- Page header -------------------------------------------------------- */
+
+.wallets-workspace .wallet-actions {
+  gap: var(--cr-space-2);
+}
+
+.wallets-workspace .wallet-actions .wl-action-grow {
+  flex: 1 1 auto;
+}
+
+/* ---- Section headings ---------------------------------------------------- */
+
+.wallets-workspace .section-heading {
+  margin-block: 0 var(--cr-space-3);
+  padding-block-end: 0;
+}
+
+.wallets-workspace .section-heading h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--cr-space-2);
+}
+
+.wl-heading-icon {
+  color: var(--cr-accent);
+  flex: none;
+}
+
+/* ---- Balances hero -------------------------------------------------------- */
+
+.wallets-workspace .wallet-context {
+  margin-block-start: var(--cr-space-4);
+}
+
+.wallets-workspace .wallet-context .section-heading > span {
+  font-weight: 700;
+  color: var(--cr-ink-soft);
+  background: var(--cr-surface);
+}
+
+.wl-balance-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: var(--cr-space-3);
+}
+
+/* Card look; overrides the legacy hairline rows from styles.css */
+.wallets-workspace .wallet-context .wallet-list > li.wl-balance-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--cr-space-3);
+  padding: var(--cr-space-4);
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius);
+  background: var(--cr-surface);
+  box-shadow: var(--cr-shadow-card);
+}
+
+.wallets-workspace .wl-balance-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cr-space-2);
+  min-inline-size: 0;
+}
+
+.wallets-workspace .wl-balance-head > bdi {
+  font-size: 1rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.wl-currency-chip {
+  flex: none;
+  padding: 3px var(--cr-space-2);
+  border-radius: var(--cr-radius-full);
+  background: var(--cr-accent-soft);
+  color: var(--cr-accent-strong);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.wallets-workspace .wallet-balance {
+  font-size: clamp(1.2rem, 3.5vw, 1.55rem);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.wallets-workspace .wallet-list li > footer.wl-balance-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cr-space-1) var(--cr-space-2);
+  margin-block-start: 0;
+  padding-block-start: var(--cr-space-2);
+  border-block-start: 1px solid var(--cr-hairline);
+}
+
+.wl-balance-actions .text-button {
+  min-height: 44px;
+  padding-inline: var(--cr-space-2);
+}
+
+/* ---- Empty states ---------------------------------------------------------- */
+
+.wallets-workspace .wl-empty-panel {
+  display: grid;
+  justify-items: center;
+  gap: var(--cr-space-2);
+  padding: var(--cr-space-6) var(--cr-space-4);
+  border: 1px dashed var(--cr-border);
+  border-radius: var(--cr-radius);
+  background: var(--cr-surface);
+  text-align: center;
+  color: var(--cr-ink-soft);
+}
+
+.wallets-workspace .wl-empty-panel strong {
+  color: var(--cr-ink);
+  font-size: 1.05rem;
+}
+
+.wallets-workspace .wl-empty-panel p {
+  margin: 0;
+  max-inline-size: 42ch;
+  line-height: 1.5;
+}
+
+.wallets-workspace .wl-empty-panel .wl-empty-icon {
+  color: var(--cr-accent);
+  margin-block-end: var(--cr-space-1);
+}
+
+.wallets-workspace .wl-empty-panel .cr-button {
+  margin-block-start: var(--cr-space-2);
+}
+
+/* ---- Archived wallets disclosure -------------------------------------------- */
+
+.wl-archived {
+  margin-block-start: var(--cr-space-4);
+}
+
+.wl-archived-toggle {
+  inline-size: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--cr-space-2);
+  min-block-size: 48px;
+  padding: var(--cr-space-2) var(--cr-space-3);
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius-sm);
+  background: var(--cr-surface-sunken);
+  color: var(--cr-ink-soft);
+  font-weight: 700;
+  text-align: start;
+  transition: background-color var(--cr-duration) var(--cr-ease);
+}
+
+.wl-archived-toggle:hover {
+  background: var(--cr-hairline);
+}
+
+.wl-archived-toggle > svg {
+  flex: none;
+}
+
+.wl-archived-chevron {
+  margin-inline-start: auto;
+  transition: rotate var(--cr-duration) var(--cr-ease);
+}
+
+.wl-archived-toggle[aria-expanded="true"] .wl-archived-chevron {
+  rotate: 180deg;
+}
+
+.wl-archived-region {
+  margin-block-start: var(--cr-space-2);
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius-sm);
+  background: var(--cr-surface);
+  overflow: hidden;
+}
+
+.wl-archived-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.wl-archived-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cr-space-2) var(--cr-space-3);
+  padding: var(--cr-space-3);
+}
+
+.wl-archived-row + .wl-archived-row {
+  border-block-start: 1px solid var(--cr-hairline);
+}
+
+.wl-archived-identity {
+  display: grid;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.wl-archived-identity > bdi {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.wl-archived-meta {
+  color: var(--cr-ink-soft);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Journal --------------------------------------------------------------- */
+
+.wallets-workspace .wl-journal {
+  margin-block-start: var(--cr-space-6);
+  min-inline-size: 0;
+}
+
+/* Filter toolbar: search owns a full row, selects share the next row */
+.wallets-workspace .journal-filters.wl-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--cr-space-2);
+  align-items: center;
+  margin-block: var(--cr-space-3) var(--cr-space-4);
+}
+
+.wallets-workspace .wl-filters > input {
+  grid-column: 1 / -1;
+  inline-size: 100%;
+}
+
+.wallets-workspace .wl-filters > select {
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 44px;
+}
+
+.wallets-workspace .journal-table {
+  min-inline-size: 0;
+}
+
+.wallets-workspace .journal-list {
+  display: grid;
+}
+
+.wallets-workspace .journal-row {
+  padding-block: var(--cr-space-3);
+  border-block-end: 1px solid var(--cr-hairline);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .wallets-workspace .journal-row {
+    animation: wl-row-in var(--cr-duration) var(--cr-ease);
+  }
+}
+
+@keyframes wl-row-in {
+  from { opacity: 0; transform: translateY(-4px); }
+}
+
+.wallets-workspace .journal-row.wl-journal-row-reversal {
+  background: color-mix(in srgb, var(--cr-warn) 7%, transparent);
+  border-radius: var(--cr-radius-sm);
+  padding-inline: var(--cr-space-2);
+}
+
+.wallets-workspace .journal-movement {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) auto;
+  gap: 4px var(--cr-space-3);
+  align-items: start;
+  padding-block: var(--cr-space-1);
+}
+
+.wallets-workspace .journal-movement time {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-variant-numeric: tabular-nums;
+  color: var(--cr-ink-soft);
+  font-size: 0.8rem;
+  padding-block-start: 2px;
+}
+
+.wallets-workspace .journal-movement-body {
+  display: grid;
+  gap: 3px;
+  min-inline-size: 0;
+}
+
+.wallets-workspace .journal-movement-line {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px var(--cr-space-2);
+  min-inline-size: 0;
+}
+
+.wallets-workspace .journal-movement-line strong {
+  font-size: 0.95rem;
+}
+
+.wallets-workspace .journal-movement-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--cr-ink-soft);
+  font-size: 0.82rem;
+}
+
+.wallets-workspace .journal-movement-meta bdi,
+.wallets-workspace .journal-movement-line bdi {
+  overflow-wrap: anywhere;
+}
+
+/* Amount column: pinned to the inline edge, always LTR digits */
+.wallets-workspace .journal-movement > bdi:last-child {
+  justify-self: end;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+  white-space: nowrap;
+}
+
+.wallets-workspace .journal-row footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px var(--cr-space-3);
+  margin-block-start: var(--cr-space-2);
+}
+
+.wallets-workspace .journal-state {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.wallets-workspace .journal-state span {
+  padding: 4px var(--cr-space-2);
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius-full);
+  background: var(--cr-surface);
+  color: var(--cr-ink-soft);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.wallets-workspace .undo-gated {
+  color: var(--cr-ink-soft);
+  font-size: 0.82rem;
+  padding-inline: var(--cr-space-1);
+}
+
+.wallets-workspace .load-more {
+  inline-size: 100%;
+  margin-block-start: var(--cr-space-4);
+}
+
+/* ---- Loading skeleton ------------------------------------------------------- */
+
+.wl-skeleton {
+  display: grid;
+  gap: var(--cr-space-4);
+  margin-block-start: var(--cr-space-4);
+}
+
+.wl-skeleton .wl-balance-card {
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius);
+  background: var(--cr-surface);
+  box-shadow: var(--cr-shadow-card);
+  padding: var(--cr-space-4);
+  display: grid;
+  gap: var(--cr-space-3);
+}
+
+.wl-skeleton-journal {
+  display: grid;
+  gap: var(--cr-space-3);
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius);
+  background: var(--cr-surface);
+  box-shadow: var(--cr-shadow-card);
+  padding: var(--cr-space-4);
+}
+
+/* ---- Wider screens ----------------------------------------------------------- */
+
+@media (min-width: 700px) {
+  .wallets-workspace .journal-filters.wl-filters {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .wallets-workspace .wl-filters > input {
+    grid-column: auto;
+  }
+
+  .wallets-workspace .wl-filters > select {
+    inline-size: auto;
+    min-block-size: 44px;
+  }
+
+  .wallets-workspace .load-more {
+    inline-size: auto;
+  }
+}

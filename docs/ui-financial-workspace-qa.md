@@ -180,3 +180,121 @@ so browser data is accepted by the existing gateway validation. It does not
 alter production financial commands, gateways, SQL, or live data. These are
 local fixture/browser results only; they are not physical-device, assistive
 technology, live Supabase/PostgreSQL, hosted deployment, or owner-UAT proof.
+
+## Settings/editors overhaul verification — 2026-09-20
+
+This addendum records the 2026-09-20 presentation overhaul: the schedule and
+goal editors gained dropdown reference pickers and a "Planned income" amount
+source linked to the monthly plan, and the Manage destination (hub, Wallets,
+Loans, Categories, Household) was rebuilt on the `--cr-*` token system with
+feature-scoped stylesheets (`wallets-workspace.css`, `loans-workspace.css`,
+`categories-manage.css`, `manage-hub.css`). Verified dead legacy CSS and the
+unused `WalletsSkeleton` export were removed afterward (grep-verified against
+all TSX and e2e class references). See `docs/decisions.md` (2026-09-20 entries)
+for the superseded pasted-id scope boundary and the presentation-only boundary.
+
+| Verification | Result |
+| --- | --- |
+| `pnpm check:ui` | PASS, exit 0: `tsc --noEmit` clean both projects, 89 test files / 1123 tests passed, `vite build` succeeded (888.52 kB minified main chunk, gzip 236.80 kB; the standing chunk-size warning remains). |
+| `pnpm test:e2e` | PASS, exit 0: 149 passed, 51 explicit desktop/mobile project skips, 0 failures, run twice (before and after the dead-code cleanup). |
+| Focus-return, nested-dialog retention, 390px containment, ≥44px targets, RTL mirrored flows | Covered by the passing e2e matrix (wallets, loans, categories, household, goals, recurring, control-room, application specs). |
+
+All previously asserted accessible names in EN and AR were held stable; new
+strings carry EN+AR pairs. The confirm-payment "Transaction reference id"
+(link-existing mode) intentionally remains a described paste field — no
+candidate-event read exists for that dialog. Category archive stays one-way in
+the UI because no `restore_category` RPC exists. These are local
+fixture/browser-emulation results only; they are not physical-device,
+assistive-technology, live Supabase/PostgreSQL, hosted-deployment, or
+owner-UAT proof.
+
+## Editor and Journal polish follow-up — 2026-09-21
+
+Follow-up to the 2026-09-20 overhaul fixing reported visual defects: allocation
+group rows (labeled name field with visible placeholder, `%` suffix, subdued
+Remove), the schedule editor's Recurrence group (now a boxed choice group;
+interval label "Repeat every" with a live weeks/months/years suffix), the goal
+editor's raw fieldset chrome (styled form sections; the box-in-box
+"Contribution" group removed), a global muted `::placeholder` rule (placeholders
+previously inherited full-strength ink and read as pre-filled values), and a
+client-side Journal date-range filter ("From date"/"To date" + "Clear filters",
+applied to loaded entries and search results per the bounded-history decision).
+
+These screens were then converged onto the canonical patterns in
+`docs/design-guidelines.md`: the duplicated per-feature section/choice-group
+styles in recurring, goals, and allocation were deleted in favor of the shared
+`cr-form-section` / `cr-choice` / `cr-affix` classes in `control-room.css`, so
+all editors render identical section boxes, choice groups, and legends.
+
+| Verification | Result |
+| --- | --- |
+| `pnpm check:ui` | PASS, exit 0: typecheck clean, full unit suite passed, build succeeded. |
+| `pnpm test:e2e` | PASS, exit 0: 149 passed, 51 explicit project skips, 0 failures. |
+
+## Step-form (wizard) conversion — 2026-09-21
+
+The three long creation/edit flows were converted from scrolling dialogs to
+step forms following the new `docs/design-guidelines.md` §13 and the shared
+`cr-wizard-*` chrome (step indicator, per-step headings, gated Next, Review
+summary, wizard footer): New schedule (Type → Amount → Details → References →
+Review), New/Edit goal (Type → Target → Contributions → Milestones → Review),
+and Allocation setup (Mode and income → Groups [skipped in manual mode] →
+Categories → Review → Confirm). Dialog titles, field accessible names, save
+payloads, and success screens are unchanged; every flow's unit tests and e2e
+specs now walk the wizard. The goals radio-row geometry test was made
+deterministic via the suite's `reducedMotion: 'reduce'` convention (raw
+`boundingBox()` assertions do not auto-retry against the step-in animation).
+
+| Verification | Result |
+| --- | --- |
+| `pnpm check:ui` | PASS, exit 0 (one repo-wide `noUncheckedIndexedAccess` error in the schedule wizard found by the gate and fixed). |
+| `pnpm test:e2e` | PASS, exit 0: 149 passed, 51 explicit project skips, 0 failures (full serial desktop/mobile matrix). |
+
+## Allocation income linkage + save guards — 2026-09-21
+
+The allocation setup's Planned income now sources from the monthly plan's
+income revision (`plannedIncomeByCurrency` in routes) with the published
+allocation snapshot as fallback; step 1 shows a helper with the plan value and
+a 'Use planned income' fill action, and the parse error only appears after
+interaction. Double-submit guards (in-flight ref) added to the schedule and
+goal wizard saves and the allocation confirm, so rapid double clicks cannot
+create duplicates.
+
+| Verification | Result |
+| --- | --- |
+| `pnpm check:ui` | PASS, exit 0. |
+| `pnpm test:e2e` | PASS, exit 0: 149 passed, 51 explicit project skips, 0 failures. |
+
+## Currency chip removal + placeholder audit — 2026-09-21
+
+The redundant per-section currency chip under the Plan currency tabs was
+removed from the Allocation, Goals, and Cash sections (region aria-labels keep
+the currency for screen readers). A placeholder audit added meaningful
+bilingual hints to all free-text/number inputs across the app (24 controls,
+13 files), respecting currency-dependent amount formats; placeholders are
+hints only — every input keeps its established label/accessible name.
+
+| Verification | Result |
+| --- | --- |
+| `pnpm check:ui` | PASS, exit 0. |
+| `pnpm test:e2e` | PASS, exit 0: 149 passed, 51 explicit project skips, 0 failures. |
+
+## Form-control unification — 2026-09-21
+
+The form-control system was consolidated per `docs/design-guidelines.md` §5/§6:
+the duplicate padding fork (inputs inside vs outside forms) was deleted; all
+selects now share one designed treatment (custom chevron, `appearance: none`,
+hover border, accent focus ring, RTL-mirrored — the old single-use `.cr-select`
+was folded into the canonical base rule and removed); canonical inputs,
+selects, and textareas gained the accent `:focus-visible` ring; the `.cr-button`
+family was un-scoped from `.cr-shell` so primaries render correctly on the
+auth screen; and ~22 dialog main actions (wallets, categories, goals, recurring,
+household, loans, auth, onboarding, plan edit, plus the goal-wizard footer)
+were switched to the single `cr-button cr-button--primary` style, with loans'
+hand-rolled green submit CSS removed. Accessible names and disabled/pending
+logic are unchanged.
+
+| Verification | Result |
+| --- | --- |
+| `pnpm check:ui` | PASS, exit 0. |
+| `pnpm test:e2e` | PASS, exit 0: 149 passed, 51 explicit project skips, 0 failures. |

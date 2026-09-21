@@ -13,6 +13,8 @@ interface OccurrenceDetailProps {
   locale: Locale;
   recurring: RecurringState;
   occurrenceId: string;
+  /** Wallets offered by the payment dialog's 'Paying wallet' dropdown. */
+  walletOptions: ReadonlyArray<{ readonly id: string; readonly name: string; readonly currency: string }>;
   onBack(): void;
 }
 
@@ -147,6 +149,7 @@ export function OccurrenceDetail(props: OccurrenceDetailProps) {
     {dialog === 'payment' && <ConfirmPaymentDialog
       locale={props.locale} currency={row.currency}
       occurrence={{ id: row.id, nameEn: row.nameEn, nameAr: row.nameAr, currentEventId: row.currentEventId, remainingMinor: row.remainingMinor }}
+      walletOptions={props.walletOptions}
       allowConfirm={row.kind !== 'debt_payment'}
       pending={props.recurring.pending} ambiguous={props.recurring.ambiguous !== null}
       onClose={() => setDialog(null)} onClearAmbiguous={props.recurring.clearAmbiguous} onRetry={props.recurring.retryAmbiguous}

@@ -675,6 +675,7 @@ export function RecordSheet(props: RecordSheetProps) {
               {t(locale, 'Name (English)', 'الاسم (إنجليزي)')}
               <input
                 type="text"
+                placeholder={t(locale, 'e.g. Transport', 'مثال: مواصلات')}
                 value={createNameEn}
                 onChange={(event) => setCreateNameEn(event.target.value)}
               />
@@ -683,6 +684,7 @@ export function RecordSheet(props: RecordSheetProps) {
               {t(locale, 'Name (Arabic)', 'الاسم (عربي)')}
               <input
                 type="text"
+                placeholder={t(locale, 'مثال: مواصلات', 'مثال: مواصلات')}
                 value={createNameAr}
                 onChange={(event) => setCreateNameAr(event.target.value)}
               />
@@ -882,6 +884,7 @@ export function RecordSheet(props: RecordSheetProps) {
                 <input
                   type="text"
                   inputMode="decimal"
+                  placeholder="0.00"
                   value={usdDisplay}
                   onChange={(event) => setUsdDisplay(event.target.value.replace(/[^0-9.]/g, ''))}
                 />
@@ -891,6 +894,7 @@ export function RecordSheet(props: RecordSheetProps) {
                 <input
                   type="text"
                   inputMode="numeric"
+                  placeholder="0"
                   value={lbpDisplay}
                   onChange={(event) => setLbpDisplay(event.target.value.replace(/[^0-9]/g, ''))}
                 />

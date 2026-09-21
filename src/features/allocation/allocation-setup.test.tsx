@@ -67,6 +67,8 @@ describe('AllocationSetup', () => {
     const publishMonth = vi.fn(async (_input: Omit<PublishMonthInput, 'spaceId' | 'requestId' | 'month' | 'currency'>) => ({ status: 'success', reconciled: false, result: { snapshotId: '1', incomeRevisionId: '1' } }) as CommandOutcome);
     render(<AllocationSetup locale="en" currency="USD" month="2026-09-01" categories={categories} allocation={fakeAllocation({ saveTemplate, publishMonth })} gateway={stubGateway} />);
     await userEvent.click(screen.getByRole('button', { name: 'Set up' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
     await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
     expect(saveTemplate).toHaveBeenCalledTimes(1);
     expect(publishMonth).toHaveBeenCalledTimes(1);
@@ -79,6 +81,8 @@ describe('AllocationSetup', () => {
     const publishMonth = vi.fn(async (_input: Omit<PublishMonthInput, 'spaceId' | 'requestId' | 'month' | 'currency'>) => ({ status: 'success', reconciled: false, result: { snapshotId: '1', incomeRevisionId: '1' } }) as CommandOutcome);
     render(<AllocationSetup locale="en" currency="USD" month="2026-09-01" categories={categories} allocation={fakeAllocation({ saveTemplate, publishMonth })} gateway={stubGateway} />);
     await userEvent.click(screen.getByRole('button', { name: 'Set up' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
     await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
     expect(saveTemplate).toHaveBeenCalledTimes(1);
     expect(publishMonth).not.toHaveBeenCalled();
@@ -115,5 +119,21 @@ describe('AllocationSetup', () => {
     await userEvent.click(screen.getByRole('button', { name: 'View Essentials group categories' }));
     expect(loadCategoryPage).toHaveBeenCalledWith({ snapshotId: '12', groupId: 'g1', afterRootId: null, limit: 100 });
     expect(await screen.findByRole('dialog', { name: 'Category detail' })).toBeInTheDocument();
+  });
+
+  it('prefills the editor income from the monthly plan over the stale published snapshot', async () => {
+    const monthWithStaleIncome: AllocationMonthState = { ...emptyMonth, hasPlan: true, snapshotId: '12', plannedIncomeMinor: '40000' };
+    render(<AllocationSetup locale="en" currency="USD" month="2026-09-01" categories={categories} allocation={fakeAllocation({ month: monthWithStaleIncome })} gateway={stubGateway} monthlyPlanIncomeMinor="75000" />);
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    expect(screen.getByLabelText('Planned income')).toHaveValue('750.00');
+    expect(screen.getByText('From the monthly plan: $750.00. Confirming this setup updates it.')).toBeInTheDocument();
+  });
+
+  it('falls back to the published snapshot for the initial income when the plan has none', async () => {
+    const monthWithStaleIncome: AllocationMonthState = { ...emptyMonth, hasPlan: true, snapshotId: '12', plannedIncomeMinor: '40000' };
+    render(<AllocationSetup locale="en" currency="USD" month="2026-09-01" categories={categories} allocation={fakeAllocation({ month: monthWithStaleIncome })} gateway={stubGateway} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    expect(screen.getByLabelText('Planned income')).toHaveValue('400.00');
+    expect(screen.queryByText(/From the monthly plan:/)).not.toBeInTheDocument();
   });
 });

@@ -241,7 +241,7 @@ const KIND_LABELS: Record<(typeof TRANSACTION_KINDS)[number], { en: string; ar: 
         })}</ul>
         <p>{t(props.locale, 'The resulting balances will come from the refreshed journal; this preview does not calculate them.', 'ستأتي الأرصدة الناتجة من السجل المحدّث؛ لا تحسب هذه المعاينة الأرصدة.')}</p>
       </section>}
-      <div className="dialog-actions"><button type="button" className="button-secondary" disabled={props.pending || refreshing} onClick={props.onClose}>{t(props.locale, refreshRequired ? 'Close' : 'Cancel', refreshRequired ? 'إغلاق' : 'إلغاء')}</button>{movements ? <button type="button" disabled={mutationLocked} onClick={() => void submit()}>{props.pending ? t(props.locale, 'Recording…', 'جارٍ التسجيل…') : `${t(props.locale, 'Record', 'تسجيل')} ${kindLabel}`}</button> : <button type="submit" disabled={mutationLocked}>{t(props.locale, 'Review transaction', 'مراجعة المعاملة')}</button>}</div>
+      <div className="dialog-actions"><button type="button" className="button-secondary" disabled={props.pending || refreshing} onClick={props.onClose}>{t(props.locale, refreshRequired ? 'Close' : 'Cancel', refreshRequired ? 'إغلاق' : 'إلغاء')}</button>{movements ? <button type="button" className="cr-button cr-button--primary" disabled={mutationLocked} onClick={() => void submit()}>{props.pending ? t(props.locale, 'Recording…', 'جارٍ التسجيل…') : `${t(props.locale, 'Record', 'تسجيل')} ${kindLabel}`}</button> : <button type="submit" className="cr-button cr-button--primary" disabled={mutationLocked}>{t(props.locale, 'Review transaction', 'مراجعة المعاملة')}</button>}</div>
     </form>
   </DialogShell>;
 }

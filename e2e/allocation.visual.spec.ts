@@ -68,6 +68,11 @@ test('setup confirms a manual-mode plan and the overview reflects it afterward',
   const form = page.getByRole('form', { name: 'Allocation setup' });
   await expect(form.getByRole('radio', { name: 'Manual (targets only)' })).toBeChecked();
   await form.getByLabel('Planned income').fill('1000');
+  // Manual mode skips the Groups step: step 1 → Categories → Review.
+  await form.getByRole('button', { name: 'Next' }).click();
+  await expect(form.getByRole('heading', { name: 'Categories' })).toBeVisible();
+  await form.getByRole('button', { name: 'Next' }).click();
+  await expect(form.getByRole('heading', { name: 'Review' })).toBeVisible();
   await expectContainedControls(page, form);
   await page.screenshot({ path: screenshotPath(testInfo, `allocation-setup-manual-${testInfo.project.name}.png`) });
 
@@ -85,11 +90,18 @@ test('setup confirms a percentage-mode plan with a mapped category', async ({ pa
 
   await form.getByRole('radio', { name: 'Percentage groups' }).click();
   await form.getByLabel('Planned income').fill('1000');
+  await form.getByRole('button', { name: 'Next' }).click();
+
+  await expect(form.getByRole('heading', { name: 'Groups' })).toBeVisible();
   await form.getByLabel('Group name').fill('Essentials');
   const percentInput = form.getByLabel('Percent', { exact: true });
   await percentInput.fill('100');
   await expect(form.getByText('Total: 100%')).toBeVisible();
 
+  await form.getByRole('button', { name: 'Next' }).click();
+  await expect(form.getByRole('heading', { name: 'Categories' })).toBeVisible();
+  await form.getByRole('button', { name: 'Next' }).click();
+  await expect(form.getByRole('heading', { name: 'Review' })).toBeVisible();
   await form.getByRole('button', { name: 'Confirm' }).click();
   await expect(form).toHaveCount(0);
   await expect(usdSection).toContainText('Essentials');

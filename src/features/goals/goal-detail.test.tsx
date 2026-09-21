@@ -46,7 +46,7 @@ function fakeGoalsState(overrides: Partial<GoalsState> = {}): GoalsState {
 describe('GoalDetail', () => {
   it('loads and shows the target/earmarked/covered/fulfilled/shortage figures distinctly', async () => {
     const goals = fakeGoalsState();
-    render(<GoalDetail locale="en" currency="USD" goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
+    render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
     expect(screen.getByText('Loading…')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('Emergency fund')).toBeInTheDocument());
     expect(screen.getByText('$6,000.00')).toBeInTheDocument(); // target
@@ -56,7 +56,7 @@ describe('GoalDetail', () => {
 
   it('recovers from a load error via retry', async () => {
     const goals = fakeGoalsState({ loadDetail: vi.fn().mockRejectedValue(new Error('connection failure')) });
-    render(<GoalDetail locale="en" currency="USD" goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
+    render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
     (goals.loadDetail as ReturnType<typeof vi.fn>).mockResolvedValue(detailData());
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
@@ -68,21 +68,21 @@ describe('GoalDetail', () => {
       loadDetail: vi.fn().mockResolvedValue(detailData({ summary: summary({ state: 'closed', needsReview: true }) })),
       revise: vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { goalId: GOAL_ID, revisionId: '2' } }),
     });
-    render(<GoalDetail locale="en" currency="USD" goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
+    render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: 'Reopen goal' })).toBeInTheDocument();
   });
 
   it('never shows a manage-funding action for an ordinary closed goal', async () => {
     const goals = fakeGoalsState({ loadDetail: vi.fn().mockResolvedValue(detailData({ summary: summary({ state: 'closed', needsReview: false }) })) });
-    render(<GoalDetail locale="en" currency="USD" goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
+    render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Emergency fund')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: /Manage funding/ })).not.toBeInTheDocument();
   });
 
   it('opens the funding dialog and reserves against this exact goal', async () => {
     const goals = fakeGoalsState({ reserveOrRelease: vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { eventId: '1', goalId: GOAL_ID } }) });
-    render(<GoalDetail locale="en" currency="USD" goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
+    render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Emergency fund')).toBeInTheDocument());
     await userEvent.click(screen.getByRole('button', { name: /Manage funding/ }));
     await userEvent.type(screen.getByRole('textbox', { name: 'Amount' }), '100');
@@ -94,7 +94,7 @@ describe('GoalDetail', () => {
     const other = summary({ id: 'g2', nameEn: 'Laptop', state: 'active' });
     const pausedOther = summary({ id: 'g3', nameEn: 'Paused goal', state: 'paused' });
     const goals = fakeGoalsState();
-    render(<GoalDetail locale="en" currency="USD" goals={goals} goalId={GOAL_ID} otherGoals={[summary(), other, pausedOther]} onBack={vi.fn()} />);
+    render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[summary(), other, pausedOther]} onBack={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Emergency fund')).toBeInTheDocument());
     await userEvent.click(screen.getByRole('button', { name: /Manage funding/ }));
     await userEvent.click(screen.getByRole('radio', { name: 'Move to another goal' }));
@@ -104,7 +104,7 @@ describe('GoalDetail', () => {
 
   it('links a purchase against this exact goal', async () => {
     const goals = fakeGoalsState({ linkPurchase: vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { linkIds: ['1'] } }) });
-    render(<GoalDetail locale="en" currency="USD" goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
+    render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Emergency fund')).toBeInTheDocument());
     await userEvent.click(screen.getByRole('button', { name: 'Link a purchase' }));
     await userEvent.type(screen.getByRole('textbox', { name: 'Expense reference id' }), '00000000-0000-4000-8000-000000000301');
@@ -118,17 +118,40 @@ describe('GoalDetail', () => {
 
   it('pauses an active goal via the editor with the state pre-selected', async () => {
     const goals = fakeGoalsState({ revise: vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { goalId: GOAL_ID, revisionId: '2' } }) });
-    render(<GoalDetail locale="en" currency="USD" goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
+    render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Emergency fund')).toBeInTheDocument());
     await userEvent.click(screen.getByRole('button', { name: 'Pause goal' }));
     expect(screen.getByRole('radio', { name: 'Paused' })).toBeChecked();
+    for (let index = 0; index < 4; index += 1) {
+      await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    }
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(goals.revise).toHaveBeenCalledWith(expect.objectContaining({ goalId: GOAL_ID, expectedRevisionId: '1', state: 'paused' })));
   });
 
+  it('forwards the planned income to the revise editor and saves it as the monthly amount when linked', async () => {
+    const goals = fakeGoalsState({ revise: vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { goalId: GOAL_ID, revisionId: '2' } }) });
+    render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor="50000" goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Emergency fund')).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    // The existing monthly target (50000) equals the planned income, so the
+    // planned-income source is pre-selected and saves back as-is.
+    for (let index = 0; index < 2; index += 1) {
+      await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    }
+    expect(screen.getByRole('radio', { name: 'Planned income' })).toBeChecked();
+    for (let index = 0; index < 2; index += 1) {
+      await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    }
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(goals.revise).toHaveBeenCalledWith(expect.objectContaining({
+      definition: expect.objectContaining({ contributionMode: 'manual_monthly', monthlyAmountMinor: '50000' }),
+    })));
+  });
+
   it('passes the goal\'s milestones through to GoalMilestones', async () => {
     const goals = fakeGoalsState();
-    render(<GoalDetail locale="en" currency="USD" goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
+    render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
     await waitFor(() => expect(screen.getAllByText('Pick a bank').length).toBeGreaterThan(0));
     expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument();
   });
@@ -139,7 +162,7 @@ describe('GoalDetail', () => {
         .mockResolvedValueOnce({ rows: [{ createdAt: '2026-09-01T00:00:00Z', sourceKind: 'definition', sourceId: '1', detail: {} }], hasMore: true, nextCursor: { createdAt: '2026-09-01T00:00:00Z', sourceKind: 'definition', sourceId: '1' } })
         .mockResolvedValueOnce({ rows: [{ createdAt: '2026-08-01T00:00:00Z', sourceKind: 'earmark', sourceId: '2', detail: { operation: 'reserve', amountMinor: '10000' } }], hasMore: false, nextCursor: null }),
     });
-    render(<GoalDetail locale="en" currency="USD" goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
+    render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Definition updated', { exact: false })).toBeInTheDocument());
     await userEvent.click(screen.getByRole('button', { name: 'Load more history' }));
     await waitFor(() => expect(screen.getByText('Earmark: reserve $100.00', { exact: false })).toBeInTheDocument());
@@ -152,14 +175,14 @@ describe('GoalDetail', () => {
         summary: summary({ kind: 'purchase', targetMinor: '100000', coveredMinor: '60000', fulfilledMinor: '50000' }),
       })),
     });
-    render(<GoalDetail locale="en" currency="USD" goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
+    render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
     // progress = 60000 + 50000 = 110000, over target(100000) by 10000
     await waitFor(() => expect(screen.getByText('+$100.00 over target')).toBeInTheDocument());
   });
 
   it('shows coverage as unavailable rather than a misleading empty bar when null', async () => {
     const goals = fakeGoalsState({ loadDetail: vi.fn().mockResolvedValue(detailData({ summary: summary({ coveredMinor: null }) })) });
-    render(<GoalDetail locale="en" currency="USD" goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
+    render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Coverage is currently unavailable.')).toBeInTheDocument());
     expect(screen.getByText('Unknown')).toBeInTheDocument();
   });
@@ -167,7 +190,7 @@ describe('GoalDetail', () => {
   it('calls onBack', async () => {
     const goals = fakeGoalsState();
     const onBack = vi.fn();
-    render(<GoalDetail locale="en" currency="USD" goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={onBack} />);
+    render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={onBack} />);
     await waitFor(() => expect(screen.getByText('Emergency fund')).toBeInTheDocument());
     await userEvent.click(screen.getByRole('button', { name: 'Back to goals' }));
     expect(onBack).toHaveBeenCalledTimes(1);

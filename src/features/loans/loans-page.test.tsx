@@ -21,15 +21,15 @@ describe('LoansPage', () => {
       'Correct borrowing entry from Sep 3, 2026',
       'Correct received repayment from Sep 3, 2026',
       'Correct borrowing repayment from Sep 3, 2026',
-    ], 'Reversed'],
+    ], 'Reversed', ['Opening entry', 'Lending entry', 'Borrowing entry', 'Received repayment', 'Borrowing repayment', 'Reversal']],
     ['ar', [
       'تصحيح رصيد افتتاحي بتاريخ ٣ أيلول ٢٠٢٦',
       'تصحيح قرض إقراض بتاريخ ٣ أيلول ٢٠٢٦',
       'تصحيح قرض اقتراض بتاريخ ٣ أيلول ٢٠٢٦',
       'تصحيح دفعة مستلمة بتاريخ ٣ أيلول ٢٠٢٦',
       'تصحيح دفعة سداد قرض بتاريخ ٣ أيلول ٢٠٢٦',
-    ], 'معكوس'],
-  ] as const)('gives each reversible event kind a unique localized correction name in %s', (locale, expectedNames, unavailableText) => {
+    ], 'معكوس', ['رصيد افتتاحي', 'قرض إقراض', 'قرض اقتراض', 'دفعة مستلمة', 'دفعة سداد قرض', 'قيد عكسي']],
+  ] as const)('gives each reversible event kind a unique localized correction name in %s', (locale, expectedNames, unavailableText, visibleLabels) => {
     const loan = loansFixture().loans[0];
     if (!loan) throw new Error('The Loans test fixture must include a loan.');
     const reversibleKinds: LoanHistoryItem['kind'][] = [
@@ -71,6 +71,10 @@ describe('LoansPage', () => {
     expect(correctionButtons.map((button) => button.getAttribute('aria-label'))).toEqual(expectedNames);
     expect(new Set(expectedNames).size).toBe(expectedNames.length);
     expect(screen.getAllByText(unavailableText)).toHaveLength(2);
+    for (const label of visibleLabels) {
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    }
+    expect(screen.queryByText(/loan_(opening|lend|borrow|receive_repayment|repay_borrowing)/)).not.toBeInTheDocument();
   });
 
   it('shows per-currency totals and both loan directions without combining currencies', async () => {
@@ -93,9 +97,9 @@ describe('LoansPage', () => {
   it('uses the workspace page hierarchy and mobile-safe rows while keeping recovery and dialog actions clear', async () => {
     const { user } = await renderPage();
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Loans' }).closest('.page-header')).not.toBeNull();
-    expect(screen.getByRole('button', { name: 'Add loan' })).toHaveClass('page-header-action');
-    expect(screen.getByRole('button', { name: 'Open Maya loan' })).toHaveClass('mobile-safe-row');
+    expect(screen.getByRole('heading', { level: 1, name: 'Loans' }).closest('.ln-header')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Add loan' })).toHaveClass('cr-button--primary');
+    expect(screen.getByRole('button', { name: 'Open Maya loan' })).toHaveClass('ln-row-button');
 
     await user.click(screen.getByRole('button', { name: 'Open Maya loan' }));
     await user.click(screen.getByRole('button', { name: 'Correct lending entry from Jul 1, 2026' }));

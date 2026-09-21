@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { Currency, Locale } from '../loans/types.js';
 import { AllocationMonthEditor, type AllocationMonthEditorInitial, type CategoryOption } from './allocation-month-editor.js';
 import { AllocationOverview } from './allocation-overview.js';
-import { basisPointsToPercentText } from './money-allocation.js';
+import { basisPointsToPercentText, minorToMajorText } from './money-allocation.js';
 import type { AllocationCategoryRow, AllocationGateway, AllocationGroupRow, PublishMonthResult, SaveTemplateResult } from './types.js';
 import type { useAllocation } from './use-allocation.js';
 import { AllocationSkeleton } from '../control-room/skeletons.js';
@@ -15,18 +15,13 @@ export interface AllocationSetupProps {
   month: string;
   categories: readonly CategoryOption[];
   categoryTargets?: ReadonlyMap<string, { amountMinor: string; revisionId: string | null }> | undefined;
+  /** Latest planned-income revision for this currency from the monthly plan
+   * (the Plan page is the source of truth). When set, it wins over the income
+   * snapshot captured at the last allocation publish for the editor's initial
+   * income field. */
+  monthlyPlanIncomeMinor?: string | null;
   allocation: ReturnType<typeof useAllocation>;
   gateway: AllocationGateway;
-}
-
-function minorToMajorText(amountMinor: string, currency: Currency): string {
-  if (currency === 'LBP') return amountMinor;
-  const negative = amountMinor.startsWith('-');
-  const digits = negative ? amountMinor.slice(1) : amountMinor;
-  const padded = digits.padStart(3, '0');
-  const whole = padded.slice(0, -2).replace(/^0+(?=\d)/, '');
-  const fraction = padded.slice(-2);
-  return `${negative ? '-' : ''}${whole}.${fraction}`;
 }
 
 function buildInitialDraft(
@@ -35,6 +30,7 @@ function buildInitialDraft(
   categories: readonly CategoryOption[],
   categoryPage: readonly AllocationCategoryRow[] | null,
   categoryTargets: ReadonlyMap<string, { amountMinor: string; revisionId: string | null }> | undefined,
+  monthlyPlanIncomeMinor: string | null,
   plannedIncomeMinor: string | null,
   loanGroupId: string | null,
 ): AllocationMonthEditorInitial {
@@ -51,7 +47,7 @@ function buildInitialDraft(
     };
   });
   return {
-    incomeMajorText: minorToMajorText(plannedIncomeMinor ?? '0', currency),
+    incomeMajorText: minorToMajorText(monthlyPlanIncomeMinor ?? plannedIncomeMinor ?? '0', currency),
     groups: realGroups.map((row) => ({
       id: row.groupId!, purpose: row.rowKind as 'spending' | 'future',
       nameEn: row.nameEn ?? '', nameAr: row.nameAr ?? '',
@@ -109,7 +105,8 @@ export function AllocationSetup(props: AllocationSetupProps) {
   if (editing) {
     const initial = buildInitialDraft(
       currency, allocation.month.groups, props.categories, categoryPage, props.categoryTargets,
-      allocation.month.plannedIncomeMinor, allocation.month.groups.find((row) => row.rowKind === 'future')?.groupId ?? null,
+      props.monthlyPlanIncomeMinor ?? null, allocation.month.plannedIncomeMinor,
+      allocation.month.groups.find((row) => row.rowKind === 'future')?.groupId ?? null,
     );
     return (
       <AllocationMonthEditor
@@ -117,6 +114,7 @@ export function AllocationSetup(props: AllocationSetupProps) {
         currency={currency}
         categories={props.categories}
         initial={initial}
+        plannedIncomeMinor={props.monthlyPlanIncomeMinor ?? null}
         pending={allocation.pending}
         error={submitError ?? (allocation.error?.message ?? null)}
         onCancel={() => setEditing(false)}

@@ -21,6 +21,9 @@ interface ConfirmPaymentDialogProps {
   locale: Locale;
   currency: Currency;
   occurrence: ConfirmPaymentOccurrence;
+  /** Wallets offered by the 'Paying wallet' dropdown; the select submits the
+   * chosen wallet's own id. */
+  walletOptions: ReadonlyArray<{ readonly id: string; readonly name: string; readonly currency: string }>;
   /** False for a `debt_payment` occurrence -- loan occurrences use the
    * existing loan repayment flow, never this dialog's generic wallet/amount
    * fields ("do not invent a new loan-posting path here"). Record the
@@ -46,10 +49,11 @@ function validDate(value: string): boolean {
 
 export function ConfirmPaymentDialog(props: ConfirmPaymentDialogProps) {
   const descriptionId = useId();
+  const referenceHintId = useId();
   const [mode, setMode] = useState<PaymentMode>(props.allowConfirm ? 'confirm' : 'link');
   const [amountMajor, setAmountMajor] = useState('');
   const [effectiveDate, setEffectiveDate] = useState(todayIso());
-  const [walletIdText, setWalletIdText] = useState('');
+  const [walletId, setWalletId] = useState('');
   const [eventIdText, setEventIdText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -82,9 +86,8 @@ export function ConfirmPaymentDialog(props: ConfirmPaymentDialogProps) {
         setError(t(props.locale, 'Choose today or an earlier date.', 'اختر تاريخ اليوم أو تاريخًا أسبق.'));
         return;
       }
-      const walletId = walletIdText.trim();
-      if (!UUID_PATTERN.test(walletId)) {
-        setError(t(props.locale, 'Enter the paying wallet’s exact id.', 'أدخل المعرّف الدقيق للمحفظة الدافعة.'));
+      if (!walletId) {
+        setError(t(props.locale, 'Select the paying wallet.', 'اختر محفظة الدفع.'));
         return;
       }
       void run(() => props.onConfirm({ occurrenceId: props.occurrence.id, expectedEventId, actualAmountMinor: amountMinor, effectiveDate, walletId }));
@@ -120,7 +123,7 @@ export function ConfirmPaymentDialog(props: ConfirmPaymentDialogProps) {
         {t(props.locale, 'This is a debt payment occurrence. Record the repayment itself from the loan’s own repayment flow, then link it here.', 'هذه دفعة مستحقة لسداد دين. سجّل السداد نفسه من مسار سداد القرض الخاص به، ثم اربطه هنا.')}
       </div>}
 
-      {props.allowConfirm && <fieldset className="rec-payment-mode">
+      {props.allowConfirm && <fieldset className="cr-choice">
         <legend>{t(props.locale, 'Action', 'الإجراء')}</legend>
         <label><input type="radio" name="rec-payment-mode" checked={mode === 'confirm'} onChange={() => { setMode('confirm'); setError(null); }} />{t(props.locale, 'Record payment', 'تسجيل الدفعة')}</label>
         <label><input type="radio" name="rec-payment-mode" checked={mode === 'link'} onChange={() => { setMode('link'); setError(null); }} />{t(props.locale, 'Link an existing transaction', 'ربط معاملة موجودة')}</label>
@@ -128,18 +131,27 @@ export function ConfirmPaymentDialog(props: ConfirmPaymentDialogProps) {
 
       {mode === 'confirm' && <>
         <label className="full-field">{t(props.locale, 'Actual amount', 'المبلغ الفعلي')}
-          <input data-autofocus type="text" inputMode="decimal" value={amountMajor} onChange={(event) => { setAmountMajor(event.target.value); setError(null); }} /></label>
+          <input data-autofocus type="text" inputMode="decimal" placeholder={props.currency === 'USD' ? '0.00' : '0'} value={amountMajor} onChange={(event) => { setAmountMajor(event.target.value); setError(null); }} /></label>
         <label className="full-field">{t(props.locale, 'Effective date', 'تاريخ التنفيذ')}
           <input type="date" value={effectiveDate} onChange={(event) => { setEffectiveDate(event.target.value); setError(null); }} /></label>
-        <label className="full-field">{t(props.locale, 'Paying wallet id', 'معرّف المحفظة الدافعة')}
-          <input type="text" value={walletIdText} onChange={(event) => { setWalletIdText(event.target.value); setError(null); }} /></label>
+        <label className="full-field">{t(props.locale, 'Paying wallet', 'محفظة الدفع')}
+          <select value={walletId} onChange={(event) => { setWalletId(event.target.value); setError(null); }}>
+            <option value="">{t(props.locale, 'Select a wallet', 'اختر محفظة')}</option>
+            {props.walletOptions.map((wallet) => <option key={wallet.id} value={wallet.id}>{wallet.name} · {wallet.currency}</option>)}
+          </select></label>
       </>}
 
       {mode === 'link' && <>
         <label className="full-field">{t(props.locale, 'Transaction reference id', 'المعرّف المرجعي للمعاملة')}
-          <input data-autofocus type="text" value={eventIdText} onChange={(event) => { setEventIdText(event.target.value); setError(null); }} /></label>
+          <input data-autofocus type="text" placeholder={t(props.locale, 'e.g. 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d', 'مثال: 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d')} value={eventIdText} aria-describedby={referenceHintId} onChange={(event) => { setEventIdText(event.target.value); setError(null); }} /></label>
+        {/* No list of candidate events exists in this dialog's data scope --
+           `useRecurring` loads only the occurrence page, and link mode must
+           stay reachable for debt-payment occurrences recorded from Loans --
+           so the reference stays a pasted id, with the hint pointing at where
+           that id is shown. */}
+        <p id={referenceHintId} className="rec-label-muted">{t(props.locale, 'Find the reference id on the transaction’s entry in the Wallets section.', 'اعثر على المعرّف المرجعي في قيد المعاملة ضمن قسم المحافظ.')}</p>
         <label className="full-field">{t(props.locale, 'Amount to link', 'المبلغ المراد ربطه')}
-          <input type="text" inputMode="decimal" value={amountMajor} onChange={(event) => { setAmountMajor(event.target.value); setError(null); }} /></label>
+          <input type="text" inputMode="decimal" placeholder={props.currency === 'USD' ? '0.00' : '0'} value={amountMajor} onChange={(event) => { setAmountMajor(event.target.value); setError(null); }} /></label>
       </>}
 
       {error && <div className="error-notice" role="alert">
@@ -148,7 +160,7 @@ export function ConfirmPaymentDialog(props: ConfirmPaymentDialogProps) {
       </div>}
       <div className="dialog-actions">
         <button type="button" className="button-secondary" disabled={props.pending} onClick={props.onClose}>{t(props.locale, 'Cancel', 'إلغاء')}</button>
-        <button type="submit" disabled={props.pending}>{props.pending ? t(props.locale, 'Saving…', 'جارٍ الحفظ…') : t(props.locale, 'Save', 'حفظ')}</button>
+        <button type="submit" className="cr-button cr-button--primary" disabled={props.pending}>{props.pending ? t(props.locale, 'Saving…', 'جارٍ الحفظ…') : t(props.locale, 'Save', 'حفظ')}</button>
       </div>
     </form>
   </DialogShell>;

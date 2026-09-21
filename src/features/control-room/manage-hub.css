@@ -1,0 +1,187 @@
+/* ==========================================================================
+   Manage hub — settings home for the Control Room (mg- prefix).
+   Only --cr-* tokens, logical properties, mobile-first.
+   ========================================================================== */
+
+.cr-shell .cr-manage-menu.mg-hub {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.mg-hub-group {
+  padding: var(--cr-space-2);
+  gap: 0;
+}
+
+.mg-hub-heading {
+  margin: 0;
+  padding-block: var(--cr-space-2) var(--cr-space-1);
+  padding-inline: var(--cr-space-3);
+  font-family: var(--cr-font);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cr-ink-soft);
+}
+
+/* Section rows reuse the cr-manage-row base (full-width, 52px, hover) and
+   restyle it into an icon + label + description + chevron row. */
+.cr-shell .mg-hub .cr-manage-row.mg-hub-row {
+  justify-content: flex-start;
+  gap: var(--cr-space-3);
+  min-height: 64px;
+  padding-block: var(--cr-space-3);
+  padding-inline: var(--cr-space-3);
+  text-align: start;
+}
+
+.cr-shell .mg-hub-group > :last-child {
+  border-block-end: 0;
+}
+
+.mg-hub-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: calc(var(--cr-space-6) + var(--cr-space-2));
+  block-size: calc(var(--cr-space-6) + var(--cr-space-2));
+  border-radius: var(--cr-radius-sm);
+  background: var(--cr-accent-soft);
+  color: var(--cr-accent-strong);
+}
+
+.mg-hub-text {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  display: grid;
+  gap: calc(var(--cr-space-1) / 2);
+}
+
+.mg-hub-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--cr-ink);
+}
+
+.mg-hub-desc {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--cr-ink-soft);
+}
+
+.mg-hub-trail {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  color: var(--cr-ink-soft);
+}
+
+.cr-shell .mg-hub .mg-hub-account {
+  gap: var(--cr-space-3);
+}
+
+.mg-hub-identity {
+  min-inline-size: 0;
+  display: flex;
+  align-items: center;
+}
+
+.mg-hub-identity .cr-label {
+  overflow-wrap: anywhere;
+}
+
+.cr-shell .cr-button.mg-hub-signout {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cr-space-2);
+  flex: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mg-hub-row,
+  .mg-hub-icon {
+    transition: none;
+  }
+}
+
+/* ==========================================================================
+   Household polish (mg- prefix, loaded with the manage hub).
+   ========================================================================== */
+
+.mg-member-list {
+  display: grid;
+  gap: var(--cr-space-3);
+  margin-block-start: var(--cr-space-3);
+}
+
+/* Member and invitation rows as quiet cards with identity + metadata. */
+.mg-member-row {
+  align-items: flex-start;
+  padding: var(--cr-space-4);
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius);
+  background: var(--cr-surface);
+  box-shadow: var(--cr-shadow-card);
+}
+
+.mg-self-pill {
+  border-color: transparent;
+  background: var(--cr-accent-soft);
+  color: var(--cr-accent-strong);
+}
+
+.mg-meta {
+  flex: 1 1 auto;
+}
+
+.mg-meta dd {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Danger actions stay clearly denoted. */
+.mg-danger-action {
+  border-radius: var(--cr-radius-sm);
+}
+
+.mg-danger-action:hover {
+  background: var(--cr-danger-soft);
+}
+
+.mg-leave {
+  border-block-start: 1px solid var(--cr-hairline);
+}
+
+.mg-leave .mg-danger-action {
+  border-color: var(--cr-danger);
+}
+
+/* Member self-access summary as a card. */
+.mg-self-access {
+  padding: var(--cr-space-4);
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius);
+  background: var(--cr-surface);
+  box-shadow: var(--cr-shadow-card);
+}
+
+.mg-self-access dl {
+  padding-block: var(--cr-space-3) 0;
+  border-block-end: 0;
+}
+
+/* Household dialog internals. */
+.household-dialog .mg-invite-form > label {
+  margin-block-start: var(--cr-space-4);
+}
+
+.mg-confirm {
+  gap: var(--cr-space-2);
+  padding: var(--cr-space-3);
+  border-radius: var(--cr-radius-sm);
+  background: var(--cr-surface-sunken);
+}

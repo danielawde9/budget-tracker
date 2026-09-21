@@ -81,11 +81,11 @@ export function GoalPurchaseDialog(props: GoalPurchaseDialogProps) {
       </p>
       <label className="full-field">
         {t(props.locale, 'Expense reference id', 'معرّف المصروف')}
-        <input data-autofocus type="text" value={expenseEventId} onChange={(event) => { setExpenseEventId(event.target.value); setError(null); }} />
+        <input data-autofocus type="text" placeholder={t(props.locale, 'e.g. 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d', 'مثال: 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d')} value={expenseEventId} onChange={(event) => { setExpenseEventId(event.target.value); setError(null); }} />
       </label>
       <label className="full-field">
         {t(props.locale, 'Amount to link', 'المبلغ المراد ربطه')}
-        <input type="text" inputMode="decimal" value={amountText} onChange={(event) => { setAmountText(event.target.value); setError(null); }} />
+        <input type="text" inputMode="decimal" placeholder={props.currency === 'USD' ? '0.00' : '0'} value={amountText} onChange={(event) => { setAmountText(event.target.value); setError(null); }} />
       </label>
       <span className="field-note" role="status">{t(props.locale, 'Already fulfilled', 'المُنجز حاليًا')}: <bdi>{formatMinorAmount(props.goal.fulfilledMinor, props.currency, props.locale)}</bdi></span>
       {error && <div className="error-notice" role="alert">
@@ -94,7 +94,7 @@ export function GoalPurchaseDialog(props: GoalPurchaseDialogProps) {
       </div>}
       <div className="dialog-actions">
         <button type="button" className="button-secondary" disabled={props.pending} onClick={props.onClose}>{t(props.locale, 'Cancel', 'إلغاء')}</button>
-        <button type="submit" disabled={props.pending}>{props.pending ? t(props.locale, 'Linking…', 'جارٍ الربط…') : t(props.locale, 'Link purchase', 'ربط الشراء')}</button>
+        <button type="submit" className="cr-button cr-button--primary" disabled={props.pending}>{props.pending ? t(props.locale, 'Linking…', 'جارٍ الربط…') : t(props.locale, 'Link purchase', 'ربط الشراء')}</button>
       </div>
     </form>
   </DialogShell>;

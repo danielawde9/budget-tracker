@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page, type TestInfo } from '@playwrigh
 import { expectContainedControls, expectDialogReturnsFocus } from './workspace-contract.js';
 
 import {
+  householdFixtureEmails,
   householdFixtureIds,
   installHouseholdApiFixture,
   type HouseholdFixtureOptions,
@@ -64,12 +65,14 @@ async function expectMinimumControlSize(scope: Locator) {
   }
 }
 
-test('desktop owner register exposes protected actions and opaque identifiers', async ({ page }, testInfo) => {
+test('desktop owner register exposes protected actions and human member identities', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop');
   await openHousehold(page);
   await expect(page.getByRole('heading', { name: 'Members' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Invitations' })).toBeVisible();
-  await expect(page.getByText(householdFixtureIds.member).locator('xpath=ancestor-or-self::bdi')).toBeVisible();
+  await expect(page.getByText(householdFixtureEmails.owner).locator('xpath=ancestor-or-self::bdi')).toBeVisible();
+  await expect(page.getByText(householdFixtureIds.member.slice(0, 8)).locator('xpath=ancestor-or-self::bdi')).toBeVisible();
+  await expect(page.getByText(householdFixtureIds.member)).toHaveCount(0);
   await expect(page.getByRole('button', { name: `Promote ${householdFixtureIds.member} to owner` })).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-owner-register.png'), fullPage: true });
 });
@@ -166,7 +169,7 @@ test('mobile Arabic register mirrors safely without horizontal overflow', async 
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await chooseWorkspaceDestination(page, 'المنزل');
   await expect(page.getByRole('heading', { name: 'إدارة المنزل' })).toBeVisible();
-  await expect(page.getByText(householdFixtureIds.member).locator('xpath=ancestor-or-self::bdi')).toBeVisible();
+  await expect(page.getByText(householdFixtureIds.member.slice(0, 8)).locator('xpath=ancestor-or-self::bdi')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.screenshot({ path: screenshotPath(testInfo, 'mobile-arabic-register.png'), fullPage: true });
 });

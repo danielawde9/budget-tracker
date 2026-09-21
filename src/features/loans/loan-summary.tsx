@@ -10,13 +10,13 @@ export function LoanSummary({ summaries, locale }: { summaries: readonly Currenc
   ] as const;
 
   return (
-    <section className="summary" aria-label={locale === 'ar' ? 'ملخص القروض حسب العملة' : 'Loans summary by currency'}>
+    <section className="ln-summary" aria-label={locale === 'ar' ? 'ملخص القروض حسب العملة' : 'Loans summary by currency'}>
       {summaries.map((summary) => (
-        <article className="summary-row" data-testid={`summary-${summary.currency}`} key={summary.currency}>
-          <h2><bdi>{summary.currency}</bdi></h2>
-          <dl>
+        <article className="ln-summary-card" data-testid={`summary-${summary.currency}`} key={summary.currency}>
+          <h2 className="ln-currency"><bdi>{summary.currency}</bdi></h2>
+          <dl className="ln-summary-metrics">
             {metrics.map(([label, field]) => (
-              <div key={field}>
+              <div className="ln-summary-metric" key={field}>
                 <dt>{translate(locale, label)}</dt>
                 <dd><bdi>{formatMinorAmount(summary[field], summary.currency, locale)}</bdi></dd>
               </div>

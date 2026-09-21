@@ -51,8 +51,8 @@ export function RenameWalletDialog(props: RenameWalletDialogProps) {
   return <DialogShell title={t(props.locale, 'Rename wallet', 'إعادة تسمية المحفظة')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} pending={props.pending}>
     <form onSubmit={submit}>
       {error && <div className="error-notice" role="alert">{error}{props.ambiguous && <div><button type="button" className="button-secondary retry-command" onClick={() => void run(props.onRetry)}>{t(props.locale, 'Retry unchanged rename', 'إعادة تسمية دون تغيير')}</button></div>}</div>}
-      <label className="full-field">{t(props.locale, 'Wallet name', 'اسم المحفظة')}<input data-autofocus value={name} maxLength={120} disabled={props.pending} onChange={(event) => { setName(event.target.value); setError(null); props.onClearAmbiguous(); }} /></label>
-      <div className="dialog-actions"><button type="button" className="button-secondary" disabled={props.pending} onClick={props.onClose}>{t(props.locale, 'Cancel', 'إلغاء')}</button><button type="submit" disabled={props.pending || !trimmed || unchanged}>{props.pending ? t(props.locale, 'Saving…', 'جارٍ الحفظ…') : t(props.locale, 'Save', 'حفظ')}</button></div>
+      <label className="full-field">{t(props.locale, 'Wallet name', 'اسم المحفظة')}<input data-autofocus value={name} maxLength={120} placeholder={t(props.locale, 'e.g. Cash', 'مثال: نقد')} disabled={props.pending} onChange={(event) => { setName(event.target.value); setError(null); props.onClearAmbiguous(); }} /></label>
+      <div className="dialog-actions"><button type="button" className="button-secondary" disabled={props.pending} onClick={props.onClose}>{t(props.locale, 'Cancel', 'إلغاء')}</button><button type="submit" className="cr-button cr-button--primary" disabled={props.pending || !trimmed || unchanged}>{props.pending ? t(props.locale, 'Saving…', 'جارٍ الحفظ…') : t(props.locale, 'Save', 'حفظ')}</button></div>
     </form>
   </DialogShell>;
 }

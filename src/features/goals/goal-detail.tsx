@@ -14,6 +14,9 @@ import { GoalDetailSkeleton } from '../control-room/skeletons.js';
 interface GoalDetailProps {
   locale: Locale;
   currency: Currency;
+  /** Integer-minor planned income for this goal's currency from the monthly
+   * plan; forwarded to the revise editor's 'Planned income' amount source. */
+  plannedIncomeMinor: string | null;
   goals: GoalsState;
   goalId: string;
   otherGoals: readonly GoalSummary[];
@@ -227,7 +230,7 @@ export function GoalDetail(props: GoalDetailProps) {
         lines: [{ goalId: props.goalId, amountMinor: input.amountMinor, expectedHead: input.expectedHead }],
       })} />}
 
-    {dialog === 'edit' && <GoalEditor locale={props.locale} mode="revise" initialState={pendingState ?? undefined}
+    {dialog === 'edit' && <GoalEditor locale={props.locale} mode="revise" initialState={pendingState ?? undefined} plannedIncomeMinor={props.plannedIncomeMinor}
       existing={{
         goalId: props.goalId, expectedRevisionId: summary.revisionId, currentState: summary.state,
         definition: {

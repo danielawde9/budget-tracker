@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { formatMinorAmount } from '../wallets/money.js';
@@ -399,5 +399,113 @@ describe('JournalScreen', () => {
     expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'All' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Journal' })).not.toBeInTheDocument();
+  });
+
+  describe('date range filter', () => {
+    const datedEvents = () => [
+      event({ id: 'early', kind: 'income', payeeName: 'Alpha', effectiveDate: '2026-09-01' }),
+      event({
+        id: 'mid', kind: 'expense', payeeName: 'Beta', effectiveDate: '2026-09-10',
+        movements: [{ walletId: 'wallet-1', walletName: 'Cash', currency: 'USD', amountMinor: '-5000', walletArchived: false }],
+      }),
+      event({ id: 'late', kind: 'income', payeeName: 'Gamma', effectiveDate: '2026-09-20' }),
+    ];
+
+    it('labels the date inputs with their accessible names', () => {
+      render(<JournalScreen {...baseProps} events={datedEvents()} />);
+      expect(screen.getByLabelText('From date')).toHaveAttribute('type', 'date');
+      expect(screen.getByLabelText('To date')).toHaveAttribute('type', 'date');
+      expect(screen.queryByLabelText('من تاريخ')).not.toBeInTheDocument();
+    });
+
+    it('localizes the date inputs and clear action in Arabic', () => {
+      render(<JournalScreen {...baseProps} locale="ar" events={datedEvents()} />);
+      expect(screen.getByLabelText('من تاريخ')).toBeInTheDocument();
+      expect(screen.getByLabelText('إلى تاريخ')).toBeInTheDocument();
+      expect(screen.queryByLabelText('From date')).not.toBeInTheDocument();
+    });
+
+    it('hides the clear action while only default filters are active', () => {
+      render(<JournalScreen {...baseProps} events={datedEvents()} />);
+      expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
+    });
+
+    it('filters from-only, keeping events on or after the from date', () => {
+      render(<JournalScreen {...baseProps} events={datedEvents()} />);
+      fireEvent.change(screen.getByLabelText('From date'), { target: { value: '2026-09-10' } });
+      expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
+      expect(screen.getByText('Beta')).toBeInTheDocument();
+      expect(screen.getByText('Gamma')).toBeInTheDocument();
+    });
+
+    it('filters to-only, keeping events on or before the to date', () => {
+      render(<JournalScreen {...baseProps} events={datedEvents()} />);
+      fireEvent.change(screen.getByLabelText('To date'), { target: { value: '2026-09-10' } });
+      expect(screen.getByText('Alpha')).toBeInTheDocument();
+      expect(screen.getByText('Beta')).toBeInTheDocument();
+      expect(screen.queryByText('Gamma')).not.toBeInTheDocument();
+    });
+
+    it('filters an inclusive range between both bounds', () => {
+      render(<JournalScreen {...baseProps} events={datedEvents()} />);
+      fireEvent.change(screen.getByLabelText('From date'), { target: { value: '2026-09-05' } });
+      fireEvent.change(screen.getByLabelText('To date'), { target: { value: '2026-09-15' } });
+      expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
+      expect(screen.getByText('Beta')).toBeInTheDocument();
+      expect(screen.queryByText('Gamma')).not.toBeInTheDocument();
+    });
+
+    it('combines the date range with the kind chips', async () => {
+      const user = userEvent.setup();
+      render(<JournalScreen {...baseProps} events={datedEvents()} />);
+      fireEvent.change(screen.getByLabelText('From date'), { target: { value: '2026-09-01' } });
+      await user.click(screen.getByRole('button', { name: 'Income' }));
+      expect(screen.getByText('Alpha')).toBeInTheDocument();
+      expect(screen.queryByText('Beta')).not.toBeInTheDocument();
+      expect(screen.getByText('Gamma')).toBeInTheDocument();
+    });
+
+    it('applies the date range to server search results too', async () => {
+      const user = userEvent.setup();
+      render(<JournalScreen {...baseProps} search={searchView({ query: 'market', events: datedEvents() })} />);
+      await user.type(screen.getByLabelText('Search'), 'market');
+      fireEvent.change(screen.getByLabelText('To date'), { target: { value: '2026-09-05' } });
+      expect(screen.getByText('Alpha')).toBeInTheDocument();
+      expect(screen.queryByText('Beta')).not.toBeInTheDocument();
+      expect(screen.queryByText('Gamma')).not.toBeInTheDocument();
+    });
+
+    it('clear resets the kind and date bounds and shows every entry again', async () => {
+      const user = userEvent.setup();
+      render(<JournalScreen {...baseProps} events={datedEvents()} />);
+      await user.click(screen.getByRole('button', { name: 'Income' }));
+      fireEvent.change(screen.getByLabelText('From date'), { target: { value: '2026-09-05' } });
+      expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+      expect(screen.getByText('Alpha')).toBeInTheDocument();
+      expect(screen.getByText('Beta')).toBeInTheDocument();
+      expect(screen.getByText('Gamma')).toBeInTheDocument();
+      expect(screen.getByLabelText('From date')).toHaveValue('');
+      expect(screen.getByLabelText('To date')).toHaveValue('');
+      expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
+    });
+
+    it('shows the localized empty state when the range excludes every entry', () => {
+      render(<JournalScreen {...baseProps} events={datedEvents()} />);
+      fireEvent.change(screen.getByLabelText('From date'), { target: { value: '2027-01-01' } });
+      expect(screen.getByText('No journal entries match.')).toBeInTheDocument();
+    });
+
+    it('offers the localized clear action in Arabic', async () => {
+      const user = userEvent.setup();
+      render(<JournalScreen {...baseProps} locale="ar" events={datedEvents()} />);
+      expect(screen.queryByRole('button', { name: 'مسح عوامل التصفية' })).not.toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText('من تاريخ'), { target: { value: '2026-09-10' } });
+      await user.click(screen.getByRole('button', { name: 'مسح عوامل التصفية' }));
+      expect(screen.getByText('Alpha')).toBeInTheDocument();
+      expect(screen.getByLabelText('من تاريخ')).toHaveValue('');
+      expect(screen.queryByRole('button', { name: 'مسح عوامل التصفية' })).not.toBeInTheDocument();
+    });
   });
 });

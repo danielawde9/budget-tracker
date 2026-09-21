@@ -99,20 +99,20 @@ export function SubcategoryDialog(props: SubcategoryDialogProps) {
   }
 
   if (success) return <DialogShell title={t(props.locale, 'Create a subcategory', 'إنشاء فئة فرعية')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} descriptionId={descriptionId} focusVersion="success">
-    <div className="dialog-result" role="status"><strong>{t(props.locale, 'Subcategory created', 'تم إنشاء الفئة الفرعية')}</strong><p id={descriptionId}>{t(props.locale, 'The active register was refreshed from the server.', 'تم تحديث سجل الفئات الفعالة من الخادم.')}</p><button type="button" data-autofocus onClick={props.onClose}>{t(props.locale, 'Done', 'تم')}</button></div>
+    <div className="dialog-result cg-result" role="status"><strong>{t(props.locale, 'Subcategory created', 'تم إنشاء الفئة الفرعية')}</strong><p id={descriptionId}>{t(props.locale, 'The active register was refreshed from the server.', 'تم تحديث سجل الفئات الفعالة من الخادم.')}</p><button type="button" data-autofocus onClick={props.onClose}>{t(props.locale, 'Done', 'تم')}</button></div>
   </DialogShell>;
 
   return <DialogShell title={t(props.locale, 'Create a subcategory', 'إنشاء فئة فرعية')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} pending={props.pending || refreshing} descriptionId={descriptionId}>
-    <form className="dialog-form" onSubmit={submit}>
+    <form className="dialog-form cg-form" onSubmit={submit}>
       <p id={descriptionId} className="dialog-intro">{t(props.locale, 'Add a subcategory beneath', 'أضف فئة فرعية ضمن')} <strong><bdi>{displayName(props.parent, props.locale)}</bdi></strong>. {t(props.locale, 'Its parent and type cannot change.', 'لا يمكن تغيير الفئة الرئيسية أو النوع.')}</p>
       {error && <div className="error-notice" role="alert">{error}{refreshRequired ? <div><button type="button" className="button-secondary retry-command" disabled={refreshing} onClick={() => void refreshAcceptedCommand()}>{refreshing ? t(props.locale, 'Refreshing…', 'جارٍ التحديث…') : t(props.locale, 'Refresh categories', 'تحديث الفئات')}</button></div> : props.ambiguous && <div><button type="button" className="button-secondary retry-command" disabled={props.pending} onClick={() => void run(props.onRetry)}>{t(props.locale, 'Retry unchanged subcategory', 'إعادة الفئة الفرعية دون تغيير')}</button></div>}</div>}
-      <div className="form-grid category-form-grid">
-        <div className="category-parent-note"><span>{t(props.locale, 'Parent', 'الفئة الرئيسية')}</span><strong><bdi>{displayName(props.parent, props.locale)}</bdi></strong></div>
-        <div className="category-name-note">{t(props.locale, 'At least one name is required.', 'مطلوب اسم واحد على الأقل.')}</div>
-        <label>{t(props.locale, 'English name', 'الاسم بالإنجليزية')}<input data-autofocus dir="ltr" maxLength={120} value={nameEn} disabled={refreshRequired} onChange={(event) => edit(() => setNameEn(event.target.value))} /></label>
-        <label>{t(props.locale, 'Arabic name', 'الاسم بالعربية')}<input dir="rtl" maxLength={120} value={nameAr} disabled={refreshRequired} onChange={(event) => edit(() => setNameAr(event.target.value))} /></label>
+      <div className="form-grid category-form-grid cg-form">
+        <div className="category-parent-note cg-parent-note"><span>{t(props.locale, 'Parent', 'الفئة الرئيسية')}</span><strong><bdi>{displayName(props.parent, props.locale)}</bdi></strong></div>
+        <div className="category-name-note cg-name-note">{t(props.locale, 'At least one name is required.', 'مطلوب اسم واحد على الأقل.')}</div>
+        <label>{t(props.locale, 'English name', 'الاسم بالإنجليزية')}<input data-autofocus dir="ltr" maxLength={120} placeholder={t(props.locale, 'e.g. Groceries', 'مثال: البقالة')} value={nameEn} disabled={refreshRequired} onChange={(event) => edit(() => setNameEn(event.target.value))} /></label>
+        <label>{t(props.locale, 'Arabic name', 'الاسم بالعربية')}<input dir="rtl" maxLength={120} placeholder={t(props.locale, 'مثال: البقالة', 'مثال: البقالة')} value={nameAr} disabled={refreshRequired} onChange={(event) => edit(() => setNameAr(event.target.value))} /></label>
       </div>
-      <div className="dialog-actions"><button type="button" className="button-secondary" disabled={props.pending || refreshing} onClick={props.onClose}>{t(props.locale, refreshRequired ? 'Close' : 'Cancel', refreshRequired ? 'إغلاق' : 'إلغاء')}</button><button type="submit" disabled={props.pending || refreshRequired}>{props.pending ? t(props.locale, 'Creating…', 'جارٍ الإنشاء…') : t(props.locale, 'Create subcategory', 'إنشاء الفئة الفرعية')}</button></div>
+      <div className="dialog-actions"><button type="button" className="button-secondary" disabled={props.pending || refreshing} onClick={props.onClose}>{t(props.locale, refreshRequired ? 'Close' : 'Cancel', refreshRequired ? 'إغلاق' : 'إلغاء')}</button><button type="submit" className="cr-button cr-button--primary" disabled={props.pending || refreshRequired}>{props.pending ? t(props.locale, 'Creating…', 'جارٍ الإنشاء…') : t(props.locale, 'Create subcategory', 'إنشاء الفئة الفرعية')}</button></div>
     </form>
   </DialogShell>;
 }

@@ -77,7 +77,7 @@ export function InviteHouseholdDialog(props: InviteDialogProps) {
     <p className="dialog-intro">{ar
       ? 'يرسل رسالة دعوة إلى هذا العنوان مدتها سبعة أيام. يفتح المدعو الرابط من الرسالة للانضمام إلى هذه المساحة.'
       : 'Sends a seven-day invitation email to this address. The recipient opens the link from the email to join this household.'}</p>
-    <form onSubmit={(event) => void submit(event)}>
+    <form className="mg-invite-form" onSubmit={(event) => void submit(event)}>
       <label>{ar ? 'البريد الإلكتروني للعضو' : 'Member email'}
         <input type="email" required maxLength={254} autoComplete="email" data-initial-focus disabled={props.succeeded} placeholder="name@example.com" value={email} onChange={(event) => setEmail(event.target.value)} />
       </label>
@@ -86,10 +86,10 @@ export function InviteHouseholdDialog(props: InviteDialogProps) {
         ? `تم إرسال الدعوة إلى ${email}.`
         : `Invitation sent to ${email}.`}</p> : null}
       <div className="dialog-actions">
-        <button type="button" className="secondary" disabled={props.pending} onClick={props.onClose}>{props.succeeded
+        <button type="button" className="button-secondary" disabled={props.pending} onClick={props.onClose}>{props.succeeded
           ? (ar ? 'إغلاق' : 'Close')
           : (ar ? 'إلغاء' : 'Cancel')}</button>
-        <button type="submit" disabled={props.pending}>{props.pending
+        <button type="submit" className="cr-button cr-button--primary" disabled={props.pending}>{props.pending
           ? (ar ? 'جارٍ الإرسال…' : 'Sending…')
           : props.succeeded
             ? (ar ? 'إرسال مجددًا' : 'Send again')
@@ -117,10 +117,10 @@ export function HouseholdConfirmDialog(props: ConfirmDialogProps) {
   const [confirmed, setConfirmed] = useState(false);
   return <HouseholdDialogFrame title={props.title} closeLabel={props.closeLabel} pending={props.pending} onClose={props.onClose}>
     <div className="dialog-intro">{props.description}</div>
-    <label className="confirm"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />{props.acknowledgement}</label>
+    <label className="confirm mg-confirm"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />{props.acknowledgement}</label>
     {props.error}
     <div className="dialog-actions">
-      <button type="button" className="secondary" disabled={props.pending} onClick={props.onClose}>{props.closeLabel}</button>
+      <button type="button" className="button-secondary" disabled={props.pending} onClick={props.onClose}>{props.closeLabel}</button>
       <button type="button" className={props.dangerous ? 'danger-button' : ''} disabled={!confirmed || props.pending} onClick={async () => {
         if (await props.onConfirm()) props.onClose();
       }}>{props.pending ? props.pendingLabel : props.confirmLabel}</button>
@@ -150,8 +150,8 @@ export function AcceptHouseholdInvitationDialog(props: AcceptDialogProps) {
       : 'Accept to add this household to your visible spaces.'}</p>
     {props.error}
     <div className="dialog-actions">
-      <button type="button" className="secondary" disabled={props.pending} onClick={props.onDismiss}>{ar ? 'تجاهل' : 'Dismiss'}</button>
-      {!props.terminal ? <button type="button" disabled={props.pending} onClick={() => void props.onAccept()}>{props.pending
+      <button type="button" className="button-secondary" disabled={props.pending} onClick={props.onDismiss}>{ar ? 'تجاهل' : 'Dismiss'}</button>
+      {!props.terminal ? <button type="button" className="cr-button cr-button--primary" disabled={props.pending} onClick={() => void props.onAccept()}>{props.pending
         ? (ar ? 'جارٍ القبول…' : 'Accepting…')
         : (ar ? 'قبول الدعوة' : 'Accept invitation')}</button> : null}
     </div>

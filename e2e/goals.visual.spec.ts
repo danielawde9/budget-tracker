@@ -41,18 +41,32 @@ async function openPlan(page: import('@playwright/test').Page, options: Paramete
 test('the goal editor keeps every radio beside its label in one compact row', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop');
   await openPlan(page, {});
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.getByRole('button', { name: 'New goal' }).first().click();
   const dialog = page.getByRole('dialog', { name: 'New goal' });
-  const rows = dialog.locator('fieldset label:has(> input[type="radio"])');
-  const count = await rows.count();
-  expect(count).toBeGreaterThanOrEqual(6);
-  for (let index = 0; index < count; index += 1) {
-    const box = await rows.nth(index).boundingBox();
-    expect(box, `radio label row ${index} must have a box`).not.toBeNull();
-    expect(box!.height, `radio label row ${index} must be one compact row`).toBeLessThanOrEqual(48);
-    const inputBox = await rows.nth(index).locator('input').boundingBox();
-    expect(inputBox!.height, `radio ${index} keeps a 44px target`).toBeGreaterThanOrEqual(44);
-  }
+  // The editor is a step form, so only the current step's radios render at a
+  // time; the row contract is checked on each step that shows radio groups.
+  const expectCompactRadioRows = async () => {
+    const rows = dialog.locator('fieldset label:has(> input[type="radio"])');
+    const count = await rows.count();
+    expect(count).toBeGreaterThanOrEqual(4);
+    for (let index = 0; index < count; index += 1) {
+      const box = await rows.nth(index).boundingBox();
+      expect(box, `radio label row ${index} must have a box`).not.toBeNull();
+      expect(box!.height, `radio label row ${index} must be one compact row`).toBeLessThanOrEqual(48);
+      const inputBox = await rows.nth(index).locator('input').boundingBox();
+      expect(inputBox!.height, `radio ${index} keeps a 44px target`).toBeGreaterThanOrEqual(44);
+    }
+  };
+
+  // Step 1 — Type: Kind + Currency groups.
+  await expectCompactRadioRows();
+  // Step 3 — Contributions: mode + monthly-amount source groups.
+  await dialog.getByRole('button', { name: 'Next' }).click();
+  await dialog.getByLabel('Name (English)').fill('Emergency fund');
+  await dialog.getByLabel('Target amount').fill('6000');
+  await dialog.getByRole('button', { name: 'Next' }).click();
+  await expectCompactRadioRows();
 });
 
 test('U13-01/U13-04 shows target, earmarked, cash-covered, fulfilled, shortage, and a checklist milestone distinctly', async ({ page }, testInfo) => {
@@ -83,11 +97,20 @@ test('creating a goal shows it in the list afterward', async ({ page }, testInfo
   await usdSection.getByRole('button', { name: 'New goal' }).click();
 
   const form = page.getByRole('form', { name: 'Goal details' });
+  // Step 1 — Type: the Reserve/USD defaults are fine.
+  await form.getByRole('button', { name: 'Next' }).click();
+  // Step 2 — Target.
   await form.getByLabel('Name (English)').fill('Emergency fund');
   await form.getByLabel('Target amount').fill('6000');
   await expectContainedControls(page, form);
   await page.screenshot({ path: screenshotPath(testInfo, `goal-editor-${testInfo.project.name}.png`) });
-
+  await form.getByRole('button', { name: 'Next' }).click();
+  // Step 3 — Contributions: manual monthly amount from a custom source.
+  await form.getByRole('textbox', { name: 'Monthly amount' }).fill('500');
+  await form.getByRole('button', { name: 'Next' }).click();
+  // Step 4 — Milestones: none.
+  await form.getByRole('button', { name: 'Next' }).click();
+  // Step 5 — Review.
   await form.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('status')).toContainText('Saved');
   await page.getByRole('button', { name: 'Done' }).click();

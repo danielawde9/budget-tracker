@@ -10,7 +10,7 @@ export interface HouseholdFixtureOptions {
 const SPACE_ID = '10000000-0000-4000-8000-000000000001';
 const OWNER_ID = '20000000-0000-4000-8000-000000000001';
 const MEMBER_ID = '30000000-0000-4000-8000-000000000001';
-const SECOND_OWNER_ID = '30000000-0000-4000-8000-000000000002';
+const SECOND_OWNER_ID = '31000000-0000-4000-8000-000000000002';
 const INVITATION_ID = '40000000-0000-4000-8000-000000000001';
 
 interface FixtureMembership {
@@ -53,7 +53,7 @@ function json(route: Route, body: unknown, status = 200) {
 function authUser() {
   return {
     id: OWNER_ID,
-    email: 'manager@example.test',
+    email: householdFixtureEmails.owner,
     aud: 'authenticated',
     role: 'authenticated',
     created_at: '2026-01-01T00:00:00Z',
@@ -246,3 +246,4 @@ export async function installHouseholdApiFixture(page: Page, options: HouseholdF
 }
 
 export const householdFixtureIds = { invitation: INVITATION_ID, member: MEMBER_ID } as const;
+export const householdFixtureEmails = { owner: 'manager@example.test' } as const;

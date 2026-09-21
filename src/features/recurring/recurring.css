@@ -159,28 +159,6 @@
 
 /* ---- Editor / payment forms ------------------------------------------------ */
 
-.rec-editor-mode,
-.rec-payment-mode,
-.rec-reference-fields {
-  border: 1px solid var(--cr-hairline);
-  border-radius: var(--cr-radius);
-  padding: var(--cr-space-3);
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--cr-space-2);
-}
-
-.rec-editor-mode legend,
-.rec-payment-mode legend,
-.rec-reference-fields legend {
-  padding-inline: var(--cr-space-1);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--cr-ink-soft);
-}
-
 .rec-required-hint {
   color: var(--cr-warn-strong);
   font-size: 11px;

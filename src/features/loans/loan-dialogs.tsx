@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { translate } from '../../i18n.js';
 import { classifyLoanError } from './errors.js';
 import { formatMinorAmount, parseMinorAmount } from './money.js';
 import type { Currency, Loan, LoanErrorView, LoanHistoryItem, Locale, Wallet } from './types.js';
@@ -36,9 +37,9 @@ function Modal({ title, locale, onClose, children, wide = false, active = true }
     return () => { document.removeEventListener('keydown', keydown); };
   }, [active]);
   return (
-    <div className="overlay" hidden={!active} style={active ? undefined : { display: 'none' }} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <div className={`dialog loan-dialog ${wide ? 'dialog-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={panel} onFocusCapture={(event) => { lastFocus.current = event.target; }}>
-        <header className="dialog-header"><h2>{title}</h2><button type="button" className="icon-button" onClick={onClose} aria-label={localized(locale, 'Close', 'إغلاق')}>×</button></header>
+    <div className="ln-overlay" hidden={!active} style={active ? undefined : { display: 'none' }} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className={`ln-dialog${wide ? ' ln-dialog--wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={panel} onFocusCapture={(event) => { lastFocus.current = event.target; }}>
+        <header className="ln-dialog-header"><h2>{title}</h2><button type="button" className="ln-dialog-close" onClick={onClose} aria-label={localized(locale, 'Close', 'إغلاق')}>×</button></header>
         {children}
       </div>
     </div>
@@ -92,15 +93,26 @@ export function CreateLoanDialog({ spaceId, wallets, locale, onClose, onSave }: 
   }
 
   return <Modal title={localized(locale, 'Add a loan', 'إضافة قرض')} locale={locale} onClose={onClose} wide>
-    <p className="dialog-intro dialog-consequence">{mode === 'opening' ? localized(locale, 'Record what is already outstanding. No wallet money moves.', 'سجّل المبلغ القائم حاليًا. لن تتحرك أموال أي محفظة.') : direction === 'they_owe_me' ? localized(locale, 'Record money leaving a wallet and becoming owed to you.', 'سجّل مالًا خرج من محفظة وأصبح دينًا مستحقًا لك.') : localized(locale, 'Record money entering a wallet and becoming owed by you.', 'سجّل مالًا دخل إلى محفظة وأصبح دينًا مستحقًا عليك.')}</p>
-    <form className="dialog-form" onSubmit={(event) => void submit(event)}>
-      <fieldset className="choice-grid"><legend>{localized(locale, 'What happened?', 'ماذا حدث؟')}</legend>
-        <label><input type="radio" name="mode" checked={mode === 'opening'} onChange={() => setMode('opening')} /> {localized(locale, 'Opening outstanding', 'رصيد قائم عند البدء')}</label>
-        <label><input type="radio" name="mode" checked={mode === 'cash' && direction === 'they_owe_me'} onChange={() => { setMode('cash'); setDirection('they_owe_me'); }} /> {localized(locale, 'I lent money', 'أقرضت مالًا')}</label>
-        <label><input type="radio" name="mode" checked={mode === 'cash' && direction === 'i_owe_them'} onChange={() => { setMode('cash'); setDirection('i_owe_them'); }} /> {localized(locale, 'I borrowed money', 'اقترضت مالًا')}</label>
+    <p className="ln-dialog-intro ln-dialog-intro--consequence">{mode === 'opening' ? localized(locale, 'Record what is already outstanding. No wallet money moves.', 'سجّل المبلغ القائم حاليًا. لن تتحرك أموال أي محفظة.') : direction === 'they_owe_me' ? localized(locale, 'Record money leaving a wallet and becoming owed to you.', 'سجّل مالًا خرج من محفظة وأصبح دينًا مستحقًا لك.') : localized(locale, 'Record money entering a wallet and becoming owed by you.', 'سجّل مالًا دخل إلى محفظة وأصبح دينًا مستحقًا عليك.')}</p>
+    <form className="ln-form" onSubmit={(event) => void submit(event)}>
+      <fieldset className="ln-choice"><legend>{localized(locale, 'What happened?', 'ماذا حدث؟')}</legend>
+        <div className="ln-choice-tiles">
+          <div className="ln-tile">
+            <label className="ln-tile-choice"><input type="radio" name="mode" checked={mode === 'opening'} onChange={() => setMode('opening')} /> {localized(locale, 'Opening outstanding', 'رصيد قائم عند البدء')}</label>
+            <p className="ln-tile-hint">{translate(locale, 'modeOpeningHint')}</p>
+          </div>
+          <div className="ln-tile">
+            <label className="ln-tile-choice"><input type="radio" name="mode" checked={mode === 'cash' && direction === 'they_owe_me'} onChange={() => { setMode('cash'); setDirection('they_owe_me'); }} /> {localized(locale, 'I lent money', 'أقرضت مالًا')}</label>
+            <p className="ln-tile-hint">{translate(locale, 'modeLentHint')}</p>
+          </div>
+          <div className="ln-tile">
+            <label className="ln-tile-choice"><input type="radio" name="mode" checked={mode === 'cash' && direction === 'i_owe_them'} onChange={() => { setMode('cash'); setDirection('i_owe_them'); }} /> {localized(locale, 'I borrowed money', 'اقترضت مالًا')}</label>
+            <p className="ln-tile-hint">{translate(locale, 'modeBorrowedHint')}</p>
+          </div>
+        </div>
       </fieldset>
-      {mode === 'opening' ? <fieldset className="segmented"><legend>{localized(locale, 'Direction', 'اتجاه الدين')}</legend><label><input type="radio" name="direction" checked={direction === 'they_owe_me'} onChange={() => setDirection('they_owe_me')} /> {localized(locale, 'They owe me', 'لديهم دين لي')}</label><label><input type="radio" name="direction" checked={direction === 'i_owe_them'} onChange={() => setDirection('i_owe_them')} /> {localized(locale, 'I owe them', 'عليّ دين لهم')}</label></fieldset> : null}
-      <fieldset className="segmented">
+      {mode === 'opening' ? <fieldset className="ln-segmented"><legend>{localized(locale, 'Direction', 'اتجاه الدين')}</legend><label><input type="radio" name="direction" checked={direction === 'they_owe_me'} onChange={() => setDirection('they_owe_me')} /> {localized(locale, 'They owe me', 'لديهم دين لي')}</label><label><input type="radio" name="direction" checked={direction === 'i_owe_them'} onChange={() => setDirection('i_owe_them')} /> {localized(locale, 'I owe them', 'عليّ دين لهم')}</label></fieldset> : null}
+      <fieldset className="ln-segmented">
         <legend>{localized(locale, 'Currency', 'العملة')}</legend>
         {(['USD', 'LBP'] as const).map((option) => (
           <label key={option}>
@@ -109,16 +121,16 @@ export function CreateLoanDialog({ spaceId, wallets, locale, onClose, onSave }: 
           </label>
         ))}
       </fieldset>
-      <div className="form-grid">
-        <label>{localized(locale, 'Person', 'الشخص')}<input name="person" required maxLength={120} autoFocus /></label>
-        <label>{localized(locale, 'Amount', 'المبلغ')}<input name="amount" required inputMode="decimal" placeholder={currency === 'USD' ? '0.00' : '0'} /></label>
-        {mode === 'cash' ? <label>{localized(locale, 'Wallet', 'المحفظة')}<select name="wallet" required>{matchingWallets.map((wallet) => <option value={wallet.id} key={wallet.id}>{wallet.name}</option>)}</select>{matchingWallets.length === 0 ? <small className="field-error">{localized(locale, `No active ${currency} wallet is available in this space.`, `لا توجد محفظة ${currency} فعالة في هذه المساحة.`)}</small> : null}</label> : null}
-        <label>{localized(locale, 'Loan date', 'تاريخ القرض')}<input name="effectiveDate" type="date" defaultValue={today()} required /></label>
-        <label>{localized(locale, 'Due date', 'تاريخ الاستحقاق')} <span>{localized(locale, '(optional)', '(اختياري)')}</span><input name="dueDate" type="date" /></label>
-        <label className="full-field">{localized(locale, 'Note', 'ملاحظة')} <span>{localized(locale, '(optional)', '(اختياري)')}</span><textarea name="note" maxLength={2000} rows={3} /></label>
+      <div className="ln-form-grid">
+        <label className="ln-field">{localized(locale, 'Person', 'الشخص')}<input name="person" required maxLength={120} autoFocus placeholder={localized(locale, 'e.g. Rana Khalil', 'مثال: رنا خليل')} /></label>
+        <label className="ln-field">{localized(locale, 'Amount', 'المبلغ')}<input name="amount" required inputMode="decimal" placeholder={currency === 'USD' ? '0.00' : '0'} /></label>
+        {mode === 'cash' ? <label className="ln-field">{localized(locale, 'Wallet', 'المحفظة')}<select name="wallet" required>{matchingWallets.map((wallet) => <option value={wallet.id} key={wallet.id}>{wallet.name}</option>)}</select>{matchingWallets.length === 0 ? <small className="ln-field-error">{localized(locale, `No active ${currency} wallet is available in this space.`, `لا توجد محفظة ${currency} فعالة في هذه المساحة.`)}</small> : null}</label> : null}
+        <label className="ln-field">{localized(locale, 'Loan date', 'تاريخ القرض')}<input name="effectiveDate" type="date" defaultValue={today()} required /></label>
+        <label className="ln-field">{localized(locale, 'Due date', 'تاريخ الاستحقاق')} <span>{localized(locale, '(optional)', '(اختياري)')}</span><input name="dueDate" type="date" /></label>
+        <label className="ln-field ln-full-field">{localized(locale, 'Note', 'ملاحظة')} <span>{localized(locale, '(optional)', '(اختياري)')}</span><textarea name="note" maxLength={2000} rows={3} placeholder={localized(locale, 'Optional', 'اختياري')} /></label>
       </div>
       {error ? <ErrorNotice error={error} locale={locale} /> : null}
-      <footer className="dialog-actions"><button type="button" className="button-secondary" onClick={onClose}>{localized(locale, 'Cancel', 'إلغاء')}</button><button type="submit" disabled={busy || (mode === 'cash' && matchingWallets.length === 0)}>{busy ? localized(locale, 'Recording…', 'جارٍ التسجيل…') : mode === 'opening' ? localized(locale, 'Record opening', 'تسجيل الرصيد القائم') : direction === 'they_owe_me' ? localized(locale, 'Record lending', 'تسجيل الإقراض') : localized(locale, 'Record borrowing', 'تسجيل الاقتراض')}</button></footer>
+      <footer className="ln-actions"><button type="button" className="button-secondary" onClick={onClose}>{localized(locale, 'Cancel', 'إلغاء')}</button><button type="submit" className="cr-button cr-button--primary" disabled={busy || (mode === 'cash' && matchingWallets.length === 0)}>{busy ? localized(locale, 'Recording…', 'جارٍ التسجيل…') : mode === 'opening' ? localized(locale, 'Record opening', 'تسجيل الرصيد القائم') : direction === 'they_owe_me' ? localized(locale, 'Record lending', 'تسجيل الإقراض') : localized(locale, 'Record borrowing', 'تسجيل الاقتراض')}</button></footer>
     </form>
   </Modal>;
 }
@@ -128,31 +140,42 @@ function PlanFigures({ loan, locale }: { loan: Loan; locale: Locale }) {
     [localized(locale, 'Monthly target', 'هدف الشهر'), loan.plan.targetMinor], [localized(locale, 'Paid this month', 'المدفوع هذا الشهر'), loan.plan.actualRepaymentMinor],
     [localized(locale, 'Still reserved', 'المحجوز المتبقي'), loan.plan.remainingReservationMinor], [localized(locale, 'Due amount', 'المبلغ المستحق'), loan.plan.dueAmountMinor],
   ];
-  return <dl className="detail-figures">{items.map(([label, amount]) => <div key={label}><dt>{label}</dt><dd><bdi>{formatMinorAmount(amount ?? '0', loan.currency, locale)}</bdi></dd></div>)}</dl>;
+  return <dl className="ln-figures">{items.map(([label, amount]) => <div key={label}><dt>{label}</dt><dd><bdi>{formatMinorAmount(amount ?? '0', loan.currency, locale)}</bdi></dd></div>)}</dl>;
+}
+
+const historyKindLabels = {
+  loan_opening: ['opening entry', 'رصيد افتتاحي'],
+  loan_lend: ['lending entry', 'قرض إقراض'],
+  loan_borrow: ['borrowing entry', 'قرض اقتراض'],
+  loan_receive_repayment: ['received repayment', 'دفعة مستلمة'],
+  loan_repay_borrowing: ['borrowing repayment', 'دفعة سداد قرض'],
+  reversal: ['reversal', 'قيد عكسي'],
+} as const satisfies Record<LoanHistoryItem['kind'], readonly [string, string]>;
+
+function visibleKindLabel(kind: LoanHistoryItem['kind'], locale: Locale): string {
+  const [english, arabic] = historyKindLabels[kind];
+  return localized(locale, english.charAt(0).toUpperCase() + english.slice(1), arabic);
 }
 
 function historyLabel(loan: Loan, item: NonNullable<Loan['history']>[number], locale: Locale): string {
-  const kindLabels = {
-    loan_opening: ['opening entry', 'رصيد افتتاحي'],
-    loan_lend: ['lending entry', 'قرض إقراض'],
-    loan_borrow: ['borrowing entry', 'قرض اقتراض'],
-    loan_receive_repayment: ['received repayment', 'دفعة مستلمة'],
-    loan_repay_borrowing: ['borrowing repayment', 'دفعة سداد قرض'],
-    reversal: ['reversal', 'قيد عكسي'],
-  } as const satisfies Record<LoanHistoryItem['kind'], readonly [string, string]>;
-  const kindLabel = kindLabels[item.kind];
-  const kind = localized(locale, kindLabel[0], kindLabel[1]);
+  const kind = localized(locale, historyKindLabels[item.kind][0], historyKindLabels[item.kind][1]);
   const date = new Intl.DateTimeFormat(locale === 'ar' ? 'ar-LB' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${item.effectiveDate}T00:00:00Z`));
   return localized(locale, `Correct ${kind} from ${date}`, `تصحيح ${kind} بتاريخ ${date}`);
 }
 
 export function LoanDetailDialog({ loan, locale, onClose, onRepay, onTarget, onCorrect, active = true }: { loan: Loan; locale: Locale; onClose: () => void; onRepay: () => void; onTarget: () => void; onCorrect: (eventId: string) => void; active?: boolean }) {
   return <Modal title={localized(locale, `${loan.personName} loan details`, `تفاصيل قرض ${loan.personName}`)} locale={locale} onClose={onClose} active={active} wide>
-    <div className="detail-hero"><div><span className={`status status-${loan.status}`}>{localized(locale, loan.status[0]?.toUpperCase() + loan.status.slice(1), loan.status === 'settled' ? 'مسدّد' : loan.status === 'overdue' ? 'متأخر' : 'قائم')}</span><p>{localized(locale, loan.direction === 'they_owe_me' ? 'They owe me' : 'I owe them', loan.direction === 'they_owe_me' ? 'لديهم دين لي' : 'عليّ دين لهم')}</p></div><strong><bdi>{formatMinorAmount(loan.outstandingMinor, loan.currency, locale)}</bdi><small>{localized(locale, 'remaining', 'متبقٍ')}</small></strong></div>
-    <dl className="detail-figures detail-figures-three"><div><dt>{localized(locale, 'Opening amount', 'المبلغ عند البدء')}</dt><dd><bdi>{formatMinorAmount(loan.originalPrincipalMinor, loan.currency, locale)}</bdi></dd></div><div><dt>{localized(locale, 'Total repaid', 'إجمالي المسدّد')}</dt><dd><bdi>{formatMinorAmount(loan.totalRepaidMinor, loan.currency, locale)}</bdi></dd></div><div><dt>{localized(locale, 'Due date', 'تاريخ الاستحقاق')}</dt><dd><bdi>{loan.dueDate ?? localized(locale, 'No due date', 'بدون تاريخ استحقاق')}</bdi></dd></div></dl>
-    {loan.direction === 'i_owe_them' ? <><PlanFigures loan={loan} locale={locale} /><button type="button" className="button-secondary" onClick={onTarget}>{localized(locale, 'Change monthly target', 'تغيير هدف الشهر')}</button></> : null}
-    <div className="section-heading"><h3>{localized(locale, 'Ledger history', 'سجل القيود')}</h3>{loan.status !== 'settled' ? <button type="button" onClick={onRepay}>{localized(locale, loan.direction === 'they_owe_me' ? 'Receive repayment' : 'Record repayment', loan.direction === 'they_owe_me' ? 'تسجيل دفعة مستلمة' : 'تسجيل دفعة')}</button> : null}</div>
-    <ol className="history">{loan.history?.map((item) => <li key={item.eventId}><div><strong><bdi>{item.kind.replaceAll('_', ' ')}</bdi></strong><span><bdi>{formatMinorAmount(item.principalDeltaMinor.replace('-', ''), loan.currency, locale)}</bdi> · <bdi>{item.effectiveDate}</bdi></span></div>{item.kind !== 'reversal' && !item.reversedBy ? <button type="button" className="text-button" aria-label={historyLabel(loan, item, locale)} onClick={() => onCorrect(item.eventId)}>{localized(locale, 'Correct', 'تصحيح')}</button> : <span>{localized(locale, 'Reversed', 'معكوس')}</span>}</li>)}</ol>
+    <div className="ln-detail-hero">
+      <div className="ln-detail-hero-head">
+        <span className={`status status-${loan.status}`}>{localized(locale, loan.status[0]?.toUpperCase() + loan.status.slice(1), loan.status === 'settled' ? 'مسدّد' : loan.status === 'overdue' ? 'متأخر' : 'قائم')}</span>
+        <p className="ln-detail-direction">{localized(locale, loan.direction === 'they_owe_me' ? 'They owe me' : 'I owe them', loan.direction === 'they_owe_me' ? 'لديهم دين لي' : 'عليّ دين لهم')}</p>
+      </div>
+      <strong className="ln-detail-outstanding"><bdi>{formatMinorAmount(loan.outstandingMinor, loan.currency, locale)}</bdi><small>{localized(locale, 'remaining', 'متبقٍ')}</small></strong>
+    </div>
+    <dl className="ln-figures ln-figures--three"><div><dt>{localized(locale, 'Opening amount', 'المبلغ عند البدء')}</dt><dd><bdi>{formatMinorAmount(loan.originalPrincipalMinor, loan.currency, locale)}</bdi></dd></div><div><dt>{localized(locale, 'Total repaid', 'إجمالي المسدّد')}</dt><dd><bdi>{formatMinorAmount(loan.totalRepaidMinor, loan.currency, locale)}</bdi></dd></div><div><dt>{localized(locale, 'Due date', 'تاريخ الاستحقاق')}</dt><dd><bdi>{loan.dueDate ?? localized(locale, 'No due date', 'بدون تاريخ استحقاق')}</bdi></dd></div></dl>
+    {loan.direction === 'i_owe_them' ? <><PlanFigures loan={loan} locale={locale} /><button type="button" className="cr-button ln-target-action" onClick={onTarget}>{localized(locale, 'Change monthly target', 'تغيير هدف الشهر')}</button></> : null}
+    <div className="ln-section-heading"><h3>{localized(locale, 'Ledger history', 'سجل القيود')}</h3>{loan.status !== 'settled' ? <button type="button" className="cr-button cr-button--primary" onClick={onRepay}>{localized(locale, loan.direction === 'they_owe_me' ? 'Receive repayment' : 'Record repayment', loan.direction === 'they_owe_me' ? 'تسجيل دفعة مستلمة' : 'تسجيل دفعة')}</button> : null}</div>
+    <ol className="ln-history">{loan.history?.map((item) => <li key={item.eventId}><div className="ln-history-text"><strong><bdi>{visibleKindLabel(item.kind, locale)}</bdi></strong><span className="ln-history-meta"><bdi>{formatMinorAmount(item.principalDeltaMinor.replace('-', ''), loan.currency, locale)}</bdi> · <bdi>{item.effectiveDate}</bdi></span></div>{item.kind !== 'reversal' && !item.reversedBy ? <button type="button" className="text-button" aria-label={historyLabel(loan, item, locale)} onClick={() => onCorrect(item.eventId)}>{localized(locale, 'Correct', 'تصحيح')}</button> : <span className="ln-history-reversed">{localized(locale, 'Reversed', 'معكوس')}</span>}</li>)}</ol>
   </Modal>;
 }
 
@@ -171,24 +194,24 @@ export function RepaymentDialog({ loan, wallets, locale, onClose, onSave }: { lo
     } catch (cause) { setError(classifyLoanError(cause)); } finally { setBusy(false); }
   }
   return <Modal title={localized(locale, `${loan.direction === 'they_owe_me' ? 'Receive repayment from' : 'Record repayment to'} ${loan.personName}`, `${loan.direction === 'they_owe_me' ? 'تسجيل دفعة مستلمة من' : 'تسجيل دفعة إلى'} ${loan.personName}`)} locale={locale} onClose={onClose} wide>
-    <p className="dialog-intro">{localized(locale, 'This records actual wallet money and reduces the outstanding principal together.', 'يسجّل هذا حركة المال الفعلية ويخفّض أصل الدين القائم معًا.')}</p>
-    <form onSubmit={(event) => void submit(event)}><div className="form-grid">
-      <label>{localized(locale, 'Amount', 'المبلغ')}<input aria-label={localized(locale, 'Repayment amount', 'مبلغ الدفعة')} value={amount} onChange={(event) => setAmount(event.target.value)} required inputMode="decimal" /></label>
-      <label>{localized(locale, 'Wallet', 'المحفظة')}<select name="wallet" required>{matching.map((wallet) => <option value={wallet.id} key={wallet.id}>{wallet.name}</option>)}</select></label>
-      <label>{localized(locale, 'Payment date', 'تاريخ الدفعة')}<input name="effectiveDate" type="date" defaultValue={today()} required /></label>
-    </div><button type="button" className="text-button" onClick={() => setAmount(loan.currency === 'USD' ? (Number(loan.outstandingMinor) / 100).toFixed(2) : loan.outstandingMinor)}>{localized(locale, 'Use full remaining amount', 'استخدام كامل المبلغ المتبقي')}</button>
-    {error ? <ErrorNotice error={error} locale={locale} /> : null}<footer className="dialog-actions"><button type="button" className="button-secondary" onClick={onClose}>{localized(locale, 'Cancel', 'إلغاء')}</button><button type="submit" disabled={busy}>{busy ? localized(locale, 'Recording…', 'جارٍ التسجيل…') : `${localized(locale, action, loan.direction === 'they_owe_me' ? 'استلام' : 'دفع')} ${amount ? (() => { try { return formatMinorAmount(parseMinorAmount(amount, loan.currency), loan.currency, locale); } catch { return localized(locale, 'amount', 'المبلغ'); } })() : localized(locale, 'amount', 'المبلغ')}`}</button></footer></form>
+    <p className="ln-dialog-intro">{localized(locale, 'This records actual wallet money and reduces the outstanding principal together.', 'يسجّل هذا حركة المال الفعلية ويخفّض أصل الدين القائم معًا.')}</p>
+    <form className="ln-form" onSubmit={(event) => void submit(event)}><div className="ln-form-grid">
+      <label className="ln-field">{localized(locale, 'Amount', 'المبلغ')}<input aria-label={localized(locale, 'Repayment amount', 'مبلغ الدفعة')} placeholder={loan.currency === 'USD' ? '0.00' : '0'} value={amount} onChange={(event) => setAmount(event.target.value)} required inputMode="decimal" /></label>
+      <label className="ln-field">{localized(locale, 'Wallet', 'المحفظة')}<select name="wallet" required>{matching.map((wallet) => <option value={wallet.id} key={wallet.id}>{wallet.name}</option>)}</select></label>
+      <label className="ln-field">{localized(locale, 'Payment date', 'تاريخ الدفعة')}<input name="effectiveDate" type="date" defaultValue={today()} required /></label>
+    </div><button type="button" className="text-button ln-shortcut" onClick={() => setAmount(loan.currency === 'USD' ? (Number(loan.outstandingMinor) / 100).toFixed(2) : loan.outstandingMinor)}>{localized(locale, 'Use full remaining amount', 'استخدام كامل المبلغ المتبقي')}</button>
+    {error ? <ErrorNotice error={error} locale={locale} /> : null}<footer className="ln-actions"><button type="button" className="button-secondary" onClick={onClose}>{localized(locale, 'Cancel', 'إلغاء')}</button><button type="submit" className="cr-button cr-button--primary" disabled={busy}>{busy ? localized(locale, 'Recording…', 'جارٍ التسجيل…') : `${localized(locale, action, loan.direction === 'they_owe_me' ? 'استلام' : 'دفع')} ${amount ? (() => { try { return formatMinorAmount(parseMinorAmount(amount, loan.currency), loan.currency, locale); } catch { return localized(locale, 'amount', 'المبلغ'); } })() : localized(locale, 'amount', 'المبلغ')}`}</button></footer></form>
   </Modal>;
 }
 
 export function TargetDialog({ loan, month, locale, onClose, onSave }: { loan: Loan; month: string; locale: Locale; onClose: () => void; onSave: (input: { spaceId: string; loanId: string; month: string; targetMinor: string }) => Promise<void> }) {
   const [amount, setAmount] = useState(loan.currency === 'USD' ? (Number(loan.plan.targetMinor) / 100).toFixed(2) : loan.plan.targetMinor); const [busy, setBusy] = useState(false); const [error, setError] = useState<LoanErrorView | null>(null);
   async function submit(event: FormEvent) { event.preventDefault(); try { const targetMinor = amount.trim() === '0' ? '0' : parseMinorAmount(amount, loan.currency); if (BigInt(targetMinor) > BigInt(loan.outstandingMinor)) throw new Error('the monthly target cannot exceed outstanding principal'); setBusy(true); await onSave({ spaceId: loan.spaceId, loanId: loan.id, month, targetMinor }); onClose(); } catch (cause) { setError(classifyLoanError(cause)); } finally { setBusy(false); } }
-  return <Modal title={localized(locale, `Monthly target for ${loan.personName}`, `هدف الشهر لقرض ${loan.personName}`)} locale={locale} onClose={onClose}><form onSubmit={(event) => void submit(event)}><label>{localized(locale, 'Target amount', 'مبلغ الهدف')}<input value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" required /></label><p className="field-note">{localized(locale, 'Set 0 to clear this month’s target. A target reserves money in the plan; it does not pay the loan.', 'ضع صفرًا لمسح هدف هذا الشهر. الهدف يحجز المال في الخطة ولا يسدّد القرض.')}</p>{error ? <ErrorNotice error={error} locale={locale} /> : null}<footer className="dialog-actions"><button type="button" className="button-secondary" onClick={onClose}>{localized(locale, 'Cancel', 'إلغاء')}</button><button type="submit" disabled={busy}>{localized(locale, 'Save target', 'حفظ الهدف')}</button></footer></form></Modal>;
+  return <Modal title={localized(locale, `Monthly target for ${loan.personName}`, `هدف الشهر لقرض ${loan.personName}`)} locale={locale} onClose={onClose}><form className="ln-form" onSubmit={(event) => void submit(event)}><label className="ln-field">{localized(locale, 'Target amount', 'مبلغ الهدف')}<input value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" placeholder={loan.currency === 'USD' ? '0.00' : '0'} required /></label><p className="ln-field-hint">{localized(locale, 'Set 0 to clear this month’s target. A target reserves money in the plan; it does not pay the loan.', 'ضع صفرًا لمسح هدف هذا الشهر. الهدف يحجز المال في الخطة ولا يسدّد القرض.')}</p>{error ? <ErrorNotice error={error} locale={locale} /> : null}<footer className="ln-actions"><button type="button" className="button-secondary" onClick={onClose}>{localized(locale, 'Cancel', 'إلغاء')}</button><button type="submit" className="cr-button cr-button--primary" disabled={busy}>{localized(locale, 'Save target', 'حفظ الهدف')}</button></footer></form></Modal>;
 }
 
 export function CorrectionDialog({ loan, eventId, locale, onClose, onSave }: { loan: Loan; eventId: string; locale: Locale; onClose: () => void; onSave: (input: { spaceId: string; eventId: string; effectiveDate: string }) => Promise<void> }) {
   const [confirmed, setConfirmed] = useState(false); const [busy, setBusy] = useState(false); const [error, setError] = useState<LoanErrorView | null>(null);
   async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const data = new FormData(event.currentTarget); try { setBusy(true); setError(null); await onSave({ spaceId: loan.spaceId, eventId, effectiveDate: String(data.get('effectiveDate')) }); onClose(); } catch (cause) { setError(classifyLoanError(cause)); } finally { setBusy(false); } }
-  return <Modal title={localized(locale, 'Correct this ledger entry', 'تصحيح هذا القيد')} locale={locale} onClose={onClose}><p className="dialog-intro">{localized(locale, 'Posted history cannot be edited or deleted. This adds a linked reversal that restores both the wallet effect and the loan principal effect.', 'لا يمكن تعديل السجل المرحّل أو حذفه. يضيف هذا قيدًا عكسيًا مرتبطًا يعيد أثر المحفظة وأصل الدين معًا.')}</p><form onSubmit={(event) => void submit(event)}><label>{localized(locale, 'Correction date', 'تاريخ التصحيح')}<input name="effectiveDate" type="date" defaultValue={today()} required /></label><label className="confirm"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} /> {localized(locale, 'I understand this adds a reversal', 'أفهم أن هذا يضيف قيدًا عكسيًا')}</label>{error ? <ErrorNotice error={error} locale={locale} /> : null}<footer className="dialog-actions"><button type="button" className="button-secondary" onClick={onClose}>{localized(locale, 'Cancel', 'إلغاء')}</button><button type="submit" disabled={!confirmed || busy}>{localized(locale, 'Add reversal', 'إضافة القيد العكسي')}</button></footer></form></Modal>;
+  return <Modal title={localized(locale, 'Correct this ledger entry', 'تصحيح هذا القيد')} locale={locale} onClose={onClose}><p className="ln-dialog-intro">{localized(locale, 'Posted history cannot be edited or deleted. This adds a linked reversal that restores both the wallet effect and the loan principal effect.', 'لا يمكن تعديل السجل المرحّل أو حذفه. يضيف هذا قيدًا عكسيًا مرتبطًا يعيد أثر المحفظة وأصل الدين معًا.')}</p><form className="ln-form" onSubmit={(event) => void submit(event)}><label className="ln-field">{localized(locale, 'Correction date', 'تاريخ التصحيح')}<input name="effectiveDate" type="date" defaultValue={today()} required /></label><label className="ln-confirm"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} /> {localized(locale, 'I understand this adds a reversal', 'أفهم أن هذا يضيف قيدًا عكسيًا')}</label>{error ? <ErrorNotice error={error} locale={locale} /> : null}<footer className="ln-actions"><button type="button" className="button-secondary" onClick={onClose}>{localized(locale, 'Cancel', 'إلغاء')}</button><button type="submit" className="cr-button cr-button--primary" disabled={!confirmed || busy}>{localized(locale, 'Add reversal', 'إضافة القيد العكسي')}</button></footer></form></Modal>;
 }

@@ -6,6 +6,7 @@ import { CorrectionDialog, CreateLoanDialog, LoanDetailDialog, RepaymentDialog, 
 import { useLoans } from './use-loans.js';
 import type { Loan, LoansGateway, Locale, Space } from './types.js';
 import { LoansSkeleton } from '../control-room/skeletons.js';
+import './loans-workspace.css';
 
 interface LoansPageProps {
   gateway: LoansGateway;
@@ -38,26 +39,33 @@ export function LoansPage({ gateway, locale: controlledLocale, spaces: controlle
     document.documentElement.dir = locale === 'ar' ? 'rtl' : 'ltr';
   }, [locale]);
 
-  return <Root className={embedded ? 'loans-workspace' : 'app-shell'}>
-    <header className="topbar page-header loans-page-header">
-      <div>{embedded ? null : <span className="brand">Budget ledger</span>}<h1>{translate(locale, 'loans')}</h1><p>{translate(locale, 'subtitle')}</p></div>
-      {embedded ? null : <button type="button" className="locale-button" onClick={() => onLocaleChange ? onLocaleChange() : setInternalLocale(locale === 'en' ? 'ar' : 'en')}>{locale === 'en' ? translate(locale, 'arabic') : translate(locale, 'english')}</button>}
+  return <Root className="ln-root">
+    <header className="ln-header">
+      <div className="ln-heading">
+        {embedded ? null : <span className="brand">Budget ledger</span>}
+        <span className="section-kicker">{translate(locale, 'loansKicker')}</span>
+        <h1>{translate(locale, 'loans')}</h1>
+        <p className="ln-lede">{translate(locale, 'subtitle')}</p>
+      </div>
+      <div className="ln-header-actions">
+        {embedded ? null : <button type="button" className="button-secondary" onClick={() => onLocaleChange ? onLocaleChange() : setInternalLocale(locale === 'en' ? 'ar' : 'en')}>{locale === 'en' ? translate(locale, 'arabic') : translate(locale, 'english')}</button>}
+        <button type="button" className="cr-button cr-button--primary" onClick={() => setCreating(true)} disabled={!state.dashboard}>{translate(locale, 'addLoan')}</button>
+      </div>
     </header>
 
-    <section className="controls workspace-toolbar" aria-label="Loans controls">
-      {embedded ? null : <label>{translate(locale, 'space')}<select value={state.spaceId} onChange={(event) => onSpaceChange ? onSpaceChange(event.target.value) : state.setSpaceId(event.target.value)}>{spaces.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}</select></label>}
-      <label>{translate(locale, 'month')}<input type="month" value={state.month.slice(0, 7)} onChange={(event) => state.setMonth(event.target.value)} /></label>
-      <button type="button" className="page-header-action" onClick={() => setCreating(true)} disabled={!state.dashboard}>{translate(locale, 'addLoan')}</button>
-      {!embedded && state.dashboard ? <span className="space-kind">{translate(locale, state.dashboard.space.kind)}</span> : null}
+    <section className="ln-toolbar" aria-label="Loans controls">
+      {embedded ? null : <label className="ln-field">{translate(locale, 'space')}<select value={state.spaceId} onChange={(event) => onSpaceChange ? onSpaceChange(event.target.value) : state.setSpaceId(event.target.value)}>{spaces.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}</select></label>}
+      <label className="ln-field">{translate(locale, 'month')}<input type="month" value={state.month.slice(0, 7)} onChange={(event) => state.setMonth(event.target.value)} /></label>
+      {!embedded && state.dashboard ? <span className="ln-space-kind">{translate(locale, state.dashboard.space.kind)}</span> : null}
     </section>
 
     {state.loading && !state.dashboard ? <LoansSkeleton locale={locale} /> : null}
-    {state.error ? <div className="state-panel error-notice" role="alert"><strong>{state.error.title}</strong><p>{state.error.message}</p><p>{state.error.recovery}</p><button type="button" onClick={() => void state.retry()}>{translate(locale, 'tryAgain')}</button></div> : null}
+    {state.error ? <div className="error-notice ln-state-error" role="alert"><strong>{state.error.title}</strong><p>{state.error.message}</p><p>{state.error.recovery}</p><button type="button" onClick={() => void state.retry()}>{translate(locale, 'tryAgain')}</button></div> : null}
     {state.dashboard ? <>
       <LoanSummary summaries={state.dashboard.summaries} locale={locale} />
-      <div className="loan-columns">
-        <LoanList loans={state.dashboard.loans} direction="they_owe_me" locale={locale} onOpen={(loan) => setSelectedLoanId(loan.id)} />
-        <LoanList loans={state.dashboard.loans} direction="i_owe_them" locale={locale} onOpen={(loan) => setSelectedLoanId(loan.id)} />
+      <div className="loan-columns ln-registers">
+        <LoanList loans={state.dashboard.loans} direction="they_owe_me" locale={locale} onOpen={(loan) => setSelectedLoanId(loan.id)} onAddLoan={() => setCreating(true)} />
+        <LoanList loans={state.dashboard.loans} direction="i_owe_them" locale={locale} onOpen={(loan) => setSelectedLoanId(loan.id)} onAddLoan={() => setCreating(true)} />
       </div>
     </> : null}
 

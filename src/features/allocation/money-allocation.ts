@@ -1,3 +1,5 @@
+import type { Currency } from '../loans/types.js';
+
 export interface AllocationWeight {
   readonly id: string;
   readonly order: number;
@@ -23,6 +25,19 @@ export function basisPointsToPercentText(basisPoints: number): string {
   const whole = Math.trunc(basisPoints / 100);
   const fraction = (basisPoints % 100).toString().padStart(2, '0');
   return fraction === '00' ? String(whole) : `${whole}.${fraction}`;
+}
+
+/** Integer-minor amount in the major-unit text form an amount input accepts:
+ * LBP has no fraction; USD keeps exactly two fraction digits. Inverse of the
+ * major-text parsing in parseNonnegativeMajorAmount. */
+export function minorToMajorText(amountMinor: string, currency: Currency): string {
+  if (currency === 'LBP') return amountMinor;
+  const negative = amountMinor.startsWith('-');
+  const digits = negative ? amountMinor.slice(1) : amountMinor;
+  const padded = digits.padStart(3, '0');
+  const whole = padded.slice(0, -2).replace(/^0+(?=\d)/, '');
+  const fraction = padded.slice(-2);
+  return `${negative ? '-' : ''}${whole}.${fraction}`;
 }
 
 export function allocateIncome(

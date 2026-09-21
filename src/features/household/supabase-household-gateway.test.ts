@@ -123,6 +123,25 @@ describe('Supabase Household gateway', () => {
     await expect(gateway.listMembers(SPACE_ID, undefined, 101)).rejects.toThrow('between 1 and 100');
   });
 
+  it('surfaces a member email only when the projection row provides one', async () => {
+    const { client } = recordingClient({
+      list_household_members: [
+        { ...membershipRow, email: 'owner@example.test' },
+        { ...membershipRow, user_id: MEMBER_ID, role: 'member', is_self: false, email: null },
+      ],
+    });
+    const members = await createSupabaseHouseholdGateway(client).listMembers(SPACE_ID);
+    expect(members.map((entry) => entry.email)).toEqual(['owner@example.test', null]);
+  });
+
+  it('treats a missing or blank member email as null', async () => {
+    const { client } = recordingClient({
+      list_household_members: [membershipRow, { ...membershipRow, user_id: MEMBER_ID, role: 'member', is_self: false, email: '   ' }],
+    });
+    const members = await createSupabaseHouseholdGateway(client).listMembers(SPACE_ID);
+    expect(members.map((entry) => entry.email)).toEqual([null, null]);
+  });
+
   it('uses only approved mutation RPCs and discards invitation tokens', async () => {
     const { client, rpcCalls } = recordingClient();
     const gateway = createSupabaseHouseholdGateway(client);

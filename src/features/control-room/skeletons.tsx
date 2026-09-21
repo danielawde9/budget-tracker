@@ -102,29 +102,6 @@ export function PlanSkeleton({ locale }: { locale: Locale }) {
   );
 }
 
-/** Mirrors the wallets page: transaction history on one side, wallet balances on the other. */
-export function WalletsSkeleton({ locale }: { locale: Locale }) {
-  return (
-    <>
-      <SkeletonStatus locale={locale} text={t(locale, 'Loading this space’s wallets…', 'جارٍ تحميل محافظ هذه المساحة…')} label="Loading wallets" />
-      <div className="wallet-journal-layout">
-        <section className="journal data-list">
-          <SkeletonCard>
-            <Skeleton shape="line-short" />
-            <SkeletonRows count={6} />
-          </SkeletonCard>
-        </section>
-        <aside className="wallet-context">
-          <SkeletonCard>
-            <Skeleton shape="line-short" />
-            <SkeletonRows count={3} />
-          </SkeletonCard>
-        </aside>
-      </div>
-    </>
-  );
-}
-
 /** Mirrors the categories page: an income register and an expense register side by side. */
 export function CategoriesSkeleton({ locale }: { locale: Locale }) {
   return (

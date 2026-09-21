@@ -4,6 +4,7 @@ export type InvitationStatus = 'pending' | 'accepted' | 'cancelled' | 'expired';
 
 export interface HouseholdMembership {
   readonly userId: string;
+  readonly email: string | null;
   readonly role: MemberRole;
   readonly status: MembershipStatus;
   readonly createdAt: string;

@@ -57,6 +57,12 @@ function boolean(value: unknown, key: string): boolean {
   return value;
 }
 
+function optionalEmail(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+}
+
 function one(result: RpcResult, label: string): Row {
   if (result.error) throw result.error;
   if (!result.data || result.data.length !== 1) {
@@ -86,6 +92,7 @@ function member(row: Row, selfOverride?: boolean): HouseholdMembership {
   if (typeof status !== 'string' || !MEMBERSHIP_STATUSES.has(status as MembershipStatus)) throw new Error('The household row has invalid status.');
   return {
     userId: uuid(row.user_id, 'user_id'),
+    email: optionalEmail(row.email),
     role: role as MemberRole,
     status: status as MembershipStatus,
     createdAt: timestamp(row.created_at, 'created_at'),

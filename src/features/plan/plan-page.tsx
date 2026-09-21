@@ -123,7 +123,7 @@ function EditDialog(props: EditDialogProps) {
           <button type="button" className="cr-button" onClick={props.onCancel}>
             {t(locale, 'Cancel', 'إلغاء')}
           </button>
-          <button type="button" className="cr-button" disabled={props.pending || value.trim().length === 0} onClick={() => void save()}>
+          <button type="button" className="cr-button cr-button--primary" disabled={props.pending || value.trim().length === 0} onClick={() => void save()}>
             {t(locale, 'Save', 'حفظ')}
           </button>
         </div>

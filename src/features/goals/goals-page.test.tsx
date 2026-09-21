@@ -39,19 +39,19 @@ function fakeGoalsState(overrides: Partial<GoalsState> = {}): GoalsState {
 
 describe('GoalsPage', () => {
   it('shows a loading state', () => {
-    render(<GoalsPage locale="en" currency="USD" goals={fakeGoalsState({ status: 'loading', page: page([]) })} />);
+    render(<GoalsPage locale="en" currency="USD" plannedIncomeMinor={null} goals={fakeGoalsState({ status: 'loading', page: page([]) })} />);
     expect(screen.getByText('Loading…')).toBeInTheDocument();
   });
 
   it('lists active goals by default with their earmarked/covered figures', () => {
-    render(<GoalsPage locale="en" currency="USD" goals={fakeGoalsState()} />);
+    render(<GoalsPage locale="en" currency="USD" plannedIncomeMinor={null} goals={fakeGoalsState()} />);
     expect(screen.getByText('Emergency fund')).toBeInTheDocument();
     expect(screen.getByText(/Earmarked \$600\.00/)).toBeInTheDocument();
     expect(screen.getByText(/Covered \$300\.00/)).toBeInTheDocument();
   });
 
   it('shows an empty state distinct from loading when a filter has no matches', async () => {
-    render(<GoalsPage locale="en" currency="USD" goals={fakeGoalsState({ page: page([summary({ state: 'paused' })]) })} />);
+    render(<GoalsPage locale="en" currency="USD" plannedIncomeMinor={null} goals={fakeGoalsState({ page: page([summary({ state: 'paused' })]) })} />);
     expect(screen.getByText('No goals yet in this view.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('tab', { name: 'Paused' }));
     expect(screen.getByText('Emergency fund')).toBeInTheDocument();
@@ -61,27 +61,27 @@ describe('GoalsPage', () => {
     // U13-02: a wallet transfer has no goal command at all -- the fixture's
     // earmarkedMinor/coveredMinor are exactly what the row shows, proving
     // the UI never derives progress from anything but these DTO fields.
-    render(<GoalsPage locale="en" currency="USD" goals={fakeGoalsState({ page: page([summary({ earmarkedMinor: '60000', coveredMinor: '30000' })]) })} />);
+    render(<GoalsPage locale="en" currency="USD" plannedIncomeMinor={null} goals={fakeGoalsState({ page: page([summary({ earmarkedMinor: '60000', coveredMinor: '30000' })]) })} />);
     expect(screen.getByText(/Earmarked \$600\.00/)).toBeInTheDocument();
   });
 
   it('shows a retry action on error', async () => {
     const refresh = vi.fn();
-    render(<GoalsPage locale="en" currency="USD" goals={fakeGoalsState({ status: 'error', page: page([]), error: { code: 'unknown', message: 'boom', recovery: 'try again' } })} />);
+    render(<GoalsPage locale="en" currency="USD" plannedIncomeMinor={null} goals={fakeGoalsState({ status: 'error', page: page([]), error: { code: 'unknown', message: 'boom', recovery: 'try again' } })} />);
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     void refresh;
   });
 
   it('shows a refresh action after an accepted write whose follow-up read failed', async () => {
     const goals = fakeGoalsState({ status: 'accepted-refresh-pending' });
-    render(<GoalsPage locale="en" currency="USD" goals={goals} />);
+    render(<GoalsPage locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} />);
     await userEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     expect(goals.refresh).toHaveBeenCalledTimes(1);
   });
 
   it('shows check-again/dismiss actions while ambiguous', async () => {
     const goals = fakeGoalsState({ status: 'ambiguous', ambiguous: { kind: 'create', requestId: 'req-1' } });
-    render(<GoalsPage locale="en" currency="USD" goals={goals} />);
+    render(<GoalsPage locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} />);
     await userEvent.click(screen.getByRole('button', { name: 'Check again' }));
     expect(goals.retryAmbiguous).toHaveBeenCalledTimes(1);
     await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
@@ -90,17 +90,39 @@ describe('GoalsPage', () => {
 
   it('opens the create editor and creates a goal', async () => {
     const goals = fakeGoalsState({ create: vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { goalId: GOAL_ID, revisionId: '1' } }) });
-    render(<GoalsPage locale="en" currency="USD" goals={goals} />);
+    render(<GoalsPage locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} />);
     await userEvent.click(screen.getByRole('button', { name: 'New goal' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
     await userEvent.type(screen.getByRole('textbox', { name: 'Name (English)' }), 'Laptop');
     await userEvent.type(screen.getByRole('textbox', { name: 'Target amount' }), '1000');
+    for (let index = 0; index < 3; index += 1) {
+      await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    }
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(goals.create).toHaveBeenCalledTimes(1));
   });
 
+  it('forwards the planned income to the create editor’s planned-income source', async () => {
+    const create = vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { goalId: GOAL_ID, revisionId: '1' } });
+    const goals = fakeGoalsState({ create });
+    render(<GoalsPage locale="en" currency="USD" plannedIncomeMinor="150000" goals={goals} />);
+    await userEvent.click(screen.getByRole('button', { name: 'New goal' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name (English)' }), 'Laptop');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Target amount' }), '1000');
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Planned income' }));
+    for (let index = 0; index < 2; index += 1) {
+      await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    }
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    expect(create.mock.calls[0]![0].definition).toMatchObject({ contributionMode: 'manual_monthly', monthlyAmountMinor: '150000' });
+  });
+
   it('navigates to a goal\'s detail view and back to the list', async () => {
     const goals = fakeGoalsState();
-    render(<GoalsPage locale="en" currency="USD" goals={goals} />);
+    render(<GoalsPage locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} />);
     await userEvent.click(screen.getByRole('button', { name: 'View' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Back to goals' })).toBeInTheDocument());
     await userEvent.click(screen.getByRole('button', { name: 'Back to goals' }));

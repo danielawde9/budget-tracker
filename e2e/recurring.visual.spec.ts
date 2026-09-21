@@ -71,13 +71,21 @@ test('U16-03: creating a schedule never posts an occurrence by itself -- only th
   await section.getByRole('button', { name: 'New schedule' }).click();
 
   const form = page.getByRole('form', { name: 'Schedule details' });
-  await form.getByLabel('Name (English)').fill('Water');
+  // Step 1 (Type) defaults are what this schedule needs: expense, USD, active.
+  await form.getByRole('button', { name: 'Next' }).click();
+  // Step 2 (Amount).
   await form.getByLabel('Expected amount').fill('120');
+  await form.getByRole('button', { name: 'Next' }).click();
+  // Step 3 (Details).
+  await form.getByLabel('Name (English)').fill('Water');
   const startsOn = new Date().toISOString().slice(0, 10);
   await form.getByLabel('Starts on').fill(startsOn);
   await expectContainedControls(page, form);
   await page.screenshot({ path: screenshotPath(testInfo, `schedule-editor-${testInfo.project.name}.png`) });
-
+  await form.getByRole('button', { name: 'Next' }).click();
+  // Step 4 (References): every reference stays 'None'.
+  await form.getByRole('button', { name: 'Next' }).click();
+  // Step 5 (Review).
   await form.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('status')).toContainText('Saved');
   await page.getByRole('button', { name: 'Done' }).click();
@@ -99,7 +107,7 @@ test('the payment dialog records a payment against the reviewed occurrence', asy
 
   const dialog = page.getByRole('dialog', { name: 'Record payment' });
   await dialog.getByLabel('Actual amount').fill('300');
-  await dialog.getByLabel('Paying wallet id').fill('aaaa1111-0000-4000-8000-000000000001');
+  await dialog.getByLabel('Paying wallet').selectOption({ label: 'Daily USD · USD' });
   await expectContainedControls(page, dialog);
   await dialog.getByRole('button', { name: 'Save' }).click();
   await expect(dialog.getByRole('status')).toContainText('Saved');

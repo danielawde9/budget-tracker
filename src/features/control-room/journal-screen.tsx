@@ -31,6 +31,12 @@ function matchesFilter(event: JournalEvent, filter: KindFilter): boolean {
   return event.kind === filter;
 }
 
+function matchesDateRange(event: JournalEvent, fromDate: string, toDate: string): boolean {
+  if (fromDate !== '' && event.effectiveDate < fromDate) return false;
+  if (toDate !== '' && event.effectiveDate > toDate) return false;
+  return true;
+}
+
 export interface JournalSearchView {
   query: string;
   events: readonly JournalEvent[];
@@ -73,6 +79,8 @@ export interface JournalScreenProps {
 export function JournalScreen(props: JournalScreenProps) {
   const { locale, onSearchQueryChange } = props;
   const [kindFilter, setKindFilter] = useState<KindFilter>('all');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<JournalEvent | null>(null);
   const [reverseError, setReverseError] = useState<string | null>(null);
@@ -144,7 +152,15 @@ export function JournalScreen(props: JournalScreenProps) {
   const searchActive = trimmedQuery !== '';
   const searchView = props.search !== null && props.search.query === trimmedQuery ? props.search : null;
   const sourceEvents = searchActive ? searchView?.events ?? [] : props.events;
-  const visibleEvents = sourceEvents.filter((event) => matchesFilter(event, kindFilter));
+  const visibleEvents = sourceEvents.filter(
+    (event) => matchesFilter(event, kindFilter) && matchesDateRange(event, fromDate, toDate),
+  );
+  const filtersActive = kindFilter !== 'all' || fromDate !== '' || toDate !== '';
+  const clearFilters = () => {
+    setKindFilter('all');
+    setFromDate('');
+    setToDate('');
+  };
   const selectedReversible = selected !== null && selected.reversalOf === null && selected.reversedBy === null;
 
   return (
@@ -173,6 +189,29 @@ export function JournalScreen(props: JournalScreenProps) {
           onChange={(event) => setQuery(event.target.value)}
         />
       </label>
+      <div className="cr-journal-dates">
+        <label className="cr-field cr-journal-date">
+          <span className="cr-label">{t(locale, 'From date', 'من تاريخ')}</span>
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(event) => setFromDate(event.target.value)}
+          />
+        </label>
+        <label className="cr-field cr-journal-date">
+          <span className="cr-label">{t(locale, 'To date', 'إلى تاريخ')}</span>
+          <input
+            type="date"
+            value={toDate}
+            onChange={(event) => setToDate(event.target.value)}
+          />
+        </label>
+        {filtersActive ? (
+          <button type="button" className="cr-button cr-button--sm cr-journal-clear" onClick={clearFilters}>
+            {t(locale, 'Clear filters', 'مسح عوامل التصفية')}
+          </button>
+        ) : null}
+      </div>
       <div className="cr-toolbar">
         <div className="cr-chips" role="group" aria-label={t(locale, 'Filter by type', 'تصفية حسب النوع')}>
           {FILTER_CHIPS.map((chip) => (

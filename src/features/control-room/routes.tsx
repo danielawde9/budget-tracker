@@ -21,6 +21,7 @@ import type { RecurringGateway } from '../recurring/types.js';
 import { autoSettleExpense } from '../recurring/auto-settle.js';
 import { useRecurring } from '../recurring/use-recurring.js';
 import { UpcomingPage } from '../recurring/upcoming-page.js';
+import type { ScheduleReferenceOptions } from '../recurring/schedule-editor.js';
 import type { InsightsClient, CategoryBudgetRow } from '../insights/types.js';
 import type { Currency, Locale, SpaceKind } from '../loans/types.js';
 import type { LoansGateway } from '../loans/types.js';
@@ -320,6 +321,7 @@ interface PlanRoutesProps {
   loans: ReturnType<typeof useLoans>;
   month: string;
   expenseRootCategories: readonly CategoryOption[];
+  referenceOptions: Omit<ScheduleReferenceOptions, 'goals'>;
   onSpaceUnavailable?: (() => void) | undefined;
 }
 
@@ -331,18 +333,19 @@ function AllocationCurrencySection(props: {
   gateway: AllocationGateway;
   categories: readonly CategoryOption[];
   categoryTargets: ReadonlyMap<string, { amountMinor: string; revisionId: string | null }>;
+  plannedIncomeMinor: string | null;
   onSpaceUnavailable?: (() => void) | undefined;
 }) {
   const allocation = useAllocation(props.gateway, props.spaceId, props.month, props.currency, props.onSpaceUnavailable);
   return (
     <section className="cr-card" aria-label={`${props.locale === 'ar' ? 'التخصيص' : 'Allocation'} ${props.currency}`}>
-      <span className="cr-chip">{props.currency}</span>
       <AllocationSetup
         locale={props.locale}
         currency={props.currency}
         month={props.month}
         categories={props.categories}
         categoryTargets={props.categoryTargets}
+        monthlyPlanIncomeMinor={props.plannedIncomeMinor}
         allocation={allocation}
         gateway={props.gateway}
       />
@@ -355,6 +358,7 @@ function GoalsCurrencySection(props: {
   spaceId: string;
   currency: 'USD' | 'LBP';
   gateway: GoalsGateway;
+  plannedIncomeMinor: string | null;
   onSpaceUnavailable?: (() => void) | undefined;
 }) {
   // Filtering by state happens client-side inside GoalsPage over this one
@@ -363,8 +367,7 @@ function GoalsCurrencySection(props: {
   const goals = useGoals(props.gateway, props.spaceId, props.currency, 'all', props.onSpaceUnavailable);
   return (
     <section className="cr-card" aria-label={`${props.locale === 'ar' ? 'الأهداف' : 'Goals'} ${props.currency}`}>
-      <span className="cr-chip">{props.currency}</span>
-      <GoalsPage locale={props.locale} currency={props.currency} goals={goals} />
+      <GoalsPage locale={props.locale} currency={props.currency} goals={goals} plannedIncomeMinor={props.plannedIncomeMinor} />
     </section>
   );
 }
@@ -374,6 +377,9 @@ function UpcomingBillsSection(props: {
   spaceId: string;
   currency: Currency;
   gateway: RecurringGateway;
+  goalsGateway: GoalsGateway;
+  referenceOptions: Omit<ScheduleReferenceOptions, 'goals'>;
+  plannedIncomeByCurrency: Readonly<Record<Currency, string | null>>;
   onSpaceUnavailable?: (() => void) | undefined;
 }) {
   // A fixed 60-day-ahead window, re-derived every render off "today" rather
@@ -383,9 +389,25 @@ function UpcomingBillsSection(props: {
   const fromDate = todayIso();
   const toDate = addDaysIso(fromDate, 60);
   const recurring = useRecurring(props.gateway, props.spaceId, fromDate, toDate, props.onSpaceUnavailable);
+  // The schedule editor's "Funding goal" dropdown lists goals from both
+  // currencies, suffixed with the currency, since a schedule's own currency
+  // choice is independent of which goal it funds.
+  const goalsUsd = useGoals(props.goalsGateway, props.spaceId, 'USD', 'active', props.onSpaceUnavailable);
+  const goalsLbp = useGoals(props.goalsGateway, props.spaceId, 'LBP', 'active', props.onSpaceUnavailable);
+  const referenceOptions = useMemo<ScheduleReferenceOptions>(() => ({
+    ...props.referenceOptions,
+    goals: [...goalsUsd.page.rows, ...goalsLbp.page.rows].map((goal) => ({
+      id: goal.id,
+      nameEn: goal.nameEn ? `${goal.nameEn} (${goal.currency})` : goal.currency,
+      nameAr: goal.nameAr ? `${goal.nameAr} (${goal.currency})` : goal.currency,
+    })),
+  }), [props.referenceOptions, goalsUsd.page.rows, goalsLbp.page.rows]);
   return (
     <section className="cr-card" aria-label={props.locale === 'ar' ? 'الفواتير القادمة' : 'Upcoming bills'}>
-      <UpcomingPage locale={props.locale} recurring={recurring} fromDate={fromDate} toDate={toDate} />
+      <UpcomingPage locale={props.locale} recurring={recurring} fromDate={fromDate} toDate={toDate}
+        referenceOptions={referenceOptions}
+        plannedIncomeByCurrency={props.plannedIncomeByCurrency}
+        walletOptions={props.referenceOptions.wallets} />
     </section>
   );
 }
@@ -407,7 +429,6 @@ function CashControlSection(props: {
   const cashControl = useCashControl(props.gateway, props.spaceId, props.currency, todayIso(), 60, scenario, props.onSpaceUnavailable);
   return (
     <section className="cr-card" aria-label={`${props.locale === 'ar' ? 'المتاح بعد الالتزامات' : 'Available after commitments'} ${props.currency}`}>
-      <span className="cr-chip">{props.currency}</span>
       <CashControlSummary locale={props.locale} currency={props.currency} available={cashControl.available} variant="full" />
       {cashControl.available.status === 'ready' && cashControl.available.data.state === 'ready' && (
         <>
@@ -453,6 +474,18 @@ function PlanRoutes(props: PlanRoutesProps) {
     }
     return map;
   }, [plan.status, plan.categoryRows]);
+
+  // Latest planned-income revision per currency, feeding the schedule and
+  // goal editors' "Planned income" amount source.
+  const plannedIncomeByCurrency = useMemo<Record<Currency, string | null>>(() => {
+    const map: Record<Currency, string | null> = { USD: null, LBP: null };
+    if (plan.status === 'ready') {
+      for (const summary of plan.summaries) {
+        map[summary.currency] = summary.plannedIncomeMinor;
+      }
+    }
+    return map;
+  }, [plan.status, plan.summaries]);
 
   let planSection: ReactNode;
   if (plan.status === 'loading') {
@@ -527,6 +560,7 @@ function PlanRoutes(props: PlanRoutesProps) {
           gateway={gateways.allocation ?? unavailableAllocationGateway}
           categories={props.expenseRootCategories}
           categoryTargets={categoryTargetsByCurrency.get(currency) ?? new Map()}
+          plannedIncomeMinor={plannedIncomeByCurrency[currency]}
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
       )) : null}
@@ -537,6 +571,7 @@ function PlanRoutes(props: PlanRoutesProps) {
           spaceId={spaceId}
           currency={currency}
           gateway={gateways.goals ?? unavailableGoalsGateway}
+          plannedIncomeMinor={plannedIncomeByCurrency[currency]}
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
       )) : null}
@@ -556,6 +591,9 @@ function PlanRoutes(props: PlanRoutesProps) {
           spaceId={spaceId}
           currency={planCurrency}
           gateway={gateways.recurring ?? unavailableRecurringGateway}
+          goalsGateway={gateways.goals ?? unavailableGoalsGateway}
+          referenceOptions={props.referenceOptions}
+          plannedIncomeByCurrency={plannedIncomeByCurrency}
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
       ) : null}
@@ -606,6 +644,18 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
     .filter((category) => category.parentCategoryId === null && category.archivedAt === null)
     .map((category) => ({ id: category.id, nameEn: category.nameEn ?? '', nameAr: category.nameAr ?? '' })),
   [categories.expenseCategories]);
+
+  // Reference lists for the schedule/goal editors' dropdowns (they replace
+  // the old pasted-UUID fields).
+  const scheduleReferenceOptions = useMemo<Omit<ScheduleReferenceOptions, 'goals'>>(() => ({
+    wallets: wallets.wallets
+      .filter((wallet) => wallet.archivedAt === null)
+      .map((wallet) => ({ id: wallet.id, name: wallet.name, currency: wallet.currency })),
+    categories: [...categories.incomeCategories, ...categories.expenseCategories]
+      .filter((category) => category.archivedAt === null)
+      .map((category) => ({ id: category.id, nameEn: category.nameEn ?? '', nameAr: category.nameAr ?? '' })),
+    loans: loansOutstanding.map((loan) => ({ id: loan.loanId, name: loan.personName })),
+  }), [wallets.wallets, categories.incomeCategories, categories.expenseCategories, loansOutstanding]);
 
   const categoryTree = useMemo(() => {
     const all = [...categories.incomeCategories, ...categories.expenseCategories];
@@ -662,6 +712,7 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
           loans={loans}
           month={month}
           expenseRootCategories={expenseRootCategoryOptions}
+          referenceOptions={scheduleReferenceOptions}
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
       );

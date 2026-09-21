@@ -8,6 +8,7 @@ import type { RecurringState } from './use-recurring.js';
 const OCCURRENCE_ID = '00000000-0000-4000-8000-000000000401';
 const OTHER_ID = '00000000-0000-4000-8000-000000000402';
 const ASOF = '2026-09-14';
+const WALLET_OPTIONS = [{ id: '00000000-0000-4000-8000-000000000601', name: 'Daily USD', currency: 'USD' }];
 
 function row(overrides: Partial<ScheduledOccurrenceRow> = {}): ScheduledOccurrenceRow {
   return {
@@ -35,12 +36,12 @@ function fakeRecurringState(overrides: Partial<RecurringState> = {}): RecurringS
 describe('OccurrenceDetail', () => {
   it('shows a fallback with a way back when the occurrence is no longer in the visible page', () => {
     const onBack = vi.fn();
-    render(<OccurrenceDetail locale="en" recurring={fakeRecurringState({ page: page([row({ id: OTHER_ID })]) })} occurrenceId={OCCURRENCE_ID} onBack={onBack} />);
+    render(<OccurrenceDetail locale="en" recurring={fakeRecurringState({ page: page([row({ id: OTHER_ID })]) })} occurrenceId={OCCURRENCE_ID} walletOptions={WALLET_OPTIONS} onBack={onBack} />);
     expect(screen.getByRole('alert')).toHaveTextContent('This occurrence is no longer in the visible range.');
   });
 
   it('U16-01: shows expected/settled/remaining as distinct figures', () => {
-    render(<OccurrenceDetail locale="en" recurring={fakeRecurringState()} occurrenceId={OCCURRENCE_ID} onBack={vi.fn()} />);
+    render(<OccurrenceDetail locale="en" recurring={fakeRecurringState()} occurrenceId={OCCURRENCE_ID} walletOptions={WALLET_OPTIONS} onBack={vi.fn()} />);
     expect(screen.getByText('$500.00')).toBeInTheDocument(); // expected
     expect(screen.getByText('$200.00')).toBeInTheDocument(); // settled
     expect(screen.getByText('$300.00')).toBeInTheDocument(); // remaining
@@ -50,7 +51,7 @@ describe('OccurrenceDetail', () => {
   it('shows an over-100% settlement with the exact numeric overage, from the raw BigInt values, not the clamped bar', () => {
     render(<OccurrenceDetail locale="en"
       recurring={fakeRecurringState({ page: page([row({ expectedMinor: '10000', settledMinor: '15000', remainingMinor: '0', state: 'settled' })]) })}
-      occurrenceId={OCCURRENCE_ID} onBack={vi.fn()} />);
+      occurrenceId={OCCURRENCE_ID} walletOptions={WALLET_OPTIONS} onBack={vi.fn()} />);
     expect(screen.getByText('$50.00').closest('.rec-overage-text')).toHaveTextContent('+$50.00 over expected');
   });
 
@@ -59,7 +60,7 @@ describe('OccurrenceDetail', () => {
       page: page([row({ state: 'pending', settledMinor: '0', remainingMinor: '50000', currentEventId: '7' })]),
       setOccurrenceState: vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { occurrenceId: OCCURRENCE_ID, eventId: '8' } }),
     });
-    render(<OccurrenceDetail locale="en" recurring={recurring} occurrenceId={OCCURRENCE_ID} onBack={vi.fn()} />);
+    render(<OccurrenceDetail locale="en" recurring={recurring} occurrenceId={OCCURRENCE_ID} walletOptions={WALLET_OPTIONS} onBack={vi.fn()} />);
     await userEvent.click(screen.getByRole('button', { name: 'Skip' }));
     await waitFor(() => expect(recurring.setOccurrenceState).toHaveBeenCalledWith({ occurrenceId: OCCURRENCE_ID, expectedEventId: '7', action: 'skip' }));
   });
@@ -69,7 +70,7 @@ describe('OccurrenceDetail', () => {
       page: page([row({ state: 'skipped', settledMinor: '0', remainingMinor: '50000' })]),
       setOccurrenceState: vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { occurrenceId: OCCURRENCE_ID, eventId: '8' } }),
     });
-    render(<OccurrenceDetail locale="en" recurring={recurring} occurrenceId={OCCURRENCE_ID} onBack={vi.fn()} />);
+    render(<OccurrenceDetail locale="en" recurring={recurring} occurrenceId={OCCURRENCE_ID} walletOptions={WALLET_OPTIONS} onBack={vi.fn()} />);
     expect(screen.queryByRole('button', { name: 'Skip' })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Reopen' }));
     await waitFor(() => expect(recurring.setOccurrenceState).toHaveBeenCalledWith(expect.objectContaining({ action: 'reopen' })));
@@ -78,12 +79,12 @@ describe('OccurrenceDetail', () => {
   it('hides Review payment once nothing remains (fully settled)', () => {
     render(<OccurrenceDetail locale="en"
       recurring={fakeRecurringState({ page: page([row({ state: 'settled', settledMinor: '50000', remainingMinor: '0' })]) })}
-      occurrenceId={OCCURRENCE_ID} onBack={vi.fn()} />);
+      occurrenceId={OCCURRENCE_ID} walletOptions={WALLET_OPTIONS} onBack={vi.fn()} />);
     expect(screen.queryByRole('button', { name: 'Review payment' })).not.toBeInTheDocument();
   });
 
   it('opens the payment dialog in Record mode for a plain expense occurrence', async () => {
-    render(<OccurrenceDetail locale="en" recurring={fakeRecurringState()} occurrenceId={OCCURRENCE_ID} onBack={vi.fn()} />);
+    render(<OccurrenceDetail locale="en" recurring={fakeRecurringState()} occurrenceId={OCCURRENCE_ID} walletOptions={WALLET_OPTIONS} onBack={vi.fn()} />);
     await userEvent.click(screen.getByRole('button', { name: 'Review payment' }));
     expect(screen.getByRole('radio', { name: 'Record payment' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Record payment' })).toBeChecked();
@@ -92,7 +93,7 @@ describe('OccurrenceDetail', () => {
   it('never offers Record payment for a debt_payment occurrence -- only Link an existing transaction, directing to the loan flow', async () => {
     render(<OccurrenceDetail locale="en"
       recurring={fakeRecurringState({ page: page([row({ kind: 'debt_payment', loanId: '00000000-0000-4000-8000-000000000901' })]) })}
-      occurrenceId={OCCURRENCE_ID} onBack={vi.fn()} />);
+      occurrenceId={OCCURRENCE_ID} walletOptions={WALLET_OPTIONS} onBack={vi.fn()} />);
     await userEvent.click(screen.getByRole('button', { name: 'Review payment' }));
     expect(screen.queryByRole('radio', { name: 'Record payment' })).not.toBeInTheDocument();
     expect(screen.getByText(/record the repayment itself from the loan.s own repayment flow/i)).toBeInTheDocument();
@@ -110,10 +111,10 @@ describe('OccurrenceDetail', () => {
       confirm: vi.fn().mockRejectedValue(new Error('network timeout')),
       retryAmbiguous: vi.fn().mockResolvedValue({ status: 'success', reconciled: true, result: { occurrenceId: OCCURRENCE_ID, occurrenceEventId: '9', financialEventId: 'f1' } }),
     });
-    render(<OccurrenceDetail locale="en" recurring={recurring} occurrenceId={OCCURRENCE_ID} onBack={vi.fn()} />);
+    render(<OccurrenceDetail locale="en" recurring={recurring} occurrenceId={OCCURRENCE_ID} walletOptions={WALLET_OPTIONS} onBack={vi.fn()} />);
     await userEvent.click(screen.getByRole('button', { name: 'Review payment' }));
     await userEvent.type(screen.getByRole('textbox', { name: 'Actual amount' }), '300');
-    await userEvent.type(screen.getByRole('textbox', { name: 'Paying wallet id' }), '00000000-0000-4000-8000-000000000601');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Paying wallet' }), '00000000-0000-4000-8000-000000000601');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     const retryButton = await screen.findByRole('button', { name: 'Retry unchanged request' });
     expect(recurring.confirm).toHaveBeenCalledTimes(1);
@@ -126,7 +127,7 @@ describe('OccurrenceDetail', () => {
 
   it('U16-05: reversing part of a linked payment reopens the remaining amount -- the view reflects whatever the page now returns, with no cached figure of its own', () => {
     const settled = fakeRecurringState({ page: page([row({ state: 'settled', settledMinor: '50000', remainingMinor: '0' })]) });
-    const { rerender } = render(<OccurrenceDetail locale="en" recurring={settled} occurrenceId={OCCURRENCE_ID} onBack={vi.fn()} />);
+    const { rerender } = render(<OccurrenceDetail locale="en" recurring={settled} occurrenceId={OCCURRENCE_ID} walletOptions={WALLET_OPTIONS} onBack={vi.fn()} />);
     expect(screen.getByText('Paid')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Review payment' })).not.toBeInTheDocument();
 
@@ -135,7 +136,7 @@ describe('OccurrenceDetail', () => {
     // this is the "remaining" cell specifically, not a coincidental match
     // against "expected".
     const reopened = fakeRecurringState({ page: page([row({ state: 'partial', settledMinor: '30000', remainingMinor: '20000' })]) });
-    rerender(<OccurrenceDetail locale="en" recurring={reopened} occurrenceId={OCCURRENCE_ID} onBack={vi.fn()} />);
+    rerender(<OccurrenceDetail locale="en" recurring={reopened} occurrenceId={OCCURRENCE_ID} walletOptions={WALLET_OPTIONS} onBack={vi.fn()} />);
     expect(screen.getByText('Partially paid')).toBeInTheDocument();
     expect(screen.getByText('$300.00')).toBeInTheDocument(); // settled, down from 500
     expect(screen.getByText('$200.00')).toBeInTheDocument(); // remaining, reopened from 0
@@ -144,7 +145,7 @@ describe('OccurrenceDetail', () => {
 
   it('calls onBack', async () => {
     const onBack = vi.fn();
-    render(<OccurrenceDetail locale="en" recurring={fakeRecurringState()} occurrenceId={OCCURRENCE_ID} onBack={onBack} />);
+    render(<OccurrenceDetail locale="en" recurring={fakeRecurringState()} occurrenceId={OCCURRENCE_ID} walletOptions={WALLET_OPTIONS} onBack={onBack} />);
     await userEvent.click(screen.getByRole('button', { name: 'Back to upcoming bills' }));
     expect(onBack).toHaveBeenCalledTimes(1);
   });
