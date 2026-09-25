@@ -25,6 +25,12 @@ function noticeBody(outcome: Exclude<AutoSettleOutcome, { status: 'none' }>, loc
       return t(locale,
         `Couldn't mark the bill as paid: ${outcome.message}`,
         `تعذر تعليم الفاتورة كمدفوعة: ${outcome.message}`);
+    case 'partial': {
+      const name = locale === 'ar' ? (outcome.nameAr ?? outcome.nameEn) : (outcome.nameEn ?? outcome.nameAr);
+      return locale === 'ar'
+        ? <>تم تعليم «<bdi>{name}</bdi>» كمدفوعة، لكن تعذّر ربط باقي هذه الدفعة: {outcome.message}</>
+        : <>Marked "<bdi>{name}</bdi>" as paid, but the rest of this repayment couldn't be linked: {outcome.message}</>;
+    }
   }
 }
 

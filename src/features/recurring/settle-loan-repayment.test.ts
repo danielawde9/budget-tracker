@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Currency } from '../loans/types.js';
-import type { LinkExistingInput, RecurringGateway, ScheduledOccurrenceRow } from './types.js';
+import type { LinkExistingInput, LinkExistingResult, RecurringGateway, ScheduledOccurrenceRow } from './types.js';
 import { settleLoanRepayment, type RecordedRepayment } from './settle-loan-repayment.js';
 
 function occurrence(overrides: Partial<ScheduledOccurrenceRow> = {}): ScheduledOccurrenceRow {
@@ -99,5 +99,22 @@ describe('settleLoanRepayment', () => {
     } as unknown as RecurringGateway;
     await expect(settleLoanRepayment(gateway, 'space-1', repayment()))
       .resolves.toEqual({ status: 'failed', message: 'a payment cannot be linked before its effective date has occurred' });
+  });
+
+  it('reports a partial settlement when a later link fails after an earlier one already succeeded', async () => {
+    const sep = occurrence({ id: 'occ-sep', dueDate: '2026-09-01' });
+    const oct = occurrence({ id: 'occ-oct', dueDate: '2026-10-01' });
+    const link = vi.fn(async (_input: LinkExistingInput): Promise<LinkExistingResult> => ({
+      occurrenceId: 'occ-1', occurrenceEventId: 'oe-1', financialEventId: 'event-9',
+    }));
+    link.mockResolvedValueOnce({ occurrenceId: 'occ-sep', occurrenceEventId: 'oe-1', financialEventId: 'event-9' });
+    link.mockRejectedValueOnce(new Error('a payment cannot be linked before its effective date has occurred'));
+    const { gateway } = fakeGateway([oct, sep], link);
+    const outcome = await settleLoanRepayment(gateway, 'space-1', repayment({ amountMinor: '100000', effectiveDate: '2026-10-05' }));
+    expect(outcome).toEqual({
+      status: 'partial', occurrenceId: 'occ-sep', nameEn: 'Karim', nameAr: null,
+      linkedCount: 1, message: 'a payment cannot be linked before its effective date has occurred',
+    });
+    expect(link).toHaveBeenCalledTimes(2);
   });
 });

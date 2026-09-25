@@ -1,4 +1,5 @@
 import type { Currency } from '../loans/types.js';
+import { shiftDateIso } from './occurrence-window.js';
 import type { RecurringGateway, ScheduledOccurrenceRow } from './types.js';
 
 export interface RecordedEventForMatching {
@@ -19,18 +20,24 @@ export type AutoSettleOutcome =
   | { readonly status: 'settled'; readonly occurrenceId: string; readonly nameEn: string | null; readonly nameAr: string | null }
   | { readonly status: 'none' }
   | { readonly status: 'ambiguous'; readonly scheduleCount: number }
-  | { readonly status: 'failed'; readonly message: string };
+  | { readonly status: 'failed'; readonly message: string }
+  // Only a multi-link settlement (settleLoanRepayment) produces this: at
+  // least one instalment was linked before a later link failed, so the
+  // caller must not discard the links that already succeeded by reporting a
+  // bare `failed`.
+  | {
+      readonly status: 'partial';
+      readonly occurrenceId: string;
+      readonly nameEn: string | null;
+      readonly nameAr: string | null;
+      readonly linkedCount: number;
+      readonly message: string;
+    };
 
 const MATCH_WINDOW_DAYS = 31;
 
 function daysBetween(left: string, right: string): number {
   return Math.round((Date.parse(right) - Date.parse(left)) / 86_400_000);
-}
-
-function shiftDate(date: string, days: number): string {
-  const shifted = new Date(`${date}T00:00:00Z`);
-  shifted.setUTCDate(shifted.getUTCDate() + days);
-  return shifted.toISOString().slice(0, 10);
 }
 
 function categoriesMatch(bill: string | null, entry: string | null, parentOf: (id: string) => string | null): boolean {
@@ -77,8 +84,8 @@ export async function autoSettleRecordedEvent(
   try {
     const page = await gateway.loadOccurrences({
       spaceId,
-      fromDate: shiftDate(recorded.effectiveDate, -MATCH_WINDOW_DAYS),
-      toDate: shiftDate(recorded.effectiveDate, MATCH_WINDOW_DAYS),
+      fromDate: shiftDateIso(recorded.effectiveDate, -MATCH_WINDOW_DAYS),
+      toDate: shiftDateIso(recorded.effectiveDate, MATCH_WINDOW_DAYS),
       afterDueDate: null,
       afterId: null,
       limit: 100,

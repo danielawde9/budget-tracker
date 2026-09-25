@@ -1,5 +1,6 @@
 import type { Currency } from '../loans/types.js';
 import type { AutoSettleOutcome } from './auto-settle.js';
+import { shiftDateIso } from './occurrence-window.js';
 import type { RecurringGateway, ScheduledOccurrenceRow } from './types.js';
 
 export interface RecordedRepayment {
@@ -14,24 +15,24 @@ const LOOK_BACK_DAYS = 59;
 const LOOK_AHEAD_DAYS = 30; // 89 days: within scheduled_occurrence_page's 90-day limit
 const MAX_LINKS = 12;
 
-function shiftDate(date: string, days: number): string {
-  const shifted = new Date(`${date}T00:00:00Z`);
-  shifted.setUTCDate(shifted.getUTCDate() + days);
-  return shifted.toISOString().slice(0, 10);
-}
-
 /** Links a loan repayment to that loan's unpaid instalments, oldest first,
- * up to the repayment amount (at most 12 links). */
+ * up to the repayment amount (at most 12 links). `first`/`linkedCount` are
+ * tracked outside the try block so that if a link fails after an earlier one
+ * already succeeded, the catch can report `partial` (with what was already
+ * linked) instead of discarding that progress behind a bare `failed`. Only a
+ * failure before any link succeeds is reported as `failed`. */
 export async function settleLoanRepayment(
   gateway: RecurringGateway,
   spaceId: string,
   repayment: RecordedRepayment,
 ): Promise<AutoSettleOutcome> {
+  let first: ScheduledOccurrenceRow | null = null;
+  let linkedCount = 0;
   try {
     const page = await gateway.loadOccurrences({
       spaceId,
-      fromDate: shiftDate(repayment.effectiveDate, -LOOK_BACK_DAYS),
-      toDate: shiftDate(repayment.effectiveDate, LOOK_AHEAD_DAYS),
+      fromDate: shiftDateIso(repayment.effectiveDate, -LOOK_BACK_DAYS),
+      toDate: shiftDateIso(repayment.effectiveDate, LOOK_AHEAD_DAYS),
       afterDueDate: null,
       afterId: null,
       limit: 100,
@@ -41,7 +42,6 @@ export async function settleLoanRepayment(
         && row.currency === repayment.currency && (row.state === 'pending' || row.state === 'partial'))
       .sort((left, right) => (left.dueDate === right.dueDate ? left.id.localeCompare(right.id) : left.dueDate.localeCompare(right.dueDate)));
     let left = BigInt(repayment.amountMinor);
-    let first: ScheduledOccurrenceRow | null = null;
     for (const row of instalments.slice(0, MAX_LINKS)) {
       if (left <= 0n) break;
       const remaining = BigInt(row.remainingMinor);
@@ -56,10 +56,15 @@ export async function settleLoanRepayment(
         expectedEventId: row.currentEventId,
       });
       first ??= row;
+      linkedCount += 1;
       left -= amount;
     }
     return first ? { status: 'settled', occurrenceId: first.id, nameEn: first.nameEn, nameAr: first.nameAr } : { status: 'none' };
   } catch (cause) {
-    return { status: 'failed', message: cause instanceof Error ? cause.message : String(cause) };
+    const message = cause instanceof Error ? cause.message : String(cause);
+    if (first && linkedCount > 0) {
+      return { status: 'partial', occurrenceId: first.id, nameEn: first.nameEn, nameAr: first.nameAr, linkedCount, message };
+    }
+    return { status: 'failed', message };
   }
 }
