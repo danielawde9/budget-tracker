@@ -406,3 +406,21 @@ describe('ControlRoomRoutes plan save failure and retry', () => {
     });
   });
 });
+
+describe('ControlRoomRoutes journal undo', () => {
+  it('reverses an entry on its own date, never on today', async () => {
+    const user = userEvent.setup();
+    const walletsGateway = new InMemoryWalletsGateway();
+    walletsGateway.events = [{
+      id: 'evt-old', spaceId: 'personal-space', requestId: 'req-old', kind: 'expense',
+      effectiveDate: '2026-08-15', createdAt: '2026-08-15T09:00:00Z', reversalOf: null, reversedBy: null,
+      loanLinked: false, payeeName: 'Market',
+      movements: [{ walletId: walletsGateway.wallets[0]!.id, walletName: 'Cash', currency: 'USD', amountMinor: '-2500', walletArchived: false }],
+    }];
+    const reverse = vi.spyOn(walletsGateway, 'reverseEvent');
+    renderHome(gateways({ wallets: walletsGateway }), { destination: 'journal' });
+    await user.click(await screen.findByRole('button', { name: /Market/ }));
+    await user.click(screen.getByRole('button', { name: 'Reverse' }));
+    await waitFor(() => expect(reverse).toHaveBeenCalledWith(expect.objectContaining({ eventId: 'evt-old', effectiveDate: '2026-08-15' })));
+  });
+});

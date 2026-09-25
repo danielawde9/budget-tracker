@@ -300,7 +300,7 @@ function JournalRoutes(props: JournalRoutesProps) {
         nextCursor={wallets.nextCursor}
         loadingMore={wallets.loadingMore}
         onLoadMore={() => void wallets.loadMore()}
-        onReverse={(id) => wallets.reverseEvent({ eventId: id, effectiveDate: todayIso() })}
+        onReverse={(id, effectiveDate) => wallets.reverseEvent({ eventId: id, effectiveDate })}
         reversePending={wallets.pending}
         search={wallets.journalSearch}
         onSearchQueryChange={wallets.searchJournal}
