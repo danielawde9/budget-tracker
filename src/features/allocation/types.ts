@@ -114,6 +114,20 @@ export interface LoadTrendInput {
   readonly monthCount: number;
 }
 
+export interface LoadTemplateHeadInput {
+  readonly spaceId: string;
+  readonly currency: Currency;
+}
+
+/** The space's current template revision for this currency (`null` before any
+ * template has ever been saved) -- the concurrency head `saveTemplate` must be
+ * checked against, independent of any particular month's snapshot (audit B1:
+ * a new month's snapshot always starts with a null `templateRevisionId`, which
+ * is never the same thing as "no template exists yet"). */
+export interface TemplateHeadResult {
+  readonly templateRevisionId: string | null;
+}
+
 /** Template group input. `basisPoints` is already-parsed integer bps (56.25% -> 5625);
  * the UI is responsible for the at-most-two-decimal-digit percent conversion. */
 export interface AllocationTemplateGroupInput {
@@ -202,6 +216,7 @@ export interface AllocationGateway {
   loadCategoryPage(input: LoadCategoryPageInput, signal?: AbortSignal): Promise<AllocationCategoryPage>;
   loadHistoryPage(input: LoadHistoryPageInput, signal?: AbortSignal): Promise<AllocationHistoryPage>;
   loadTrend(input: LoadTrendInput, signal?: AbortSignal): Promise<AllocationTrend>;
+  loadTemplateHead(input: LoadTemplateHeadInput, signal?: AbortSignal): Promise<TemplateHeadResult>;
   saveTemplate(input: SaveTemplateInput): Promise<SaveTemplateResult>;
   publishMonth(input: PublishMonthInput): Promise<PublishMonthResult>;
   publishMonthV2(input: PublishMonthV2Input): Promise<PublishMonthResult>;

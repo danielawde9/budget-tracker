@@ -303,7 +303,7 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
   let nextAllocationSnapshotId = 100;
   let nextAllocationIncomeRevisionId = 100;
   let lastSavedGroups: readonly { id: string; purpose: 'spending' | 'future'; nameEn: string | null; nameAr: string | null; order: number; basisPoints: number }[] = [];
-  let lastSavedTemplateRevisionId = '0';
+  let lastSavedTemplateRevisionId: string | null = null;
   const allocationReceipts = new Map<string, { command: string; sequenceId: string; result: unknown }>();
   const goals: Record<string, unknown>[] = cloneRows(options.seedGoals ?? []);
   let nextGoalRevisionId = 100;
@@ -588,6 +588,9 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
     }
     if (path.endsWith('/rpc/allocation_trend')) {
       return json(route, options.allocationTrend ?? { months: [] });
+    }
+    if (path.endsWith('/rpc/allocation_template_head')) {
+      return json(route, { templateRevisionId: lastSavedTemplateRevisionId });
     }
     if (path.endsWith('/rpc/save_allocation_template')) {
       const body = request.postDataJSON() as {

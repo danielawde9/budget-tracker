@@ -266,6 +266,31 @@ describe('createSupabaseAllocationGateway: loadTrend', () => {
   });
 });
 
+describe('createSupabaseAllocationGateway: loadTemplateHead', () => {
+  it('maps input fields and parses a numeric current template revision', async () => {
+    const { client, calls } = fakeClient(() => ({ data: { templateRevisionId: '9' }, error: null }));
+    const gateway = createSupabaseAllocationGateway(client);
+    const result = await gateway.loadTemplateHead({ spaceId: 'space-1', currency: 'USD' });
+    expect(calls[0]).toMatchObject({ name: 'allocation_template_head', args: { p_space_id: 'space-1', p_currency: 'USD' } });
+    expect(result).toEqual({ templateRevisionId: '9' });
+  });
+
+  it('parses a null template revision before any template has ever been saved', async () => {
+    const { client } = fakeClient(() => ({ data: { templateRevisionId: null }, error: null }));
+    const gateway = createSupabaseAllocationGateway(client);
+    const result = await gateway.loadTemplateHead({ spaceId: 'space-1', currency: 'USD' });
+    expect(result).toEqual({ templateRevisionId: null });
+  });
+
+  it('forwards the caller AbortSignal into the transport', async () => {
+    const { client, calls } = fakeClient(() => ({ data: { templateRevisionId: null }, error: null }));
+    const gateway = createSupabaseAllocationGateway(client);
+    const controller = new AbortController();
+    await gateway.loadTemplateHead({ spaceId: 'space-1', currency: 'USD' }, controller.signal);
+    expect(calls[0]!.signal).toBeInstanceOf(AbortSignal);
+  });
+});
+
 describe('createSupabaseAllocationGateway: saveTemplate', () => {
   it('maps groups/root mappings and the expected revision id, and parses the result', async () => {
     const { client, calls } = fakeClient(() => ({ data: { templateRevisionId: '9' }, error: null }));

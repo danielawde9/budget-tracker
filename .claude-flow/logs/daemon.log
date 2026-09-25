@@ -5269,3 +5269,45 @@
 [2026-09-25T18:19:24.470Z] [INFO] Starting worker: audit (1/2 concurrent)
 [2026-09-25T18:19:24.470Z] [INFO] Worker audit completed in 11ms
 [2026-09-25T18:22:24.402Z] [INFO] Worker map deferred: CPU load too high: 15.64
+[2026-09-25T18:25:24.279Z] [INFO] Starting worker: testgaps (1/2 concurrent)
+[2026-09-25T18:25:24.284Z] [INFO] Worker testgaps completed in 19ms
+[2026-09-25T18:25:24.301Z] [INFO] Starting worker: map (1/2 concurrent)
+[2026-09-25T18:25:24.302Z] [INFO] Worker map completed in 8ms
+[2026-09-25T18:26:24.419Z] [INFO] Starting worker: optimize (1/2 concurrent)
+[2026-09-25T18:26:24.419Z] [INFO] Worker optimize completed in 15ms
+[2026-09-25T18:29:24.477Z] [INFO] Starting worker: audit (1/2 concurrent)
+[2026-09-25T18:29:24.478Z] [INFO] Worker audit completed in 9ms
+[2026-09-25T18:37:24.390Z] [INFO] Worker map deferred: Memory too low: 0.6% free
+[2026-09-25T18:39:24.484Z] [INFO] Worker audit deferred: Memory too low: 2.3% free
+[2026-09-25T18:41:24.431Z] [INFO] Starting worker: optimize (1/2 concurrent)
+[2026-09-25T18:41:24.432Z] [INFO] Worker optimize completed in 13ms
+[2026-09-25T18:41:24.451Z] [INFO] Starting worker: map (1/2 concurrent)
+[2026-09-25T18:41:24.451Z] [INFO] Worker map completed in 10ms
+[2026-09-25T18:41:24.469Z] [INFO] Starting worker: audit (1/2 concurrent)
+[2026-09-25T18:41:24.469Z] [INFO] Worker audit completed in 9ms
+[2026-09-25T18:43:24.312Z] [INFO] Starting worker: consolidate (1/2 concurrent)
+[2026-09-25T18:43:24.313Z] [INFO] Consolidate worker: distillation skipped (error: Could not locate the bindings file. Tried:
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/Debug/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/Release/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/out/Debug/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/Debug/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/out/Release/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/Release/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/default/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/compiled/26.8.2/darwin/arm64/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/addon-build/release/install-root/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/addon-build/debug/install-root/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/addon-build/default/install-root/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/lib/binding/node-v147-darwin-arm64/better_sqlite3.node)
+[2026-09-25T18:43:24.314Z] [INFO] Worker consolidate completed in 13ms
+[2026-09-25T18:45:24.354Z] [INFO] Starting worker: testgaps (1/2 concurrent)
+[2026-09-25T18:45:24.356Z] [INFO] Worker testgaps completed in 13ms
+[2026-09-25T18:49:24.564Z] [INFO] Starting worker: audit (1/2 concurrent)
+[2026-09-25T18:49:24.565Z] [INFO] Worker audit completed in 14ms
+[2026-09-25T18:52:24.468Z] [INFO] Starting worker: map (1/2 concurrent)
+[2026-09-25T18:52:24.468Z] [INFO] Worker map completed in 13ms
+[2026-09-25T18:56:24.520Z] [INFO] Starting worker: optimize (1/2 concurrent)
+[2026-09-25T18:56:24.521Z] [INFO] Worker optimize completed in 13ms
+[2026-09-25T18:59:24.595Z] [INFO] Starting worker: audit (1/2 concurrent)
+[2026-09-25T18:59:24.596Z] [INFO] Worker audit completed in 13ms

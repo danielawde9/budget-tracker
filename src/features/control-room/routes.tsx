@@ -75,6 +75,7 @@ const unavailableAllocationGateway: AllocationGateway = {
   async loadCategoryPage() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
   async loadHistoryPage() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
   async loadTrend() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
+  async loadTemplateHead() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
   async saveTemplate() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
   async publishMonth() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
   async publishMonthV2() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
@@ -358,6 +359,7 @@ function AllocationCurrencySection(props: {
   categories: readonly CategoryOption[];
   categoryTargets: ReadonlyMap<string, { amountMinor: string; revisionId: string | null }>;
   plannedIncomeMinor: string | null;
+  plannedIncomeRevisionId: string | null;
   onSpaceUnavailable?: (() => void) | undefined;
 }) {
   const allocation = useAllocation(props.gateway, props.spaceId, props.month, props.currency, props.onSpaceUnavailable);
@@ -370,6 +372,7 @@ function AllocationCurrencySection(props: {
         categories={props.categories}
         categoryTargets={props.categoryTargets}
         monthlyPlanIncomeMinor={props.plannedIncomeMinor}
+        monthlyPlanIncomeRevisionId={props.plannedIncomeRevisionId}
         allocation={allocation}
         gateway={props.gateway}
       />
@@ -524,6 +527,19 @@ function PlanRoutes(props: PlanRoutesProps) {
     return map;
   }, [plan.status, plan.summaries]);
 
+  // The Plan's own income-plan revision id per currency -- the concurrency
+  // head allocation's publishMonth must send (audit B2), never the revision
+  // captured on the allocation snapshot at its last publish.
+  const plannedIncomeRevisionByCurrency = useMemo<Record<Currency, string | null>>(() => {
+    const map: Record<Currency, string | null> = { USD: null, LBP: null };
+    if (plan.status === 'ready') {
+      for (const summary of plan.summaries) {
+        map[summary.currency] = summary.incomePlanRevisionId;
+      }
+    }
+    return map;
+  }, [plan.status, plan.summaries]);
+
   let planSection: ReactNode;
   if (plan.status === 'loading') {
     planSection = <PlanSkeleton locale={locale} />;
@@ -599,6 +615,7 @@ function PlanRoutes(props: PlanRoutesProps) {
           categories={props.expenseRootCategories}
           categoryTargets={categoryTargetsByCurrency.get(currency) ?? new Map()}
           plannedIncomeMinor={plannedIncomeByCurrency[currency]}
+          plannedIncomeRevisionId={plannedIncomeRevisionByCurrency[currency]}
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
       )) : null}
