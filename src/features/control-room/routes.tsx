@@ -18,6 +18,7 @@ import type { GoalsGateway } from '../goals/types.js';
 import { useGoals } from '../goals/use-goals.js';
 import type { HouseholdGateway } from '../household/types.js';
 import type { RecurringGateway } from '../recurring/types.js';
+import { AutoMaterializeBanner } from '../recurring/auto-materialize-banner.js';
 import { autoSettleExpense } from '../recurring/auto-settle.js';
 import { occurrenceWindow } from '../recurring/occurrence-window.js';
 import { useAutoMaterialize } from '../recurring/use-auto-materialize.js';
@@ -286,13 +287,7 @@ function HomeRoutes(props: HomeRoutesProps) {
         cashControlByCurrency={cashControlByCurrency}
         onSeeAll={() => props.onSeeAll?.()}
       />
-      {autoMaterialize.status === 'failed' && (
-        <p className="cr-banner" role="alert">
-          {locale === 'ar'
-            ? `تعذر توليد الفواتير القادمة: ${autoMaterialize.message}`
-            : `Upcoming bills couldn't be generated: ${autoMaterialize.message}`}
-        </p>
-      )}
+      <AutoMaterializeBanner locale={locale} state={autoMaterialize} />
     </>
   );
 }
@@ -467,13 +462,7 @@ function CashControlSection(props: {
   return (
     <section className="cr-card" aria-label={`${props.locale === 'ar' ? 'المتاح بعد الالتزامات' : 'Available after commitments'} ${props.currency}`}>
       <CashControlSummary locale={props.locale} currency={props.currency} available={cashControl.available} variant="full" />
-      {autoMaterialize.status === 'failed' && (
-        <p className="cr-banner" role="alert">
-          {props.locale === 'ar'
-            ? `تعذر توليد الفواتير القادمة: ${autoMaterialize.message}`
-            : `Upcoming bills couldn't be generated: ${autoMaterialize.message}`}
-        </p>
-      )}
+      <AutoMaterializeBanner locale={props.locale} state={autoMaterialize} />
       {cashControl.available.status === 'ready' && cashControl.available.data.state === 'ready' && (
         <>
           <h4 className="cc-subheading">{props.locale === 'ar' ? 'الحجوزات' : 'Reservations'}</h4>
