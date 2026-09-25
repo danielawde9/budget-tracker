@@ -4620,3 +4620,95 @@
 [2026-09-20T11:41:43.237Z] [INFO] Worker map completed in 11ms
 [2026-09-20T11:45:43.214Z] [INFO] Starting worker: optimize (1/2 concurrent)
 [2026-09-20T11:45:43.215Z] [INFO] Worker optimize completed in 11ms
+[2026-09-25T09:00:37.711Z] [INFO] AI workers disabled (default) - all workers run local-only. Enable with `daemon start --headless`, daemon.aiWorkers.enabled=true, or RUFLO_DAEMON_AI_WORKERS=1 (#2661)
+[2026-09-25T09:00:37.712Z] [INFO] Scheduled map (interval: 900s, first run in 0s)
+[2026-09-25T09:00:37.712Z] [INFO] Scheduled audit (interval: 600s, first run in 120s)
+[2026-09-25T09:00:37.712Z] [INFO] Scheduled optimize (interval: 900s, first run in 240s)
+[2026-09-25T09:00:37.712Z] [INFO] Scheduled consolidate (interval: 1800s, first run in 360s)
+[2026-09-25T09:00:37.712Z] [INFO] Scheduled testgaps (interval: 1200s, first run in 480s)
+[2026-09-25T09:00:37.712Z] [INFO] Scheduled backup (interval: 86400s, first run in 600s)
+[2026-09-25T09:00:37.712Z] [INFO] Scheduled harness (interval: 21600s, first run in 720s)
+[2026-09-25T09:00:37.712Z] [INFO] Lifecycle monitor active (workspace-removal, ttl=43200s, idle=1800s)
+[2026-09-25T09:00:37.728Z] [INFO] Daemon started (PID: 51767, CPUs: 18, workers: 7, maxCpuLoad: 14.4, minFreeMemoryPercent: 5%)
+[2026-09-25T09:00:37.729Z] [INFO] Worker map deferred: Memory too low: 0.8% free
+[2026-09-25T09:01:37.695Z] [INFO] Daemon self-shutdown: idle for 1800s (no worker activity)
+[2026-09-25T09:01:37.696Z] [INFO] Stopped worker: map
+[2026-09-25T09:01:37.696Z] [INFO] Stopped worker: audit
+[2026-09-25T09:01:37.696Z] [INFO] Stopped worker: optimize
+[2026-09-25T09:01:37.696Z] [INFO] Stopped worker: consolidate
+[2026-09-25T09:01:37.696Z] [INFO] Stopped worker: testgaps
+[2026-09-25T09:01:37.696Z] [INFO] Stopped worker: backup
+[2026-09-25T09:01:37.696Z] [INFO] Stopped worker: harness
+[2026-09-25T09:01:37.710Z] [INFO] Daemon stopped
+[2026-09-25T09:04:35.181Z] [INFO] AI workers disabled (default) - all workers run local-only. Enable with `daemon start --headless`, daemon.aiWorkers.enabled=true, or RUFLO_DAEMON_AI_WORKERS=1 (#2661)
+[2026-09-25T09:04:35.181Z] [INFO] Scheduled map (interval: 900s, first run in 0s)
+[2026-09-25T09:04:35.181Z] [INFO] Scheduled audit (interval: 600s, first run in 120s)
+[2026-09-25T09:04:35.181Z] [INFO] Scheduled optimize (interval: 900s, first run in 240s)
+[2026-09-25T09:04:35.181Z] [INFO] Scheduled consolidate (interval: 1800s, first run in 360s)
+[2026-09-25T09:04:35.181Z] [INFO] Scheduled testgaps (interval: 1200s, first run in 480s)
+[2026-09-25T09:04:35.181Z] [INFO] Scheduled backup (interval: 86400s, first run in 600s)
+[2026-09-25T09:04:35.181Z] [INFO] Scheduled harness (interval: 21600s, first run in 720s)
+[2026-09-25T09:04:35.182Z] [INFO] Lifecycle monitor active (workspace-removal, ttl=43200s, idle=1800s)
+[2026-09-25T09:04:35.191Z] [INFO] Daemon started (PID: 58386, CPUs: 18, workers: 7, maxCpuLoad: 14.4, minFreeMemoryPercent: 5%)
+[2026-09-25T09:04:35.191Z] [INFO] Worker map deferred: Memory too low: 1.8% free
+[2026-09-25T09:05:35.183Z] [INFO] Daemon self-shutdown: idle for 1800s (no worker activity)
+[2026-09-25T09:05:35.183Z] [INFO] Stopped worker: map
+[2026-09-25T09:05:35.183Z] [INFO] Stopped worker: audit
+[2026-09-25T09:05:35.183Z] [INFO] Stopped worker: optimize
+[2026-09-25T09:05:35.183Z] [INFO] Stopped worker: consolidate
+[2026-09-25T09:05:35.184Z] [INFO] Stopped worker: testgaps
+[2026-09-25T09:05:35.184Z] [INFO] Stopped worker: backup
+[2026-09-25T09:05:35.184Z] [INFO] Stopped worker: harness
+[2026-09-25T09:05:35.194Z] [INFO] Daemon stopped
+[2026-09-25T09:05:37.570Z] [INFO] AI workers disabled (default) - all workers run local-only. Enable with `daemon start --headless`, daemon.aiWorkers.enabled=true, or RUFLO_DAEMON_AI_WORKERS=1 (#2661)
+[2026-09-25T09:05:37.571Z] [INFO] Scheduled map (interval: 900s, first run in 0s)
+[2026-09-25T09:05:37.571Z] [INFO] Scheduled audit (interval: 600s, first run in 120s)
+[2026-09-25T09:05:37.571Z] [INFO] Scheduled optimize (interval: 900s, first run in 240s)
+[2026-09-25T09:05:37.571Z] [INFO] Scheduled consolidate (interval: 1800s, first run in 360s)
+[2026-09-25T09:05:37.571Z] [INFO] Scheduled testgaps (interval: 1200s, first run in 480s)
+[2026-09-25T09:05:37.571Z] [INFO] Scheduled backup (interval: 86400s, first run in 600s)
+[2026-09-25T09:05:37.571Z] [INFO] Scheduled harness (interval: 21600s, first run in 720s)
+[2026-09-25T09:05:37.571Z] [INFO] Lifecycle monitor active (workspace-removal, ttl=43200s, idle=1800s)
+[2026-09-25T09:05:37.586Z] [INFO] Daemon started (PID: 59828, CPUs: 18, workers: 7, maxCpuLoad: 14.4, minFreeMemoryPercent: 5%)
+[2026-09-25T09:05:37.596Z] [INFO] Starting worker: map (1/2 concurrent)
+[2026-09-25T09:05:37.597Z] [INFO] Worker map completed in 10ms
+[2026-09-25T09:07:37.586Z] [INFO] Starting worker: audit (1/2 concurrent)
+[2026-09-25T09:07:37.587Z] [INFO] Worker audit completed in 15ms
+[2026-09-25T09:09:37.581Z] [INFO] Starting worker: optimize (1/2 concurrent)
+[2026-09-25T09:09:37.582Z] [INFO] Worker optimize completed in 10ms
+[2026-09-25T09:11:37.573Z] [INFO] Worker consolidate deferred: Memory too low: 1.7% free
+[2026-09-25T09:13:37.584Z] [INFO] Starting worker: testgaps (1/2 concurrent)
+[2026-09-25T09:13:37.585Z] [INFO] Worker testgaps completed in 12ms
+[2026-09-25T09:13:37.602Z] [INFO] Starting worker: consolidate (1/2 concurrent)
+[2026-09-25T09:13:37.610Z] [INFO] Consolidate worker: distillation skipped (error: Could not locate the bindings file. Tried:
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/Debug/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/Release/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/out/Debug/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/Debug/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/out/Release/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/Release/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/default/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/compiled/26.8.2/darwin/arm64/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/addon-build/release/install-root/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/addon-build/debug/install-root/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/addon-build/default/install-root/better_sqlite3.node
+ → /Users/daniel/.npm/_npx/76ea47b75ede528c/node_modules/@claude-flow/cli/node_modules/better-sqlite3/lib/binding/node-v147-darwin-arm64/better_sqlite3.node)
+[2026-09-25T09:13:37.611Z] [INFO] Worker consolidate completed in 17ms
+[2026-09-25T09:15:37.592Z] [INFO] Starting worker: backup (1/2 concurrent)
+[2026-09-25T09:15:37.596Z] [INFO] Worker backup completed in 22ms
+[2026-09-25T09:17:37.600Z] [INFO] Starting worker: harness (1/2 concurrent)
+[2026-09-25T09:17:37.603Z] [INFO] Worker harness completed in 14ms
+[2026-09-25T09:17:37.622Z] [INFO] Starting worker: audit (1/2 concurrent)
+[2026-09-25T09:17:37.622Z] [INFO] Worker audit completed in 8ms
+[2026-09-25T09:20:37.644Z] [INFO] Starting worker: map (1/2 concurrent)
+[2026-09-25T09:20:37.649Z] [INFO] Worker map completed in 19ms
+[2026-09-25T09:24:37.615Z] [INFO] Worker optimize deferred: Memory too low: 2.5% free
+[2026-09-25T09:27:37.652Z] [INFO] Starting worker: audit (1/2 concurrent)
+[2026-09-25T09:27:37.653Z] [INFO] Worker audit completed in 12ms
+[2026-09-25T09:27:37.670Z] [INFO] Starting worker: optimize (1/2 concurrent)
+[2026-09-25T09:27:37.671Z] [INFO] Worker optimize completed in 10ms
+[2026-09-25T09:33:37.982Z] [INFO] Starting worker: testgaps (1/2 concurrent)
+[2026-09-25T09:33:38.007Z] [INFO] Worker testgaps completed in 388ms
+[2026-09-25T09:35:37.672Z] [INFO] Starting worker: map (1/2 concurrent)
+[2026-09-25T09:35:37.673Z] [INFO] Worker map completed in 12ms
