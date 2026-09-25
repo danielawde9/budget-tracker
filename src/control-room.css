@@ -96,17 +96,24 @@
 
 .cr-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: flex-end;
   gap: var(--cr-space-4);
   margin-block: var(--cr-space-3) var(--cr-space-5);
 }
-.cr-title {
-  font-family: var(--cr-font-display);
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
+.cr-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-1);
+  min-inline-size: 0;
+}
+.cr-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--cr-space-2);
+  flex-shrink: 0;
 }
 
 /* Bare headings inside screens — bold sans, no serif, no underline */
@@ -410,6 +417,34 @@
   line-height: 1.5;
 }
 
+/* Copyable value: a read-only labelled field with its Copy action on the
+   inline end; the action wraps below the field on narrow widths. */
+.cr-copy-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--cr-space-2);
+  margin-block-end: var(--cr-space-3);
+}
+.cr-copy-field .cr-field {
+  flex: 1 1 16rem;
+  min-inline-size: 0;
+}
+.cr-copy-field .cr-field input { inline-size: 100%; }
+
+/* Numbered how-to steps inside a card */
+.cr-steps {
+  display: grid;
+  gap: var(--cr-space-2);
+  margin: 0 0 var(--cr-space-3);
+  padding-inline-start: 1.25rem;
+  line-height: 1.5;
+}
+.cr-steps li::marker {
+  color: var(--cr-accent-strong);
+  font-weight: 700;
+}
+
 /* Amounts are the heroes — bold sans tabular at rest */
 .cr-amount {
   font-family: var(--cr-font);
@@ -435,6 +470,16 @@
   display: flex;
   justify-content: space-between;
   align-items: baseline;
+  gap: var(--cr-space-3);
+}
+
+/* Section header inside a card: a bare h2 (the shell owns its 19px/800
+   style) with the section's actions on the inline end. */
+.cr-section-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
   gap: var(--cr-space-3);
 }
 
@@ -1299,33 +1344,12 @@
 
 /* ==========================================================================
    Manage-section normalization — Wallets, Categories, Loans, Household
-   still carry their old full-desktop-page rhythm from styles.css. Bring
-   their outer spacing/type scale down to the cr- rhythm so nothing reads
-   as a foreign page. Internal row/dialog layouts are intentionally left
-   untouched.
+   still carry their old full-desktop-page rhythm from styles.css below the
+   page header (headers are the shared PageHeader/cr-header pattern now).
+   Bring their content spacing down to the cr- rhythm so nothing reads as a
+   foreign page. Internal row/dialog layouts are intentionally left untouched.
    ========================================================================== */
 
-.cr-main h1,
-.cr-main .topbar h1 {
-  font-size: 24px;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  font-weight: 800;
-}
-.cr-main .brand {
-  margin-bottom: var(--cr-space-2);
-  font-size: 12px;
-}
-.cr-main .topbar,
-.cr-main .page-header {
-  padding-bottom: var(--cr-space-4);
-  border-bottom: 0;
-}
-.cr-main .topbar p {
-  margin: var(--cr-space-2) 0 0;
-  max-width: 52ch;
-  font-size: 14px;
-}
 .cr-main .household-columns,
 .cr-main .category-registers {
   gap: var(--cr-space-5);

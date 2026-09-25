@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ArrowDownLeft,
   ArrowLeftRight,
@@ -95,6 +95,23 @@ export interface RecordSheetProps {
   onSubmitLoan(draft: LoanDraft): Promise<unknown>;
   onSubmitRepayment(draft: RepaymentDraft): Promise<unknown>;
   onCreateCategory?(draft: CreateCategoryDraft | CreateSubcategoryDraft): Promise<{ id: string }>;
+  /** Opens on this kind's amount step instead of the type grid (a
+   * quick-add link); null or absent shows the grid. */
+  initialKind?: RecordKind | null;
+  /** The wallet this space last recorded an expense or income from on this
+   * device. Preselected after the amount when it still exists and can hold
+   * the amount; otherwise the wallet list is shown as usual. */
+  rememberedWalletId?: string | null;
+  onWalletUsed?(walletId: string): void;
+}
+
+function amountFitsCurrency(display: string, currency: Currency): boolean {
+  try {
+    parsePositiveMinorAmount(display, currency);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 const TILES: readonly { kind: RecordKind; en: string; ar: string; icon: typeof ArrowDownLeft }[] = [
@@ -286,10 +303,13 @@ export function RecordSheet(props: RecordSheetProps) {
     setWalletPickError(null);
   };
 
-  useEffect(() => {
+  // A layout effect, not a passive one: the reset (and a quick-add starting
+  // kind) must apply before the first open frame is painted, or the sheet
+  // flashes the previous kind's step (or the type grid) for a frame.
+  useLayoutEffect(() => {
     if (!props.open) return;
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setKind(null);
+    setKind(props.initialKind ?? null);
     resetFlow();
     sheetRef.current?.focus();
     return () => { openerRef.current?.focus(); };
@@ -310,8 +330,12 @@ export function RecordSheet(props: RecordSheetProps) {
     if (kind === 'transfer') return;
     if (props.wallets.length === 1) {
       setWalletId(props.wallets[0]!.id);
+      return;
     }
-  }, [amountDone, kind, props.wallets]);
+    if (kind !== 'expense' && kind !== 'income') return;
+    const remembered = props.wallets.find((candidate) => candidate.id === props.rememberedWalletId);
+    if (remembered && amountFitsCurrency(display, remembered.currency)) setWalletId(remembered.id);
+  }, [amountDone, kind, props.wallets, props.rememberedWalletId, display]);
 
   const pickKind = (next: RecordKind) => {
     resetFlow();
@@ -518,6 +542,7 @@ export function RecordSheet(props: RecordSheetProps) {
           payeeName: payeeName.trim() || null,
           note: note.trim() || null,
         });
+        if ((kind === 'expense' || kind === 'income') && walletId !== null) props.onWalletUsed?.(walletId);
       } else if (kind === 'exchange') {
         await props.onSubmitExchange({
           usdWalletId: wallet!.id,

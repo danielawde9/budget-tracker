@@ -6,6 +6,7 @@ import { HouseholdConfirmDialog, InviteHouseholdDialog } from './household-dialo
 import type { HouseholdGateway, HouseholdInvitation, HouseholdMembership, MemberRole } from './types.js';
 import { useHousehold } from './use-household.js';
 import { HouseholdSkeleton } from '../control-room/skeletons.js';
+import { PageHeader } from '../control-room/page-header.js';
 
 interface HouseholdPageProps {
   readonly gateway: HouseholdGateway;
@@ -106,10 +107,13 @@ export function HouseholdPage(props: HouseholdPageProps) {
 
   const confirmationText = confirmationCopy();
   return <section className="household-workspace workspace-page">
-    <header className="page-header household-topbar">
-      <div><h1>{household.status === 'owner-ready' ? text.title : text.memberTitle}</h1><p>{text.intro} <bdi>{props.spaceName}</bdi></p></div>
-      {household.status === 'owner-ready' ? <button type="button" onClick={() => { household.clearActionState(); setInviteOpen(true); }}>{text.invite}</button> : null}
-    </header>
+    <PageHeader
+      title={household.status === 'owner-ready' ? text.title : text.memberTitle}
+      subtitle={<>{text.intro} <bdi>{props.spaceName}</bdi></>}
+      actions={household.status === 'owner-ready'
+        ? <button type="button" className="cr-button cr-button--primary" onClick={() => { household.clearActionState(); setInviteOpen(true); }}>{text.invite}</button>
+        : null}
+    />
     {actionError}
     {household.status === 'owner-ready' ? <div className="household-columns">
       <section className="household-register" aria-labelledby="household-members-heading">

@@ -1620,7 +1620,103 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 13: Whole-branch verification and handoff
+### Task 13: Adding money to a goal after a linked purchase (C1, DB) — added 2026-09-25 at the owner's request
+
+**Root cause (traced; the SQL was re-read by the lead):** the command and the trigger count a linked purchase differently.
+- The reserve command allows `target − earmarked − fulfilled` of room (`supabase/migrations/20260914150000_goal_commands.sql:727`). Here `earmarked` comes from `private.goal_financing_state`, which is **net** of linked purchases.
+- The deferred check `private.check_goal_earmark_event` (latest definition `…goal_commands.sql:588`, balance block `:648-659`) sums the **gross** earmark lines as `running_balance`, and also subtracts **every** purchase link from the target.
+- So each linked purchase is counted twice. Target 1000, reserve 500, link a 400 purchase, reserve 500: the command allows it, but the trigger sees 1000 > 1000 − 400 and raises `23514 goal_earmark_balance_invalid`.
+- The same gross sum lets an API-only reverse push the net earmark below zero unnoticed.
+
+**Files:**
+- Create: `supabase/migrations/20260925104000_goal_earmark_check_uses_financing_state.sql`
+- Create: `tests/db/goal-earmark-check.integration.test.ts`
+- Modify: release files (count → 55), `docs/decisions.md`
+
+**Interfaces:**
+- Consumes: `private.goal_financing_state(p_goal_id uuid, p_as_of date) returns table(earmarked_minor numeric, fulfilled_minor numeric, head text)` (`…goal_commands.sql:11`), unchanged.
+- Produces: the same `private.check_goal_earmark_event(bigint)` signature, so the existing constraint triggers keep calling it.
+
+- [ ] **Step 1: Write the failing tests.** Create `tests/db/goal-earmark-check.integration.test.ts`. Copy the harness (`database`, `actor`, `db()`, `beforeAll`/`afterAll`) and the helpers `freshSpace`, wallet setup, `createGoal`, `reserve` and `linkPurchase` verbatim from `tests/db/goal-funding.integration.test.ts` (helpers start at lines 98, 138 and 182). Then add:
+
+```ts
+describe('goal earmark balance check', () => {
+  it('allows topping a goal back up after a linked purchase', async () => {
+    const { spaceId, expenseEventId } = await fundedSpaceWithExpense('400');   // build from the copied helpers: USD wallet with ≥ 1500 income, one 400 USD expense
+    const { goalId } = await createGoal(spaceId, { kind: 'purchase', targetMinor: '1000' });
+    await reserve(spaceId, goalId, '500', false);
+    await linkPurchase(spaceId, expenseEventId, [{ goalId, amountMinor: '400' }]);
+    await expect(reserve(spaceId, goalId, '500', false)).resolves.toMatchObject({ goalId });
+  });
+
+  it('still refuses a reserve beyond the remaining room', async () => {
+    const { spaceId, expenseEventId } = await fundedSpaceWithExpense('400');
+    const { goalId } = await createGoal(spaceId, { kind: 'purchase', targetMinor: '1000' });
+    await reserve(spaceId, goalId, '500', false);
+    await linkPurchase(spaceId, expenseEventId, [{ goalId, amountMinor: '400' }]);
+    await reserve(spaceId, goalId, '500', false);
+    await expect(reserve(spaceId, goalId, '1', false)).rejects.toMatchObject({ message: expect.stringContaining('remaining room') });
+  });
+
+  it('refuses an over-target earmark written directly, bypassing the command (the trigger alone)', async () => {
+    const { spaceId } = await fundedSpaceWithExpense('0');
+    const { goalId } = await createGoal(spaceId, { kind: 'reserve', targetMinor: '1000' });
+    await reserve(spaceId, goalId, '900', false);
+    // As the table owner: copy the goal_earmark_events/goal_earmark_lines column
+    // lists from supabase/migrations/20260914140000_goals_schema.sql and insert
+    // one 'reserve' event of 200 for goalId in a single transaction.
+    await expect(insertRawReserve(spaceId, goalId, '200')).rejects.toMatchObject({ code: '23514', message: 'goal_earmark_balance_invalid' });
+  });
+});
+```
+
+  Write `fundedSpaceWithExpense` and `insertRawReserve` in this file from the copied helpers and the goals schema columns. `insertRawReserve` runs `begin; insert …; commit;`, because the check is deferred and fires at commit. Use exactly the column names the schema declares; do not change any assertion.
+- [ ] **Step 2: Run it and watch it fail.**
+  Run: `bash scripts/ops/docker-ssh-bridge.sh run -- pnpm exec vitest run tests/db/goal-earmark-check.integration.test.ts --pool=forks --no-file-parallelism`
+  Expected: the first test FAILS with `23514 goal_earmark_balance_invalid`. The other two pass: they are guards for the fix, not reproducers.
+- [ ] **Step 3: Write the migration.** Copy the latest `private.check_goal_earmark_event` (`…goal_commands.sql:588` to its `revoke`) into `supabase/migrations/20260925104000_goal_earmark_check_uses_financing_state.sql` as `create or replace`. Change **only** the balance block (`select count(*) into v_bad_balance … ;`) to:
+
+```sql
+  -- Same definitions as the reserve command (audit C1): earmark net of linked
+  -- purchases plus what those purchases fulfilled must stay within the target,
+  -- and the net earmark may never go below zero. UTC "today" matches the
+  -- command until the Spec 1 space clock replaces both together.
+  select count(*) into v_bad_balance
+  from (
+    select el.goal_id, sum(el.amount_minor) as event_contribution,
+      state.earmarked_minor, state.fulfilled_minor,
+      (select target_minor from public.goal_revisions where goal_id = el.goal_id order by id desc limit 1) as target
+    from public.goal_earmark_lines el
+    cross join lateral private.goal_financing_state(el.goal_id, (now() at time zone 'UTC')::date) state
+    where el.event_id = p_event_id
+    group by el.goal_id, state.earmarked_minor, state.fulfilled_minor
+  ) totals
+  where earmarked_minor < 0
+    or (v_event.operation <> 'reverse' and event_contribution > 0 and earmarked_minor + fulfilled_minor > target);
+```
+
+  Keep the `revoke`, and keep every existing shape check above the block unchanged. The function stays `security definer` with the same `search_path`. This is the deferred-trigger lesson: it fires at COMMIT under the caller's role.
+- [ ] **Step 4: Release files and run.** Update the release files (count → 55). Run the new file plus `tests/db/goal-funding.integration.test.ts`, `tests/db/goal-commands.integration.test.ts`, `tests/db/goal-projections.integration.test.ts`, `tests/db/constraint-trigger-names-ratchet.test.ts` and `tests/ops`.
+  Expected: PASS, with no failures that are new against the Task 0 baseline.
+- [ ] **Step 5: Ledger.** Append "The goal earmark check uses the command's own financing state".
+  - **Why:** C1.
+  - **If changed:** the command and the trigger must keep one definition of `earmarked` and `fulfilled`. Put any new rule in `goal_financing_state`, never in only one of them.
+- [ ] **Step 6: Commit.**
+
+```bash
+git add -A
+git commit -m "fix(goals): allow topping a goal up after a linked purchase
+
+The earmark trigger subtracted linked purchases twice (gross lines against
+target minus every link), so any goal with a linked purchase refused new
+reserves. It now checks the same net financing state as the command.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 14: Whole-branch verification and handoff
 
 **Files:**
 - Modify: `docs/verification/2026-09-25-linking-audit.md`. Mark every finding fixed by this branch as `Fixed in <sha>`.
@@ -1659,5 +1755,4 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - A transaction picker for bills and goal purchases: C4, D4.
 
 **Bugs left for a follow-up batch (not approved into phase 0):**
-- HIGH, traced: C1 (goal top-up after a linked purchase).
 - MEDIUM, traced: E4, A8, B13 (the Plan loan card's month), A9 (month picker forward), A6, B10 (archived targets), B11, B12, C5–C8, C12–C14, D6 (suspected), D11, D13, F2, F3, F5, F11.

@@ -21,12 +21,6 @@
   justify-content: space-between;
 }
 
-.goal-heading {
-  font-family: var(--cr-font-display);
-  font-size: 18px;
-  font-weight: 600;
-}
-
 .goal-label-muted {
   color: var(--cr-ink-soft);
   font-size: 12px;

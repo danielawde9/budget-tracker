@@ -40,7 +40,7 @@ async function openPlan(page: import('@playwright/test').Page, options: Paramete
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Personal space' })).toBeVisible();
   await chooseWorkspaceDestination(page, 'Plan');
-  await expect(page.getByRole('heading', { name: 'Monthly plan' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Plan', exact: true })).toBeVisible();
   await openPlanSection(page, 'Upcoming bills');
 }
 

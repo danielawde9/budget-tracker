@@ -22,8 +22,8 @@ export function AllocationOverview(props: AllocationOverviewProps) {
 
   return (
     <section className="alloc-overview" aria-label={t(locale, 'Allocation overview', 'نظرة عامة على التخصيص')}>
-      <div className="alloc-row">
-        <h2 className="alloc-heading">{t(locale, 'Allocation', 'التخصيص')}</h2>
+      <div className="cr-section-header">
+        <h2>{t(locale, 'Allocation', 'التخصيص')}</h2>
         <button type="button" className="cr-button" onClick={props.onEdit}>
           {monthState.hasPlan ? t(locale, 'Edit', 'تعديل') : t(locale, 'Set up', 'إعداد')}
         </button>

@@ -13,6 +13,7 @@ import { transactionDefaultsFromRecentEvent, type QuickEntryDefaults } from './q
 import { RenameWalletDialog } from './rename-wallet-dialog.js';
 import { RestoreWalletDialog } from './restore-wallet-dialog.js';
 import { TransactionDialog } from './transaction-dialog.js';
+import { PageHeader } from '../control-room/page-header.js';
 import type { JournalEvent, JournalEventKind, WalletProjection } from './types.js';
 import type { WalletsState } from './use-wallets.js';
 import { WalletDialog } from './wallet-dialog.js';
@@ -126,10 +127,14 @@ export function WalletsPage({ categoriesGateway, spaceId, userId, walletState, l
   }, [initialDialog, onTransactionDialogOpened, openTransaction, walletState.status, walletState.wallets.length]);
 
   return <section className="wallets-workspace">
-    <header className="topbar page-header wallets-topbar">
-      <div><span className="brand">{t(locale, 'Wallet journal', 'سجل المحافظ')}</span><h1>{t(locale, 'Wallets', 'المحافظ')}</h1><p>{t(locale, 'See server-derived balances, record wallet activity, and undo mistaken transactions.', 'اطّلع على الأرصدة المشتقة من الخادم، وسجّل حركة المحافظ، وتراجع عن المعاملات الخاطئة.')}</p></div>
-      <div className="wallet-actions"><button type="button" className="cr-button button-secondary" onClick={() => setDialog('wallet')}>{t(locale, 'New wallet', 'محفظة جديدة')}</button><button type="button" className="cr-button cr-button--primary wl-action-grow" disabled={walletState.wallets.length === 0 || walletState.status !== 'ready'} onClick={() => openQuickEntry()}>{t(locale, 'Add transaction', 'إضافة معاملة')}</button></div>
-    </header>
+    <PageHeader
+      title={t(locale, 'Wallets', 'المحافظ')}
+      subtitle={t(locale, 'See server-derived balances, record wallet activity, and undo mistaken transactions.', 'اطّلع على الأرصدة المشتقة من الخادم، وسجّل حركة المحافظ، وتراجع عن المعاملات الخاطئة.')}
+      actions={<>
+        <button type="button" className="cr-button button-secondary" onClick={() => setDialog('wallet')}>{t(locale, 'New wallet', 'محفظة جديدة')}</button>
+        <button type="button" className="cr-button cr-button--primary wl-action-grow" disabled={walletState.wallets.length === 0 || walletState.status !== 'ready'} onClick={() => openQuickEntry()}>{t(locale, 'Add transaction', 'إضافة معاملة')}</button>
+      </>}
+    />
 
     {walletState.status === 'loading' && <WalletsWorkspaceSkeleton locale={locale} />}
     {walletState.status === 'error' && <div className="state-panel error-notice" role="alert"><strong>{t(locale, 'Wallets are unavailable', 'المحافظ غير متاحة')}</strong><p>{journalCategoryError?.message ?? walletState.error}</p>{journalCategoryError && <p>{journalCategoryError.recovery}</p>}<button type="button" onClick={() => void walletState.refresh()}>{t(locale, 'Try again', 'المحاولة مجددًا')}</button></div>}

@@ -52,7 +52,7 @@ async function openPlan(page: import('@playwright/test').Page, options: Paramete
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Personal space' })).toBeVisible();
   await chooseWorkspaceDestination(page, 'Plan');
-  await expect(page.getByRole('heading', { name: 'Monthly plan' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Plan', exact: true })).toBeVisible();
   await openPlanSection(page, 'Available cash');
 }
 
@@ -67,7 +67,7 @@ test('U19-01/U19-02: Home shows a compact signed shortfall, Plan shows the full 
   await page.screenshot({ path: screenshotPath(testInfo, `home-compact-${testInfo.project.name}.png`), fullPage: true });
 
   await chooseWorkspaceDestination(page, 'Plan');
-  await expect(page.getByRole('heading', { name: 'Monthly plan' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Plan', exact: true })).toBeVisible();
   await openPlanSection(page, 'Available cash');
   const usdSection = page.getByRole('region', { name: 'Available after commitments USD' });
   await usdSection.scrollIntoViewIfNeeded();
@@ -92,7 +92,7 @@ test('an unplanned currency shows a no-plan message on Home and Plan, not a cras
   await expect(page.getByRole('region', { name: 'Available after commitments', exact: true })).toContainText('No published plan yet');
 
   await chooseWorkspaceDestination(page, 'Plan');
-  await expect(page.getByRole('heading', { name: 'Monthly plan' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Plan', exact: true })).toBeVisible();
   await openPlanSection(page, 'Available cash');
   const usdSection = page.getByRole('region', { name: 'Available after commitments USD' });
   await expect(usdSection).toContainText('No published plan snapshot yet');

@@ -8,6 +8,7 @@ import { localizeCategoryError } from './errors.js';
 import { SubcategoryDialog } from './subcategory-dialog.js';
 import type { CategoriesGateway, Category, CategoryKind } from './types.js';
 import { useCategories } from './use-categories.js';
+import { PageHeader } from '../control-room/page-header.js';
 import { CategoriesSkeleton } from '../control-room/skeletons.js';
 import './categories-manage.css';
 
@@ -95,7 +96,11 @@ export function CategoriesPage({ gateway, spaceId, locale = 'en', onSpaceUnavail
   const [dialog, setDialog] = useState<OpenDialog>(null);
 
   return <section className="categories-workspace">
-    <header className="topbar page-header categories-topbar"><div><span className="brand">{t(locale, 'Category register', 'سجل الفئات')}</span><h1>{t(locale, 'Categories', 'الفئات')}</h1><p>{t(locale, 'Keep income and expense labels clear. Archiving affects new entries only; history stays intact.', 'نظّم تسميات الدخل والمصروف بوضوح. تؤثر الأرشفة على القيود الجديدة فقط ويبقى السجل كما هو.')}</p></div><button type="button" className="page-header-action" onClick={() => setDialog({ create: activeKind })}>{t(locale, 'New category', 'فئة جديدة')}</button></header>
+    <PageHeader
+      title={t(locale, 'Categories', 'الفئات')}
+      subtitle={t(locale, 'Keep income and expense labels clear. Archiving affects new entries only; history stays intact.', 'نظّم تسميات الدخل والمصروف بوضوح. تؤثر الأرشفة على القيود الجديدة فقط ويبقى السجل كما هو.')}
+      actions={<button type="button" className="cr-button cr-button--primary" onClick={() => setDialog({ create: activeKind })}>{t(locale, 'New category', 'فئة جديدة')}</button>}
+    />
 
     <div className="category-kind-tabs cg-kind-tabs" role="group" aria-label={t(locale, 'Category type', 'نوع الفئة')}><button type="button" className={activeKind === 'income' ? 'category-tab-active' : ''} aria-pressed={activeKind === 'income'} onClick={() => setActiveKind('income')}>{t(locale, 'Income', 'الدخل')}</button><button type="button" className={activeKind === 'expense' ? 'category-tab-active' : ''} aria-pressed={activeKind === 'expense'} onClick={() => setActiveKind('expense')}>{t(locale, 'Expense', 'المصروف')}</button></div>
 

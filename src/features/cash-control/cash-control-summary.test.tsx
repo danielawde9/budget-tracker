@@ -156,7 +156,7 @@ describe('CashControlSummary: ready state data assertions', () => {
 
   it('renders Arabic labels', () => {
     render(<CashControlSummary locale="ar" currency="USD" variant="full" available={slice(coreAvailableCashSummaryFixture)} />);
-    expect(screen.getByText('المتاح بعد الالتزامات')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'المتاح بعد الالتزامات' })).toBeInTheDocument();
     expect(screen.getByText('السيولة الإضافية غير المخصَّصة يوميًا')).toBeInTheDocument();
   });
 

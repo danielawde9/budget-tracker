@@ -48,7 +48,7 @@ describe('CategoriesPage', () => {
       parentCategoryId: 'category-groceries', createdAt: '2026-09-08T12:00:00Z', archivedAt: null,
     });
     const { user } = await renderPage(gateway);
-    expect(screen.getByRole('heading', { level: 1, name: 'Categories' }).closest('.page-header')).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 1, name: 'Categories' }).closest('.cr-header')).not.toBeNull();
     expect(screen.getByRole('heading', { name: 'Income categories' }).closest('[data-category-kind="income"]')).not.toBeNull();
     expect(screen.getByRole('heading', { name: 'Expense categories' }).closest('[data-category-kind="expense"]')).not.toBeNull();
     expect(screen.getByText('Archive subcategories first')).toBeInTheDocument();

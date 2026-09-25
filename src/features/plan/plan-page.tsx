@@ -7,7 +7,7 @@ const t = (locale: Locale, en: string, ar: string) => (locale === 'ar' ? ar : en
 
 const PLAN_CURRENCIES: readonly Currency[] = ['USD', 'LBP'];
 
-function monthLabel(month: string, locale: Locale): string {
+export function monthLabel(month: string, locale: Locale): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(month)) return month;
   const date = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1);
   if (Number.isNaN(date.getTime())) return month;
@@ -133,7 +133,7 @@ function EditDialog(props: EditDialogProps) {
 }
 
 export function PlanPage(props: PlanPageProps) {
-  const { locale, month, summaries } = props;
+  const { locale, summaries } = props;
   const [currency, setCurrency] = useState<Currency>(() => summaries[0]?.currency ?? props.categoryRows[0]?.currency ?? 'USD');
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
@@ -158,10 +158,6 @@ export function PlanPage(props: PlanPageProps) {
 
   return (
     <>
-      <header className="cr-header cr-plan-header">
-        <h1>{t(locale, 'Monthly plan', 'الخطة الشهرية')}</h1>
-        <span className="cr-label">{monthLabel(month, locale)}</span>
-      </header>
       <div className="cr-tabs" role="tablist" aria-label={t(locale, 'Currency', 'العملة')}>
         {PLAN_CURRENCIES.map((option) => (
           <button

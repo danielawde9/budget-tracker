@@ -24,6 +24,7 @@ import { createSupabaseLoansGateway } from './features/loans/supabase-loans-gate
 import type { LoansGateway, Locale } from './features/loans/types.js';
 import { createPlanClient } from './features/plan/plan-client.js';
 import type { PlanClient } from './features/plan/types.js';
+import { hrefWithoutQuickAdd, readQuickAddIntent, type QuickAddKind } from './features/quick-add/quick-add.js';
 import { SpaceSwitcher } from './features/shell/space-switcher.js';
 import { OnboardingDialog } from './features/workspace/onboarding-dialog.js';
 import { createSupabaseWorkspaceGateway } from './features/workspace/supabase-workspace-gateway.js';
@@ -116,6 +117,28 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
   const onSpaceUnavailable = useCallback(() => { void workspace.refresh(); }, [workspace.refresh]);
 
   const showAcceptance = props.householdInvitationToken !== null || terminalAcceptance;
+
+  // A quick-add link (`/?add=expense`, from an installed-app shortcut or a
+  // phone Shortcuts action) opens the record sheet on that kind once a
+  // space is ready, then drops the parameter so a reload doesn't reopen it.
+  const [pendingQuickAdd, setPendingQuickAdd] = useState<QuickAddKind | null>(() => readQuickAddIntent(window.location.search));
+  const [recordInitialKind, setRecordInitialKind] = useState<QuickAddKind | null>(null);
+  const workspaceReady = workspace.status === 'ready' && workspace.selectedSpace !== null && !showAcceptance;
+  useEffect(() => {
+    if (pendingQuickAdd === null || !workspaceReady) return;
+    setRecordInitialKind(pendingQuickAdd);
+    setRecordOpen(true);
+    setPendingQuickAdd(null);
+    window.history.replaceState(window.history.state, '', hrefWithoutQuickAdd(window.location.href));
+  }, [pendingQuickAdd, workspaceReady]);
+  const openRecord = useCallback(() => {
+    setRecordInitialKind(null);
+    setRecordOpen(true);
+  }, []);
+  const closeRecord = useCallback(() => {
+    setRecordOpen(false);
+    setRecordInitialKind(null);
+  }, []);
   if (showAcceptance) {
     const localized = acceptError ? localizeHouseholdError(acceptError, props.locale) : null;
     return <AcceptHouseholdInvitationDialog
@@ -180,7 +203,7 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
       onDestinationChange={setActiveDestination}
       onLocaleChange={props.onLocaleChange}
       onSignOut={props.onSignOut}
-      onRecord={() => setRecordOpen(true)}
+      onRecord={openRecord}
       spaceControls={
         <SpaceSwitcher
           locale={props.locale}
@@ -199,9 +222,10 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
       onDestinationChange={setActiveDestination}
       gateways={{ wallets: props.walletsGateway, loans: props.loansGateway, categories: props.categoriesGateway, reports: props.reportsGateway, household: props.householdGateway, plan: props.planClient, insights: props.insightsClient, exchange: props.exchangeClient, allocation: props.allocationGateway, goals: props.goalsGateway, recurring: props.recurringGateway, cashControl: props.cashControlGateway }}
       recordOpen={recordOpen}
-      onCloseRecord={() => setRecordOpen(false)}
+      recordInitialKind={recordInitialKind}
+      onCloseRecord={closeRecord}
       onSpaceUnavailable={onSpaceUnavailable}
-      onOpenRecord={() => setRecordOpen(true)}
+      onOpenRecord={openRecord}
       userId={props.userId}
       spaceName={workspace.selectedSpace.name}
       userEmail={props.userEmail}

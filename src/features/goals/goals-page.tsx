@@ -47,8 +47,8 @@ export function GoalsPage(props: GoalsPageProps) {
   }
 
   return <section className="goal-page" aria-label={t(props.locale, 'Goals', 'الأهداف')}>
-    <div className="goal-row">
-      <h2 className="goal-heading">{t(props.locale, 'Goals', 'الأهداف')}</h2>
+    <div className="cr-section-header">
+      <h2>{t(props.locale, 'Goals', 'الأهداف')}</h2>
       <button type="button" className="cr-button" onClick={() => setCreating(true)}>{t(props.locale, 'New goal', 'هدف جديد')}</button>
     </div>
 
@@ -70,7 +70,7 @@ export function GoalsPage(props: GoalsPageProps) {
     {goals.status === 'ambiguous' && <div className="cr-card" role="alert">
       <p>{t(props.locale, 'The result of the last command is still unknown.', 'نتيجة الأمر الأخير ما زالت غير معروفة.')}</p>
       <button type="button" className="cr-button" onClick={() => void goals.retryAmbiguous()}>{t(props.locale, 'Check again', 'تحقق مرة أخرى')}</button>
-      <button type="button" className="button-secondary" onClick={goals.clearAmbiguous}>{t(props.locale, 'Dismiss', 'تجاهل')}</button>
+      <button type="button" className="cr-button" onClick={goals.clearAmbiguous}>{t(props.locale, 'Dismiss', 'تجاهل')}</button>
     </div>}
 
     {(goals.status === 'ready' || goals.status === 'saving' || goals.status === 'accepted-refresh-pending' || goals.status === 'ambiguous') && (

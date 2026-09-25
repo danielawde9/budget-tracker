@@ -99,6 +99,17 @@ describe('ManageScreen section panels', () => {
     expect(screen.queryByRole('heading', { name: 'Wallets' })).not.toBeInTheDocument();
   });
 
+  it('opens the phone shortcut page from Preferences and returns to the menu', async () => {
+    const user = userEvent.setup();
+    renderManage();
+    await user.click(screen.getByRole('button', { name: /^Add from your phone/ }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Add from your phone' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Expense link' })).toHaveValue(`${window.location.origin}/?add=expense`);
+
+    await user.click(screen.getByRole('button', { name: 'Back to manage sections' }));
+    expect(screen.getByRole('navigation', { name: 'Manage sections' })).toBeInTheDocument();
+  });
+
   it('swaps to the categories page', async () => {
     const user = userEvent.setup();
     renderManage();

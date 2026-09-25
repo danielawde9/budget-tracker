@@ -225,19 +225,13 @@ input[type="checkbox"]:checked::after { opacity: 1; }
 
 /* ---- Primary action in a page header ---- */
 .topbar > button,
-.page-header-action button,
-.household-topbar > button,
-.categories-topbar > button,
-.wallets-topbar > button {
+.page-header-action button {
   background: var(--cr-accent, #177f63);
   border-color: var(--cr-accent, #177f63);
   color: var(--cr-accent-ink, #ffffff);
 }
 .topbar > button:hover,
-.page-header-action button:hover,
-.household-topbar > button:hover,
-.categories-topbar > button:hover,
-.wallets-topbar > button:hover {
+.page-header-action button:hover {
   background: var(--cr-accent-strong, #0d5d48);
 }
 
@@ -251,8 +245,6 @@ input[type="checkbox"]:checked::after { opacity: 1; }
    Household
    ========================================================================== */
 
-.household-topbar, .wallets-topbar, .categories-topbar { align-items: flex-end; }
-.household-topbar > button, .wallets-topbar > button, .categories-topbar > button { flex: 0 0 auto; }
 .household-columns {
   display: grid;
   grid-template-columns: minmax(0, 3fr) minmax(260px, 2fr);
@@ -420,7 +412,6 @@ input[type="checkbox"]:checked::after { opacity: 1; }
    Wallets + Journal
    ========================================================================== */
 
-.wallet-actions { display: flex; gap: 10px; flex: 0 0 auto; }
 .wallet-context { min-inline-size: 0; }
 .wallet-context .section-heading, .journal .section-heading {
   margin: 0;
@@ -789,8 +780,6 @@ input[type="checkbox"]:checked::after { opacity: 1; }
 
 @media (max-width: 1023px) {
   body { background: var(--cr-bg, #f4f6f5); }
-  .wallets-topbar, .categories-topbar, .household-topbar { display: grid; }
-  .wallets-topbar > button, .categories-topbar > button, .household-topbar > button { inline-size: 100%; }
   .household-columns { grid-template-columns: minmax(0, 1fr); gap: var(--cr-space-5, 24px); margin-block-start: 30px; }
   .household-actions { display: grid; grid-template-columns: 1fr; }
   .household-actions button { inline-size: 100%; }
@@ -811,8 +800,6 @@ input[type="checkbox"]:checked::after { opacity: 1; }
   .category-registers { display: block; margin-block-start: 0; }
   .category-register { display: none; }
   .category-register-mobile-active { display: block; }
-  .wallet-actions { inline-size: 100%; }
-  .wallet-actions button { flex: 1; }
   .journal, .wallet-context { inline-size: 100%; }
   .journal-filters { grid-template-columns: 1fr; }
   .journal-movement { grid-template-columns: 72px minmax(0, 1fr) auto; gap: 4px 10px; }

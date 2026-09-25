@@ -6,6 +6,7 @@ import { CorrectionDialog, CreateLoanDialog, LoanDetailDialog, RepaymentDialog, 
 import { useLoans } from './use-loans.js';
 import type { Loan, LoansGateway, Locale, Space } from './types.js';
 import { LoansSkeleton } from '../control-room/skeletons.js';
+import { PageHeader } from '../control-room/page-header.js';
 import './loans-workspace.css';
 
 interface LoansPageProps {
@@ -40,18 +41,14 @@ export function LoansPage({ gateway, locale: controlledLocale, spaces: controlle
   }, [locale]);
 
   return <Root className="ln-root">
-    <header className="ln-header">
-      <div className="ln-heading">
-        {embedded ? null : <span className="brand">Budget ledger</span>}
-        <span className="section-kicker">{translate(locale, 'loansKicker')}</span>
-        <h1>{translate(locale, 'loans')}</h1>
-        <p className="ln-lede">{translate(locale, 'subtitle')}</p>
-      </div>
-      <div className="ln-header-actions">
+    <PageHeader
+      title={translate(locale, 'loans')}
+      subtitle={translate(locale, 'subtitle')}
+      actions={<>
         {embedded ? null : <button type="button" className="button-secondary" onClick={() => onLocaleChange ? onLocaleChange() : setInternalLocale(locale === 'en' ? 'ar' : 'en')}>{locale === 'en' ? translate(locale, 'arabic') : translate(locale, 'english')}</button>}
         <button type="button" className="cr-button cr-button--primary" onClick={() => setCreating(true)} disabled={!state.dashboard}>{translate(locale, 'addLoan')}</button>
-      </div>
-    </header>
+      </>}
+    />
 
     <section className="ln-toolbar" aria-label="Loans controls">
       {embedded ? null : <label className="ln-field">{translate(locale, 'space')}<select value={state.spaceId} onChange={(event) => onSpaceChange ? onSpaceChange(event.target.value) : state.setSpaceId(event.target.value)}>{spaces.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}</select></label>}

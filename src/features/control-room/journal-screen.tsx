@@ -5,6 +5,7 @@ import type { Locale } from '../loans/types.js';
 import { formatMinorAmount } from '../wallets/money.js';
 import type { JournalEvent, JournalEventKind } from '../wallets/types.js';
 import { KIND_LABELS, eventLabel } from './home-screen.js';
+import { PageHeader } from './page-header.js';
 
 const t = (locale: Locale, en: string, ar: string) => (locale === 'ar' ? ar : en);
 
@@ -165,9 +166,7 @@ export function JournalScreen(props: JournalScreenProps) {
 
   return (
     <>
-      <header className="cr-header">
-        <h1>{t(locale, 'Journal', 'القيود')}</h1>
-      </header>
+      <PageHeader title={t(locale, 'Journal', 'القيود')} />
       {exportFailed ? (
         <div role="alert">
           <span className="cr-danger-text">

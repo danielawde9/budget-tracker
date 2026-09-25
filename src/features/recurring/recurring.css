@@ -22,10 +22,11 @@
   justify-content: space-between;
 }
 
-.rec-heading {
-  font-family: var(--cr-font-display);
-  font-size: 18px;
-  font-weight: 600;
+/* The action pair inside the page's .cr-section-header row. */
+.rec-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cr-space-2);
 }
 
 .rec-label-muted {
