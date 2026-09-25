@@ -5236,3 +5236,7 @@
 [2026-09-25T17:49:24.411Z] [INFO] Worker audit completed in 10ms
 [2026-09-25T17:52:24.351Z] [INFO] Starting worker: map (1/2 concurrent)
 [2026-09-25T17:52:24.353Z] [INFO] Worker map completed in 20ms
+[2026-09-25T17:56:24.357Z] [INFO] Starting worker: optimize (1/2 concurrent)
+[2026-09-25T17:56:24.358Z] [INFO] Worker optimize completed in 11ms
+[2026-09-25T17:59:24.439Z] [INFO] Starting worker: audit (1/2 concurrent)
+[2026-09-25T17:59:24.441Z] [INFO] Worker audit completed in 19ms
