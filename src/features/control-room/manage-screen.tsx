@@ -9,6 +9,7 @@ import type { LoansGateway } from '../loans/types.js';
 import { LoansPage } from '../loans/loans-page.js';
 import { WalletsPage } from '../wallets/wallets-page.js';
 import type { WalletsState } from '../wallets/use-wallets.js';
+import { PageHeader } from './page-header.js';
 import './manage-hub.css';
 
 const t = (locale: Locale, en: string, ar: string) => (locale === 'ar' ? ar : en);
@@ -76,9 +77,7 @@ export function ManageScreen(props: ManageScreenProps) {
     const sections = SECTIONS.filter((item) => item.id !== 'household' || spaceKind === 'household');
     return (
       <>
-        <header className="cr-header">
-          <h1>{t(locale, 'Manage', 'الإدارة')}</h1>
-        </header>
+        <PageHeader title={t(locale, 'Manage', 'الإدارة')} />
         <nav className="cr-manage-menu mg-hub" aria-label={t(locale, 'Manage sections', 'أقسام الإدارة')}>
           <div className="cr-card mg-hub-group">
             {sections.map((item) => (

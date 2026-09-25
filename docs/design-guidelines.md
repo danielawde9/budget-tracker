@@ -181,3 +181,23 @@ Rules:
    Back/Next/Review).
 6. The same chrome serves inline (non-dialog) stepped flows — the wizard
    pattern is about sequencing, not the container.
+
+## 14. Page headers & section headers
+
+- **Page header** — exactly one per destination: the shared `PageHeader`
+  (`src/features/control-room/page-header.tsx`), rendering `.cr-header` with
+  a bare `h1` (the shell owns the 24px/800 style — never restyle it), an
+  optional subtitle (`.cr-helper` copy), and an optional `.cr-header-actions`
+  cluster on the inline end (wraps below the title on narrow widths). The
+  header is state-independent: a destination renders the same `PageHeader`
+  while its content loads, errors, or is ready (loading skeletons and error
+  cards appear below it, never instead of it). Sub-views reached by drilling
+  in (Manage sections, goal/occurrence details) keep their own Back row and
+  do not add a second page header.
+- **Section header** — inside a card, a titled section with actions uses
+  `.cr-section-header`: a bare `h2` (the shell's 19px/800 section style —
+  never restyle it) with the section's actions on the inline end. Feature
+  stylesheets never redefine heading fonts; they add layout only.
+- Retired: `cr-title`, `cr-plan-header`, and the legacy
+  `topbar`/`page-header`/`ln-header` header families (the unrouted
+  `reports-page.tsx` is the only file still carrying the legacy classes).

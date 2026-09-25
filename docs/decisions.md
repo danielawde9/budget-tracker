@@ -3587,3 +3587,44 @@ Defaults chosen where the task file was silent or did not match the schema:
     — executed on a fresh 49-migration database, it returns
     `budget_schema_ready`. Nothing was applied live; Daniel runs
     `pnpm migrate:live` himself.
+
+## 2026-09-25 — One page header per destination; shared section header inside cards; legacy header families retired from Manage sub-pages
+
+**Decision:** every Control Room destination renders exactly one page-level
+header through the shared `PageHeader`
+(`src/features/control-room/page-header.tsx`): a bare `h1`, an optional
+`.cr-helper` subtitle, and an optional `.cr-header-actions` cluster, all on
+the existing `.cr-header` row. Home drops its one-off `cr-title` (the shell's
+bare-h1 24px/800 is the contract, not a per-screen override); Journal's
+loading state and the Plan destination (`PlanRoutes`, above `cr-plan-nav`,
+with the month label as subtitle) now render the same header in loading,
+error, and ready states instead of a `cr-row` header or none; Plan's own
+`cr-plan-header` block ("Monthly plan") is removed as a duplicate. Inside
+cards, the three bespoke title rows (`alloc-row + alloc-heading`,
+`goal-row + goal-heading`, `rec-row + rec-heading`) collapse into one shared
+`.cr-section-header` (bare `h2` at the shell's 19px/800 + inline-end
+actions); Allocation shows that header in its loading/error states too, and
+the full cash-control summary gains the visible "Available after
+commitments" `h2` it previously only carried as an `aria-label`. The Manage
+sub-pages (Wallets, Categories, Loans, Household) move from the legacy
+`topbar page-header`/`brand`/`ln-header` markup to `PageHeader`, so the
+`control-room.css` normalization shim loses its header-override rules (its
+column/state-panel rules stay — they still normalize live content below the
+header).
+
+**Why:** three header families had drifted apart (26px `cr-title` on Home,
+18px/600 feature headings, legacy desktop `topbar`), and loading states were
+inconsistent about whether a destination keeps its title at all. One shared
+component for the page level and one shared class for the section level make
+the pattern enforceable by grep and keep every heading at the size the
+guidelines already specify.
+
+**If changed:** add new header chrome to `PageHeader`/`.cr-section-header`
+in `control-room.css` and record it in `docs/design-guidelines.md` §14 in
+the same change — never per-feature heading fonts. The legacy
+`.topbar`/`.page-header`/`.page-header-action`/`.brand` rules remain in
+`styles.css` only because the unrouted `reports-page.tsx` (and `.brand` on
+the auth/onboarding screens) still reference them; delete those rules when
+that file is removed or migrated. `.button-secondary` remains the sanctioned
+dialog Cancel/secondary class per guidelines §6; only the two page-level
+error-card Dismiss buttons moved to `cr-button`.

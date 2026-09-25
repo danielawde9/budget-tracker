@@ -118,7 +118,7 @@ export function OccurrenceDetail(props: OccurrenceDetailProps) {
   return <section className="rec-detail" aria-label={t(props.locale, 'Occurrence detail', 'تفاصيل الدفعة المستحقة')}>
     <div className="rec-row">
       <button type="button" className="cr-button" onClick={props.onBack}>{t(props.locale, 'Back to upcoming bills', 'العودة إلى الفواتير القادمة')}</button>
-      <h2 className="rec-heading"><bdi>{name}</bdi></h2>
+      <h2><bdi>{name}</bdi></h2>
       <span className={`rec-badge rec-badge-${bucket}`}>{occurrenceBucketLabel(props.locale, bucket)}</span>
     </div>
 

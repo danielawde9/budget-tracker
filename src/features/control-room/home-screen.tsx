@@ -8,6 +8,7 @@ import type { Currency, Locale, SpaceKind } from '../loans/types.js';
 import { formatMinorAmount } from '../wallets/money.js';
 import type { JournalEvent, JournalEventKind } from '../wallets/types.js';
 import { HomeSkeleton } from './skeletons.js';
+import { PageHeader } from './page-header.js';
 
 const t = (locale: Locale, en: string, ar: string) => (locale === 'ar' ? ar : en);
 
@@ -225,17 +226,19 @@ export function HomeScreen(props: HomeScreenProps) {
     : t(locale, 'Personal space', 'مساحة شخصية');
   return (
     <>
-      <header className="cr-header">
-        <h1 className="cr-title">{spaceLabel}</h1>
-        <label className="cr-field">
-          <span className="cr-label">{t(locale, 'Month', 'الشهر')}</span>
-          <select value={month} onChange={(event) => onMonthChange(event.target.value)}>
-            {monthOptions(month).map((option) => (
-              <option key={option} value={option}>{monthLabel(option, locale)}</option>
-            ))}
-          </select>
-        </label>
-      </header>
+      <PageHeader
+        title={spaceLabel}
+        actions={(
+          <label className="cr-field">
+            <span className="cr-label">{t(locale, 'Month', 'الشهر')}</span>
+            <select value={month} onChange={(event) => onMonthChange(event.target.value)}>
+              {monthOptions(month).map((option) => (
+                <option key={option} value={option}>{monthLabel(option, locale)}</option>
+              ))}
+            </select>
+          </label>
+        )}
+      />
       {props.dataStatus === 'loading' ? (
         <HomeSkeleton locale={locale} />
       ) : (

@@ -131,6 +131,9 @@ export function CashControlSummary({ locale, currency, available, variant }: Cas
 
   return (
     <div className="cc-summary">
+      <div className="cr-section-header">
+        <h2>{t(locale, 'Available after commitments', 'المتاح بعد الالتزامات')}</h2>
+      </div>
       <p className="cr-helper">
         {t(locale, 'Cash left after everything you have already committed to this month — bills, goals, and debt.', 'السيولة المتبقية بعد كل ما التزمت به هذا الشهر — الفواتير والأهداف والديون.')}
       </p>

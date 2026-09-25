@@ -97,7 +97,7 @@ describe('LoansPage', () => {
   it('uses the workspace page hierarchy and mobile-safe rows while keeping recovery and dialog actions clear', async () => {
     const { user } = await renderPage();
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Loans' }).closest('.ln-header')).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 1, name: 'Loans' }).closest('.cr-header')).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Add loan' })).toHaveClass('cr-button--primary');
     expect(screen.getByRole('button', { name: 'Open Maya loan' })).toHaveClass('ln-row-button');
 

@@ -166,7 +166,7 @@ export function GoalDetail(props: GoalDetailProps) {
   return <section className="goal-detail" aria-label={t(props.locale, 'Goal detail', 'تفاصيل الهدف')}>
     <div className="goal-row">
       <button type="button" className="cr-button" onClick={props.onBack}>{t(props.locale, 'Back to goals', 'العودة إلى الأهداف')}</button>
-      <h2 className="goal-heading"><bdi>{goalName}</bdi></h2>
+      <h2><bdi>{goalName}</bdi></h2>
       <button type="button" className="cr-button" onClick={() => setDialog('edit')}>{t(props.locale, 'Edit', 'تعديل')}</button>
     </div>
 

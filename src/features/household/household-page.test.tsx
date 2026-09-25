@@ -27,7 +27,7 @@ async function confirm(user: ReturnType<typeof userEvent.setup>, actionName: str
 describe('HouseholdPage', () => {
   it('renders the bounded owner roster and invitation lifecycle using isolated database values', async () => {
     await renderPage();
-    expect(screen.getByRole('heading', { name: 'Household access' }).closest('.page-header')).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Household access' }).closest('.cr-header')).not.toBeNull();
     expect(screen.getByRole('heading', { name: 'Household access' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Members' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Invitations' })).toBeInTheDocument();

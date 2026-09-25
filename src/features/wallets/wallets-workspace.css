@@ -7,16 +7,6 @@
    styles.css.
    ========================================================================== */
 
-/* ---- Page header -------------------------------------------------------- */
-
-.wallets-workspace .wallet-actions {
-  gap: var(--cr-space-2);
-}
-
-.wallets-workspace .wallet-actions .wl-action-grow {
-  flex: 1 1 auto;
-}
-
 /* ---- Section headings ---------------------------------------------------- */
 
 .wallets-workspace .section-heading {

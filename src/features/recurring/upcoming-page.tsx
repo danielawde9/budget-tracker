@@ -68,9 +68,9 @@ export function UpcomingPage(props: UpcomingPageProps) {
   // region), not goals' (whose per-currency split needs the inner
   // `GoalsPage` region distinctly named per currency).
   return <div className="rec-page">
-    <div className="rec-row">
-      <h2 className="rec-heading">{t(props.locale, 'Upcoming bills', 'الفواتير القادمة')}</h2>
-      <div className="rec-row">
+    <div className="cr-section-header">
+      <h2>{t(props.locale, 'Upcoming bills', 'الفواتير القادمة')}</h2>
+      <div className="rec-actions">
         <button type="button" className="cr-button" disabled={busy}
           onClick={() => void recurring.materialize({ fromDate: props.fromDate, toDate: props.toDate })}>
           {t(props.locale, 'Refresh occurrences', 'تحديث الدفعات')}
@@ -102,7 +102,7 @@ export function UpcomingPage(props: UpcomingPageProps) {
     {recurring.status === 'ambiguous' && <div className="cr-card" role="alert">
       <p>{t(props.locale, 'The result of the last command is still unknown.', 'نتيجة الأمر الأخير ما زالت غير معروفة.')}</p>
       <button type="button" className="cr-button" onClick={() => void recurring.retryAmbiguous()}>{t(props.locale, 'Check again', 'تحقق مرة أخرى')}</button>
-      <button type="button" className="button-secondary" onClick={recurring.clearAmbiguous}>{t(props.locale, 'Dismiss', 'تجاهل')}</button>
+      <button type="button" className="cr-button" onClick={recurring.clearAmbiguous}>{t(props.locale, 'Dismiss', 'تجاهل')}</button>
     </div>}
 
     {(recurring.status === 'ready' || recurring.status === 'saving' || recurring.status === 'accepted-refresh-pending' || recurring.status === 'ambiguous') && (

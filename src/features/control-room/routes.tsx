@@ -26,7 +26,7 @@ import type { InsightsClient, CategoryBudgetRow } from '../insights/types.js';
 import type { Currency, Locale, SpaceKind } from '../loans/types.js';
 import type { LoansGateway } from '../loans/types.js';
 import { useLoans } from '../loans/use-loans.js';
-import { PlanPage } from '../plan/plan-page.js';
+import { PlanPage, monthLabel } from '../plan/plan-page.js';
 import { usePlan } from '../plan/use-plan.js';
 import type { PlanClient } from '../plan/types.js';
 import type { MonthlyCashSummary, ReportsGateway } from '../reports/types.js';
@@ -39,6 +39,7 @@ import { HomeScreen } from './home-screen.js';
 import { eventLabel } from './home-screen.js';
 import { JournalScreen } from './journal-screen.js';
 import { ManageScreen } from './manage-screen.js';
+import { PageHeader } from './page-header.js';
 import { RecordSheet } from './record-sheet.js';
 import { HomeSkeleton, JournalSkeleton, PlanSkeleton } from './skeletons.js';
 import type { ControlRoomDestination } from './types.js';
@@ -282,9 +283,7 @@ function JournalRoutes(props: JournalRoutesProps) {
   if (wallets.status === 'loading') {
     return (
       <>
-        <header className="cr-row">
-          <h1>{locale === 'ar' ? 'القيود' : 'Journal'}</h1>
-        </header>
+        <PageHeader title={locale === 'ar' ? 'القيود' : 'Journal'} />
         <JournalSkeleton locale={locale} />
       </>
     );
@@ -520,6 +519,7 @@ function PlanRoutes(props: PlanRoutesProps) {
 
   return (
     <>
+      <PageHeader title={locale === 'ar' ? 'الخطة' : 'Plan'} subtitle={monthLabel(props.month, locale)} />
       <nav className="cr-plan-nav" aria-label={locale === 'ar' ? 'أقسام الخطة' : 'Plan sections'}>
         {PLAN_SECTIONS.map((item) => (
           <button

@@ -185,7 +185,7 @@ test('Record sheet walks type, amount, and confirm steps', async ({ page }, test
 test('Plan screen flags the over-budget category', async ({ page }, testInfo) => {
   await openSeededHome(page);
   await chooseWorkspaceDestination(page, 'Plan');
-  await expect(page.getByRole('heading', { name: 'Monthly plan' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Plan', exact: true })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Planned income USD' })).toContainText('$2,500.00');
   const targets = page.getByRole('region', { name: 'Category targets' });
   await expect(targets).toContainText('Groceries');

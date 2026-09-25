@@ -253,7 +253,7 @@ describe('PlanPage', () => {
   it('renders Arabic copy without leaking English labels', async () => {
     const user = userEvent.setup();
     setup({ locale: 'ar' });
-    expect(screen.getByRole('heading', { name: 'الخطة الشهرية' })).toBeInTheDocument();
+    expect(screen.getByRole('tablist', { name: 'العملة' })).toBeInTheDocument();
     const card = screen.getByRole('region', { name: 'الدخل المخطط USD' });
     await user.click(within(card).getByRole('button', { name: 'تعديل الدخل المخطط USD' }));
     const dialog = screen.getByRole('dialog');

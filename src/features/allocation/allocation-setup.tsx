@@ -71,19 +71,31 @@ export function AllocationSetup(props: AllocationSetupProps) {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   if (allocation.status === 'loading') {
-    return <AllocationSkeleton locale={locale} />;
+    return (
+      <>
+        <div className="cr-section-header">
+          <h2>{t(locale, 'Allocation', 'التخصيص')}</h2>
+        </div>
+        <AllocationSkeleton locale={locale} />
+      </>
+    );
   }
   if (allocation.status === 'error') {
     return (
-      <div className="cr-card" role="alert">
-        <div className="alloc-row">
-          <span>{t(locale, 'Could not load the allocation plan.', 'تعذر تحميل خطة التخصيص.')}</span>
-          <button type="button" className="cr-button" onClick={() => void allocation.refresh()}>
-            {t(locale, 'Retry', 'إعادة المحاولة')}
-          </button>
+      <>
+        <div className="cr-section-header">
+          <h2>{t(locale, 'Allocation', 'التخصيص')}</h2>
         </div>
-        {allocation.error ? <small>{allocation.error.message}</small> : null}
-      </div>
+        <div className="cr-card" role="alert">
+          <div className="alloc-row">
+            <span>{t(locale, 'Could not load the allocation plan.', 'تعذر تحميل خطة التخصيص.')}</span>
+            <button type="button" className="cr-button" onClick={() => void allocation.refresh()}>
+              {t(locale, 'Retry', 'إعادة المحاولة')}
+            </button>
+          </div>
+          {allocation.error ? <small>{allocation.error.message}</small> : null}
+        </div>
+      </>
     );
   }
 
