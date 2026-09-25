@@ -417,6 +417,34 @@
   line-height: 1.5;
 }
 
+/* Copyable value: a read-only labelled field with its Copy action on the
+   inline end; the action wraps below the field on narrow widths. */
+.cr-copy-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--cr-space-2);
+  margin-block-end: var(--cr-space-3);
+}
+.cr-copy-field .cr-field {
+  flex: 1 1 16rem;
+  min-inline-size: 0;
+}
+.cr-copy-field .cr-field input { inline-size: 100%; }
+
+/* Numbered how-to steps inside a card */
+.cr-steps {
+  display: grid;
+  gap: var(--cr-space-2);
+  margin: 0 0 var(--cr-space-3);
+  padding-inline-start: 1.25rem;
+  line-height: 1.5;
+}
+.cr-steps li::marker {
+  color: var(--cr-accent-strong);
+  font-weight: 700;
+}
+
 /* Amounts are the heroes — bold sans tabular at rest */
 .cr-amount {
   font-family: var(--cr-font);

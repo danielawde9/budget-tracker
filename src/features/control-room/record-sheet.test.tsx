@@ -674,3 +674,65 @@ describe('RecordSheet', () => {
     expect(progress.querySelector('.cr-record-step--current')).toHaveTextContent('Amount');
   });
 });
+
+describe('RecordSheet quick add', () => {
+  it('opens straight on the amount keypad when given a starting kind', () => {
+    render(<RecordSheet {...makeProps({ initialKind: 'expense' })} />);
+    expect(screen.getByLabelText('Amount')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Transfer' })).not.toBeInTheDocument();
+  });
+
+  it('still opens on the type grid without a starting kind', () => {
+    render(<RecordSheet {...makeProps({ initialKind: null })} />);
+    expect(screen.getByRole('button', { name: 'Transfer' })).toBeInTheDocument();
+  });
+
+  it('preselects the remembered wallet after the amount and names it in the summary', async () => {
+    const user = userEvent.setup();
+    render(<RecordSheet {...makeProps({ initialKind: 'expense', rememberedWalletId: 'w-bank' })} />);
+    await enterAmount(user, '9');
+    await user.click(screen.getByRole('button', { name: 'Groceries' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByText('Expense · $9.00 · Bank · Groceries')).toBeInTheDocument();
+  });
+
+  it('asks for the wallet when the remembered one no longer exists', async () => {
+    const user = userEvent.setup();
+    render(<RecordSheet {...makeProps({ initialKind: 'expense', rememberedWalletId: 'w-archived' })} />);
+    await enterAmount(user, '9');
+    expect(screen.getByRole('button', { name: 'Cash USD' })).toBeInTheDocument();
+  });
+
+  it('asks for the wallet when the remembered one cannot hold the amount', async () => {
+    const user = userEvent.setup();
+    render(<RecordSheet {...makeProps({ initialKind: 'expense', rememberedWalletId: 'w-lbp' })} />);
+    await enterAmount(user, '1 . 5');
+    expect(screen.getByRole('button', { name: 'Cash USD' })).toBeInTheDocument();
+  });
+
+  it('reports the wallet used after an expense is saved', async () => {
+    const user = userEvent.setup();
+    const onWalletUsed = vi.fn();
+    render(<RecordSheet {...makeProps({ initialKind: 'expense', onWalletUsed })} />);
+    await enterAmount(user, '9');
+    await user.click(screen.getByRole('button', { name: 'Cash USD' }));
+    await user.click(screen.getByRole('button', { name: 'Groceries' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    await waitFor(() => expect(onWalletUsed).toHaveBeenCalledWith('w-cash'));
+  });
+
+  it('does not report a wallet when saving fails', async () => {
+    const user = userEvent.setup();
+    const onWalletUsed = vi.fn();
+    const onSubmitRecord = vi.fn(async () => { throw new Error('server said no'); });
+    render(<RecordSheet {...makeProps({ initialKind: 'expense', onWalletUsed, onSubmitRecord })} />);
+    await enterAmount(user, '9');
+    await user.click(screen.getByRole('button', { name: 'Cash USD' }));
+    await user.click(screen.getByRole('button', { name: 'Groceries' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(await screen.findByText('server said no')).toBeInTheDocument();
+    expect(onWalletUsed).not.toHaveBeenCalled();
+  });
+});

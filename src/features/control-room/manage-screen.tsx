@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from 'react';
-import { ChevronLeft, ChevronRight, Globe, HandCoins, LogOut, Tags, Users, Wallet } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Globe, HandCoins, LogOut, Smartphone, Tags, Users, Wallet } from 'lucide-react';
 import { CategoriesPage } from '../categories/categories-page.js';
 import type { CategoriesGateway } from '../categories/types.js';
 import { HouseholdPage } from '../household/household-page.js';
@@ -7,6 +7,7 @@ import type { HouseholdGateway } from '../household/types.js';
 import type { Locale, SpaceKind } from '../loans/types.js';
 import type { LoansGateway } from '../loans/types.js';
 import { LoansPage } from '../loans/loans-page.js';
+import { PhoneShortcutPage } from '../quick-add/phone-shortcut-page.js';
 import { WalletsPage } from '../wallets/wallets-page.js';
 import type { WalletsState } from '../wallets/use-wallets.js';
 import { PageHeader } from './page-header.js';
@@ -14,7 +15,7 @@ import './manage-hub.css';
 
 const t = (locale: Locale, en: string, ar: string) => (locale === 'ar' ? ar : en);
 
-export type ManageSection = 'wallets' | 'categories' | 'loans' | 'household';
+export type ManageSection = 'wallets' | 'categories' | 'loans' | 'household' | 'phone';
 
 export interface ManageScreenProps {
   locale: Locale;
@@ -100,6 +101,13 @@ export function ManageScreen(props: ManageScreenProps) {
               trail={<span className="cr-label">{locale === 'ar' ? 'العربية' : 'English'}</span>}
               onClick={props.onLocaleChange}
             />
+            <ManageHubRow
+              name={t(locale, 'Add from your phone', 'الإضافة من هاتفك')}
+              description={t(locale, 'A shortcut straight to Add expense', 'اختصار مباشر إلى إضافة مصروف')}
+              icon={<Smartphone size={19} strokeWidth={2} />}
+              trail={locale === 'ar' ? <ChevronLeft aria-hidden size={18} /> : <ChevronRight aria-hidden size={18} />}
+              onClick={() => setSection('phone')}
+            />
           </div>
           <div className="cr-card mg-hub-group">
             <h2 className="mg-hub-heading">{t(locale, 'Account', 'الحساب')}</h2>
@@ -141,6 +149,8 @@ export function ManageScreen(props: ManageScreenProps) {
           locale={locale}
           onSpaceUnavailable={() => props.onSpaceUnavailable?.()}
         />
+      ) : section === 'phone' ? (
+        <PhoneShortcutPage locale={locale} />
       ) : section === 'loans' ? (
         <LoansPage
           gateway={props.gateways.loans}

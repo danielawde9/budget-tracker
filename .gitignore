@@ -11,3 +11,6 @@ playwright-report/
 .worktrees/
 .superpowers/
 benchmark/results.md
+
+# Wrangler local dev state (wrangler dev)
+.wrangler/

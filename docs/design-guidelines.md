@@ -83,6 +83,10 @@ per decision; never radios floating loose outside a group.
   accessible name stays clean.
 - Errors: `role="alert"`, `--cr-danger` text; section-level errors use
   `.error-notice`. Validation hints use warn tone only when blocking.
+- **Copyable values** (links, codes) use `.cr-copy-field`:
+  - a `.cr-field` label wrapping a read-only input (`dir="ltr"` for URLs), then a `cr-button` whose accessible name says what it copies ("Copy expense link").
+  - The button wraps below the field on narrow widths.
+  - Copy results are announced in a `role="status"` line, with a hold-to-copy fallback message when the Clipboard API is refused.
 
 ## 6. Buttons
 
@@ -112,6 +116,8 @@ min 44px targets; primary name in `<bdi>`; amounts inline-end, bold,
 `tabular-nums`; status uses `.status-*` pills; metadata lines use `.cr-helper`.
 Empty states are a panel with one line of explanation and the single primary
 CTA that creates the first item.
+
+Numbered how-to instructions inside a card use `<ol class="cr-steps">`: plain `<li>` sentences, accent-strong numerals, logical inline-start padding. Never a hand-numbered paragraph list.
 
 ## 9. Dialogs
 

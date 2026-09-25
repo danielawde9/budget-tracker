@@ -28,6 +28,8 @@ import type { LoansGateway } from '../loans/types.js';
 import { useLoans } from '../loans/use-loans.js';
 import { PlanPage, monthLabel } from '../plan/plan-page.js';
 import { usePlan } from '../plan/use-plan.js';
+import type { QuickAddKind } from '../quick-add/quick-add.js';
+import { readRememberedWallet, storeRememberedWallet } from '../quick-add/remembered-wallet.js';
 import type { PlanClient } from '../plan/types.js';
 import type { MonthlyCashSummary, ReportsGateway } from '../reports/types.js';
 import { useWallets } from '../wallets/use-wallets.js';
@@ -125,6 +127,8 @@ export interface ControlRoomRoutesProps {
   gateways: ControlRoomGateways;
   recordOpen: boolean;
   onCloseRecord(): void;
+  /** Kind a quick-add link asked the record sheet to open on (null = type grid). */
+  recordInitialKind?: QuickAddKind | null;
   /** Restores membership-revocation handling: hooks call this when the active space disappears. */
   onSpaceUnavailable?(): void;
   /** Opens the record sheet (Task 9 mounts it); the home screen's Record action calls this. */
@@ -604,6 +608,10 @@ function PlanRoutes(props: PlanRoutesProps) {
 export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
   const { locale, spaceId, gateways } = props;
   const [month, setMonth] = useState(currentMonthStart);
+  // Re-read whenever the sheet opens or closes or the space changes, so a
+  // wallet stored by the last save is preselected on the next quick entry.
+  const rememberedWalletId = useMemo(() => readRememberedWallet(spaceId), [spaceId, props.recordOpen]);
+  const rememberWallet = useCallback((walletId: string) => { storeRememberedWallet(spaceId, walletId); }, [spaceId]);
   const walletListRef = useRef<readonly { id: string; currency: Currency }[]>([]);
   const settleRecordedExpense = useCallback(async (info: { eventId: string; kind: string; effectiveDate: string; movements: readonly { walletId: string; amountMinor: string }[]; categoryId: string | null }) => {
     if (info.kind !== 'expense' || !gateways.recurring) return;
@@ -746,6 +754,9 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
       {destinationRoutes}
       <RecordSheet
         open={props.recordOpen}
+        initialKind={props.recordInitialKind ?? null}
+        rememberedWalletId={rememberedWalletId}
+        onWalletUsed={rememberWallet}
         locale={locale}
         wallets={wallets.wallets.filter((wallet) => wallet.archivedAt === null)}
         loans={loansOutstanding}

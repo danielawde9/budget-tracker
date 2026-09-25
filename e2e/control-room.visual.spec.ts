@@ -106,6 +106,49 @@ async function openSeededHome(page: Page) {
   await expect(page.getByRole('heading', { name: 'Personal space' })).toBeVisible();
 }
 
+test('a quick-add link opens the Record keypad on Expense and leaves a clean address', async ({ page }, testInfo) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await installApplicationFixture(page, {
+    budgetRows: seededBudgetRows,
+    planSummary: seededPlanSummary,
+    activityRows: seededActivityRows,
+  });
+  await page.goto('/?add=expense');
+  const sheet = page.getByRole('dialog', { name: 'Record', exact: true });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByRole('button', { name: 'Transfer' })).toHaveCount(0);
+  for (const key of ['1', '2']) await sheet.getByRole('button', { name: key, exact: true }).click();
+  await expect(page.getByRole('status', { name: 'Amount' })).toHaveText('12');
+  await expect(page).toHaveURL(/\/$/);
+  await expectContainedControls(page, sheet);
+  await page.screenshot({ path: screenshotPath(testInfo, `quick-add-expense-${testInfo.project.name}.png`) });
+});
+
+test('Manage explains how to add from the phone, in English and Arabic', async ({ page }, testInfo) => {
+  await openSeededHome(page);
+  await chooseWorkspaceDestination(page, 'Manage');
+  await page.getByRole('button', { name: /^Add from your phone/ }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Add from your phone' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Expense link' })).toHaveValue(/\/\?add=expense$/);
+  await expectContainedControls(page);
+  await page.screenshot({ path: screenshotPath(testInfo, `phone-shortcut-${testInfo.project.name}.png`), fullPage: true });
+
+  await page.getByRole('button', { name: 'Back to manage sections' }).click();
+  await switchWorkspaceLanguage(page);
+  await chooseWorkspaceDestination(page, 'الإدارة');
+  await page.getByRole('button', { name: /^الإضافة من هاتفك/ }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'الإضافة من هاتفك' })).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await page.screenshot({ path: screenshotPath(testInfo, `phone-shortcut-ar-${testInfo.project.name}.png`), fullPage: true });
+});
+
+test('the installed app manifest is served with its shortcuts', async ({ page }) => {
+  const response = await page.request.get('/manifest.webmanifest');
+  expect(response.ok()).toBe(true);
+  const manifest = await response.json() as { shortcuts: { url: string }[] };
+  expect(manifest.shortcuts.map((shortcut) => shortcut.url)).toEqual(['/?add=expense', '/?add=income']);
+});
+
 test('Home shows budgets, recent activity, and loans within the viewport', async ({ page }, testInfo) => {
   await openSeededHome(page);
   const budgets = page.getByRole('region', { name: 'Budget vs actual' });

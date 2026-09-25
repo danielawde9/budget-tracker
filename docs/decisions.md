@@ -3628,3 +3628,37 @@ the auth/onboarding screens) still reference them; delete those rules when
 that file is removed or migrated. `.button-secondary` remains the sanctioned
 dialog Cancel/secondary class per guidelines §6; only the two page-level
 error-card Dismiss buttons moved to `cr-button`.
+
+## 2026-09-25 — Quick add from the phone: quick-add links, remembered wallet, installable app without a service worker
+
+**Decision:**
+- **Links.** `/?add=expense` and `/?add=income` open the Record sheet directly on that kind's amount keypad.
+  - Handled by `src/features/quick-add/quick-add.ts`, read once in `AuthenticatedWorkspace`.
+  - The sheet opens once a space is ready and no household-invitation dialog is showing.
+  - The parameter is then removed with `history.replaceState`.
+  - The link only chooses the form. Nothing is recorded until the person taps Confirm, so a link someone else sends can never post an entry.
+  - Any other value is ignored.
+- **Remembered wallet.** After an expense or income is saved, the sheet remembers its wallet per space, on this device only (`localStorage`, `budget:last-wallet:<spaceId>`).
+  - It is preselected after the amount step only if it still exists and can hold the amount (an LBP wallet never receives a decimal amount). Otherwise the wallet list appears as before.
+  - Unavailable storage means nothing is remembered.
+- **Installable app.** `public/manifest.webmanifest` sets `display: standalone`, 192/512 icons plus a maskable 512, and two `shortcuts` (Add expense, Add income) whose URLs are the links above.
+  - `src/pwa-manifest.test.ts` passes each shortcut URL through the app's own link parser, so the two cannot drift.
+  - `index.html` links the manifest, a PNG favicon and a 180px `apple-touch-icon`. The title is now "Budget" (it still read "Budget — Loans").
+  - Icons are rendered from inline SVG by `scripts/generate-app-icons.mjs` with Playwright's Chrome channel, which is already a dev dependency, in the control-room accent tokens.
+- **Manage → "Add from your phone".** This new page (`phone-shortcut-page.tsx`) has copyable links and iPhone/Android steps.
+
+**Why:** Recording an expense took the site, then Record, then Expense before the amount. The owner asked for a phone shortcut. The alternatives were weighed as follows:
+
+- **Manifest shortcuts:** MDN browser-compat-data (read 2026-09-25) shows them supported in Chrome Android 84+, desktop Chrome 96+, Edge, Samsung Internet and Safari macOS 17.4. They are **not** supported in Safari iOS or Firefox. So iPhone gets a Shortcuts-app "Open URLs" recipe instead.
+- **No service worker:** Chrome's install criteria (web.dev "install-criteria", updated 2024-09-19) require the manifest fields, HTTPS and engagement, but no service worker. An offline shell would suggest entries can be recorded offline, which the journal's request-id model does not support.
+- **English-only shortcut labels:** manifest localization is not Baseline, so the labels stay English. The Arabic instructions quote them as shown by the phone.
+
+**If changed:**
+- **Recording without opening the app** (Siri or Shortcuts posting directly) needs a scoped personal access token, a Worker endpoint, rate limits and an audit trail. That is its own spec.
+- **Offline entry** needs a queued-command design with request-id reconciliation before any service worker caches the app.
+- **Changing the links** means updating `quick-add.ts` and the manifest together; the manifest test fails otherwise.
+- **The served manifest content type** was verified on 2026-09-25 against `dist/` in the local Workers runtime (`wrangler dev --config wrangler.frontend.jsonc`):
+  - `/manifest.webmanifest` is served as `application/manifest+json`.
+  - `/?add=expense` returns `index.html` through the single-page fallback.
+  - Icons are served as `image/png`.
+  - The hosted deployment itself was not checked.

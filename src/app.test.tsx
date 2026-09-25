@@ -235,3 +235,49 @@ describe('App', () => {
     expect(new Set(requests).size).toBe(1);
   });
 });
+
+describe('App quick-add link', () => {
+  function visit(path: string) {
+    window.history.replaceState(null, '', path);
+  }
+
+  it('opens the Record sheet on Expense from ?add=expense, then removes the link', async () => {
+    visit('/?add=expense');
+    try {
+      renderApp();
+      const sheet = await screen.findByRole('dialog', { name: 'Record' });
+      expect(within(sheet).getByLabelText('Amount')).toBeInTheDocument();
+      expect(within(sheet).queryByRole('button', { name: 'Transfer' })).not.toBeInTheDocument();
+      expect(window.location.search).toBe('');
+    } finally {
+      visit('/');
+    }
+  });
+
+  it('opens the ordinary type grid from the Record button after a quick add was used', async () => {
+    const user = userEvent.setup();
+    visit('/?add=income');
+    try {
+      renderApp();
+      const sheet = await screen.findByRole('dialog', { name: 'Record' });
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(sheet).not.toBeInTheDocument());
+      await user.click(screen.getAllByRole('button', { name: 'Record' })[0]!);
+      const reopened = await screen.findByRole('dialog', { name: 'Record' });
+      expect(within(reopened).getByRole('button', { name: 'Transfer' })).toBeInTheDocument();
+    } finally {
+      visit('/');
+    }
+  });
+
+  it('ignores an unknown quick-add value', async () => {
+    visit('/?add=transfer');
+    try {
+      renderApp();
+      expect(await screen.findByRole('heading', { name: 'Personal space' })).toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: 'Record' })).not.toBeInTheDocument();
+    } finally {
+      visit('/');
+    }
+  });
+});
