@@ -193,6 +193,13 @@ Commit `9dbf6f0`'s matching rules have no `docs/decisions.md` entry.
     - Schedules, goals and loans have no natural key and get random client ids.
   - Safe to re-run: category creation (unique active names), plan income and targets, allocation (expected ids and receipts), and invitations.
 
+### 3.7 Release operations (O)
+
+- **O1 MEDIUM (verified):** the release manifest is out of date.
+  - `ops/budget-migrations.sha256` (49 rows, `source_sha=87e5af7`) and `LIVE_VERIFY_SQL` in `scripts/ops/apply-live-migrations.sh` (49 versions) omit `20260919100000_journal_search_page.sql`. It was added by commit `3318f00`, which did not regenerate the manifest, and no ledger entry explains why.
+  - `migrate-budget.sh verify-manifest` fails closed with `unmanifested migration file` (exit 79), so the next `pnpm migrate:live` would refuse to run. That is safe, but it blocks every release until the manifest is regenerated.
+  - `tests/ops/live-migrations.test.ts` passes (9/9 on `e149057`) because it checks only the script's constants and never compares the manifest with the migrations folder. That missing check is the detector the fix must add.
+
 ## 4. Missing features users would expect
 
 - UI for month copy, close and rollover policy. Allocation history and trend.
