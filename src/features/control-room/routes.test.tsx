@@ -7,6 +7,7 @@ import { InMemoryCategoriesGateway } from '../../test/in-memory-categories-gatew
 import { InMemoryHouseholdGateway } from '../../test/in-memory-household-gateway.js';
 import { InMemoryLoansGateway } from '../../test/in-memory-loans-gateway.js';
 import { InMemoryPlanClient } from '../../test/in-memory-plan-client.js';
+import { coreOccurrenceRowFixture, InMemoryRecurringGateway } from '../../test/in-memory-recurring-gateway.js';
 import { InMemoryWalletsGateway } from '../../test/in-memory-wallets-gateway.js';
 import { ControlRoomRoutes } from './routes.js';
 import type { ControlRoomGateways } from './routes.js';
@@ -29,6 +30,7 @@ function gateways(overrides: {
   reports?: ReportsGateway;
   wallets?: ControlRoomGateways['wallets'];
   categories?: ControlRoomGateways['categories'];
+  recurring?: ControlRoomGateways['recurring'];
 }): ControlRoomGateways {
   return {
     wallets: overrides.wallets ?? new InMemoryWalletsGateway(),
@@ -41,7 +43,7 @@ function gateways(overrides: {
     exchange: null,
     allocation: null,
     goals: null,
-    recurring: null,
+    recurring: overrides.recurring ?? null,
     cashControl: null,
   };
 }
@@ -278,6 +280,54 @@ describe('ControlRoomRoutes record sheet', () => {
       'Recorded, but refreshing balances failed — check your connection.');
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(onCloseRecord).not.toHaveBeenCalled();
+  });
+});
+
+describe('ControlRoomRoutes auto-settle notice', () => {
+  it('shows the "Marked … as paid." status when a recorded expense settles a matching occurrence', async () => {
+    const user = userEvent.setup();
+    // A wallet remembered by an earlier test in this file (real localStorage,
+    // shared across tests) would otherwise skip the Wallet step below.
+    window.localStorage.removeItem('budget:last-wallet:personal-space');
+    const today = new Date();
+    const dueDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const categories = new InMemoryCategoriesGateway();
+    categories.categories = [{
+      id: 'category-groceries', spaceId: 'personal-space', kind: 'expense',
+      nameEn: 'Groceries', nameAr: 'بقالة', parentCategoryId: null,
+      createdAt: '2026-09-08T10:00:00Z', archivedAt: null,
+    }];
+    const recurring = new InMemoryRecurringGateway();
+    recurring.page = {
+      rows: [{
+        ...coreOccurrenceRowFixture,
+        dueDate,
+        asOf: dueDate,
+        categoryId: 'category-groceries',
+        expectedMinor: '1000',
+        settledMinor: '0',
+        remainingMinor: '1000',
+        state: 'pending',
+      }],
+      hasMore: false,
+      nextCursor: null,
+      asOf: dueDate,
+    };
+    renderHome(gateways({ categories, recurring }), { recordOpen: true });
+
+    await user.click(await screen.findByRole('button', { name: 'Expense' }));
+    for (const key of ['1', '0']) await user.click(screen.getByRole('button', { name: key }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: /Daily USD/ }));
+    await user.click(screen.getByRole('button', { name: 'Groceries' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    const notice = await screen.findByText(/Marked/);
+    const banner = notice.closest('p');
+    expect(banner).toHaveAttribute('role', 'status');
+    expect(banner).toHaveTextContent('Marked "Rent" as paid.');
+    expect(screen.getByRole('button', { name: 'Dismiss' })).toBeInTheDocument();
   });
 });
 

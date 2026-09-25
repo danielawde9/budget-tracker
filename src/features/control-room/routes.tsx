@@ -19,11 +19,13 @@ import { useGoals } from '../goals/use-goals.js';
 import type { HouseholdGateway } from '../household/types.js';
 import type { RecurringGateway } from '../recurring/types.js';
 import { AutoMaterializeBanner } from '../recurring/auto-materialize-banner.js';
-import { autoSettleExpense } from '../recurring/auto-settle.js';
+import { autoSettleRecordedEvent } from '../recurring/auto-settle.js';
+import type { AutoSettleOutcome } from '../recurring/auto-settle.js';
 import { occurrenceWindow } from '../recurring/occurrence-window.js';
 import { useAutoMaterialize } from '../recurring/use-auto-materialize.js';
 import type { AutoMaterializeState } from '../recurring/use-auto-materialize.js';
 import { useRecurring } from '../recurring/use-recurring.js';
+import { SettleNoticeBanner } from '../recurring/settle-notice-banner.js';
 import { UpcomingPage } from '../recurring/upcoming-page.js';
 import type { ScheduleReferenceOptions } from '../recurring/schedule-editor.js';
 import type { InsightsClient, CategoryBudgetRow } from '../insights/types.js';
@@ -644,24 +646,35 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
   const rememberedWalletId = useMemo(() => readRememberedWallet(spaceId), [spaceId, props.recordOpen]);
   const rememberWallet = useCallback((walletId: string) => { storeRememberedWallet(spaceId, walletId); }, [spaceId]);
   const walletListRef = useRef<readonly { id: string; currency: Currency }[]>([]);
-  const settleRecordedExpense = useCallback(async (info: { eventId: string; kind: string; effectiveDate: string; movements: readonly { walletId: string; amountMinor: string }[]; categoryId: string | null }) => {
-    if (info.kind !== 'expense' || !gateways.recurring) return;
+  const categories = useCategories(gateways.categories, spaceId, props.onSpaceUnavailable);
+  const parentOf = useMemo(() => {
+    const byId = new Map<string, string | null>();
+    for (const category of categories.incomeCategories) byId.set(category.id, category.parentCategoryId ?? null);
+    for (const category of categories.expenseCategories) byId.set(category.id, category.parentCategoryId ?? null);
+    return (categoryId: string) => byId.get(categoryId) ?? null;
+  }, [categories.incomeCategories, categories.expenseCategories]);
+  const [settleNotice, setSettleNotice] = useState<AutoSettleOutcome | null>(null);
+  const settleRecordedEvent = useCallback(async (info: { eventId: string; kind: string; effectiveDate: string; movements: readonly { walletId: string; amountMinor: string }[]; categoryId: string | null }) => {
+    if (!gateways.recurring) return;
+    const eventKind = info.kind === 'expense' ? 'expense' as const : info.kind === 'income' ? 'income' as const : null;
+    if (!eventKind) return;
     const wallet = walletListRef.current.find((candidate) => candidate.id === info.movements[0]?.walletId);
     if (!wallet) return;
     const totalMinor = info.movements.reduce((sum, movement) => sum + BigInt(movement.amountMinor), 0n);
     const amountMinor = (totalMinor < 0n ? -totalMinor : totalMinor).toString();
-    await autoSettleExpense(gateways.recurring, spaceId, {
+    const outcome = await autoSettleRecordedEvent(gateways.recurring, spaceId, {
       eventId: info.eventId,
+      eventKind,
       categoryId: info.categoryId,
       amountMinor,
       currency: wallet.currency,
       effectiveDate: info.effectiveDate,
-    });
-  }, [gateways.recurring, spaceId]);
-  const wallets = useWallets(gateways.wallets, spaceId, props.onSpaceUnavailable, undefined, gateways.categories, { onExpenseRecorded: settleRecordedExpense });
+    }, parentOf);
+    setSettleNotice(outcome);
+  }, [gateways.recurring, spaceId, parentOf]);
+  const wallets = useWallets(gateways.wallets, spaceId, props.onSpaceUnavailable, undefined, gateways.categories, { onExpenseRecorded: settleRecordedEvent });
   walletListRef.current = wallets.wallets;
   const loans = useLoans(gateways.loans, { spaceId, ...(props.onSpaceUnavailable ? { onSpaceUnavailable: props.onSpaceUnavailable } : {}) });
-  const categories = useCategories(gateways.categories, spaceId, props.onSpaceUnavailable);
   const exchangeReceipts = useMemo(() => ({
     findEventByRequestId: (targetSpaceId: string, requestId: string) =>
       gateways.wallets.findEventByRequestId(targetSpaceId, requestId),
@@ -782,6 +795,7 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
 
   return (
     <>
+      <SettleNoticeBanner locale={locale} outcome={settleNotice} onDismiss={() => setSettleNotice(null)} />
       {destinationRoutes}
       <RecordSheet
         open={props.recordOpen}

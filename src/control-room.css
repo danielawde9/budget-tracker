@@ -824,6 +824,12 @@
   border-radius: var(--cr-radius-sm);
 }
 
+/* A lone dismiss/acknowledge action inside a .cr-banner: self-aligns to the
+   inline end instead of stretching full-width under the banner's column
+   flex (the default cross-axis stretch every other .cr-button avoids by
+   sitting inside its own row/toolbar). */
+.cr-banner-dismiss { align-self: flex-end; }
+
 /* ==========================================================================
    Skeletons — sunken placeholders with a slow shimmer sweep
    ========================================================================== */

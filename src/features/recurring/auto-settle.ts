@@ -1,13 +1,25 @@
 import type { Currency } from '../loans/types.js';
 import type { RecurringGateway, ScheduledOccurrenceRow } from './types.js';
 
-export interface ExpenseForMatching {
+export interface RecordedEventForMatching {
   readonly eventId: string;
+  readonly eventKind: 'expense' | 'income';
   readonly categoryId: string | null;
   readonly amountMinor: string;
   readonly currency: Currency;
   readonly effectiveDate: string;
 }
+
+export type SettleCandidate =
+  | { readonly kind: 'match'; readonly occurrence: ScheduledOccurrenceRow }
+  | { readonly kind: 'none' }
+  | { readonly kind: 'ambiguous'; readonly scheduleCount: number };
+
+export type AutoSettleOutcome =
+  | { readonly status: 'settled'; readonly occurrenceId: string; readonly nameEn: string | null; readonly nameAr: string | null }
+  | { readonly status: 'none' }
+  | { readonly status: 'ambiguous'; readonly scheduleCount: number }
+  | { readonly status: 'failed'; readonly message: string };
 
 const MATCH_WINDOW_DAYS = 31;
 
@@ -21,54 +33,70 @@ function shiftDate(date: string, days: number): string {
   return shifted.toISOString().slice(0, 10);
 }
 
+function categoriesMatch(bill: string | null, entry: string | null, parentOf: (id: string) => string | null): boolean {
+  if (bill === null || entry === null) return bill === entry;
+  return bill === entry || parentOf(entry) === bill || parentOf(bill) === entry;
+}
+
 export function findSettleableOccurrence(
-  expense: ExpenseForMatching,
+  recorded: RecordedEventForMatching,
   occurrences: readonly ScheduledOccurrenceRow[],
-): ScheduledOccurrenceRow | null {
-  const candidates = occurrences.filter((row) => {
-    if (row.state !== 'pending') return false;
-    if (row.currency !== expense.currency) return false;
-    if (row.expectedMinor !== expense.amountMinor) return false;
-    if (row.categoryId !== expense.categoryId) return false;
-    if (Math.abs(daysBetween(row.dueDate, expense.effectiveDate)) > MATCH_WINDOW_DAYS) return false;
-    return true;
-  });
-  return candidates.length === 1 ? candidates[0]! : null;
+  parentOf: (categoryId: string) => string | null,
+): SettleCandidate {
+  const oldestPerSchedule = new Map<string, ScheduledOccurrenceRow>();
+  for (const row of occurrences) {
+    if (row.kind !== recorded.eventKind) continue;
+    if (row.state !== 'pending' && row.state !== 'partial') continue;
+    if (row.currency !== recorded.currency || row.remainingMinor !== recorded.amountMinor) continue;
+    if (!categoriesMatch(row.categoryId, recorded.categoryId, parentOf)) continue;
+    if (Math.abs(daysBetween(row.dueDate, recorded.effectiveDate)) > MATCH_WINDOW_DAYS) continue;
+    const current = oldestPerSchedule.get(row.scheduleId);
+    if (!current || row.dueDate < current.dueDate || (row.dueDate === current.dueDate && row.id < current.id)) {
+      oldestPerSchedule.set(row.scheduleId, row);
+    }
+  }
+  if (oldestPerSchedule.size === 0) return { kind: 'none' };
+  if (oldestPerSchedule.size > 1) return { kind: 'ambiguous', scheduleCount: oldestPerSchedule.size };
+  const [only] = oldestPerSchedule.values();
+  return only ? { kind: 'match', occurrence: only } : { kind: 'none' };
 }
 
 /**
- * After an expense is recorded, link it to the one upcoming bill it clearly
- * pays. Never throws and never blocks the recording flow: matching is
- * deliberately strict (exact amount, currency, category when the bill has
- * one, due date within 31 days, exactly one candidate) and any failure
- * leaves the bill for manual Review payment.
+ * After an entry is recorded, link it to the one bill (or income) it clearly
+ * pays: same kind, currency and remaining amount, category equal or
+ * parent/child, due within 31 days, and exactly one schedule -- whose oldest
+ * unpaid occurrence is settled. Never blocks recording; the outcome is
+ * returned so the caller can tell the person what happened.
  */
-export async function autoSettleExpense(
+export async function autoSettleRecordedEvent(
   gateway: RecurringGateway,
   spaceId: string,
-  expense: ExpenseForMatching,
-): Promise<string | null> {
+  recorded: RecordedEventForMatching,
+  parentOf: (categoryId: string) => string | null,
+): Promise<AutoSettleOutcome> {
   try {
     const page = await gateway.loadOccurrences({
       spaceId,
-      fromDate: shiftDate(expense.effectiveDate, -MATCH_WINDOW_DAYS),
-      toDate: shiftDate(expense.effectiveDate, MATCH_WINDOW_DAYS),
+      fromDate: shiftDate(recorded.effectiveDate, -MATCH_WINDOW_DAYS),
+      toDate: shiftDate(recorded.effectiveDate, MATCH_WINDOW_DAYS),
       afterDueDate: null,
       afterId: null,
       limit: 100,
     });
-    const match = findSettleableOccurrence(expense, page.rows);
-    if (!match) return null;
+    const candidate = findSettleableOccurrence(recorded, page.rows, parentOf);
+    if (candidate.kind === 'none') return { status: 'none' };
+    if (candidate.kind === 'ambiguous') return { status: 'ambiguous', scheduleCount: candidate.scheduleCount };
+    const match = candidate.occurrence;
     await gateway.linkExisting({
       spaceId,
       requestId: globalThis.crypto.randomUUID(),
       occurrenceId: match.id,
-      eventId: expense.eventId,
-      amountMinor: expense.amountMinor,
+      eventId: recorded.eventId,
+      amountMinor: recorded.amountMinor,
       expectedEventId: match.currentEventId,
     });
-    return match.id;
-  } catch {
-    return null;
+    return { status: 'settled', occurrenceId: match.id, nameEn: match.nameEn, nameAr: match.nameAr };
+  } catch (cause) {
+    return { status: 'failed', message: cause instanceof Error ? cause.message : String(cause) };
   }
 }
