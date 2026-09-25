@@ -22,6 +22,8 @@ import { AutoMaterializeBanner } from '../recurring/auto-materialize-banner.js';
 import { autoSettleRecordedEvent } from '../recurring/auto-settle.js';
 import type { AutoSettleOutcome } from '../recurring/auto-settle.js';
 import { occurrenceWindow } from '../recurring/occurrence-window.js';
+import { settleLoanRepayment } from '../recurring/settle-loan-repayment.js';
+import type { RecordedRepayment } from '../recurring/settle-loan-repayment.js';
 import { useAutoMaterialize } from '../recurring/use-auto-materialize.js';
 import type { AutoMaterializeState } from '../recurring/use-auto-materialize.js';
 import { useRecurring } from '../recurring/use-recurring.js';
@@ -674,7 +676,16 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
   }, [gateways.recurring, spaceId, parentOf]);
   const wallets = useWallets(gateways.wallets, spaceId, props.onSpaceUnavailable, undefined, gateways.categories, { onExpenseRecorded: settleRecordedEvent });
   walletListRef.current = wallets.wallets;
-  const loans = useLoans(gateways.loans, { spaceId, ...(props.onSpaceUnavailable ? { onSpaceUnavailable: props.onSpaceUnavailable } : {}) });
+  const onRepaymentRecorded = useCallback(async (repayment: RecordedRepayment) => {
+    if (!gateways.recurring) return;
+    const outcome = await settleLoanRepayment(gateways.recurring, spaceId, repayment);
+    setSettleNotice(outcome);
+  }, [gateways.recurring, spaceId]);
+  const loans = useLoans(gateways.loans, {
+    spaceId,
+    ...(props.onSpaceUnavailable ? { onSpaceUnavailable: props.onSpaceUnavailable } : {}),
+    onRepaymentRecorded,
+  });
   const exchangeReceipts = useMemo(() => ({
     findEventByRequestId: (targetSpaceId: string, requestId: string) =>
       gateways.wallets.findEventByRequestId(targetSpaceId, requestId),

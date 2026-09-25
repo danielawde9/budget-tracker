@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { householdSpace, loansFixture, personalSpace } from '../../test/in-memory-loans-gateway.js';
+import { householdSpace, InMemoryLoansGateway, loansFixture, personalSpace } from '../../test/in-memory-loans-gateway.js';
 import { createSupabaseLoansGateway } from './supabase-loans-gateway.js';
 import type { CommandResult, CreateLoanInput, LoansDashboard, LoansGateway, MonthlyTargetInput, RepaymentInput, ReversalInput } from './types.js';
 import { useLoans } from './use-loans.js';
@@ -49,6 +49,45 @@ describe('useLoans controlled space loading', () => {
     await waitFor(() => expect(result.current.dashboard?.space.id).toBe(householdSpace.id));
     act(() => gateway.pending.get(personalSpace.id)?.resolve(loansFixture(personalSpace)));
     await waitFor(() => expect(result.current.dashboard?.space.id).toBe(householdSpace.id));
+  });
+
+  describe('onRepaymentRecorded option', () => {
+    it('fires once with the real event id and the loan\'s own currency after a successful repayment', async () => {
+      const gateway = new InMemoryLoansGateway();
+      const onRepaymentRecorded = vi.fn(async () => undefined);
+      const { result } = renderHook(() => useLoans(gateway, { spaceId: personalSpace.id, onRepaymentRecorded }));
+      await waitFor(() => expect(result.current.dashboard?.space.id).toBe(personalSpace.id));
+
+      await act(async () => {
+        await result.current.recordRepayment({
+          spaceId: personalSpace.id, loanId: 'maya-loan', walletId: 'usd-wallet',
+          amountMinor: '5000', effectiveDate: '2026-09-10',
+        });
+      });
+
+      expect(onRepaymentRecorded).toHaveBeenCalledOnce();
+      expect(onRepaymentRecorded).toHaveBeenCalledWith({
+        eventId: 'repayment-event', loanId: 'maya-loan', amountMinor: '5000',
+        currency: 'USD', effectiveDate: '2026-09-10',
+      });
+    });
+
+    it('does not fire when the repayment fails', async () => {
+      const gateway = new InMemoryLoansGateway();
+      const onRepaymentRecorded = vi.fn(async () => undefined);
+      const { result } = renderHook(() => useLoans(gateway, { spaceId: personalSpace.id, onRepaymentRecorded }));
+      await waitFor(() => expect(result.current.dashboard?.space.id).toBe(personalSpace.id));
+      gateway.error = new Error('overpayment');
+
+      await act(async () => {
+        await expect(result.current.recordRepayment({
+          spaceId: personalSpace.id, loanId: 'maya-loan', walletId: 'usd-wallet',
+          amountMinor: '5000', effectiveDate: '2026-09-10',
+        })).rejects.toThrow('overpayment');
+      });
+
+      expect(onRepaymentRecorded).not.toHaveBeenCalled();
+    });
   });
 
   describe.each([

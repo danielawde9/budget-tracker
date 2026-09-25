@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { InsightsClient, CategoryBudgetRow } from '../insights/types.js';
+import type { LinkExistingInput } from '../recurring/types.js';
 import type { MonthlyCashSummary, ReportsGateway } from '../reports/types.js';
 import { InMemoryCategoriesGateway } from '../../test/in-memory-categories-gateway.js';
 import { InMemoryHouseholdGateway } from '../../test/in-memory-household-gateway.js';
@@ -328,6 +329,53 @@ describe('ControlRoomRoutes auto-settle notice', () => {
     expect(banner).toHaveAttribute('role', 'status');
     expect(banner).toHaveTextContent('Marked "Rent" as paid.');
     expect(screen.getByRole('button', { name: 'Dismiss' })).toBeInTheDocument();
+  });
+
+  it('links a recorded income entry to a matching pending income occurrence', async () => {
+    const user = userEvent.setup();
+    // A wallet remembered by an earlier test in this file (real localStorage,
+    // shared across tests) would otherwise skip the Wallet step below.
+    window.localStorage.removeItem('budget:last-wallet:personal-space');
+    const today = new Date();
+    const dueDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const categories = new InMemoryCategoriesGateway();
+    categories.categories = [{
+      id: 'category-salary', spaceId: 'personal-space', kind: 'income',
+      nameEn: 'Salary', nameAr: 'راتب', parentCategoryId: null,
+      createdAt: '2026-09-08T10:00:00Z', archivedAt: null,
+    }];
+    const recurring = new InMemoryRecurringGateway();
+    recurring.page = {
+      rows: [{
+        ...coreOccurrenceRowFixture,
+        kind: 'income',
+        nameEn: 'Salary',
+        dueDate,
+        asOf: dueDate,
+        categoryId: 'category-salary',
+        expectedMinor: '1000',
+        settledMinor: '0',
+        remainingMinor: '1000',
+        state: 'pending',
+      }],
+      hasMore: false,
+      nextCursor: null,
+      asOf: dueDate,
+    };
+    renderHome(gateways({ categories, recurring }), { recordOpen: true });
+
+    await user.click(await screen.findByRole('button', { name: 'Income' }));
+    for (const key of ['1', '0']) await user.click(screen.getByRole('button', { name: key }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: /Daily USD/ }));
+    await user.click(screen.getByRole('button', { name: 'Salary' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    await screen.findByText(/Marked/);
+    const linkCall = recurring.calls.find((call) => call.name === 'linkExisting');
+    expect(linkCall).toBeDefined();
+    expect((linkCall?.input as LinkExistingInput).eventId).toEqual(expect.any(String));
   });
 });
 
