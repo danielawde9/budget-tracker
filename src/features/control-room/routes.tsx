@@ -19,6 +19,9 @@ import { useGoals } from '../goals/use-goals.js';
 import type { HouseholdGateway } from '../household/types.js';
 import type { RecurringGateway } from '../recurring/types.js';
 import { autoSettleExpense } from '../recurring/auto-settle.js';
+import { occurrenceWindow } from '../recurring/occurrence-window.js';
+import { useAutoMaterialize } from '../recurring/use-auto-materialize.js';
+import type { AutoMaterializeState } from '../recurring/use-auto-materialize.js';
 import { useRecurring } from '../recurring/use-recurring.js';
 import { UpcomingPage } from '../recurring/upcoming-page.js';
 import type { ScheduleReferenceOptions } from '../recurring/schedule-editor.js';
@@ -150,15 +153,6 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-/** Window-bound arithmetic only (never an occurrence's own `dueDate`, which
- * this feature always displays as the server's plain string, unshifted) --
- * safe, ordinary `Date` use for picking the materialize/load range. */
-function addDaysIso(iso: string, days: number): string {
-  const date = new Date(`${iso}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
 function isSpaceUnavailable(cause: unknown): boolean {
   const message = cause instanceof Error ? cause.message : '';
   return /active space membership|selected space is not available|permission denied|missing_membership/i.test(message);
@@ -191,24 +185,43 @@ interface HomeRoutesProps {
  * instead of reimplementing that request lifecycle a second time here. This
  * does issue an unused `cash_outlook` read on Home too (the compact variant
  * only reads `available`); accepted as a bounded, cheap read-only RPC --
- * see `docs/decisions.md`. */
+ * see `docs/decisions.md`. Also owns Home's one auto-materialize attempt:
+ * this is where Home's per-currency `available` reads already live, so the
+ * generation-gap check and the refresh it triggers belong here too, rather
+ * than a second place reaching into the same state. */
 function useCashControlHomeSummary(
-  gateway: CashControlGateway, spaceId: string, onSpaceUnavailable: (() => void) | undefined,
-): readonly { currency: Currency; available: ReturnType<typeof useCashControl>['available'] }[] {
+  gateway: CashControlGateway, recurringGateway: RecurringGateway | null, spaceId: string, onSpaceUnavailable: (() => void) | undefined,
+): {
+  byCurrency: readonly { currency: Currency; available: ReturnType<typeof useCashControl>['available'] }[];
+  autoMaterialize: AutoMaterializeState;
+} {
   const today = todayIso();
   const usd = useCashControl(gateway, spaceId, 'USD', today, 60, 'expected', onSpaceUnavailable);
   const lbp = useCashControl(gateway, spaceId, 'LBP', today, 60, 'expected', onSpaceUnavailable);
-  return [
-    { currency: 'USD', available: usd.available },
-    { currency: 'LBP', available: lbp.available },
+  const byCurrency = [
+    { currency: 'USD' as const, available: usd.available },
+    { currency: 'LBP' as const, available: lbp.available },
   ];
+  const needed = byCurrency.some(
+    (entry) => entry.available.data.state === 'incomplete' && entry.available.data.unmaterializedCount > 0,
+  );
+  const autoMaterialize = useAutoMaterialize({
+    gateway: recurringGateway,
+    spaceId,
+    today,
+    needed,
+    onGenerated: async () => { usd.available.refresh(); lbp.available.refresh(); },
+  });
+  return { byCurrency, autoMaterialize };
 }
 
 function HomeRoutes(props: HomeRoutesProps) {
   const { locale, spaceId, spaceKind, gateways } = props;
   const month = props.month;
   const insightsClient = gateways.insights ?? unavailableInsightsClient;
-  const cashControlByCurrency = useCashControlHomeSummary(gateways.cashControl ?? unavailableCashControlGateway, spaceId, props.onSpaceUnavailable);
+  const { byCurrency: cashControlByCurrency, autoMaterialize } = useCashControlHomeSummary(
+    gateways.cashControl ?? unavailableCashControlGateway, gateways.recurring, spaceId, props.onSpaceUnavailable,
+  );
 
   const wallets = props.wallets;
 
@@ -255,23 +268,32 @@ function HomeRoutes(props: HomeRoutesProps) {
   }, [wallets.wallets]);
 
   return (
-    <HomeScreen
-      locale={locale}
-      spaceKind={spaceKind}
-      month={month}
-      onMonthChange={props.onMonthChange}
-      onRecord={() => props.onOpenRecord?.()}
-      totals={totals}
-      budgets={data.budgets}
-      trend={data.trend}
-      dataStatus={data.status}
-      dataError={data.error}
-      onRetryLoad={() => setAttempt((current) => current + 1)}
-      loansOutstanding={props.loansOutstanding}
-      recentEvents={wallets.events}
-      cashControlByCurrency={cashControlByCurrency}
-      onSeeAll={() => props.onSeeAll?.()}
-    />
+    <>
+      <HomeScreen
+        locale={locale}
+        spaceKind={spaceKind}
+        month={month}
+        onMonthChange={props.onMonthChange}
+        onRecord={() => props.onOpenRecord?.()}
+        totals={totals}
+        budgets={data.budgets}
+        trend={data.trend}
+        dataStatus={data.status}
+        dataError={data.error}
+        onRetryLoad={() => setAttempt((current) => current + 1)}
+        loansOutstanding={props.loansOutstanding}
+        recentEvents={wallets.events}
+        cashControlByCurrency={cashControlByCurrency}
+        onSeeAll={() => props.onSeeAll?.()}
+      />
+      {autoMaterialize.status === 'failed' && (
+        <p className="cr-banner" role="alert">
+          {locale === 'ar'
+            ? `تعذر توليد الفواتير القادمة: ${autoMaterialize.message}`
+            : `Upcoming bills couldn't be generated: ${autoMaterialize.message}`}
+        </p>
+      )}
+    </>
   );
 }
 
@@ -385,12 +407,14 @@ function UpcomingBillsSection(props: {
   plannedIncomeByCurrency: Readonly<Record<Currency, string | null>>;
   onSpaceUnavailable?: (() => void) | undefined;
 }) {
-  // A fixed 60-day-ahead window, re-derived every render off "today" rather
-  // than stored in state -- occurrences never need a wider client-chosen
-  // range in this task's scope, and materialize (explicit-refresh only,
-  // never on mount) reuses this exact same bound.
+  // A fixed window, re-derived every render off "today" rather than stored
+  // in state, and shared with the automatic generate in `CashControlSection`
+  // below via the same `occurrenceWindow` helper -- one constant
+  // (`OCCURRENCE_WINDOW_DAYS`) drives the list, its explicit "Refresh
+  // occurrences" (still explicit-refresh only, never on mount here), and the
+  // automatic generate alike.
   const fromDate = todayIso();
-  const toDate = addDaysIso(fromDate, 60);
+  const { toDate } = occurrenceWindow(fromDate);
   const recurring = useRecurring(props.gateway, props.spaceId, fromDate, toDate, props.onSpaceUnavailable);
   // The schedule editor's "Funding goal" dropdown lists goals from both
   // currencies, suffixed with the currency, since a schedule's own currency
@@ -426,13 +450,30 @@ function CashControlSection(props: {
   spaceId: string;
   currency: 'USD' | 'LBP';
   gateway: CashControlGateway;
+  recurringGateway: RecurringGateway | null;
   onSpaceUnavailable?: (() => void) | undefined;
 }) {
   const [scenario, setScenario] = useState<CashOutlookScenario>('expected');
-  const cashControl = useCashControl(props.gateway, props.spaceId, props.currency, todayIso(), 60, scenario, props.onSpaceUnavailable);
+  const today = todayIso();
+  const cashControl = useCashControl(props.gateway, props.spaceId, props.currency, today, 60, scenario, props.onSpaceUnavailable);
+  const availableData = cashControl.available.data;
+  const autoMaterialize = useAutoMaterialize({
+    gateway: props.recurringGateway,
+    spaceId: props.spaceId,
+    today,
+    needed: availableData.state === 'incomplete' && availableData.unmaterializedCount > 0,
+    onGenerated: async () => { cashControl.available.refresh(); },
+  });
   return (
     <section className="cr-card" aria-label={`${props.locale === 'ar' ? 'المتاح بعد الالتزامات' : 'Available after commitments'} ${props.currency}`}>
       <CashControlSummary locale={props.locale} currency={props.currency} available={cashControl.available} variant="full" />
+      {autoMaterialize.status === 'failed' && (
+        <p className="cr-banner" role="alert">
+          {props.locale === 'ar'
+            ? `تعذر توليد الفواتير القادمة: ${autoMaterialize.message}`
+            : `Upcoming bills couldn't be generated: ${autoMaterialize.message}`}
+        </p>
+      )}
       {cashControl.available.status === 'ready' && cashControl.available.data.state === 'ready' && (
         <>
           <h4 className="cc-subheading">{props.locale === 'ar' ? 'الحجوزات' : 'Reservations'}</h4>
@@ -586,6 +627,7 @@ function PlanRoutes(props: PlanRoutesProps) {
           spaceId={spaceId}
           currency={currency}
           gateway={gateways.cashControl ?? unavailableCashControlGateway}
+          recurringGateway={gateways.recurring}
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
       )) : null}

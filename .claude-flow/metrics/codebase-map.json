@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-25T16:22:24.200Z",
+  "timestamp": "2026-09-25T16:37:24.203Z",
   "projectRoot": "/Users/daniel/Desktop/Daniel/budget-tracking/.worktrees/linking-phase-0",
   "structure": {
     "hasPackageJson": true,
@@ -7,5 +7,5 @@
     "hasClaudeConfig": true,
     "hasClaudeFlow": true
   },
-  "scannedAt": 1790353344200
+  "scannedAt": 1790354244203
 }
