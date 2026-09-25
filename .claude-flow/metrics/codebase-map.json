@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-09-25T10:53:38.450Z",
-  "projectRoot": "/Users/daniel/Desktop/Daniel/budget-tracking",
+  "timestamp": "2026-09-25T14:19:11.425Z",
+  "projectRoot": "/Users/daniel/Desktop/Daniel/budget-tracking/.worktrees/site-revamp",
   "structure": {
     "hasPackageJson": true,
     "hasTsConfig": true,
     "hasClaudeConfig": true,
     "hasClaudeFlow": true
   },
-  "scannedAt": 1790333618450
+  "scannedAt": 1790345951425
 }

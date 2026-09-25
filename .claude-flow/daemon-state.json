@@ -1,55 +1,55 @@
 {
   "running": true,
-  "startedAt": "2026-09-25T09:05:37.571Z",
+  "startedAt": "2026-09-25T14:04:11.420Z",
   "workers": {
     "map": {
-      "runCount": 245,
-      "successCount": 245,
+      "runCount": 247,
+      "successCount": 247,
       "failureCount": 0,
-      "averageDurationMs": 15.3265306122449,
-      "lastRun": "2026-09-25T10:53:38.458Z",
-      "lastStartedAt": "2026-09-25T10:53:38.443Z",
-      "nextRun": "2026-09-25T11:05:37.752Z",
+      "averageDurationMs": 15.295546558704455,
+      "lastRun": "2026-09-25T14:19:11.426Z",
+      "lastStartedAt": "2026-09-25T14:19:11.412Z",
+      "nextRun": "2026-09-25T14:34:11.435Z",
       "isRunning": false
     },
     "audit": {
-      "runCount": 345,
-      "successCount": 345,
+      "runCount": 348,
+      "successCount": 348,
       "failureCount": 0,
-      "averageDurationMs": 14.956521739130435,
-      "lastRun": "2026-09-25T10:55:07.623Z",
-      "lastStartedAt": "2026-09-25T10:55:07.610Z",
-      "nextRun": "2026-09-25T10:55:07.604Z",
+      "averageDurationMs": 14.945402298850574,
+      "lastRun": "2026-09-25T14:26:11.459Z",
+      "lastStartedAt": "2026-09-25T14:26:11.448Z",
+      "nextRun": "2026-09-25T14:36:11.468Z",
       "isRunning": false
     },
     "optimize": {
-      "runCount": 242,
-      "successCount": 242,
+      "runCount": 244,
+      "successCount": 244,
       "failureCount": 0,
-      "averageDurationMs": 13.681818181818182,
-      "lastRun": "2026-09-25T10:53:38.431Z",
-      "lastStartedAt": "2026-09-25T10:53:38.412Z",
-      "nextRun": "2026-09-25T11:00:07.604Z",
+      "averageDurationMs": 13.688524590163935,
+      "lastRun": "2026-09-25T14:23:11.421Z",
+      "lastStartedAt": "2026-09-25T14:23:11.407Z",
+      "nextRun": "2026-09-25T14:38:11.444Z",
       "isRunning": false
     },
     "consolidate": {
-      "runCount": 127,
-      "successCount": 127,
+      "runCount": 128,
+      "successCount": 128,
       "failureCount": 0,
-      "averageDurationMs": 22.086614173228355,
-      "lastRun": "2026-09-25T10:53:38.451Z",
-      "lastStartedAt": "2026-09-25T10:53:38.421Z",
-      "nextRun": "2026-09-25T11:15:07.604Z",
+      "averageDurationMs": 22.085937500000007,
+      "lastRun": "2026-09-25T14:10:11.446Z",
+      "lastStartedAt": "2026-09-25T14:10:11.424Z",
+      "nextRun": "2026-09-25T14:40:11.457Z",
       "isRunning": false
     },
     "testgaps": {
-      "runCount": 180,
-      "successCount": 180,
+      "runCount": 182,
+      "successCount": 182,
       "failureCount": 0,
-      "averageDurationMs": 22.87222222222223,
-      "lastRun": "2026-09-25T10:53:38.383Z",
-      "lastStartedAt": "2026-09-25T10:53:38.365Z",
-      "nextRun": "2026-09-25T11:13:38.393Z",
+      "averageDurationMs": 22.785714285714295,
+      "lastRun": "2026-09-25T14:32:11.458Z",
+      "lastStartedAt": "2026-09-25T14:32:11.445Z",
+      "nextRun": "2026-09-25T14:32:11.453Z",
       "isRunning": false
     },
     "backup": {
@@ -59,7 +59,7 @@
       "averageDurationMs": 22,
       "lastRun": "2026-09-25T09:15:37.596Z",
       "lastStartedAt": "2026-09-25T09:15:37.574Z",
-      "nextRun": "2026-09-26T09:15:37.607Z",
+      "nextRun": "2026-09-26T09:15:37.596Z",
       "isRunning": false
     },
     "harness": {
@@ -69,7 +69,7 @@
       "averageDurationMs": 16.599999999999998,
       "lastRun": "2026-09-25T09:17:37.603Z",
       "lastStartedAt": "2026-09-25T09:17:37.589Z",
-      "nextRun": "2026-09-25T15:17:37.612Z",
+      "nextRun": "2026-09-25T15:17:37.603Z",
       "isRunning": false
     },
     "predict": {
@@ -89,8 +89,8 @@
   },
   "config": {
     "autoStart": false,
-    "logDir": "/Users/daniel/Desktop/Daniel/budget-tracking/.claude-flow/logs",
-    "stateFile": "/Users/daniel/Desktop/Daniel/budget-tracking/.claude-flow/daemon-state.json",
+    "logDir": "/Users/daniel/Desktop/Daniel/budget-tracking/.worktrees/site-revamp/.claude-flow/logs",
+    "stateFile": "/Users/daniel/Desktop/Daniel/budget-tracking/.worktrees/site-revamp/.claude-flow/daemon-state.json",
     "maxConcurrent": 2,
     "workerTimeoutMs": 960000,
     "resourceThresholds": {
@@ -175,5 +175,5 @@
       }
     ]
   },
-  "savedAt": "2026-09-25T10:55:07.623Z"
+  "savedAt": "2026-09-25T14:32:11.458Z"
 }
