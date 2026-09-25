@@ -254,6 +254,36 @@ describe('GoalEditor: revise', () => {
     expect(screen.getByRole('heading', { name: 'Review' })).toBeInTheDocument();
   }
 
+  it("keeps an LBP goal's target, monthly amount and milestone exact when paused without edits", async () => {
+    const onRevise = vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { goalId: 'g2', revisionId: '8' } });
+    const lbp = {
+      goalId: 'g2', expectedRevisionId: '7', currentState: 'active' as const,
+      definition: {
+        kind: 'reserve' as const, currency: 'LBP' as const, nameEn: 'Generator fund', nameAr: null, note: null,
+        targetMinor: '90000000', deadline: null, contributionMode: 'manual_monthly' as const, monthlyAmountMinor: '4500000', priority: 0,
+      },
+      milestones: [{ id: 'm1', kind: 'amount' as const, labelEn: 'Half', labelAr: null, thresholdMinor: '45000000', dueDate: null, ordinal: 0 }],
+    };
+    render(<GoalEditor {...baseProps()} mode="revise" existing={lbp} initialState="paused" onRevise={onRevise} />);
+    await walkToReview();
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(onRevise).toHaveBeenCalledTimes(1));
+    const call = onRevise.mock.calls[0]![0];
+    expect(call.definition).toMatchObject({ targetMinor: '90000000', monthlyAmountMinor: '4500000' });
+    expect(call.milestones[0]).toMatchObject({ thresholdMinor: '45000000' });
+  });
+
+  it("keeps a USD goal's cents when revised without edits", async () => {
+    const onRevise = vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { goalId: 'g1', revisionId: '4' } });
+    const cents = { ...existing, definition: { ...existing.definition, targetMinor: '600050', monthlyAmountMinor: '12345' } };
+    render(<GoalEditor {...baseProps()} mode="revise" existing={cents} onRevise={onRevise} />);
+    await walkToReview();
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(onRevise).toHaveBeenCalledWith(expect.objectContaining({
+      definition: expect.objectContaining({ targetMinor: '600050', monthlyAmountMinor: '12345' }),
+    })));
+  });
+
   it('locks kind and currency and keeps the revise warning on the type step', () => {
     render(<GoalEditor {...baseProps()} mode="revise" existing={existing} />);
     expect(screen.getByRole('radio', { name: 'Reserve' })).toBeDisabled();
@@ -318,6 +348,6 @@ describe('GoalEditor: revise', () => {
     await clickNext(); // Type → Target
     await clickNext(); // Target → Contributions
     expect(screen.getByRole('radio', { name: 'Custom amount' })).toBeChecked();
-    expect(screen.getByRole('textbox', { name: 'Monthly amount' })).toHaveValue('500');
+    expect(screen.getByRole('textbox', { name: 'Monthly amount' })).toHaveValue('500.00');
   });
 });

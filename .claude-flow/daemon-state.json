@@ -1,55 +1,55 @@
 {
-  "running": false,
-  "startedAt": "2026-09-25T13:52:58.471Z",
+  "running": true,
+  "startedAt": "2026-09-25T15:37:24.046Z",
   "workers": {
     "map": {
-      "runCount": 254,
-      "successCount": 254,
+      "runCount": 257,
+      "successCount": 257,
       "failureCount": 0,
-      "averageDurationMs": 15.220472440944883,
-      "lastRun": "2026-09-25T13:05:37.717Z",
-      "lastStartedAt": "2026-09-25T13:05:37.706Z",
-      "nextRun": "2026-09-25T14:07:58.482Z",
+      "averageDurationMs": 15.19455252918288,
+      "lastRun": "2026-09-25T16:07:24.180Z",
+      "lastStartedAt": "2026-09-25T16:07:24.168Z",
+      "nextRun": "2026-09-25T16:22:24.190Z",
       "isRunning": false
     },
     "audit": {
-      "runCount": 359,
-      "successCount": 359,
+      "runCount": 363,
+      "successCount": 363,
       "failureCount": 0,
-      "averageDurationMs": 14.855153203342619,
-      "lastRun": "2026-09-25T13:15:07.812Z",
-      "lastStartedAt": "2026-09-25T13:15:07.802Z",
-      "nextRun": "2026-09-25T13:54:58.471Z",
+      "averageDurationMs": 14.845730027548209,
+      "lastRun": "2026-09-25T16:09:24.198Z",
+      "lastStartedAt": "2026-09-25T16:09:24.179Z",
+      "nextRun": "2026-09-25T16:09:24.162Z",
       "isRunning": false
     },
     "optimize": {
-      "runCount": 252,
-      "successCount": 252,
+      "runCount": 254,
+      "successCount": 254,
       "failureCount": 0,
-      "averageDurationMs": 13.535714285714286,
-      "lastRun": "2026-09-25T13:15:07.743Z",
-      "lastStartedAt": "2026-09-25T13:15:07.734Z",
-      "nextRun": "2026-09-25T13:56:58.471Z",
+      "averageDurationMs": 13.531496062992126,
+      "lastRun": "2026-09-25T15:59:24.170Z",
+      "lastStartedAt": "2026-09-25T15:59:24.162Z",
+      "nextRun": "2026-09-25T16:11:24.141Z",
       "isRunning": false
     },
     "consolidate": {
-      "runCount": 132,
-      "successCount": 132,
+      "runCount": 133,
+      "successCount": 133,
       "failureCount": 0,
-      "averageDurationMs": 21.840909090909097,
-      "lastRun": "2026-09-25T13:15:07.621Z",
-      "lastStartedAt": "2026-09-25T13:15:07.602Z",
-      "nextRun": "2026-09-25T13:58:58.471Z",
+      "averageDurationMs": 21.857142857142865,
+      "lastRun": "2026-09-25T15:43:24.074Z",
+      "lastStartedAt": "2026-09-25T15:43:24.050Z",
+      "nextRun": "2026-09-25T16:13:24.085Z",
       "isRunning": false
     },
     "testgaps": {
-      "runCount": 187,
-      "successCount": 187,
+      "runCount": 189,
+      "successCount": 189,
       "failureCount": 0,
-      "averageDurationMs": 22.417112299465252,
-      "lastRun": "2026-09-25T13:13:38.361Z",
-      "lastStartedAt": "2026-09-25T13:13:38.341Z",
-      "nextRun": "2026-09-25T14:00:58.471Z",
+      "averageDurationMs": 22.306878306878318,
+      "lastRun": "2026-09-25T16:05:24.134Z",
+      "lastStartedAt": "2026-09-25T16:05:24.122Z",
+      "nextRun": "2026-09-25T16:25:24.142Z",
       "isRunning": false
     },
     "backup": {
@@ -63,13 +63,13 @@
       "isRunning": false
     },
     "harness": {
-      "runCount": 15,
-      "successCount": 15,
+      "runCount": 16,
+      "successCount": 16,
       "failureCount": 0,
-      "averageDurationMs": 16.599999999999998,
-      "lastRun": "2026-09-25T09:17:37.603Z",
-      "lastStartedAt": "2026-09-25T09:17:37.589Z",
-      "nextRun": "2026-09-25T15:17:37.603Z",
+      "averageDurationMs": 16.25,
+      "lastRun": "2026-09-25T15:49:24.087Z",
+      "lastStartedAt": "2026-09-25T15:49:24.076Z",
+      "nextRun": "2026-09-25T21:49:24.096Z",
       "isRunning": false
     },
     "predict": {
@@ -89,8 +89,8 @@
   },
   "config": {
     "autoStart": false,
-    "logDir": "/Users/daniel/Desktop/Daniel/budget-tracking/.claude-flow/logs",
-    "stateFile": "/Users/daniel/Desktop/Daniel/budget-tracking/.claude-flow/daemon-state.json",
+    "logDir": "/Users/daniel/Desktop/Daniel/budget-tracking/.worktrees/linking-phase-0/.claude-flow/logs",
+    "stateFile": "/Users/daniel/Desktop/Daniel/budget-tracking/.worktrees/linking-phase-0/.claude-flow/daemon-state.json",
     "maxConcurrent": 2,
     "workerTimeoutMs": 960000,
     "resourceThresholds": {
@@ -175,5 +175,5 @@
       }
     ]
   },
-  "savedAt": "2026-09-25T13:53:58.475Z"
+  "savedAt": "2026-09-25T16:09:24.198Z"
 }
