@@ -3,8 +3,10 @@ import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { InsightsClient, CategoryBudgetRow } from '../insights/types.js';
 import type { Currency } from '../loans/types.js';
+import type { PublishMonthInput } from '../allocation/types.js';
 import type { LinkExistingInput } from '../recurring/types.js';
 import type { MonthlyCashSummary, ReportsGateway } from '../reports/types.js';
+import { InMemoryAllocationGateway } from '../../test/in-memory-allocation-gateway.js';
 import { InMemoryCashControlGateway } from '../../test/in-memory-cash-control-gateway.js';
 import { InMemoryCategoriesGateway } from '../../test/in-memory-categories-gateway.js';
 import { InMemoryHouseholdGateway } from '../../test/in-memory-household-gateway.js';
@@ -514,6 +516,69 @@ describe('ControlRoomRoutes refreshes mounted Plan sections after a settle', () 
 
     await waitFor(() => expect(cashControl.calls.filter((call) => call.name === 'loadAvailable')).toHaveLength(2));
     expect(cashControl.calls.filter((call) => call.name === 'loadOutlook')).toHaveLength(2);
+  });
+});
+
+/** `publish_allocation_month` writes a new income revision through
+ * `set_monthly_income_plan`, so the Plan summary reports it on its next
+ * read -- linked here the way the two server reads are. */
+class PlanLinkedAllocationGateway extends InMemoryAllocationGateway {
+  readonly plan: InMemoryPlanClient;
+
+  constructor(plan: InMemoryPlanClient) {
+    super();
+    this.plan = plan;
+  }
+
+  override async publishMonth(input: PublishMonthInput) {
+    const result = await super.publishMonth(input);
+    this.plan.summaries = this.plan.summaries.map((summary) => (summary.currency === input.currency
+      ? { ...summary, incomePlanRevisionId: result.incomeRevisionId }
+      : summary));
+    return result;
+  }
+}
+
+// Final review M5: the Plan heads a publish consumed go stale the moment it
+// succeeds; a second Confirm in the same visit must send the new ones.
+describe('ControlRoomRoutes allocation publish, twice in one visit', () => {
+  it('sends the refreshed Plan income head on the second publish, which succeeds', async () => {
+    const user = userEvent.setup();
+    const now = new Date();
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const plan = new InMemoryPlanClient();
+    plan.summaries = [{
+      currency: 'USD', plannedIncomeMinor: '300000', actualIncomeMinor: '0',
+      categoryTargetTotalMinor: '0', categoryActualSpentMinor: '0', uncategorizedSpentMinor: '0',
+      categoryOverspentMinor: '0', actualLoanRepaymentMinor: '0', remainingLoanReservationMinor: '0',
+      loanCommitmentMinor: '0', unallocatedMinor: '300000', overallocatedMinor: '0',
+      incomePlanRevisionId: 'rev-income-0',
+    }];
+    const allocation = new PlanLinkedAllocationGateway(plan);
+    allocation.incomeHeads.set(`${month}|USD`, 'rev-income-0');
+    const gatewaysBag = gateways({});
+    gatewaysBag.plan = plan;
+    gatewaysBag.allocation = allocation;
+    render(
+      <ControlRoomRoutes locale="en" spaceId="personal-space" spaceKind="personal" destination="plan"
+        gateways={gatewaysBag} recordOpen={false} onCloseRecord={() => undefined} />,
+    );
+    await user.click(await screen.findByRole('button', { name: 'Allocation' }));
+
+    async function publishOnce() {
+      await user.click(await screen.findByRole('button', { name: 'Set up' }));
+      await user.click(screen.getByRole('button', { name: 'Next' }));
+      await user.click(screen.getByRole('button', { name: 'Next' }));
+      await user.click(screen.getByRole('button', { name: 'Confirm' }));
+      await screen.findByRole('button', { name: 'Set up' });
+    }
+    await publishOnce();
+    await publishOnce();
+
+    const publishes = allocation.calls.filter((call) => call.name === 'publishMonth').map((call) => call.input as PublishMonthInput);
+    expect(publishes.map((input) => input.expectedIncomeRevisionId)).toEqual(['rev-income-0', '1']);
+    expect(allocation.incomeHeads.get(`${month}|USD`)).toBe('2');
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });
 

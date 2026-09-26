@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Currency, Locale } from '../loans/types.js';
 import { AllocationMonthEditor, type AllocationMonthEditorInitial, type CategoryOption } from './allocation-month-editor.js';
 import { AllocationOverview } from './allocation-overview.js';
+import { classifyAllocationError, localizeAllocationError } from './errors.js';
 import { basisPointsToPercentText, minorToMajorText } from './money-allocation.js';
 import type { AllocationCategoryRow, AllocationGateway, AllocationGroupRow, PublishMonthResult, SaveTemplateResult } from './types.js';
 import type { useAllocation } from './use-allocation.js';
@@ -26,6 +27,11 @@ export interface AllocationSetupProps {
   monthlyPlanIncomeRevisionId?: string | null;
   allocation: ReturnType<typeof useAllocation>;
   gateway: AllocationGateway;
+  /** Called once a publish succeeds. The publish wrote a new income revision
+   * and a new target revision for every root it submitted, so the Plan heads
+   * this component was handed are stale until the parent reloads them
+   * (final review M5). */
+  onPublished?: (() => void) | undefined;
 }
 
 function buildInitialDraft(
@@ -165,9 +171,15 @@ export function AllocationSetup(props: AllocationSetupProps) {
               });
               void (publishOutcome.result as PublishMonthResult | undefined);
               if (publishOutcome.status === 'ambiguous') return;
+              props.onPublished?.();
               setEditing(false);
             } catch (cause) {
-              setSubmitError(cause instanceof Error ? cause.message : t(locale, 'Could not save this plan.', 'تعذر حفظ هذه الخطة.'));
+              // Classified and localized: the gateway rejects with PostgREST's
+              // plain `{ code, message }` object, so an `instanceof Error`
+              // test fell through to a generic line for every real refusal,
+              // the stale-revision one included (final review M5, I1).
+              const view = localizeAllocationError(classifyAllocationError(cause), locale);
+              setSubmitError(`${view.message} ${view.recovery}`);
             }
           })();
         }}

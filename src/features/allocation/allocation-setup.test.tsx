@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import { postgrestRejection } from '../../test/postgrest-rejection.js';
 import { AllocationSetup } from './allocation-setup.js';
 import type { AllocationGateway, AllocationMonthState, PublishMonthInput, SaveTemplateInput } from './types.js';
 import type { CommandOutcome, useAllocation } from './use-allocation.js';
@@ -90,6 +91,37 @@ describe('AllocationSetup', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
     expect(saveTemplate).toHaveBeenCalledWith(expect.objectContaining({ expectedRevisionId: '9' }));
     expect(publishMonth).toHaveBeenCalledWith(expect.objectContaining({ templateRevisionId: '10', expectedIncomeRevisionId: '31' }));
+  });
+
+  // Final review M5: the Plan heads a publish consumed are stale once it
+  // succeeds, so the parent is told to refresh them.
+  it('calls onPublished once a publish succeeds, so the Plan heads can refresh', async () => {
+    const onPublished = vi.fn();
+    render(<AllocationSetup locale="en" currency="USD" month="2026-09-01" categories={categories} allocation={fakeAllocation()} gateway={stubGateway} onPublished={onPublished} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Set up' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(onPublished).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['en', 'This plan changed elsewhere. Reload the current version and review it before saving again.'],
+    ['ar', 'تغيّرت هذه الخطة من مكان آخر. أعد تحميل النسخة الحالية وراجعها قبل الحفظ مرة أخرى.'],
+  ] as const)('shows the stale-revision copy (%s), not a generic error, when the plan changed under a publish', async (locale, copy) => {
+    const onPublished = vi.fn();
+    const publishMonth = vi.fn(async () => {
+      throw postgrestRejection('P0001', 'the monthly budget plan has changed; refresh and try again');
+    });
+    render(<AllocationSetup locale={locale} currency="USD" month="2026-09-01" categories={categories}
+      allocation={fakeAllocation({ publishMonth })} gateway={stubGateway} onPublished={onPublished} />);
+    await userEvent.click(screen.getByRole('button', { name: locale === 'ar' ? 'إعداد' : 'Set up' }));
+    await userEvent.click(screen.getByRole('button', { name: locale === 'ar' ? 'التالي' : 'Next' }));
+    await userEvent.click(screen.getByRole('button', { name: locale === 'ar' ? 'التالي' : 'Next' }));
+    await userEvent.click(screen.getByRole('button', { name: locale === 'ar' ? 'تأكيد' : 'Confirm' }));
+    expect(await screen.findByText(copy)).toBeInTheDocument();
+    expect(screen.queryByText(/Could not save this plan|تعذر حفظ هذه الخطة/)).toBeNull();
+    expect(onPublished).not.toHaveBeenCalled();
   });
 
   it('does not call publishMonth when saveTemplate itself goes ambiguous, and keeps the editor open', async () => {

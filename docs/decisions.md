@@ -3823,3 +3823,14 @@ select count(*) from financial_events r join financial_events o on o.id = r.reve
 **Why:** Final review M3: a 20000 link against a 50000 instalment was announced as "paid". M4: the Arabic read "2 فواتير" where the dual is needed, and printed Latin "1,000" while amounts use Arabic-Indic digits. Declined-to-judge #2: the controller ruled that the notice's dead-end instruction is fixed now, even though the picker it would need stays in Spec 1.
 
 **If changed:** once Spec 1 adds a picker that links an existing expense, the look-alike notice can point to it. The success notices still use `.cr-banner`'s warning styling; that is parked as a design-system decision.
+
+## 2026-09-26 — A second allocation publish in one visit sends fresh Plan heads; a moved Plan head reads as "changed elsewhere" (final review M5)
+
+**Decision:**
+- **Refresh after publish.** After a successful publish, `AllocationSetup` calls a new `onPublished` prop, which `PlanRoutes` wires to `plan.refresh()`. The income revision and per-root target revisions the next Confirm sends are then the ones the publish just wrote. `plan.refresh()` keeps the loaded Plan on screen while it reloads.
+- **Classify the refusal.** `classifyAllocationError` maps P0001 "the monthly budget plan has changed; refresh and try again" — what `set_monthly_income_plan` and `set_monthly_category_target` raise inside a publish when a Plan head moved — to `stale_revision`, with its existing EN/AR copy ("This plan changed elsewhere. Reload the current version and review it before saving again."). `AllocationSetup`'s Confirm now shows the classified, localized error instead of `cause instanceof Error ? cause.message : "Could not save this plan."`, which turned every real refusal (a plain object) into that generic line.
+- **Fake matches server.** `InMemoryAllocationGateway` refuses a mismatched income head with the server's shape: P0001 with that message, as a plain object (`postgrestRejection`). The template-head check stays 40001 `planning_stale_revision`, as in SQL. This supersedes, for the income case, the "same `{code: '40001', message: 'planning_stale_revision'}` shape" sentence in "Allocation Confirm sends the current template head and the Plan's income revision; the editor pre-fills from the Plan (B1, B2, B3)".
+
+**Why:** Final review M5. Nothing refreshed `usePlan` after a publish, so a second Confirm in the same visit sent stale heads and ended on a generic error. The fake threw 40001 where the server throws P0001, so no test could see what a person gets (the in-memory-fakes lesson, again). `routes.test.tsx` now publishes twice in one visit through `ControlRoomRoutes`.
+
+**If changed:** if Allocation takes its heads from its own snapshot again (a Spec 1 source-of-truth question), refresh that on `onPublished` instead.

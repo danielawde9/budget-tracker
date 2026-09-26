@@ -364,6 +364,7 @@ function AllocationCurrencySection(props: {
   categoryTargets: ReadonlyMap<string, { amountMinor: string; revisionId: string | null }>;
   plannedIncomeMinor: string | null;
   plannedIncomeRevisionId: string | null;
+  onPublished(): void;
   onSpaceUnavailable?: (() => void) | undefined;
 }) {
   const allocation = useAllocation(props.gateway, props.spaceId, props.month, props.currency, props.onSpaceUnavailable);
@@ -379,6 +380,7 @@ function AllocationCurrencySection(props: {
         monthlyPlanIncomeRevisionId={props.plannedIncomeRevisionId}
         allocation={allocation}
         gateway={props.gateway}
+        onPublished={props.onPublished}
       />
     </section>
   );
@@ -644,6 +646,9 @@ function PlanRoutes(props: PlanRoutesProps) {
           categoryTargets={categoryTargetsByCurrency.get(currency) ?? new Map()}
           plannedIncomeMinor={plannedIncomeByCurrency[currency]}
           plannedIncomeRevisionId={plannedIncomeRevisionByCurrency[currency]}
+          // A publish writes new income and target revisions: reload the
+          // Plan heads so a second Confirm in this visit sends them (M5).
+          onPublished={() => { void plan.refresh(); }}
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
       )) : null}

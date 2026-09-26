@@ -17,13 +17,23 @@ import type {
   SaveTemplateResult,
   TemplateHeadResult,
 } from '../features/allocation/types.js';
+import { postgrestRejection } from './postgrest-rejection.js';
 
-/** Same shape `planningRpc` throws for a stale-revision rejection (SQLSTATE
- * 40001): a plain `{code, message}` object, not an `Error` instance --
- * `planningRpc` does `throw result.error`, and `RpcResult['error']` is a plain
- * `{code?, message}` object (see `planning-shared/rpc.ts`). */
-function staleRevisionError(): { code: string; message: string } {
-  return { code: '40001', message: 'planning_stale_revision' };
+/** What `save_allocation_template` raises for a stale template head
+ * (SQLSTATE 40001, `20260914120000_allocation_commands.sql`), in the plain
+ * `{ code, message }` shape the real gateway rethrows (see
+ * `postgrest-rejection.ts`). */
+function staleTemplateHeadError() {
+  return postgrestRejection('40001', 'planning_stale_revision');
+}
+
+/** What `publish_allocation_month` raises when the Plan's income revision
+ * moved: the head is checked inside `set_monthly_income_plan`, which raises
+ * P0001 with this message (`20260914100000_planning_command_foundation.sql`),
+ * not 40001 -- the fake used to throw 40001 here, so no test could see what
+ * a person really gets (final review M5). */
+function planChangedError() {
+  return postgrestRejection('P0001', 'the monthly budget plan has changed; refresh and try again');
 }
 
 export const emptyMonthState: AllocationMonthState = {
@@ -123,7 +133,7 @@ export class InMemoryAllocationGateway implements AllocationGateway {
     if (this.error) throw this.error;
     const existing = this.receipts.get(input.requestId);
     if (existing) return existing.result as SaveTemplateResult;
-    if ((input.expectedRevisionId ?? null) !== this.templateHead) throw staleRevisionError();
+    if ((input.expectedRevisionId ?? null) !== this.templateHead) throw staleTemplateHeadError();
     const result: SaveTemplateResult = { templateRevisionId: String(this.nextTemplateRevisionId++) };
     this.receipts.set(input.requestId, { command: 'save_allocation_template', sequenceId: String(this.receipts.size + 1), result });
     this.templateHead = result.templateRevisionId;
@@ -136,7 +146,7 @@ export class InMemoryAllocationGateway implements AllocationGateway {
     const existing = this.receipts.get(input.requestId);
     if (existing) return existing.result as PublishMonthResult;
     const incomeHeadKey = `${input.month}|${input.currency}`;
-    if ((input.expectedIncomeRevisionId ?? null) !== (this.incomeHeads.get(incomeHeadKey) ?? null)) throw staleRevisionError();
+    if ((input.expectedIncomeRevisionId ?? null) !== (this.incomeHeads.get(incomeHeadKey) ?? null)) throw planChangedError();
     const result: PublishMonthResult = { snapshotId: String(this.nextSnapshotId++), incomeRevisionId: String(this.nextIncomeRevisionId++) };
     this.receipts.set(input.requestId, { command: 'publish_allocation_month', sequenceId: String(this.receipts.size + 1), result });
     this.incomeHeads.set(incomeHeadKey, result.incomeRevisionId);
@@ -149,7 +159,7 @@ export class InMemoryAllocationGateway implements AllocationGateway {
     const existing = this.receipts.get(input.requestId);
     if (existing) return existing.result as PublishMonthResult;
     const incomeHeadKey = `${input.month}|${input.currency}`;
-    if ((input.expectedIncomeRevisionId ?? null) !== (this.incomeHeads.get(incomeHeadKey) ?? null)) throw staleRevisionError();
+    if ((input.expectedIncomeRevisionId ?? null) !== (this.incomeHeads.get(incomeHeadKey) ?? null)) throw planChangedError();
     const result: PublishMonthResult = { snapshotId: String(this.nextSnapshotId++), incomeRevisionId: String(this.nextIncomeRevisionId++) };
     this.receipts.set(input.requestId, { command: 'publish_allocation_month_v2', sequenceId: String(this.receipts.size + 1), result });
     this.incomeHeads.set(incomeHeadKey, result.incomeRevisionId);
