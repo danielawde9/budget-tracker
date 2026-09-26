@@ -8,6 +8,7 @@ import type {
   LinkExistingResult,
   MaterializeInput,
   MaterializeResult,
+  OccurrenceStateAction,
   RecurringGateway,
   SaveScheduleInput,
   SaveScheduleResult,
@@ -49,6 +50,27 @@ const COMMAND_NAME: Record<RetryCommand['kind'], string> = {
   confirm: 'confirm_scheduled_occurrence',
   linkExisting: 'link_scheduled_payment',
 };
+
+export interface AmbiguousCommand {
+  readonly kind: RetryCommand['kind'];
+  readonly requestId: string;
+  /** The retried `setOccurrenceState` request's own action ('skip' |
+   * 'reopen'), present only for that command kind. A caller that needs to
+   * know what a retry actually resolves must read it from here, not from its
+   * own local bookkeeping of "what I last started" -- an unrelated command
+   * that gets refused outright in the meantime (e.g. `runCommand`'s "a
+   * command is already pending" guard) can reset that local state before the
+   * retry ever runs (N2). */
+  readonly occurrenceAction?: OccurrenceStateAction;
+}
+
+function ambiguousFromRetry(command: RetryCommand | null): AmbiguousCommand | null {
+  if (!command) return null;
+  if (command.kind === 'setOccurrenceState') {
+    return { kind: command.kind, requestId: command.requestId, occurrenceAction: command.input.action };
+  }
+  return { kind: command.kind, requestId: command.requestId };
+}
 
 interface RecurringView {
   loadedKey: string;
@@ -280,7 +302,7 @@ export function useRecurring(
     truncated: visible ? view.truncated : false,
     error: visible ? view.error : null,
     pending: view.status === 'saving',
-    ambiguous: retry ? { kind: retry.kind, requestId: retry.requestId } : null,
+    ambiguous: ambiguousFromRetry(retry),
     refresh: () => load(),
     saveSchedule,
     materialize,

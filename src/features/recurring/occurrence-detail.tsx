@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Currency, Locale } from '../loans/types.js';
 import { formatMinorAmount } from '../wallets/money.js';
 import { ConfirmPaymentDialog } from './confirm-payment-dialog.js';
 import { classifyRecurringError, localizeRecurringError, type RecurringErrorView } from './errors.js';
 import { settlementProgress } from './settlement-progress.js';
 import type { ScheduledOccurrenceRow } from './types.js';
-import type { CommandOutcome, RecurringState } from './use-recurring.js';
+import type { AmbiguousCommand, CommandOutcome, RecurringState } from './use-recurring.js';
 
 export type OccurrenceBucket = 'overdue' | 'skipped' | 'paid' | 'partial' | 'due' | 'upcoming';
 
@@ -104,6 +104,17 @@ function afterAction(row: ScheduledOccurrenceRow, action: HeldAction, outcome: C
   return { ...row, state: action === 'skip' ? 'skipped' : 'pending', currentEventId: eventId };
 }
 
+/** What a retry actually resolves, independent of this view's own `held`
+ * tracking -- an unrelated command that the hook refuses outright (Save,
+ * while a Skip's own retry is still pending) clears `held` via `track`'s own
+ * catch before the retry ever runs, so `held.action` cannot be trusted here.
+ * The hook's own pending command (`ambiguous`) is the one source that a
+ * refused command in the meantime cannot reset (N2). */
+function retryHeldAction(ambiguous: AmbiguousCommand | null): HeldAction {
+  if (ambiguous?.kind === 'setOccurrenceState') return ambiguous.occurrenceAction === 'reopen' ? 'reopen' : 'skip';
+  return 'pay';
+}
+
 /** No occurrence-detail/history RPC exists in task 15's gateway (only the
  * list page, `scheduled_occurrence_page`) -- this view reads its row
  * straight out of `props.recurring.page.rows` instead of a second fetch, so
@@ -122,6 +133,18 @@ export function OccurrenceDetail(props: OccurrenceDetailProps) {
   const [held, setHeld] = useState<HeldOccurrence | null>(null);
   const listed = props.recurring.page.rows.find((candidate) => candidate.id === props.occurrenceId);
 
+  // The last row this view actually saw listed, kept only to bridge a
+  // reload's own empty page: an M7-triggered `recurring.refresh()`
+  // (routes.tsx ~445) is the non-preserving `load()`, which empties
+  // `page.rows` for the whole time it runs (use-recurring.ts ~108). Never
+  // consulted once loading has finished (N1) -- a row that is genuinely gone
+  // still falls through to the missing-row alert below.
+  const lastSeenRef = useRef<ScheduledOccurrenceRow | null>(null);
+  useEffect(() => {
+    if (listed) lastSeenRef.current = listed;
+  }, [listed]);
+  const reloading = props.recurring.status === 'loading';
+
   // Once a finished action's row is back in (or still in) the list, the list
   // is the truth again; a later disappearance is not this view's doing.
   useEffect(() => {
@@ -130,8 +153,12 @@ export function OccurrenceDetail(props: OccurrenceDetailProps) {
 
   // The success state comes before the missing-row guard: a row that left
   // the list because of this view's own action is shown from the held
-  // snapshot, never as "no longer in the visible range".
-  const row = listed ?? held?.row;
+  // snapshot, never as "no longer in the visible range". While a background
+  // reload is in flight, the last row this view saw fills in too, so an
+  // M7-style refresh of a mounted list never flashes the alert under an open
+  // detail (N1) -- the alert stays reserved for a row confirmed missing once
+  // that reload has landed.
+  const row = listed ?? held?.row ?? (reloading ? lastSeenRef.current ?? undefined : undefined);
   if (!row) {
     return <div className="cr-card" role="alert">
       <p>{t(props.locale, 'This occurrence is no longer in the visible range.', 'هذه الدفعة المستحقة لم تعد ضمن النطاق المعروض.')}</p>
@@ -175,7 +202,7 @@ export function OccurrenceDetail(props: OccurrenceDetailProps) {
     allowConfirm={row.kind !== 'debt_payment'}
     pending={props.recurring.pending} ambiguous={props.recurring.ambiguous !== null}
     onClose={() => setDialog(null)} onClearAmbiguous={props.recurring.clearAmbiguous}
-    onRetry={() => track('pay', props.recurring.retryAmbiguous)}
+    onRetry={() => track(retryHeldAction(props.recurring.ambiguous), props.recurring.retryAmbiguous)}
     onConfirm={(input) => track('pay', () => props.recurring.confirm(input))}
     onLinkExisting={(input) => track('pay', () => props.recurring.linkExisting(input))}
   />;

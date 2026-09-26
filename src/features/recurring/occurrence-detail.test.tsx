@@ -50,6 +50,35 @@ describe('OccurrenceDetail', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('This occurrence is no longer in the visible range.');
   });
 
+  // N1 (final re-review): an M7 reload (`recurring.refresh()`, routes.tsx
+  // ~445) clears `page.rows` and flips `status` to 'loading' for the whole
+  // reload (use-recurring.ts ~108). An open detail must keep showing the
+  // last row it saw for that window, not flash the missing-row alert.
+  it('N1: keeps showing the last row it saw while a reload is in flight, with no alert', () => {
+    const props = { locale: 'en' as const, occurrenceId: OCCURRENCE_ID, walletOptions: WALLET_OPTIONS, onBack: vi.fn() };
+    const { rerender } = render(<OccurrenceDetail {...props} recurring={fakeRecurringState()} />);
+    expect(screen.queryByRole('alert')).toBeNull();
+
+    // Exactly what an M7 refresh() does to a mounted list mid-reload.
+    rerender(<OccurrenceDetail {...props} recurring={fakeRecurringState({ status: 'loading', page: page([]) })} />);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByText('Due: 2026-09-30')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Occurrence detail' })).toBeInTheDocument();
+  });
+
+  it('N1: still shows the missing-row alert once a reload finishes and the row is genuinely gone', () => {
+    const props = { locale: 'en' as const, occurrenceId: OCCURRENCE_ID, walletOptions: WALLET_OPTIONS, onBack: vi.fn() };
+    const { rerender } = render(<OccurrenceDetail {...props} recurring={fakeRecurringState()} />);
+
+    rerender(<OccurrenceDetail {...props} recurring={fakeRecurringState({ status: 'loading', page: page([]) })} />);
+    expect(screen.queryByRole('alert')).toBeNull();
+
+    // The reload has landed (status back to 'ready') and the row is still
+    // absent from the fresh page -- genuinely gone, so the alert is due now.
+    rerender(<OccurrenceDetail {...props} recurring={fakeRecurringState({ status: 'ready', page: page([]) })} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('This occurrence is no longer in the visible range.');
+  });
+
   it('releases a finished action once its row is listed, so a later disappearance still shows the alert', async () => {
     const props = { locale: 'en' as const, occurrenceId: OCCURRENCE_ID, walletOptions: WALLET_OPTIONS, onBack: vi.fn() };
     const recurring = fakeRecurringState({
