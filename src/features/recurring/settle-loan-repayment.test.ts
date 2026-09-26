@@ -53,7 +53,7 @@ describe('settleLoanRepayment', () => {
   it('links one instalment in full when the repayment exactly covers it', async () => {
     const { gateway, link } = fakeGateway([occurrence()]);
     const outcome = await settleLoanRepayment(gateway, 'space-1', repayment());
-    expect(outcome).toEqual({ status: 'settled', occurrenceId: 'occ-1', nameEn: 'Karim', nameAr: null });
+    expect(outcome).toEqual({ status: 'settled', occurrenceId: 'occ-1', nameEn: 'Karim', nameAr: null, remainsDue: false });
     expect(link).toHaveBeenCalledOnce();
     expect(link).toHaveBeenCalledWith(expect.objectContaining({
       spaceId: 'space-1', occurrenceId: 'occ-1', eventId: 'event-9', amountMinor: '50000', expectedEventId: 'evt-head-1',
@@ -66,16 +66,17 @@ describe('settleLoanRepayment', () => {
     const oct = occurrence({ id: 'occ-oct', dueDate: '2026-10-01' });
     const { gateway, link } = fakeGateway([oct, sep]); // deliberately out of order
     const outcome = await settleLoanRepayment(gateway, 'space-1', repayment({ amountMinor: '100000', effectiveDate: '2026-10-05' }));
-    expect(outcome).toEqual({ status: 'settled', occurrenceId: 'occ-sep', nameEn: 'Karim', nameAr: null });
+    expect(outcome).toEqual({ status: 'settled', occurrenceId: 'occ-sep', nameEn: 'Karim', nameAr: null, remainsDue: false });
     expect(link).toHaveBeenCalledTimes(2);
     expect(link.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ occurrenceId: 'occ-sep', amountMinor: '50000' }));
     expect(link.mock.calls[1]?.[0]).toEqual(expect.objectContaining({ occurrenceId: 'occ-oct', amountMinor: '50000' }));
   });
 
-  it('links a partial amount when the repayment is smaller than the instalment', async () => {
+  it('links a partial amount when the repayment is smaller than the instalment, and says part of it is still due', async () => {
     const { gateway, link } = fakeGateway([occurrence()]);
     const outcome = await settleLoanRepayment(gateway, 'space-1', repayment({ amountMinor: '20000' }));
-    expect(outcome).toEqual({ status: 'settled', occurrenceId: 'occ-1', nameEn: 'Karim', nameAr: null });
+    // Final review M3: 20000 of a 50000 instalment is not "paid".
+    expect(outcome).toEqual({ status: 'settled', occurrenceId: 'occ-1', nameEn: 'Karim', nameAr: null, remainsDue: true });
     expect(link).toHaveBeenCalledOnce();
     expect(link).toHaveBeenCalledWith(expect.objectContaining({ occurrenceId: 'occ-1', amountMinor: '20000' }));
   });
@@ -83,9 +84,18 @@ describe('settleLoanRepayment', () => {
   it('links only the remaining amount and leaves the rest unlinked on an overpayment', async () => {
     const { gateway, link } = fakeGateway([occurrence()]);
     const outcome = await settleLoanRepayment(gateway, 'space-1', repayment({ amountMinor: '70000' }));
-    expect(outcome).toEqual({ status: 'settled', occurrenceId: 'occ-1', nameEn: 'Karim', nameAr: null });
+    expect(outcome).toEqual({ status: 'settled', occurrenceId: 'occ-1', nameEn: 'Karim', nameAr: null, remainsDue: false });
     expect(link).toHaveBeenCalledOnce();
     expect(link).toHaveBeenCalledWith(expect.objectContaining({ occurrenceId: 'occ-1', amountMinor: '50000' }));
+  });
+
+  it('says part of it is still due when the repayment covers one instalment and only part of the next', async () => {
+    const sep = occurrence({ id: 'occ-sep', dueDate: '2026-09-01' });
+    const oct = occurrence({ id: 'occ-oct', dueDate: '2026-10-01' });
+    const { gateway, link } = fakeGateway([sep, oct]);
+    const outcome = await settleLoanRepayment(gateway, 'space-1', repayment({ amountMinor: '70000', effectiveDate: '2026-10-05' }));
+    expect(outcome).toEqual({ status: 'settled', occurrenceId: 'occ-sep', nameEn: 'Karim', nameAr: null, remainsDue: true });
+    expect(link.mock.calls[1]?.[0]).toEqual(expect.objectContaining({ occurrenceId: 'occ-oct', amountMinor: '20000' }));
   });
 
   it("ignores another loan's instalments", async () => {
@@ -100,7 +110,7 @@ describe('settleLoanRepayment', () => {
       occurrence({ id: `occ-${index}`, dueDate: dueDateForIndex(index) }));
     const { gateway, link } = fakeGateway(rows);
     const outcome = await settleLoanRepayment(gateway, 'space-1', repayment({ amountMinor: '1500000', effectiveDate: '2026-02-01' }));
-    expect(outcome).toEqual({ status: 'settled', occurrenceId: 'occ-0', nameEn: 'Karim', nameAr: null });
+    expect(outcome).toEqual({ status: 'settled', occurrenceId: 'occ-0', nameEn: 'Karim', nameAr: null, remainsDue: false });
     expect(link).toHaveBeenCalledTimes(12);
     expect(link.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ occurrenceId: 'occ-0' }));
     expect(link.mock.calls[11]?.[0]).toEqual(expect.objectContaining({ occurrenceId: 'occ-11' }));
@@ -140,7 +150,7 @@ describe('settleLoanRepayment reads the overdue list too (final review I4, M2)',
     const sep = occurrence({ id: 'occ-sep', dueDate: '2026-09-01', overdue: true });
     const { gateway, link } = fakeGateway([sep], undefined, [june, sep]);
     const outcome = await settleLoanRepayment(gateway, 'space-1', repayment({ effectiveDate: '2026-09-26' }));
-    expect(outcome).toEqual({ status: 'settled', occurrenceId: 'occ-jun', nameEn: 'Karim', nameAr: null });
+    expect(outcome).toEqual({ status: 'settled', occurrenceId: 'occ-jun', nameEn: 'Karim', nameAr: null, remainsDue: false });
     expect(link).toHaveBeenCalledOnce();
     expect(link).toHaveBeenCalledWith(expect.objectContaining({ occurrenceId: 'occ-jun', amountMinor: '50000' }));
     expect(gateway.loadOccurrences).toHaveBeenCalledWith(expect.objectContaining({ fromDate: '2026-07-29', toDate: '2026-10-26', limit: 100 }));

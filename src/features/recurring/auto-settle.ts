@@ -19,7 +19,16 @@ export type SettleCandidate =
   | { readonly kind: 'ambiguous'; readonly scheduleCount: number };
 
 export type AutoSettleOutcome =
-  | { readonly status: 'settled'; readonly occurrenceId: string; readonly nameEn: string | null; readonly nameAr: string | null }
+  // `remainsDue`: the last linked occurrence still has an unpaid remainder --
+  // only a loan repayment smaller than its instalment produces it, and the
+  // notice must not call that "paid" (final review M3).
+  | {
+      readonly status: 'settled';
+      readonly occurrenceId: string;
+      readonly nameEn: string | null;
+      readonly nameAr: string | null;
+      readonly remainsDue: boolean;
+    }
   | { readonly status: 'none' }
   // Two or more schedules look like this entry; none is guessed (review focus #4).
   | { readonly status: 'ambiguous'; readonly reason: 'look_alike'; readonly scheduleCount: number }
@@ -152,7 +161,8 @@ export async function autoSettleRecordedEvent(
       amountMinor: recorded.amountMinor,
       expectedEventId: match.currentEventId,
     });
-    return { status: 'settled', occurrenceId: match.id, nameEn: match.nameEn, nameAr: match.nameAr };
+    // The entry equals the occurrence's remaining amount, so it is paid in full.
+    return { status: 'settled', occurrenceId: match.id, nameEn: match.nameEn, nameAr: match.nameAr, remainsDue: false };
   } catch (cause) {
     return { status: 'failed', error: classifyRecurringError(cause) };
   }

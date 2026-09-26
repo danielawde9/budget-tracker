@@ -35,6 +35,8 @@ export async function settleLoanRepayment(
 ): Promise<AutoSettleOutcome> {
   let first: ScheduledOccurrenceRow | null = null;
   let linkedCount = 0;
+  // Whether the last instalment linked was only partly covered (M3).
+  let remainsDue = false;
   try {
     const latestDueDate = shiftDateIso(repayment.effectiveDate, LOOK_AHEAD_DAYS);
     const candidates = await loadSettleCandidates(gateway, spaceId, {
@@ -63,9 +65,12 @@ export async function settleLoanRepayment(
       });
       first ??= row;
       linkedCount += 1;
+      remainsDue = amount < remaining;
       left -= amount;
     }
-    return first ? { status: 'settled', occurrenceId: first.id, nameEn: first.nameEn, nameAr: first.nameAr } : { status: 'none' };
+    return first
+      ? { status: 'settled', occurrenceId: first.id, nameEn: first.nameEn, nameAr: first.nameAr, remainsDue }
+      : { status: 'none' };
   } catch (cause) {
     // Classified, never stringified: the gateway rejects with PostgREST's
     // plain `{ code, message }` object (final review I1).

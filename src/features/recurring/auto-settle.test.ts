@@ -144,7 +144,7 @@ describe('autoSettleRecordedEvent', () => {
   it('loads the overdue list and a window around the expense date, and links the unique match', async () => {
     const { gateway, link } = fakeGateway([occurrence()]);
     const settled = await autoSettleRecordedEvent(gateway, 'space-1', expense(), flat);
-    expect(settled).toEqual({ status: 'settled', occurrenceId: 'occ-1', nameEn: 'Internet', nameAr: null });
+    expect(settled).toEqual({ status: 'settled', occurrenceId: 'occ-1', nameEn: 'Internet', nameAr: null, remainsDue: false });
     const load = gateway.loadOccurrences as ReturnType<typeof vi.fn>;
     expect(load).toHaveBeenCalledWith(expect.objectContaining({ spaceId: 'space-1', fromDate: '2026-08-28', toDate: '2026-10-29', limit: 100 }));
     expect(gateway.loadOverdue).toHaveBeenCalledWith(expect.objectContaining({ spaceId: 'space-1', afterDueDate: null, afterId: null, limit: 100 }));
@@ -176,7 +176,7 @@ describe('autoSettleRecordedEvent', () => {
     const overdue = occurrence({ dueDate: '2026-09-10', overdue: true });
     const { gateway, link } = fakeGateway([overdue], undefined, [overdue]);
     expect(await autoSettleRecordedEvent(gateway, 'space-1', expense(), flat))
-      .toEqual({ status: 'settled', occurrenceId: 'occ-1', nameEn: 'Internet', nameAr: null });
+      .toEqual({ status: 'settled', occurrenceId: 'occ-1', nameEn: 'Internet', nameAr: null, remainsDue: false });
     expect(link).toHaveBeenCalledOnce();
   });
 
@@ -243,9 +243,9 @@ describe('autoSettleRecordedEvent settles the oldest unpaid occurrence (final re
     const payment = (eventId: string) => expense({ eventId, effectiveDate: '2026-09-26' });
 
     expect(await autoSettleRecordedEvent(gateway, 'space-1', payment('event-1'), flat))
-      .toEqual({ status: 'settled', occurrenceId: 'aug', nameEn: 'Internet', nameAr: null });
+      .toEqual({ status: 'settled', occurrenceId: 'aug', nameEn: 'Internet', nameAr: null, remainsDue: false });
     expect(await autoSettleRecordedEvent(gateway, 'space-1', payment('event-2'), flat))
-      .toEqual({ status: 'settled', occurrenceId: 'sep', nameEn: 'Internet', nameAr: null });
+      .toEqual({ status: 'settled', occurrenceId: 'sep', nameEn: 'Internet', nameAr: null, remainsDue: false });
 
     expect(link.mock.calls.map((call) => call[0].occurrenceId)).toEqual(['aug', 'sep']);
     expect(rows.get('oct')?.state).toBe('pending');

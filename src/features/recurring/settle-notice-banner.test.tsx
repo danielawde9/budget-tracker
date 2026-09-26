@@ -67,4 +67,43 @@ describe('SettleNoticeBanner', () => {
       'عدد الفواتير كبير جدًا بحيث يتعذر التحقق منها كلها، لذا لم تُربط هذه الدفعة بأي منها.',
     );
   });
+
+  // Final review M3: a repayment that leaves its instalment partly unpaid is
+  // never announced as "paid".
+  it('words a repayment that leaves part of the instalment due without saying "paid"', () => {
+    const outcome = { status: 'settled', occurrenceId: 'occ-1', nameEn: 'Karim', nameAr: 'كريم', remainsDue: true } as const;
+    const { unmount } = render(<SettleNoticeBanner locale="en" outcome={outcome} onDismiss={vi.fn()} />);
+    const english = screen.getByRole('status');
+    expect(english).toHaveTextContent('Linked this repayment to "Karim" — part of it is still due.');
+    expect(english).not.toHaveTextContent('as paid');
+    unmount();
+    render(<SettleNoticeBanner locale="ar" outcome={outcome} onDismiss={vi.fn()} />);
+    const arabic = screen.getByRole('status');
+    expect(arabic).toHaveTextContent('تم ربط هذه الدفعة بـ«كريم»، ولا يزال جزء من القسط مستحقًا.');
+    expect(arabic).not.toHaveTextContent('كمدفوعة');
+  });
+
+  it('says "paid" when the link paid the bill in full', () => {
+    render(<SettleNoticeBanner locale="en" outcome={{ status: 'settled', occurrenceId: 'occ-1', nameEn: 'Rent', nameAr: null, remainsDue: false }} onDismiss={vi.fn()} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Marked "Rent" as paid.');
+  });
+
+  // Final review M4 and declined #2: the look-alike notice states what
+  // happened, with Arabic number agreement, and never points to a screen:
+  // none can link an existing expense, and "Review payment" would record
+  // the expense a second time.
+  it.each([
+    [2, "This payment matches 2 bills, so it wasn't linked to any of them.", 'تطابق هذه الدفعة فاتورتين، لذا لم تُربط بأيٍّ منهما.'],
+    [3, "This payment matches 3 bills, so it wasn't linked to any of them.", 'تطابق هذه الدفعة ٣ فواتير، لذا لم تُربط بأيٍّ منها.'],
+    [11, "This payment matches 11 bills, so it wasn't linked to any of them.", 'تطابق هذه الدفعة ١١ فاتورة، لذا لم تُربط بأيٍّ منها.'],
+  ])('words a %i-way look-alike truthfully, with no dead-end instruction', (scheduleCount, english, arabic) => {
+    const outcome = { status: 'ambiguous', reason: 'look_alike', scheduleCount } as const;
+    const { unmount } = render(<SettleNoticeBanner locale="en" outcome={outcome} onDismiss={vi.fn()} />);
+    expect(screen.getByRole('status')).toHaveTextContent(english);
+    expect(screen.getByRole('status')).not.toHaveTextContent(/Upcoming bills|choose|Review payment/);
+    unmount();
+    render(<SettleNoticeBanner locale="ar" outcome={outcome} onDismiss={vi.fn()} />);
+    expect(screen.getByRole('status')).toHaveTextContent(arabic);
+    expect(screen.getByRole('status')).not.toHaveTextContent(/الفواتير القادمة|للاختيار/);
+  });
 });

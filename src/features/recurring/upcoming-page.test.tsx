@@ -125,7 +125,8 @@ describe('UpcomingPage', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Showing the first 1,000 bills.');
 
     rerender(<UpcomingPage locale="ar" {...editorProps()} recurring={fakeRecurringState({ truncated: true })} fromDate="2026-09-01" toDate="2026-11-30" />);
-    expect(screen.getByRole('alert')).toHaveTextContent('تُعرض أول 1,000 فاتورة.');
+    // Final review M4: Arabic-Indic digits, as amounts are written in Arabic.
+    expect(screen.getByRole('alert')).toHaveTextContent('تُعرض أول ١٬٠٠٠ فاتورة.');
   });
 
   it('shows no truncation alert when the list was not truncated', () => {

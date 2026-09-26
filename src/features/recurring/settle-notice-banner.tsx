@@ -1,5 +1,6 @@
 import type { Locale } from '../loans/types.js';
 import type { AutoSettleOutcome } from './auto-settle.js';
+import { billCount } from './bill-count.js';
 import { localizeRecurringError } from './errors.js';
 
 const t = (locale: Locale, en: string, ar: string) => (locale === 'ar' ? ar : en);
@@ -14,6 +15,12 @@ function noticeBody(outcome: Exclude<AutoSettleOutcome, { status: 'none' }>, loc
   switch (outcome.status) {
     case 'settled': {
       const name = locale === 'ar' ? (outcome.nameAr ?? outcome.nameEn) : (outcome.nameEn ?? outcome.nameAr);
+      if (outcome.remainsDue) {
+        // A repayment smaller than its instalment is linked, not "paid" (M3).
+        return locale === 'ar'
+          ? <>تم ربط هذه الدفعة بـ«<bdi>{name}</bdi>»، ولا يزال جزء من القسط مستحقًا.</>
+          : <>Linked this repayment to "<bdi>{name}</bdi>" — part of it is still due.</>;
+      }
       return locale === 'ar'
         ? <>تم تعليم «<bdi>{name}</bdi>» كمدفوعة.</>
         : <>Marked "<bdi>{name}</bdi>" as paid.</>;
@@ -26,9 +33,13 @@ function noticeBody(outcome: Exclude<AutoSettleOutcome, { status: 'none' }>, loc
           "There are too many bills to check them all, so this payment wasn't linked to any of them.",
           'عدد الفواتير كبير جدًا بحيث يتعذر التحقق منها كلها، لذا لم تُربط هذه الدفعة بأي منها.');
       }
+      // States what happened and stops there: no screen can link an existing
+      // expense (D4), and "Review payment" would record it a second time --
+      // so the notice must not send anyone there (final review, declined #2).
+      // Arabic agrees with the count, dual pronoun included (M4).
       return t(locale,
-        `This payment matches ${outcome.scheduleCount} bills — open Upcoming bills to choose.`,
-        `تطابق هذه الدفعة ${outcome.scheduleCount} فواتير — افتح الفواتير القادمة للاختيار.`);
+        `This payment matches ${billCount(outcome.scheduleCount, 'en')}, so it wasn't linked to any of them.`,
+        `تطابق هذه الدفعة ${billCount(outcome.scheduleCount, 'ar')}، لذا لم تُربط ${outcome.scheduleCount === 2 ? 'بأيٍّ منهما' : 'بأيٍّ منها'}.`);
     case 'failed': {
       // The classified error's own copy in the person's language -- never
       // the raw server text (final review I1, M4).

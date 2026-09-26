@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { Currency, Locale } from '../loans/types.js';
 import { formatMinorAmount } from '../wallets/money.js';
+import { billCount } from './bill-count.js';
+import { MAX_PAGES, PAGE_LIMIT } from './load-all-pages.js';
 import { OccurrenceDetail, occurrenceBucket, occurrenceBucketLabel, type OccurrenceBucket } from './occurrence-detail.js';
 import { ScheduleEditor, type ScheduleReferenceOptions } from './schedule-editor.js';
 import { settlementProgress } from './settlement-progress.js';
@@ -84,8 +86,11 @@ export function UpcomingPage(props: UpcomingPageProps) {
         className="cr-button" onClick={() => setFilter(value)}>{filterLabel(props.locale, value)}</button>)}
     </div>
 
+    {/* The count is the shared pager's own cap, in the locale's digits (M4). */}
     {recurring.truncated && <p className="cr-banner" role="alert">
-      {t(props.locale, 'Showing the first 1,000 bills.', 'تُعرض أول 1,000 فاتورة.')}
+      {t(props.locale,
+        `Showing the first ${billCount(MAX_PAGES * PAGE_LIMIT, 'en')}.`,
+        `تُعرض أول ${billCount(MAX_PAGES * PAGE_LIMIT, 'ar')}.`)}
     </p>}
 
     {recurring.status === 'loading' && <>
