@@ -101,6 +101,12 @@ styled by legacy defaults, and never hand-rolled green styling in feature
 sheets. Secondary Cancel stays `.button-secondary`; exactly one primary per
 dialog at a time.
 
+A lone dismiss/acknowledge action inside a `.cr-banner` (e.g. `SettleNoticeBanner`'s
+settled/ambiguous/failed notice) is `cr-button cr-button--sm cr-banner-dismiss` —
+the modifier only self-aligns it to the inline end so it doesn't stretch the
+banner's column layout; a banner offering more than one action (retry +
+dismiss) uses `.cr-row` instead, as `AmbiguousBanner` does.
+
 ## 7. Filters & toolbars
 
 `.cr-toolbar` + `.cr-chips` for filter rows (kind chips, tabs); `.cr-tabs` /

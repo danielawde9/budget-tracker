@@ -10,6 +10,8 @@ describe('classifyLoanError', () => {
     ['the correction would invalidate dependent repayments', 'dependent_repayment'],
     ['the monthly target cannot exceed outstanding principal', 'target_above_outstanding'],
     ['every wallet movement must use an active wallet', 'archived_wallet'],
+    // Final review M8: the reversal-date trigger (Task 3), SQLSTATE 23514.
+    ['a reversal cannot be dated before the entry it reverses', 'reversal_before_original'],
   ] as const)('classifies %s as %s', (message, code) => {
     expect(classifyLoanError({ message })).toMatchObject({ code });
   });
@@ -18,6 +20,13 @@ describe('classifyLoanError', () => {
     expect(classifyLoanError({ message: 'the correction would invalidate dependent repayments' }).recovery).toBe(
       'Reverse the later repayments first, then retry this correction.',
     );
+  });
+
+  it('explains a correction dated before its entry, with a recovery', () => {
+    expect(classifyLoanError({ code: '23514', message: 'a reversal cannot be dated before the entry it reverses' })).toMatchObject({
+      title: "A correction can't be dated before the entry it corrects",
+      recovery: "Pick the entry's date or later.",
+    });
   });
 
   it('explains the archived-wallet recovery', () => {

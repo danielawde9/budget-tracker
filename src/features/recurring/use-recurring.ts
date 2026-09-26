@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { classifyRecurringError, isAmbiguousTransportFailure, type RecurringErrorView } from './errors.js';
+import { loadAllPages, mergeOverdueFirst, PAGE_LIMIT } from './load-all-pages.js';
 import type {
   ConfirmInput,
   ConfirmResult,
@@ -7,6 +8,7 @@ import type {
   LinkExistingResult,
   MaterializeInput,
   MaterializeResult,
+  OccurrenceStateAction,
   RecurringGateway,
   SaveScheduleInput,
   SaveScheduleResult,
@@ -49,10 +51,34 @@ const COMMAND_NAME: Record<RetryCommand['kind'], string> = {
   linkExisting: 'link_scheduled_payment',
 };
 
+export interface AmbiguousCommand {
+  readonly kind: RetryCommand['kind'];
+  readonly requestId: string;
+  /** The retried `setOccurrenceState` request's own action ('skip' |
+   * 'reopen'), present only for that command kind. A caller that needs to
+   * know what a retry actually resolves must read it from here, not from its
+   * own local bookkeeping of "what I last started" -- an unrelated command
+   * that gets refused outright in the meantime (e.g. `runCommand`'s "a
+   * command is already pending" guard) can reset that local state before the
+   * retry ever runs (N2). */
+  readonly occurrenceAction?: OccurrenceStateAction;
+}
+
+function ambiguousFromRetry(command: RetryCommand | null): AmbiguousCommand | null {
+  if (!command) return null;
+  if (command.kind === 'setOccurrenceState') {
+    return { kind: command.kind, requestId: command.requestId, occurrenceAction: command.input.action };
+  }
+  return { kind: command.kind, requestId: command.requestId };
+}
+
 interface RecurringView {
   loadedKey: string;
   status: RecurringStatus;
   page: ScheduledOccurrencePage;
+  /** True once either the overdue or the upcoming-window load hit `MAX_PAGES`
+   * without exhausting its cursor -- the list is real but incomplete. */
+  truncated: boolean;
   error: RecurringErrorView | null;
 }
 
@@ -63,7 +89,10 @@ function viewKey(spaceId: string, fromDate: string, toDate: string): string {
 }
 
 function initialView(spaceId: string, fromDate: string, toDate: string): RecurringView {
-  return { loadedKey: viewKey(spaceId, fromDate, toDate), status: 'loading', page: defaultOccurrencePage, error: null };
+  return {
+    loadedKey: viewKey(spaceId, fromDate, toDate), status: 'loading',
+    page: defaultOccurrencePage, truncated: false, error: null,
+  };
 }
 
 function runCommandByKind(gateway: RecurringGateway, command: RetryCommand): Promise<CommandResult> {
@@ -100,11 +129,35 @@ export function useRecurring(
     const myGeneration = ++generation.current;
     if (!preserveCurrent) setView(initialView(spaceId, fromDate, toDate));
     try {
-      const data = await gateway.loadOccurrences(
-        { spaceId, fromDate, toDate, afterDueDate: null, afterId: null, limit: 25 }, controller.signal,
-      );
+      // Overdue bills (before "today", no lower bound) and the forward
+      // window are two independent keyset-paged lists -- loaded concurrently,
+      // each read in full through the shared bounded pager (`loadAllPages`:
+      // MAX_PAGES pages of PAGE_LIMIT rows, stalled-cursor guard), so one
+      // huge list can't starve the other and a list past the bound shows the
+      // truncation alert rather than silently dropping bills (audit D10).
+      let windowAsOf = defaultOccurrencePage.asOf;
+      const [overdueResult, windowResult] = await Promise.all([
+        loadAllPages((cursor) => gateway.loadOverdue(
+          { spaceId, afterDueDate: cursor?.dueDate ?? null, afterId: cursor?.id ?? null, limit: PAGE_LIMIT },
+          controller.signal,
+        )),
+        loadAllPages(async (cursor) => {
+          const page = await gateway.loadOccurrences(
+            { spaceId, fromDate, toDate, afterDueDate: cursor?.dueDate ?? null, afterId: cursor?.id ?? null, limit: PAGE_LIMIT },
+            controller.signal,
+          );
+          windowAsOf = page.asOf;
+          return page;
+        }),
+      ]);
       if (generation.current !== myGeneration || currentKey.current !== targetKey) return false;
-      setView({ loadedKey: targetKey, status: 'ready', page: data, error: null });
+      // Overdue first; a window row already served by the overdue load is
+      // dropped rather than shown twice -- a device clock a day off from the
+      // server's UTC "today" would otherwise straddle both lists.
+      const rows = mergeOverdueFirst(overdueResult.rows, windowResult.rows);
+      const data: ScheduledOccurrencePage = { rows, hasMore: false, nextCursor: null, asOf: windowAsOf };
+      const truncated = overdueResult.truncated || windowResult.truncated;
+      setView({ loadedKey: targetKey, status: 'ready', page: data, truncated, error: null });
       return true;
     } catch (cause) {
       if (controller.signal.aborted) return false;
@@ -242,17 +295,14 @@ export function useRecurring(
     setView((current) => (current.status === 'ambiguous' ? { ...current, status: 'ready' } : current));
   }, []);
 
-  const loadMore = useCallback((cursor: { afterDueDate: string; afterId: string }, limit = 25, signal?: AbortSignal): Promise<ScheduledOccurrencePage> =>
-    gateway.loadOccurrences({ spaceId, fromDate, toDate, afterDueDate: cursor.afterDueDate, afterId: cursor.afterId, limit }, signal),
-  [gateway, spaceId, fromDate, toDate]);
-
   const visible = view.loadedKey === currentKey.current;
   return {
     status: visible ? view.status : ('loading' as const),
     page: visible ? view.page : defaultOccurrencePage,
+    truncated: visible ? view.truncated : false,
     error: visible ? view.error : null,
     pending: view.status === 'saving',
-    ambiguous: retry ? { kind: retry.kind, requestId: retry.requestId } : null,
+    ambiguous: ambiguousFromRetry(retry),
     refresh: () => load(),
     saveSchedule,
     materialize,
@@ -261,7 +311,6 @@ export function useRecurring(
     linkExisting,
     retryAmbiguous,
     clearAmbiguous,
-    loadMore,
   };
 }
 

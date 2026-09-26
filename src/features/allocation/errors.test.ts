@@ -7,6 +7,9 @@ describe('classifyAllocationError', () => {
     [{ code: '22023', message: 'planning_invalid_input' }, 'invalid_input'],
     [{ code: 'P0001', message: 'planning_idempotency_conflict' }, 'idempotency_conflict'],
     [{ code: '40001', message: 'planning_stale_revision' }, 'stale_revision'],
+    // Final review M5: a Plan head that moved under a publish is raised by
+    // `set_monthly_income_plan`/`set_monthly_category_target` as P0001.
+    [{ code: 'P0001', message: 'the monthly budget plan has changed; refresh and try again' }, 'stale_revision'],
     [{ code: 'P0001', message: 'the requested snapshot does not belong to this space, currency, and month' }, 'foreign_snapshot'],
     [{ code: 'P0001', message: 'every root mapping must reference an active root expense category in this space' }, 'invalid_root_mapping'],
     [{ code: 'P0001', message: 'a submitted group id already exists with a different space, currency, or purpose' }, 'group_identity_conflict'],

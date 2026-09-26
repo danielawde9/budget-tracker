@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Currency, Locale } from '../loans/types.js';
 import { AllocationMonthEditor, type AllocationMonthEditorInitial, type CategoryOption } from './allocation-month-editor.js';
 import { AllocationOverview } from './allocation-overview.js';
+import { classifyAllocationError, localizeAllocationError } from './errors.js';
 import { basisPointsToPercentText, minorToMajorText } from './money-allocation.js';
 import type { AllocationCategoryRow, AllocationGateway, AllocationGroupRow, PublishMonthResult, SaveTemplateResult } from './types.js';
 import type { useAllocation } from './use-allocation.js';
@@ -20,8 +21,17 @@ export interface AllocationSetupProps {
    * snapshot captured at the last allocation publish for the editor's initial
    * income field. */
   monthlyPlanIncomeMinor?: string | null;
+  /** The Plan's current planned-income revision for this currency and month.
+   * publishMonth's expected income head must be the Plan's, not the last
+   * snapshot's (audit B2). */
+  monthlyPlanIncomeRevisionId?: string | null;
   allocation: ReturnType<typeof useAllocation>;
   gateway: AllocationGateway;
+  /** Called once a publish succeeds. The publish wrote a new income revision
+   * and a new target revision for every root it submitted, so the Plan heads
+   * this component was handed are stale until the parent reloads them
+   * (final review M5). */
+  onPublished?: (() => void) | undefined;
 }
 
 function buildInitialDraft(
@@ -38,7 +48,9 @@ function buildInitialDraft(
   const rootTargets = categories.map((category) => {
     const fromPage = categoryPage?.find((row) => row.rootId === category.id) ?? null;
     const fromPlan = categoryTargets?.get(category.id) ?? null;
-    const amountMinor = fromPage?.targetMinor ?? fromPlan?.amountMinor ?? '0';
+    // The Plan is the source of truth for targets (audit B3): a stale
+    // published snapshot must never shadow a Plan edit made since.
+    const amountMinor = fromPlan?.amountMinor ?? fromPage?.targetMinor ?? '0';
     return {
       categoryId: category.id,
       groupId: fromPage?.groupId ?? null,
@@ -134,9 +146,14 @@ export function AllocationSetup(props: AllocationSetupProps) {
           void (async () => {
             setSubmitError(null);
             try {
+              // Fetched fresh at Confirm time, never read off the month's own
+              // (possibly null, for a new month) snapshot state -- a new
+              // month's null templateRevisionId is never the same thing as
+              // "no template exists yet" for the space (audit B1).
+              const head = await allocation.loadTemplateHead();
               const templateOutcome = await allocation.saveTemplate({
                 currency,
-                expectedRevisionId: allocation.month.templateRevisionId,
+                expectedRevisionId: head.templateRevisionId,
                 groups: submission.groups,
                 rootMappings: submission.rootMappings,
               });
@@ -145,16 +162,24 @@ export function AllocationSetup(props: AllocationSetupProps) {
               const publishOutcome = await allocation.publishMonth({
                 templateRevisionId: templateResult.templateRevisionId,
                 expectedSnapshotId: allocation.month.snapshotId,
-                expectedIncomeRevisionId: allocation.month.incomeRevisionId,
+                // The Plan's current income revision, not the last-published
+                // snapshot's (audit B2) -- the Plan may have moved on since.
+                expectedIncomeRevisionId: props.monthlyPlanIncomeRevisionId ?? null,
                 incomeMinor: submission.incomeMinor,
                 rootTargets: submission.rootTargets,
                 loanGroupId: submission.loanGroupId,
               });
               void (publishOutcome.result as PublishMonthResult | undefined);
               if (publishOutcome.status === 'ambiguous') return;
+              props.onPublished?.();
               setEditing(false);
             } catch (cause) {
-              setSubmitError(cause instanceof Error ? cause.message : t(locale, 'Could not save this plan.', 'تعذر حفظ هذه الخطة.'));
+              // Classified and localized: the gateway rejects with PostgREST's
+              // plain `{ code, message }` object, so an `instanceof Error`
+              // test fell through to a generic line for every real refusal,
+              // the stale-revision one included (final review M5, I1).
+              const view = localizeAllocationError(classifyAllocationError(cause), locale);
+              setSubmitError(`${view.message} ${view.recovery}`);
             }
           })();
         }}

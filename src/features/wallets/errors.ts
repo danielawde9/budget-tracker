@@ -7,6 +7,7 @@ export type WalletErrorCode =
   | 'not_archived'
   | 'non_zero_balance'
   | 'request_collision'
+  | 'reversal_before_original'
   | 'unknown';
 
 export interface WalletErrorView {
@@ -85,6 +86,13 @@ export function classifyWalletError(cause: unknown): WalletErrorView {
       recovery: 'Review the current values and submit them as a new request.',
     };
   }
+  if (/a reversal cannot be dated before the entry it reverses/i.test(message)) {
+    return {
+      code: 'reversal_before_original',
+      message: "Undo can't be dated before the entry it undoes.",
+      recovery: "Pick the entry's date or later.",
+    };
+  }
   return {
     code: 'unknown',
     message: 'This wallet request was not accepted.',
@@ -124,6 +132,10 @@ const arabicCopy: Record<WalletErrorCode, Pick<WalletErrorView, 'message' | 'rec
   request_collision: {
     message: 'لم يعد هذا الطلب يطابق التفاصيل الأصلية.',
     recovery: 'راجع القيم الحالية وأرسلها كطلب جديد.',
+  },
+  reversal_before_original: {
+    message: 'لا يمكن أن يسبق تاريخ التراجع تاريخ القيد الأصلي.',
+    recovery: 'اختر تاريخ القيد أو تاريخًا لاحقًا.',
   },
   unknown: {
     message: 'لم يتم قبول طلب المحفظة.',

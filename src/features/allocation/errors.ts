@@ -57,7 +57,10 @@ export function classifyAllocationError(cause: unknown): AllocationErrorView {
       recovery: 'A timeout after submission is not a rejection. We are checking whether it went through.',
     };
   }
-  if (code === '40001' || /planning_stale_revision/i.test(message)) {
+  // A Plan head that moved under a publish is raised by
+  // `set_monthly_income_plan`/`set_monthly_category_target` as P0001 with
+  // this message, not 40001 (final review M5).
+  if (code === '40001' || /planning_stale_revision|the monthly budget plan has changed/i.test(message)) {
     return {
       code: 'stale_revision',
       message: 'This plan changed elsewhere.',

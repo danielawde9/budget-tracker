@@ -2,6 +2,10 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
+  // Only *.spec.ts files are Playwright tests. The default pattern also picks
+  // up *.test.ts, and one stray Vitest file under e2e/ once made the whole
+  // collection "0 tests in 0 files" (Task 8; final review recommendation 4).
+  testMatch: '**/*.spec.ts',
   fullyParallel: false,
   retries: 0,
   reporter: 'list',

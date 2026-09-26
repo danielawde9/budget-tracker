@@ -164,6 +164,14 @@ export function useWallets(
   const commandPending = useRef(false);
   const currentSpace = useRef(spaceId);
   currentSpace.current = spaceId;
+  // The caller's callback is read from a ref refreshed on every render, never
+  // captured by the memoized `reconcileCommand` below: that command's own
+  // dependencies are stable per space, so a captured `options` would stay the
+  // FIRST render's -- whose callback closed over state the caller had not
+  // loaded yet (final review I2: routes' category `parentOf` saw zero
+  // categories, so a subcategory expense never settled a parent-category bill).
+  const onExpenseRecordedRef = useRef(options.onExpenseRecorded);
+  onExpenseRecordedRef.current = options.onExpenseRecorded;
 
   const enrichEvents = useCallback(async (
     targetSpaceId: string,
@@ -353,7 +361,7 @@ export function useWallets(
       }
       const refreshed = await refreshAfterCommand(true);
       if (command.kind === 'record' && recordedEventId) {
-        await options.onExpenseRecorded?.({
+        await onExpenseRecordedRef.current?.({
           eventId: recordedEventId,
           kind: command.input.kind,
           effectiveDate: command.input.effectiveDate,

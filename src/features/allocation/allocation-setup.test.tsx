@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import { postgrestRejection } from '../../test/postgrest-rejection.js';
 import { AllocationSetup } from './allocation-setup.js';
 import type { AllocationGateway, AllocationMonthState, PublishMonthInput, SaveTemplateInput } from './types.js';
 import type { CommandOutcome, useAllocation } from './use-allocation.js';
@@ -29,6 +30,7 @@ function fakeAllocation(overrides: Partial<AllocationHook> = {}): AllocationHook
     loadCategoryPage: vi.fn(async () => ({ rows: [], nextRootId: null, hasMore: false })),
     loadHistoryPage: vi.fn(async () => ({ rows: [], nextId: null, hasMore: false })),
     loadTrend: vi.fn(async () => ({ months: [] })),
+    loadTemplateHead: vi.fn(async () => ({ templateRevisionId: null })),
     ...overrides,
   } as AllocationHook;
 }
@@ -74,6 +76,52 @@ describe('AllocationSetup', () => {
     expect(publishMonth).toHaveBeenCalledTimes(1);
     expect(publishMonth.mock.calls[0]![0]).toMatchObject({ templateRevisionId: '77' });
     expect(screen.getByRole('button', { name: 'Set up' })).toBeInTheDocument();
+  });
+
+  it('publishes a month without a snapshot against the current template head (audit B1, B2)', async () => {
+    const saveTemplate = vi.fn(async (_input: Omit<SaveTemplateInput, 'spaceId' | 'requestId'>) => ({ status: 'success', reconciled: false, result: { templateRevisionId: '10' } }) as CommandOutcome);
+    const publishMonth = vi.fn(async (_input: Omit<PublishMonthInput, 'spaceId' | 'requestId' | 'month' | 'currency'>) => ({ status: 'success', reconciled: false, result: { snapshotId: '2', incomeRevisionId: '5' } }) as CommandOutcome);
+    const loadTemplateHead = vi.fn(async () => ({ templateRevisionId: '9' }));
+    render(<AllocationSetup locale="en" currency="USD" month="2026-10-01" categories={categories}
+      allocation={fakeAllocation({ saveTemplate, publishMonth, loadTemplateHead })} gateway={stubGateway}
+      monthlyPlanIncomeMinor="200000" monthlyPlanIncomeRevisionId="31" />);
+    await userEvent.click(screen.getByRole('button', { name: 'Set up' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(saveTemplate).toHaveBeenCalledWith(expect.objectContaining({ expectedRevisionId: '9' }));
+    expect(publishMonth).toHaveBeenCalledWith(expect.objectContaining({ templateRevisionId: '10', expectedIncomeRevisionId: '31' }));
+  });
+
+  // Final review M5: the Plan heads a publish consumed are stale once it
+  // succeeds, so the parent is told to refresh them.
+  it('calls onPublished once a publish succeeds, so the Plan heads can refresh', async () => {
+    const onPublished = vi.fn();
+    render(<AllocationSetup locale="en" currency="USD" month="2026-09-01" categories={categories} allocation={fakeAllocation()} gateway={stubGateway} onPublished={onPublished} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Set up' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(onPublished).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['en', 'This plan changed elsewhere. Reload the current version and review it before saving again.'],
+    ['ar', 'تغيّرت هذه الخطة من مكان آخر. أعد تحميل النسخة الحالية وراجعها قبل الحفظ مرة أخرى.'],
+  ] as const)('shows the stale-revision copy (%s), not a generic error, when the plan changed under a publish', async (locale, copy) => {
+    const onPublished = vi.fn();
+    const publishMonth = vi.fn(async () => {
+      throw postgrestRejection('P0001', 'the monthly budget plan has changed; refresh and try again');
+    });
+    render(<AllocationSetup locale={locale} currency="USD" month="2026-09-01" categories={categories}
+      allocation={fakeAllocation({ publishMonth })} gateway={stubGateway} onPublished={onPublished} />);
+    await userEvent.click(screen.getByRole('button', { name: locale === 'ar' ? 'إعداد' : 'Set up' }));
+    await userEvent.click(screen.getByRole('button', { name: locale === 'ar' ? 'التالي' : 'Next' }));
+    await userEvent.click(screen.getByRole('button', { name: locale === 'ar' ? 'التالي' : 'Next' }));
+    await userEvent.click(screen.getByRole('button', { name: locale === 'ar' ? 'تأكيد' : 'Confirm' }));
+    expect(await screen.findByText(copy)).toBeInTheDocument();
+    expect(screen.queryByText(/Could not save this plan|تعذر حفظ هذه الخطة/)).toBeNull();
+    expect(onPublished).not.toHaveBeenCalled();
   });
 
   it('does not call publishMonth when saveTemplate itself goes ambiguous, and keeps the editor open', async () => {
@@ -135,5 +183,21 @@ describe('AllocationSetup', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
     expect(screen.getByLabelText('Planned income')).toHaveValue('400.00');
     expect(screen.queryByText(/From the monthly plan:/)).not.toBeInTheDocument();
+  });
+
+  it('pre-fills a category target from the Plan, not the older snapshot (audit B3)', async () => {
+    const loadCategoryPage = vi.fn(async () => ({
+      rows: [{ rootId: 'cat-essentials', nameEn: 'Essentials', nameAr: 'أساسيات', targetMinor: '40000', actualMinor: '0', varianceMinor: '40000', hasPlan: true, groupId: null }],
+      nextRootId: null, hasMore: false,
+    }));
+    const planTargets = new Map([['cat-essentials', { amountMinor: '50000', revisionId: '12' }]]);
+    render(<AllocationSetup locale="en" currency="USD" month="2026-09-01" categories={categories}
+      allocation={fakeAllocation({ month: { ...emptyMonth, snapshotId: '12', hasPlan: true }, loadCategoryPage })}
+      gateway={stubGateway} categoryTargets={planTargets} />);
+    await userEvent.click(screen.getByRole('button', { name: /Edit|Set up/ }));
+    // Manual mode (no groups) opens on the mode/income step; Next reaches the
+    // categories step where the pre-filled target renders.
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(await screen.findByDisplayValue('500.00')).toBeInTheDocument();
   });
 });

@@ -19,6 +19,7 @@ import type {
   LoadCategoryPageInput,
   LoadHistoryPageInput,
   LoadMonthInput,
+  LoadTemplateHeadInput,
   LoadTrendInput,
   PlanningCommandReceipt,
   PublishMonthInput,
@@ -26,6 +27,7 @@ import type {
   PublishMonthV2Input,
   SaveTemplateInput,
   SaveTemplateResult,
+  TemplateHeadResult,
 } from './types.js';
 
 export type AllocationDataClient = PlanningRpcClient;
@@ -167,6 +169,11 @@ function parseTrend(value: unknown): AllocationTrend {
   return { months };
 }
 
+function parseTemplateHead(value: unknown): TemplateHeadResult {
+  const row = object(value);
+  return { templateRevisionId: nullableBigIntId(row['templateRevisionId'], 'templateRevisionId') };
+}
+
 function saveTemplateResult(value: unknown): SaveTemplateResult {
   const row = object(value);
   return { templateRevisionId: bigIntId(row['templateRevisionId'], 'templateRevisionId') };
@@ -266,6 +273,14 @@ export function createSupabaseAllocationGateway(client: AllocationDataClient): A
         p_month_count: input.monthCount,
       }, signal);
       return parseTrend(data);
+    },
+
+    async loadTemplateHead(input: LoadTemplateHeadInput, signal?: AbortSignal): Promise<TemplateHeadResult> {
+      const data = await planningRpc(client, 'allocation_template_head', {
+        p_space_id: input.spaceId,
+        p_currency: currency(input.currency),
+      }, signal);
+      return parseTemplateHead(data);
     },
 
     async saveTemplate(input: SaveTemplateInput): Promise<SaveTemplateResult> {

@@ -40,31 +40,41 @@ test('recording an expense that exactly matches a bill settles it automatically'
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await installApplicationFixture(page, { seedOccurrences: [INTERNET_OCCURRENCE] });
   await page.goto('/');
+  // Scoped to the Upcoming bills region itself: the settle notice below
+  // renders outside it (above whichever destination is active), and it also
+  // contains the bill's name -- a page-wide getByText('Internet') would
+  // match both and the assertions below would not tell them apart.
+  const upcomingBills = page.getByRole('region', { name: 'Upcoming bills' });
   await chooseWorkspaceDestination(page, 'Plan');
   await openPlanSection(page, 'Upcoming bills');
   await page.getByRole('tab', { name: 'Upcoming' }).click();
-  await expect(page.getByText('Internet')).toBeVisible();
+  await expect(upcomingBills.getByText('Internet')).toBeVisible();
 
   await chooseWorkspaceDestination(page, 'Home');
   await recordSixtyDollarEssentialsExpense(page);
   await expect(page.getByRole('heading', { name: 'Personal space' })).toBeVisible();
 
+  const settleNotice = page.getByRole('status').filter({ hasText: 'Internet' });
+  await expect(settleNotice).toBeVisible();
+  await expect(settleNotice).toContainText('as paid');
+
   await chooseWorkspaceDestination(page, 'Plan');
   await openPlanSection(page, 'Upcoming bills');
   await page.getByRole('tab', { name: 'Upcoming' }).click();
-  await expect(page.getByText('Internet')).toHaveCount(0);
+  await expect(upcomingBills.getByText('Internet')).toHaveCount(0);
   await page.getByRole('tab', { name: 'Paid', exact: true }).click();
-  await expect(page.getByText('Internet')).toBeVisible();
+  await expect(upcomingBills.getByText('Internet')).toBeVisible();
 });
 
 test('a non-matching expense leaves the bill pending', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await installApplicationFixture(page, { seedOccurrences: [INTERNET_OCCURRENCE] });
   await page.goto('/');
+  const upcomingBills = page.getByRole('region', { name: 'Upcoming bills' });
   await chooseWorkspaceDestination(page, 'Plan');
   await openPlanSection(page, 'Upcoming bills');
   await page.getByRole('tab', { name: 'Upcoming' }).click();
-  await expect(page.getByText('Internet')).toBeVisible();
+  await expect(upcomingBills.getByText('Internet')).toBeVisible();
 
   await chooseWorkspaceDestination(page, 'Home');
   // Record $61 -- close but not the expected $60.
@@ -77,11 +87,12 @@ test('a non-matching expense leaves the bill pending', async ({ page }) => {
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('button', { name: 'Confirm' }).click();
   await expect(page.getByRole('heading', { name: 'Personal space' })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'Internet' })).toHaveCount(0);
 
   await chooseWorkspaceDestination(page, 'Plan');
   await openPlanSection(page, 'Upcoming bills');
   await page.getByRole('tab', { name: 'Upcoming' }).click();
-  await expect(page.getByText('Internet')).toBeVisible();
+  await expect(upcomingBills.getByText('Internet')).toBeVisible();
   await page.getByRole('tab', { name: 'Paid', exact: true }).click();
-  await expect(page.getByText('Internet')).toHaveCount(0);
+  await expect(upcomingBills.getByText('Internet')).toHaveCount(0);
 });

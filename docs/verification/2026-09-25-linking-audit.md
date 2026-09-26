@@ -27,6 +27,8 @@ in the repository.
 | **Traced** | An audit agent traced it end to end in source. The lead did not re-read it. |
 | **Suspected** | Plausible, but needs a reproducer. |
 | **Decision** | Matches an entry in `docs/decisions.md`. Treat it as a product question, not a defect. |
+| **Fixed in SHA** | Resolved by the named commit(s) on `fix/linking-phase-0`. The finding text remains the original audit observation. |
+| **Partially fixed in SHA** | The named commit resolves part of the finding; the row states what remains. |
 
 Paths: `M/` = `supabase/migrations/<timestamp>_`; `F/` = `src/features/`.
 
@@ -37,23 +39,23 @@ the payday and onboarding work decides. Each is a separate bug packet.
 
 | Rank | ID(s) | Status | Defect | Evidence | User-visible effect |
 | --- | --- | --- | --- | --- | --- |
-| 1 | C2 | Verified | Goal Edit, Pause and Close divide stored amounts by 100 whatever the currency. LBP has no minor unit. | `F/goals/goal-editor.tsx:146,163,170`; `F/wallets/money.ts:12` | Saving an LBP goal cuts its target, milestones and monthly amount by 100×. USD goals lose their cents. **Data corruption.** |
-| 2 | A2, E2b | Verified | Control Room Journal **Undo** reverses with `effectiveDate: todayIso()` (UTC today). It should use the original date. | `F/control-room/routes.tsx:300`; contradicts `docs/decisions.md` 2026-09-11 "Undo on the original date" | Undoing last month's mistake leaves last month overspent and credits this month. Regression of an approved decision. |
-| 3 | B1, A4 | Verified | Allocation can be published only for the first month per currency. The UI sends the month snapshot's template id, which is `null` in a new month. The head check covers the whole space and currency, so it fails with `40001`. | `F/allocation/allocation-setup.tsx:127`; `M/20260916100000_month_transitions.sql:1302`; `M/20260914120000_allocation_commands.sql:404-407`; proven by `tests/db/allocation-commands.integration.test.ts:266-273` | Every month after the first fails with "changed elsewhere", and Refresh cannot fix it. Available cash says "No published plan". |
-| 4 | D2 | Verified | `available_cash_summary` needs occurrences generated to today+89. The only UI refresh generates to today+60. | `M/20260914180000_available_cash_projection.sql:305,323,331`; `F/control-room/routes.tsx:389-390` | With any monthly or weekly bill, "Available after commitments" never becomes `ready`. It stays on "needs a refresh". |
-| 5 | B5, A1 | Verified | The Plan category page counts spending only on the exact category. Subcategory spend is not rolled up to its root. Home and Allocation do roll it up. | `M/20260912101000_monthly_budget_planning.sql:251-272`; Home `M/20260914090000_planning_projection_contracts.sql:82-89`; ledger requires rollup (`docs/decisions.md:719-726`) | A root shows $0 of $400 while its subcategories hold the spending. Plan and Home disagree. Edit on a subcategory row always fails. |
-| 6 | B4, A3, F12 | Traced (×3) | The Plan page loads one 50-row page and never asks for the next. There are 2 rows per category, subcategories included. | `F/plan/plan-client.ts:17,142-152` | Only the first 25 expense categories appear. The rest disappear silently but still count in "Left to allocate". |
-| 7 | D3, D7 | Verified | Auto-settle marks a bill paid only when exactly one pending occurrence in ±31 days matches. Failures are swallowed by an empty `catch`. | `F/recurring/auto-settle.ts:28-36,71-73` | A monthly bill paid on or after its due date matches both this month's and next month's occurrence, so it stays unpaid. Weekly bills never settle. The user is never told. |
-| 8 | D5 | Verified | Loan repayments never settle their `debt_payment` occurrences, because auto-settle runs only for `expense`. Live debt is `greatest(reservation left, unsettled installments)`. | `F/control-room/routes.tsx:609`; `M/20260914180000_available_cash_projection.sql:180-192` | After repaying, the instalment is still held back from Available. The outlook subtracts it again. |
-| 9 | D1 | Verified | The Upcoming list loads from today onward, but projections count unpaid bills with no lower date bound. The outlook puts overdue bills on day 0. | `F/control-room/routes.tsx:389`; `M/20260914180000_available_cash_projection.sql:188,547-555`; filter list `F/recurring/upcoming-page.tsx:31` | Overdue bills vanish from the list, and the "Overdue" tab can never match. They still reduce Available and the outlook, and can't be skipped or linked. |
+| 1 | C2 | **Fixed in deca0a2** | Goal Edit, Pause and Close divide stored amounts by 100 whatever the currency. LBP has no minor unit. | `F/goals/goal-editor.tsx:146,163,170`; `F/wallets/money.ts:12` | Saving an LBP goal cuts its target, milestones and monthly amount by 100×. USD goals lose their cents. **Data corruption.** |
+| 2 | A2, E2b | **Fixed in 2c9a452, 4669b34** | Control Room Journal **Undo** reverses with `effectiveDate: todayIso()` (UTC today). It should use the original date. | `F/control-room/routes.tsx:300`; contradicts `docs/decisions.md` 2026-09-11 "Undo on the original date" | Undoing last month's mistake leaves last month overspent and credits this month. Regression of an approved decision. |
+| 3 | B1, A4 | **Fixed in ba6d28f, 50b183c, d66fabe** | Allocation can be published only for the first month per currency. The UI sends the month snapshot's template id, which is `null` in a new month. The head check covers the whole space and currency, so it fails with `40001`. | `F/allocation/allocation-setup.tsx:127`; `M/20260916100000_month_transitions.sql:1302`; `M/20260914120000_allocation_commands.sql:404-407`; proven by `tests/db/allocation-commands.integration.test.ts:266-273` | Every month after the first fails with "changed elsewhere", and Refresh cannot fix it. Available cash says "No published plan". |
+| 4 | D2 | **Fixed in c9d7cc7** | `available_cash_summary` needs occurrences generated to today+89. The only UI refresh generates to today+60. | `M/20260914180000_available_cash_projection.sql:305,323,331`; `F/control-room/routes.tsx:389-390` | With any monthly or weekly bill, "Available after commitments" never becomes `ready`. It stays on "needs a refresh". |
+| 5 | B5, A1 | **Fixed in 276c981, b3f2c2f** | The Plan category page counts spending only on the exact category. Subcategory spend is not rolled up to its root. Home and Allocation do roll it up. | `M/20260912101000_monthly_budget_planning.sql:251-272`; Home `M/20260914090000_planning_projection_contracts.sql:82-89`; ledger requires rollup (`docs/decisions.md:719-726`) | A root shows $0 of $400 while its subcategories hold the spending. Plan and Home disagree. Edit on a subcategory row always fails. |
+| 6 | B4, A3, F12 | **Fixed in 1b42d01, b3f2c2f** | The Plan page loads one 50-row page and never asks for the next. There are 2 rows per category, subcategories included. | `F/plan/plan-client.ts:17,142-152` | Only the first 25 expense categories appear. The rest disappear silently but still count in "Left to allocate". |
+| 7 | D3, D7 | **Partially fixed in f129ade, b63ae07, ffddd5f** | Auto-settle marks a bill paid only when exactly one pending occurrence in ±31 days matches. Failures are swallowed by an empty `catch`. Remaining cases are described under D3 and D7 below. | `F/recurring/auto-settle.ts:28-36,71-73` | A monthly bill paid on or after its due date matches both this month's and next month's occurrence, so it stays unpaid. Weekly bills never settle. The user is never told. |
+| 8 | D5 | **Fixed in b843521** | Loan repayments never settle their `debt_payment` occurrences, because auto-settle runs only for `expense`. Live debt is `greatest(reservation left, unsettled installments)`. | `F/control-room/routes.tsx:609`; `M/20260914180000_available_cash_projection.sql:180-192` | After repaying, the instalment is still held back from Available. The outlook subtracts it again. |
+| 9 | D1 | **Fixed in 05a1837, b29310b** | The Upcoming list loads from today onward, but projections count unpaid bills with no lower date bound. The outlook puts overdue bills on day 0. | `F/control-room/routes.tsx:389`; `M/20260914180000_available_cash_projection.sql:188,547-555`; filter list `F/recurring/upcoming-page.tsx:31` | Overdue bills vanish from the list, and the "Overdue" tab can never match. They still reduce Available and the outlook, and can't be skipped or linked. |
 | 10 | C3, B6 | Verified | No UI calls `publishMonthV2` or the goals `setMonthlyTarget`. Goal monthly targets never reach the plan or the Future group. | grep across `src/`: only test fakes, gateways and hooks | "Monthly target: None set" always. Available subtracts new earmarks and the full Future headroom. Example: income 3000, Future 600, reserve 600 → Home shows −600 instead of 0. |
 | 11 | E1, E2a, A7, D12 | Verified in part | Two clocks. Home's and Plan's month and the record date are browser-local; "today", confirm and auto-settle are UTC. | `F/control-room/routes.tsx:139-146` (local `currentMonthStart` next to UTC `todayIso`); `F/control-room/record-sheet.tsx:120-123`; `M/20260914170000_recurring_schedules.sql:1058-1060` | In Beirut from 00:00 to 02:00 or 03:00, Home shows October's budget while Available computes September. A bill paid then fails to link and stays reserved. |
-| 12 | C1 | Traced | The goal top-up trigger checks earmark lines against target − every link, without netting purchases and including reversed links. | `M/20260914150000_goal_commands.sql:648-659` vs `:728` | Once any purchase is linked, adding money to that goal fails with `23514`. |
+| 12 | C1 | **Fixed in 538be01** | The goal top-up trigger checks earmark lines against target − every link, without netting purchases and including reversed links. | `M/20260914150000_goal_commands.sql:648-659` vs `:728` | Once any purchase is linked, adding money to that goal fails with `23514`. |
 | 13 | E4, A8, B13 | Traced (×3) | The Plan page's "Loan commitments" card uses the Loans hook's own UTC month, not the selected month. | `F/control-room/routes.tsx:514,624`; `F/loans/use-loans.ts:19-35` | Pick August and the card still shows September. It contradicts "Left to allocate". |
-| 14 | B2, B3 | Traced | The allocation editor checks income against the snapshot's revision, not the Plan's. It pre-fills targets from the snapshot. | `F/allocation/allocation-setup.tsx:41,46,136` | Publishing fails if Plan income changed. Confirm silently writes old snapshot targets back over Plan edits. |
+| 14 | B2, B3 | **Fixed in 50b183c, d66fabe** | The allocation editor checks income against the snapshot's revision, not the Plan's. It pre-fills targets from the snapshot. | `F/allocation/allocation-setup.tsx:41,46,136` | Publishing fails if Plan income changed. Confirm silently writes old snapshot targets back over Plan edits. |
 | 15 | F1, F2, F3 | Verified | Onboarding shows only when there are zero spaces and stores no progress. "Add another space" swallows Escape and has no close. There is no starting-balance step. | `F/workspace/use-workspace.ts:43-60`; `F/workspace/onboarding-dialog.tsx:61-63,99-116` | Abandon after step 1 and you're stuck on Home with no wallet. The extra-space dialog can't be cancelled. Home shows $0.00 until a balance is added elsewhere. |
 
-## 2. How the pieces link today
+## 2. How the pieces linked at the audit baseline
 
 - **Plan.** `monthly_budget_plan_revisions` holds income and root targets per calendar month and currency. It is append-only and the latest revision wins. There are two writers: the Plan tab (`plan-client` → `usePlan` → `PlanPage`) and allocation publish (v1).
 - **Allocation.** A per-currency template holds group %, the root → group map and the loan group. An immutable month snapshot freezes group amounts, mappings and the observed loan pool.
@@ -75,16 +77,16 @@ the payday and onboarding work decides. Each is a separate bug packet.
 - **60-day outlook** = cash + unpaid scheduled income − unpaid bill and debt occurrences. Overdue items go on day 0. Budgets and reservations are not included.
 - **Month transitions** (task 20: close, copy, signed rollover) exist in SQL only. No UI calls them. A close is refused until the UTC calendar month has ended.
 
-## 3. Findings by area
+## 3. Baseline findings by area (status updated for phase 0)
 
 ### 3.1 Plan ↔ actuals ↔ month transitions (A)
 
 | ID | Sev | Status | Finding | Evidence |
 | --- | --- | --- | --- | --- |
-| A1 | HIGH | Verified | = B5, see §1 rank 5. v2 drops subcategory spend entirely. | `M/20260914090000_planning_projection_contracts.sql:269-293` |
-| A2 | HIGH | Verified | = §1 rank 2. `reverse_financial_event` doesn't check that a reversal date is on or after the original. | `M/20260908103000_harden_reverse_financial_event.sql:27-29` |
-| A3 | HIGH | Traced | = B4, see §1 rank 6. | `F/plan/plan-client.ts:17,152` |
-| A4 | HIGH | Verified | = B1, see §1 rank 3. | |
+| A1 | HIGH | **Fixed in 276c981, b3f2c2f** | = B5, see §1 rank 5. v2 drops subcategory spend entirely. | `M/20260914090000_planning_projection_contracts.sql:269-293` |
+| A2 | HIGH | **Fixed in 2c9a452, 4669b34** | = §1 rank 2. `reverse_financial_event` doesn't check that a reversal date is on or after the original. **Fixed 2026-09-26** (Task 3, `fix(journal): refuse reversals dated before their entry; catch up the release manifest`): a `before insert` trigger on `financial_events` (`financial_events_reversal_date_guard`, `M/20260925100000_reversal_date_guard.sql`) refuses the insert for every caller, not just `reverse_financial_event`. See `docs/decisions.md` 2026-09-26 "Reversals may not be dated before the entry they reverse". | `M/20260908103000_harden_reverse_financial_event.sql:27-29` |
+| A3 | HIGH | **Fixed in 1b42d01, b3f2c2f** | = B4, see §1 rank 6. | `F/plan/plan-client.ts:17,152` |
+| A4 | HIGH | **Fixed in ba6d28f, 50b183c** | = B1, see §1 rank 3. | |
 | A5 | MEDIUM | Traced (MISSING) | Copy, close and rollover have no UI (tasks 21 and 22 pending), so every month starts from zero. | `docs/decisions.md:3563` |
 | A6 | MEDIUM | Traced | Archived targets are hidden but still counted, and a target can't be set to 0. The allocation complete-set rule requires them, so republishing fails. | `F/plan/plan-page.tsx:74,141`; `M/20260912101000_monthly_budget_planning.sql:167`; `M/20260914160000_goal_projections.sql:785-801` |
 | A7 | MEDIUM | Verified in part | = §1 rank 11. | |
@@ -98,11 +100,11 @@ the payday and onboarding work decides. Each is a separate bug packet.
 
 | ID | Sev | Status | Finding | Evidence |
 | --- | --- | --- | --- | --- |
-| B1 | HIGH | Verified | §1 rank 3. | |
-| B2 | HIGH | Traced | Publish checks income against the snapshot's revision, not the Plan's. | `F/allocation/allocation-setup.tsx:136`; `M/20260914100000_planning_command_foundation.sql:214` |
-| B3 | HIGH | Traced | The editor pre-fills targets from the snapshot but checks the current Plan revision. It silently reverts Plan edits. | `F/allocation/allocation-setup.tsx:41,46` |
-| B4 | HIGH | Traced | §1 rank 6. | |
-| B5 | HIGH | Verified | §1 rank 5. | |
+| B1 | HIGH | **Fixed in ba6d28f, 50b183c, d66fabe** | §1 rank 3. | |
+| B2 | HIGH | **Fixed in 50b183c, d66fabe** | Publish checks income against the snapshot's revision, not the Plan's. | `F/allocation/allocation-setup.tsx:136`; `M/20260914100000_planning_command_foundation.sql:214` |
+| B3 | HIGH | **Fixed in 50b183c, d66fabe** | The editor pre-fills targets from the snapshot but checks the current Plan revision. It silently reverts Plan edits. | `F/allocation/allocation-setup.tsx:41,46` |
+| B4 | HIGH | **Fixed in 1b42d01, b3f2c2f** | §1 rank 6. | |
+| B5 | HIGH | **Fixed in 276c981, b3f2c2f** | §1 rank 5. | |
 | B6 | HIGH | Verified | = C3, see §1 rank 10. The goal editor's "Planned income" option uses the whole income. | `F/goals/goal-editor.tsx:255` |
 | B7 | MEDIUM | Decision | The Future group's debt actual is frozen at publish. Publishing before the loan target is set gives $0 for the whole month. | `M/20260916100000_month_transitions.sql:1190,1223`; ledger ~L1924 |
 | B8 | MEDIUM | Traced | Future headroom uses debt as of publish, and `needsReview` ignores loan changes. | `M/20260914180000_available_cash_projection.sql:174-192,350-379,385-387` |
@@ -119,8 +121,8 @@ revision heads, and the e2e specs use fixtures.
 
 | ID | Sev | Status | Finding | Evidence |
 | --- | --- | --- | --- | --- |
-| C1 | HIGH | Traced | §1 rank 12. The API-only reverse can also push an earmark below zero. | |
-| C2 | HIGH | Verified | §1 rank 1. | |
+| C1 | HIGH | **Fixed in 538be01** | §1 rank 12. The API-only reverse can also push an earmark below zero. | |
+| C2 | HIGH | **Fixed in deca0a2** | §1 rank 1. | |
 | C3 | HIGH | Verified | §1 rank 10. | `M/20260914160000_goal_projections.sql:106-107` (`monthly_minor` is read by nothing) |
 | C4 | HIGH | Traced | Linking a purchase needs a pasted expense ID. IDs appear only on reversal cross-references and not in the CSV. The earmark outlives the purchase, so it is counted twice. | `F/goals/goal-purchase-dialog.tsx:53,83`; `F/control-room/journal-screen.tsx:318-347`; `F/wallets/journal-csv.ts:21-24` |
 | C5 | MEDIUM | Traced | Editing resets priority to 0, which reorders coverage. | `F/goals/goal-detail.tsx:241` |
@@ -138,16 +140,16 @@ revision heads, and the e2e specs use fixtures.
 
 | ID | Sev | Status | Finding | Evidence |
 | --- | --- | --- | --- | --- |
-| D1 | HIGH | Verified | §1 rank 9. | |
-| D2 | HIGH | Verified | §1 rank 4. | |
-| D3 | HIGH | Verified | §1 rank 7. Also missed: root vs subcategory, partial and over-payments, a USD bill paid in LBP, and no `kind` filter. | |
+| D1 | HIGH | **Fixed in 05a1837, b29310b** | §1 rank 9. | |
+| D2 | HIGH | **Fixed in c9d7cc7** | §1 rank 4. | |
+| D3 | HIGH | **Partially fixed in f129ade, 0258904, ffddd5f** | §1 rank 7. The oldest unpaid occurrence, category parent/child match, and event kind are handled. Automatic matching still requires the exact remaining amount and same currency; partial and overpayments and cross-currency settlement remain. | |
 | D4 | HIGH | Traced | The manual fallback is a dead end. "Link" needs a transaction ID no screen shows. "Record payment" posts a second expense. Debt occurrences are link-only, so they can never be settled. | `F/recurring/confirm-payment-dialog.tsx:53,97-101,152`; `F/recurring/occurrence-detail.tsx:153` |
-| D5 | HIGH | Verified | §1 rank 8. | |
+| D5 | HIGH | **Fixed in b843521** | §1 rank 8. | |
 | D6 | HIGH | Suspected | Debt set up only as a schedule is also held in Future headroom. Test: Future/loan group 400, no loan target, debt schedule 200 → expect cash−400, get cash−600. | `M/20260914160000_goal_projections.sql:1107-1110` |
-| D7 | MEDIUM | Verified | Auto-settle is silent, never retried and can't be undone. The sheet can wait 2×15 s. | `F/recurring/auto-settle.ts:71-73`; `F/planning-shared/rpc.ts:12` |
-| D8 | MEDIUM | Traced | Recorded income never settles an income schedule. An early salary is counted twice in the outlook, and "received" looks the same as "not received". | `F/control-room/routes.tsx:609`; `M/20260914180000_available_cash_projection.sql:537-545` |
+| D7 | MEDIUM | **Partially fixed in f129ade, b63ae07** | The result is now reported with a localized notice. Automatic retry and a UI to unlink a mistaken match remain; the settlement request can still wait for the RPC timeout. | `F/recurring/auto-settle.ts:71-73`; `F/planning-shared/rpc.ts:12` |
+| D8 | MEDIUM | **Fixed in b843521** | Recorded income never settles an income schedule. An early salary is counted twice in the outlook, and "received" looks the same as "not received". | `F/control-room/routes.tsx:609`; `M/20260914180000_available_cash_projection.sql:537-545` |
 | D9 | MEDIUM | Decision | The outlook and Available disagree on debt. The outlook leaves out loans with only a reservation and money others owe me. | `M/20260914180000_available_cash_projection.sql:180-192` vs `546-555` |
-| D10 | MEDIUM | Traced | The Upcoming list stops at 25 rows; `loadMore` is never used. | `F/recurring/use-recurring.ts:104,245` |
+| D10 | MEDIUM | **Fixed in b29310b** | The Upcoming list stops at 25 rows; `loadMore` is never used. | `F/recurring/use-recurring.ts:104,245` |
 | D11 | MEDIUM | Traced | Paid-off loans keep producing instalments. | `M/20260914170000_recurring_schedules.sql:483-500` |
 | D12 | LOW | Verified in part | = E2a. | |
 | D13 | LOW | Traced | The editor allows an interval of 1–99 but SQL allows 1–12. Dropdowns aren't filtered. The "Unpaid bills" label hides budgets. | `F/recurring/schedule-editor.tsx:206`; `M/20260914170000_recurring_schedules.sql:30`; `F/cash-control/cash-control-summary.tsx:38` |
@@ -165,7 +167,7 @@ Commit `9dbf6f0`'s matching rules have no `docs/decisions.md` entry.
 - **E1 (HIGH, verified in part):** two clocks, see §1 rank 11.
 - **E2 (HIGH):**
   - (a) Record posts the local date, but `link_scheduled_payment` rejects dates after UTC today, and auto-settle swallows the error.
-  - (b) Reversals are dated UTC today (§1 rank 2).
+  - (b) Reversals were dated UTC today (§1 rank 2; **fixed in `2c9a452`, guarded by `4669b34`**).
 - **E3 (MEDIUM, traced):** future-dated entries count in Net position (`wallet_balances`, no date filter) but not in cash or Available. The date input has no `max`.
 - **E5 (MEDIUM, traced):** Home's Budget vs actual reads plan revisions only; Available uses the snapshot plus carry. Two budgets.
 - **E6 (LOW, traced):** the month dropdown ends at the selected month. `created_at::date` depends on the session TimeZone (`M/20260914160000_goal_projections.sql:128,222,306`).
@@ -195,17 +197,22 @@ Commit `9dbf6f0`'s matching rules have no `docs/decisions.md` entry.
 
 ### 3.7 Release operations (O)
 
-- **O1 MEDIUM (verified):** the release manifest is out of date.
-  - `ops/budget-migrations.sha256` (49 rows, `source_sha=87e5af7`) and `LIVE_VERIFY_SQL` in `scripts/ops/apply-live-migrations.sh` (49 versions) omit `20260919100000_journal_search_page.sql`. It was added by commit `3318f00`, which did not regenerate the manifest, and no ledger entry explains why.
-  - `migrate-budget.sh verify-manifest` fails closed with `unmanifested migration file` (exit 79), so the next `pnpm migrate:live` would refuse to run. That is safe, but it blocks every release until the manifest is regenerated.
-  - `tests/ops/live-migrations.test.ts` passes (9/9 on `e149057`) because it checks only the script's constants and never compares the manifest with the migrations folder. That missing check is the detector the fix must add.
+- **O1 MEDIUM — Fixed in `4669b34` (2026-09-26):** the release manifest was out of date.
+  - `ops/budget-migrations.sha256` (49 rows, `source_sha=87e5af7`) and `LIVE_VERIFY_SQL` in `scripts/ops/apply-live-migrations.sh` (49 versions) omitted `20260919100000_journal_search_page.sql`. It was added by commit `3318f00` (2026-09-20), which did not regenerate the manifest, and no ledger entry explained why.
+  - `migrate-budget.sh verify-manifest` fails closed with `unmanifested migration file` (exit 79), so the next `pnpm migrate:live` would have refused to run. That is safe, but it blocks every release until the manifest is regenerated.
+  - **Correction to this audit's original claim:** this bullet originally read "`tests/ops/live-migrations.test.ts` passes (9/9 on `e149057`) because it checks only the script's constants and never compares the manifest with the migrations folder. That missing check is the detector the fix must add." That is false as a description of the repository: the detector already existed. `tests/ops/migration-manifest.test.ts` compares the manifest's migration rows against `supabase/migrations` on disk by name, order and sha256, and it started failing on `3318f00` the same day — it was simply never run. `tests/ops/live-migrations.test.ts` was the only ops file the original audit ran (hence "9/9 on `e149057`"); the full `pnpm exec vitest run tests/ops` was not, so the six-day-old failure went unnoticed until the 2026-09-25 baseline (`docs/verification/2026-09-25-phase-0-baseline.md`) surfaced it.
+  - **Fixed 2026-09-26** (Task 3, `fix(journal): refuse reversals dated before their entry; catch up the release manifest`): the manifest, `LIVE_MANIFEST_SOURCE_SHA`, `LIVE_VERIFY_SQL` and `releaseHead` were regenerated/updated to include both `20260919100000_journal_search_page.sql` and this task's own `20260925100000_reversal_date_guard.sql` (49 → 51). `tests/ops/migration-manifest.test.ts` is the RED→GREEN evidence. See `docs/decisions.md` 2026-09-26 "Release manifest must list every migration (ops test)".
 
-## 4. Missing features users would expect
+## 4. Missing features identified at the audit baseline
+
+The phase 0 results document records what was subsequently delivered. The list
+below preserves the original audit scope except where a whole bullet became
+outdated.
 
 - UI for month copy, close and rollover policy. Allocation history and trend.
 - Schedule management: list, edit, pause, end, "new amount from date X", and skip or move one occurrence.
 - A transaction picker for linking bills and goal purchases. Unlink or re-assign a payment. "This paid bill X" and a bill badge on journal rows.
-- Auto-settle for income and for loan repayments. Automatic occurrence generation. Reminders.
+- Reminders, automatic retry after an uncertain settlement, and a UI to unlink a mistaken match.
 - Paying a USD bill or goal from LBP, and funding an LBP budget from USD income.
 - "Buy it" on a purchase goal: record the categorized expense, link it and close the goal. Goals on Home. An archive of closed goals. The date each milestone was reached.
 - A breakdown of the Future group (loan pool vs goals vs headroom). A prompt for unmapped categories.
@@ -213,7 +220,7 @@ Commit `9dbf6f0`'s matching rules have no `docs/decisions.md` entry.
 - A per-space timezone and payday. Persisted language. Starter-category suggestions.
 - Twice-a-month and last-business-day schedules. Expected repayments for money I lent.
 
-## 5. Headline numbers
+## 5. Headline numbers at the audit baseline
 
 | Number | Formula | Period |
 | --- | --- | --- |
@@ -228,7 +235,7 @@ Commit `9dbf6f0`'s matching rules have no `docs/decisions.md` entry.
 is not reserved, and the daily guide divides by 5 days. The headline overstates
 what is safe to spend. The formula is sound; the period is wrong.
 
-## 6. Implications for payday periods and onboarding
+## 6. Implications for payday periods and onboarding at the audit baseline
 
 - **Model:** keep `month_start` as the period key and anchor its date window on the
   space's payday. With an anchor of the 1st, periods match today's calendar months,

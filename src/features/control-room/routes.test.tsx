@@ -2,11 +2,17 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { InsightsClient, CategoryBudgetRow } from '../insights/types.js';
+import type { Currency } from '../loans/types.js';
+import type { PublishMonthInput } from '../allocation/types.js';
+import type { LinkExistingInput } from '../recurring/types.js';
 import type { MonthlyCashSummary, ReportsGateway } from '../reports/types.js';
+import { InMemoryAllocationGateway } from '../../test/in-memory-allocation-gateway.js';
+import { InMemoryCashControlGateway } from '../../test/in-memory-cash-control-gateway.js';
 import { InMemoryCategoriesGateway } from '../../test/in-memory-categories-gateway.js';
 import { InMemoryHouseholdGateway } from '../../test/in-memory-household-gateway.js';
 import { InMemoryLoansGateway } from '../../test/in-memory-loans-gateway.js';
 import { InMemoryPlanClient } from '../../test/in-memory-plan-client.js';
+import { coreOccurrenceRowFixture, InMemoryRecurringGateway } from '../../test/in-memory-recurring-gateway.js';
 import { InMemoryWalletsGateway } from '../../test/in-memory-wallets-gateway.js';
 import { ControlRoomRoutes } from './routes.js';
 import type { ControlRoomGateways } from './routes.js';
@@ -29,6 +35,7 @@ function gateways(overrides: {
   reports?: ReportsGateway;
   wallets?: ControlRoomGateways['wallets'];
   categories?: ControlRoomGateways['categories'];
+  recurring?: ControlRoomGateways['recurring'];
 }): ControlRoomGateways {
   return {
     wallets: overrides.wallets ?? new InMemoryWalletsGateway(),
@@ -41,7 +48,7 @@ function gateways(overrides: {
     exchange: null,
     allocation: null,
     goals: null,
-    recurring: null,
+    recurring: overrides.recurring ?? null,
     cashControl: null,
   };
 }
@@ -172,8 +179,9 @@ describe('ControlRoomRoutes skeleton loading states', () => {
         if (prop === 'loadCurrencySummary') {
           return () => gate.promise.then(() => target.loadCurrencySummary());
         }
-        if (prop === 'loadCategoryPage') {
-          return () => gate.promise.then(() => target.loadCategoryPage());
+        if (prop === 'loadCategoryRows') {
+          return (spaceId: string, month: string, currency: Currency) =>
+            gate.promise.then(() => target.loadCategoryRows(spaceId, month, currency));
         }
         return Reflect.get(target, prop, receiver);
       },
@@ -278,6 +286,299 @@ describe('ControlRoomRoutes record sheet', () => {
       'Recorded, but refreshing balances failed — check your connection.');
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(onCloseRecord).not.toHaveBeenCalled();
+  });
+});
+
+describe('ControlRoomRoutes auto-settle notice', () => {
+  it('shows the "Marked … as paid." status when a recorded expense settles a matching occurrence', async () => {
+    const user = userEvent.setup();
+    // A wallet remembered by an earlier test in this file (real localStorage,
+    // shared across tests) would otherwise skip the Wallet step below.
+    window.localStorage.removeItem('budget:last-wallet:personal-space');
+    const today = new Date();
+    const dueDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const categories = new InMemoryCategoriesGateway();
+    categories.categories = [{
+      id: 'category-groceries', spaceId: 'personal-space', kind: 'expense',
+      nameEn: 'Groceries', nameAr: 'بقالة', parentCategoryId: null,
+      createdAt: '2026-09-08T10:00:00Z', archivedAt: null,
+    }];
+    const recurring = new InMemoryRecurringGateway();
+    recurring.page = {
+      rows: [{
+        ...coreOccurrenceRowFixture,
+        dueDate,
+        asOf: dueDate,
+        categoryId: 'category-groceries',
+        expectedMinor: '1000',
+        settledMinor: '0',
+        remainingMinor: '1000',
+        state: 'pending',
+      }],
+      hasMore: false,
+      nextCursor: null,
+      asOf: dueDate,
+    };
+    renderHome(gateways({ categories, recurring }), { recordOpen: true });
+
+    await user.click(await screen.findByRole('button', { name: 'Expense' }));
+    for (const key of ['1', '0']) await user.click(screen.getByRole('button', { name: key }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: /Daily USD/ }));
+    await user.click(screen.getByRole('button', { name: 'Groceries' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    const notice = await screen.findByText(/Marked/);
+    const banner = notice.closest('p');
+    expect(banner).toHaveAttribute('role', 'status');
+    expect(banner).toHaveTextContent('Marked "Rent" as paid.');
+    expect(screen.getByRole('button', { name: 'Dismiss' })).toBeInTheDocument();
+  });
+
+  it('links a recorded income entry to a matching pending income occurrence', async () => {
+    const user = userEvent.setup();
+    // A wallet remembered by an earlier test in this file (real localStorage,
+    // shared across tests) would otherwise skip the Wallet step below.
+    window.localStorage.removeItem('budget:last-wallet:personal-space');
+    const today = new Date();
+    const dueDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const categories = new InMemoryCategoriesGateway();
+    categories.categories = [{
+      id: 'category-salary', spaceId: 'personal-space', kind: 'income',
+      nameEn: 'Salary', nameAr: 'راتب', parentCategoryId: null,
+      createdAt: '2026-09-08T10:00:00Z', archivedAt: null,
+    }];
+    const recurring = new InMemoryRecurringGateway();
+    recurring.page = {
+      rows: [{
+        ...coreOccurrenceRowFixture,
+        kind: 'income',
+        nameEn: 'Salary',
+        dueDate,
+        asOf: dueDate,
+        categoryId: 'category-salary',
+        expectedMinor: '1000',
+        settledMinor: '0',
+        remainingMinor: '1000',
+        state: 'pending',
+      }],
+      hasMore: false,
+      nextCursor: null,
+      asOf: dueDate,
+    };
+    renderHome(gateways({ categories, recurring }), { recordOpen: true });
+
+    await user.click(await screen.findByRole('button', { name: 'Income' }));
+    for (const key of ['1', '0']) await user.click(screen.getByRole('button', { name: key }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: /Daily USD/ }));
+    await user.click(screen.getByRole('button', { name: 'Salary' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    await screen.findByText(/Marked/);
+    const linkCall = recurring.calls.find((call) => call.name === 'linkExisting');
+    expect(linkCall).toBeDefined();
+    expect((linkCall?.input as LinkExistingInput).eventId).toEqual(expect.any(String));
+  });
+
+  // Final review I2: Task 9's parent/child rule must hold through the real
+  // wiring. `useWallets`' memoized reconcileCommand used to keep the FIRST
+  // render's `onExpenseRecorded`, whose `parentOf` was built before
+  // `useCategories` had loaded anything -- so a child-category expense never
+  // matched a parent-category bill in the running app.
+  async function recordAgainstUtilitiesBill(pick: 'Utilities' | 'Internet') {
+    const user = userEvent.setup();
+    window.localStorage.removeItem('budget:last-wallet:personal-space');
+    const today = new Date();
+    const dueDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const categories = new InMemoryCategoriesGateway();
+    categories.categories = [
+      { id: 'category-utilities', spaceId: 'personal-space', kind: 'expense', nameEn: 'Utilities', nameAr: 'مرافق',
+        parentCategoryId: null, createdAt: '2026-09-08T10:00:00Z', archivedAt: null },
+      { id: 'category-internet', spaceId: 'personal-space', kind: 'expense', nameEn: 'Internet', nameAr: 'إنترنت',
+        parentCategoryId: 'category-utilities', createdAt: '2026-09-08T10:01:00Z', archivedAt: null },
+    ];
+    const recurring = new InMemoryRecurringGateway();
+    recurring.page = {
+      rows: [{
+        ...coreOccurrenceRowFixture, nameEn: 'Utilities bill', dueDate, asOf: dueDate, categoryId: 'category-utilities',
+        expectedMinor: '1000', settledMinor: '0', remainingMinor: '1000', state: 'pending',
+      }],
+      hasMore: false, nextCursor: null, asOf: dueDate,
+    };
+    renderHome(gateways({ categories, recurring }), { recordOpen: true });
+
+    await user.click(await screen.findByRole('button', { name: 'Expense' }));
+    for (const key of ['1', '0']) await user.click(screen.getByRole('button', { name: key }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: /Daily USD/ }));
+    if (pick === 'Internet') await user.click(await screen.findByRole('button', { name: 'Expand Utilities' }));
+    await user.click(await screen.findByRole('button', { name: pick }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    return recurring;
+  }
+
+  it('links a same-category expense to its bill (control)', async () => {
+    const recurring = await recordAgainstUtilitiesBill('Utilities');
+    expect((await screen.findByText(/Marked/)).closest('p')).toHaveTextContent('Marked "Utilities bill" as paid.');
+    expect(recurring.calls.filter((call) => call.name === 'linkExisting')).toHaveLength(1);
+  });
+
+  it('links an expense on the child "Internet" to the bill on its parent "Utilities"', async () => {
+    const recurring = await recordAgainstUtilitiesBill('Internet');
+    expect((await screen.findByText(/Marked/)).closest('p')).toHaveTextContent('Marked "Utilities bill" as paid.');
+    expect(recurring.calls.filter((call) => call.name === 'linkExisting')).toHaveLength(1);
+  });
+});
+
+/** Settles the linked row, the way the server's next read would show it. */
+class SettlingRecurringGateway extends InMemoryRecurringGateway {
+  override async linkExisting(input: LinkExistingInput) {
+    const result = await super.linkExisting(input);
+    this.page = {
+      ...this.page,
+      rows: this.page.rows.map((row) => (row.id === input.occurrenceId
+        ? { ...row, state: 'settled' as const, settledMinor: row.expectedMinor, remainingMinor: '0' }
+        : row)),
+    };
+    return result;
+  }
+}
+
+// Final review M7: a settle notice must not sit above a mounted list or cash
+// section that still shows the bill as unpaid.
+describe('ControlRoomRoutes refreshes mounted Plan sections after a settle', () => {
+  function groceriesSetup() {
+    window.localStorage.removeItem('budget:last-wallet:personal-space');
+    const today = new Date();
+    const dueDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const categories = new InMemoryCategoriesGateway();
+    categories.categories = [{
+      id: 'category-groceries', spaceId: 'personal-space', kind: 'expense',
+      nameEn: 'Groceries', nameAr: 'بقالة', parentCategoryId: null,
+      createdAt: '2026-09-08T10:00:00Z', archivedAt: null,
+    }];
+    const recurring = new SettlingRecurringGateway();
+    recurring.page = {
+      rows: [{
+        ...coreOccurrenceRowFixture, nameEn: 'Groceries bill', dueDate, asOf: dueDate, categoryId: 'category-groceries',
+        expectedMinor: '1000', settledMinor: '0', remainingMinor: '1000', state: 'pending',
+      }],
+      hasMore: false, nextCursor: null, asOf: dueDate,
+    };
+    const cashControl = new InMemoryCashControlGateway();
+    const gatewaysBag = gateways({ categories, recurring });
+    gatewaysBag.cashControl = cashControl;
+    const props = {
+      locale: 'en' as const, spaceId: 'personal-space', spaceKind: 'personal' as const, destination: 'plan' as const,
+      gateways: gatewaysBag, onCloseRecord: () => undefined,
+    };
+    return { recurring, cashControl, props };
+  }
+
+  async function recordTenDollarGroceries(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByRole('button', { name: 'Expense' }));
+    for (const key of ['1', '0']) await user.click(screen.getByRole('button', { name: key }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: /Daily USD/ }));
+    await user.click(screen.getByRole('button', { name: 'Groceries' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    await screen.findByText(/Marked/);
+  }
+
+  it('reloads a mounted Upcoming bills list, so the settled bill reads Paid under the notice', async () => {
+    const user = userEvent.setup();
+    const { props } = groceriesSetup();
+    const { rerender } = render(<ControlRoomRoutes {...props} recordOpen={false} />);
+    await user.click(await screen.findByRole('button', { name: 'Upcoming bills' }));
+    const bills = await screen.findByRole('region', { name: 'Upcoming bills' });
+    expect(await within(bills).findByText('Due', { selector: '.rec-badge' })).toBeInTheDocument();
+
+    rerender(<ControlRoomRoutes {...props} recordOpen />);
+    await recordTenDollarGroceries(user);
+
+    expect(await within(bills).findByText('Paid', { selector: '.rec-badge' })).toBeInTheDocument();
+  });
+
+  it('reloads a mounted Available cash section after a settle', async () => {
+    const user = userEvent.setup();
+    const { props, cashControl } = groceriesSetup();
+    const { rerender } = render(<ControlRoomRoutes {...props} recordOpen={false} />);
+    await user.click(await screen.findByRole('button', { name: 'Available cash' }));
+    await waitFor(() => expect(cashControl.calls.filter((call) => call.name === 'loadAvailable')).toHaveLength(1));
+
+    rerender(<ControlRoomRoutes {...props} recordOpen />);
+    await recordTenDollarGroceries(user);
+
+    await waitFor(() => expect(cashControl.calls.filter((call) => call.name === 'loadAvailable')).toHaveLength(2));
+    expect(cashControl.calls.filter((call) => call.name === 'loadOutlook')).toHaveLength(2);
+  });
+});
+
+/** `publish_allocation_month` writes a new income revision through
+ * `set_monthly_income_plan`, so the Plan summary reports it on its next
+ * read -- linked here the way the two server reads are. */
+class PlanLinkedAllocationGateway extends InMemoryAllocationGateway {
+  readonly plan: InMemoryPlanClient;
+
+  constructor(plan: InMemoryPlanClient) {
+    super();
+    this.plan = plan;
+  }
+
+  override async publishMonth(input: PublishMonthInput) {
+    const result = await super.publishMonth(input);
+    this.plan.summaries = this.plan.summaries.map((summary) => (summary.currency === input.currency
+      ? { ...summary, incomePlanRevisionId: result.incomeRevisionId }
+      : summary));
+    return result;
+  }
+}
+
+// Final review M5: the Plan heads a publish consumed go stale the moment it
+// succeeds; a second Confirm in the same visit must send the new ones.
+describe('ControlRoomRoutes allocation publish, twice in one visit', () => {
+  it('sends the refreshed Plan income head on the second publish, which succeeds', async () => {
+    const user = userEvent.setup();
+    const now = new Date();
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const plan = new InMemoryPlanClient();
+    plan.summaries = [{
+      currency: 'USD', plannedIncomeMinor: '300000', actualIncomeMinor: '0',
+      categoryTargetTotalMinor: '0', categoryActualSpentMinor: '0', uncategorizedSpentMinor: '0',
+      categoryOverspentMinor: '0', actualLoanRepaymentMinor: '0', remainingLoanReservationMinor: '0',
+      loanCommitmentMinor: '0', unallocatedMinor: '300000', overallocatedMinor: '0',
+      incomePlanRevisionId: 'rev-income-0',
+    }];
+    const allocation = new PlanLinkedAllocationGateway(plan);
+    allocation.incomeHeads.set(`${month}|USD`, 'rev-income-0');
+    const gatewaysBag = gateways({});
+    gatewaysBag.plan = plan;
+    gatewaysBag.allocation = allocation;
+    render(
+      <ControlRoomRoutes locale="en" spaceId="personal-space" spaceKind="personal" destination="plan"
+        gateways={gatewaysBag} recordOpen={false} onCloseRecord={() => undefined} />,
+    );
+    await user.click(await screen.findByRole('button', { name: 'Allocation' }));
+
+    async function publishOnce() {
+      await user.click(await screen.findByRole('button', { name: 'Set up' }));
+      await user.click(screen.getByRole('button', { name: 'Next' }));
+      await user.click(screen.getByRole('button', { name: 'Next' }));
+      await user.click(screen.getByRole('button', { name: 'Confirm' }));
+      await screen.findByRole('button', { name: 'Set up' });
+    }
+    await publishOnce();
+    await publishOnce();
+
+    const publishes = allocation.calls.filter((call) => call.name === 'publishMonth').map((call) => call.input as PublishMonthInput);
+    expect(publishes.map((input) => input.expectedIncomeRevisionId)).toEqual(['rev-income-0', '1']);
+    expect(allocation.incomeHeads.get(`${month}|USD`)).toBe('2');
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });
 
@@ -404,5 +705,23 @@ describe('ControlRoomRoutes plan save failure and retry', () => {
       name: 'setIncomePlan',
       input: expect.objectContaining({ amountMinor: '300000', expectedRevisionId: 'rev-income-1' }),
     });
+  });
+});
+
+describe('ControlRoomRoutes journal undo', () => {
+  it('reverses an entry on its own date, never on today', async () => {
+    const user = userEvent.setup();
+    const walletsGateway = new InMemoryWalletsGateway();
+    walletsGateway.events = [{
+      id: 'evt-old', spaceId: 'personal-space', requestId: 'req-old', kind: 'expense',
+      effectiveDate: '2026-08-15', createdAt: '2026-08-15T09:00:00Z', reversalOf: null, reversedBy: null,
+      loanLinked: false, payeeName: 'Market',
+      movements: [{ walletId: walletsGateway.wallets[0]!.id, walletName: 'Cash', currency: 'USD', amountMinor: '-2500', walletArchived: false }],
+    }];
+    const reverse = vi.spyOn(walletsGateway, 'reverseEvent');
+    renderHome(gateways({ wallets: walletsGateway }), { destination: 'journal' });
+    await user.click(await screen.findByRole('button', { name: /Market/ }));
+    await user.click(screen.getByRole('button', { name: 'Reverse' }));
+    await waitFor(() => expect(reverse).toHaveBeenCalledWith(expect.objectContaining({ eventId: 'evt-old', effectiveDate: '2026-08-15' })));
   });
 });

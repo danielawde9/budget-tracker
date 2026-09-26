@@ -7,6 +7,7 @@ import type {
   LoadCategoryPageInput,
   LoadHistoryPageInput,
   LoadMonthInput,
+  LoadTemplateHeadInput,
   LoadTrendInput,
   PlanningCommandReceipt,
   PublishMonthInput,
@@ -14,7 +15,26 @@ import type {
   PublishMonthV2Input,
   SaveTemplateInput,
   SaveTemplateResult,
+  TemplateHeadResult,
 } from '../features/allocation/types.js';
+import { postgrestRejection } from './postgrest-rejection.js';
+
+/** What `save_allocation_template` raises for a stale template head
+ * (SQLSTATE 40001, `20260914120000_allocation_commands.sql`), in the plain
+ * `{ code, message }` shape the real gateway rethrows (see
+ * `postgrest-rejection.ts`). */
+function staleTemplateHeadError() {
+  return postgrestRejection('40001', 'planning_stale_revision');
+}
+
+/** What `publish_allocation_month` raises when the Plan's income revision
+ * moved: the head is checked inside `set_monthly_income_plan`, which raises
+ * P0001 with this message (`20260914100000_planning_command_foundation.sql`),
+ * not 40001 -- the fake used to throw 40001 here, so no test could see what
+ * a person really gets (final review M5). */
+function planChangedError() {
+  return postgrestRejection('P0001', 'the monthly budget plan has changed; refresh and try again');
+}
 
 export const emptyMonthState: AllocationMonthState = {
   snapshotId: null, templateRevisionId: null, incomeRevisionId: null, hasPlan: false,
@@ -67,6 +87,14 @@ export class InMemoryAllocationGateway implements AllocationGateway {
   nextTemplateRevisionId = 1;
   nextSnapshotId = 1;
   nextIncomeRevisionId = 1;
+  /** The space's current template revision, independent of any month's own
+   * (possibly null) snapshot -- enforced by `saveTemplate` the same way SQL
+   * enforces it against `allocation_template_head` (audit B1). */
+  templateHead: string | null = null;
+  /** `${month}|${currency}` -> the Plan's current income revision for that
+   * month and currency -- enforced by `publishMonth`/`publishMonthV2` the same
+   * way SQL enforces it (audit B2). */
+  incomeHeads = new Map<string, string | null>();
 
   private async settle<T>(name: string, input: unknown, value: () => T, signal?: AbortSignal): Promise<T> {
     this.calls.push({ name, input });
@@ -95,13 +123,20 @@ export class InMemoryAllocationGateway implements AllocationGateway {
     return this.settle('loadTrend', input, () => this.trendResult, signal);
   }
 
+  async loadTemplateHead(input: LoadTemplateHeadInput): Promise<TemplateHeadResult> {
+    this.calls.push({ name: 'loadTemplateHead', input });
+    return { templateRevisionId: this.templateHead };
+  }
+
   async saveTemplate(input: SaveTemplateInput): Promise<SaveTemplateResult> {
     this.calls.push({ name: 'saveTemplate', input });
     if (this.error) throw this.error;
     const existing = this.receipts.get(input.requestId);
     if (existing) return existing.result as SaveTemplateResult;
+    if ((input.expectedRevisionId ?? null) !== this.templateHead) throw staleTemplateHeadError();
     const result: SaveTemplateResult = { templateRevisionId: String(this.nextTemplateRevisionId++) };
     this.receipts.set(input.requestId, { command: 'save_allocation_template', sequenceId: String(this.receipts.size + 1), result });
+    this.templateHead = result.templateRevisionId;
     return result;
   }
 
@@ -110,8 +145,11 @@ export class InMemoryAllocationGateway implements AllocationGateway {
     if (this.error) throw this.error;
     const existing = this.receipts.get(input.requestId);
     if (existing) return existing.result as PublishMonthResult;
+    const incomeHeadKey = `${input.month}|${input.currency}`;
+    if ((input.expectedIncomeRevisionId ?? null) !== (this.incomeHeads.get(incomeHeadKey) ?? null)) throw planChangedError();
     const result: PublishMonthResult = { snapshotId: String(this.nextSnapshotId++), incomeRevisionId: String(this.nextIncomeRevisionId++) };
     this.receipts.set(input.requestId, { command: 'publish_allocation_month', sequenceId: String(this.receipts.size + 1), result });
+    this.incomeHeads.set(incomeHeadKey, result.incomeRevisionId);
     return result;
   }
 
@@ -120,8 +158,11 @@ export class InMemoryAllocationGateway implements AllocationGateway {
     if (this.error) throw this.error;
     const existing = this.receipts.get(input.requestId);
     if (existing) return existing.result as PublishMonthResult;
+    const incomeHeadKey = `${input.month}|${input.currency}`;
+    if ((input.expectedIncomeRevisionId ?? null) !== (this.incomeHeads.get(incomeHeadKey) ?? null)) throw planChangedError();
     const result: PublishMonthResult = { snapshotId: String(this.nextSnapshotId++), incomeRevisionId: String(this.nextIncomeRevisionId++) };
     this.receipts.set(input.requestId, { command: 'publish_allocation_month_v2', sequenceId: String(this.receipts.size + 1), result });
+    this.incomeHeads.set(incomeHeadKey, result.incomeRevisionId);
     return result;
   }
 

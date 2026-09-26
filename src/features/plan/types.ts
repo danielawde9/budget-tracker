@@ -29,17 +29,6 @@ export interface BudgetCategoryRow {
   targetRevisionId: string | null;
 }
 
-export interface CategoryPageCursor {
-  afterCreatedAt: string;
-  afterCategoryId: string;
-  afterCurrency: Currency;
-}
-
-export interface BudgetCategoryPage {
-  rows: readonly BudgetCategoryRow[];
-  nextCursor: CategoryPageCursor | null;
-}
-
 export interface SetIncomePlanInput {
   spaceId: string;
   requestId: string;
@@ -55,7 +44,7 @@ export interface SetCategoryTargetInput extends SetIncomePlanInput {
 
 export interface PlanClient {
   loadCurrencySummary(spaceId: string, month: string): Promise<readonly BudgetCurrencySummary[]>;
-  loadCategoryPage(spaceId: string, month: string, cursor?: CategoryPageCursor | null): Promise<BudgetCategoryPage>;
+  loadCategoryRows(spaceId: string, month: string, currency: Currency): Promise<readonly BudgetCategoryRow[]>;
   setIncomePlan(input: SetIncomePlanInput): Promise<{ revisionId: string }>;
   setCategoryTarget(input: SetCategoryTargetInput): Promise<{ revisionId: string }>;
 }

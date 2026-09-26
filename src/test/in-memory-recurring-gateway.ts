@@ -4,6 +4,7 @@ import type {
   LinkExistingInput,
   LinkExistingResult,
   LoadOccurrencesInput,
+  LoadOverdueInput,
   MaterializeInput,
   MaterializeResult,
   PlanningCommandReceipt,
@@ -11,6 +12,7 @@ import type {
   SaveScheduleInput,
   SaveScheduleResult,
   ScheduledOccurrencePage,
+  ScheduledOccurrenceRow,
   SetOccurrenceStateInput,
   SetOccurrenceStateResult,
 } from '../features/recurring/types.js';
@@ -51,6 +53,10 @@ export const coreOccurrencePageFixture: ScheduledOccurrencePage = {
 
 export class InMemoryRecurringGateway implements RecurringGateway {
   page: ScheduledOccurrencePage = emptyOccurrencePage;
+  /** Backs `loadOverdue` as a single page (no seeded test needs a second
+   * overdue page of its own; multi-page paging is exercised by overriding
+   * `loadOccurrences`/`loadOverdue` directly, same as the window list). */
+  overdueRows: ScheduledOccurrenceRow[] = [];
   error: Error | null = null;
   loadDelayMs = 0;
   calls: Array<{ name: string; input: unknown }> = [];
@@ -81,6 +87,12 @@ export class InMemoryRecurringGateway implements RecurringGateway {
 
   async loadOccurrences(input: LoadOccurrencesInput, signal?: AbortSignal): Promise<ScheduledOccurrencePage> {
     return this.settle('loadOccurrences', input, () => this.page, signal);
+  }
+
+  async loadOverdue(input: LoadOverdueInput, signal?: AbortSignal): Promise<ScheduledOccurrencePage> {
+    return this.settle('loadOverdue', input, () => (
+      { rows: this.overdueRows, hasMore: false, nextCursor: null, asOf: this.page.asOf }
+    ), signal);
   }
 
   async saveSchedule(input: SaveScheduleInput): Promise<SaveScheduleResult> {

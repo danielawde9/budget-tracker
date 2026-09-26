@@ -15,6 +15,7 @@ import type {
   PublishMonthV2Input,
   SaveTemplateInput,
   SaveTemplateResult,
+  TemplateHeadResult,
 } from './types.js';
 
 export type AllocationStatus = 'loading' | 'ready' | 'saving' | 'accepted-refresh-pending' | 'ambiguous' | 'error';
@@ -240,6 +241,12 @@ export function useAllocation(
   const loadTrend = useCallback((draft: Omit<LoadTrendInput, 'spaceId' | 'currency'>, signal?: AbortSignal): Promise<AllocationTrend> =>
     gateway.loadTrend({ ...draft, spaceId, currency }, signal), [gateway, spaceId, currency]);
 
+  /** The space's current template revision (audit B1) -- fetched fresh at
+   * Confirm time, never read off the possibly-null-for-a-new-month snapshot
+   * state in `month.templateRevisionId`. */
+  const loadTemplateHead = useCallback((signal?: AbortSignal): Promise<TemplateHeadResult> =>
+    gateway.loadTemplateHead({ spaceId, currency }, signal), [gateway, spaceId, currency]);
+
   const visible = view.loadedKey === currentKey.current;
   return {
     status: visible ? view.status : ('loading' as const),
@@ -256,6 +263,7 @@ export function useAllocation(
     loadCategoryPage,
     loadHistoryPage,
     loadTrend,
+    loadTemplateHead,
   };
 }
 

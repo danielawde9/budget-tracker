@@ -34,13 +34,14 @@ export function usePlan(
   const load = useCallback(async () => {
     const request = ++sequence.current;
     try {
-      const [summaryRows, categoryPage] = await Promise.all([
+      const [summaryRows, usdRows, lbpRows] = await Promise.all([
         client.loadCurrencySummary(spaceId, month),
-        client.loadCategoryPage(spaceId, month),
+        client.loadCategoryRows(spaceId, month, 'USD'),
+        client.loadCategoryRows(spaceId, month, 'LBP'),
       ]);
       if (sequence.current !== request) return;
       setSummaries(summaryRows);
-      setCategoryRows(categoryPage.rows);
+      setCategoryRows([...usdRows, ...lbpRows]);
       setError(null);
       setStatus('ready');
     } catch (cause) {

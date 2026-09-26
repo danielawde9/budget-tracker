@@ -18,8 +18,16 @@ import type { GoalsGateway } from '../goals/types.js';
 import { useGoals } from '../goals/use-goals.js';
 import type { HouseholdGateway } from '../household/types.js';
 import type { RecurringGateway } from '../recurring/types.js';
-import { autoSettleExpense } from '../recurring/auto-settle.js';
+import { AutoMaterializeBanner } from '../recurring/auto-materialize-banner.js';
+import { autoSettleRecordedEvent } from '../recurring/auto-settle.js';
+import type { AutoSettleOutcome } from '../recurring/auto-settle.js';
+import { occurrenceWindow } from '../recurring/occurrence-window.js';
+import { settleLoanRepayment } from '../recurring/settle-loan-repayment.js';
+import type { RecordedRepayment } from '../recurring/settle-loan-repayment.js';
+import { useAutoMaterialize } from '../recurring/use-auto-materialize.js';
+import type { AutoMaterializeState } from '../recurring/use-auto-materialize.js';
 import { useRecurring } from '../recurring/use-recurring.js';
+import { SettleNoticeBanner } from '../recurring/settle-notice-banner.js';
 import { UpcomingPage } from '../recurring/upcoming-page.js';
 import type { ScheduleReferenceOptions } from '../recurring/schedule-editor.js';
 import type { InsightsClient, CategoryBudgetRow } from '../insights/types.js';
@@ -57,7 +65,7 @@ const unavailableExchangeClient: ExchangeClient = {
 
 const unavailablePlanClient: PlanClient = {
   async loadCurrencySummary() { throw new Error('Planning is unavailable until this browser is connected to its data service.'); },
-  async loadCategoryPage() { throw new Error('Planning is unavailable until this browser is connected to its data service.'); },
+  async loadCategoryRows() { throw new Error('Planning is unavailable until this browser is connected to its data service.'); },
   async setIncomePlan() { throw new Error('Planning is unavailable until this browser is connected to its data service.'); },
   async setCategoryTarget() { throw new Error('Planning is unavailable until this browser is connected to its data service.'); },
 };
@@ -67,6 +75,7 @@ const unavailableAllocationGateway: AllocationGateway = {
   async loadCategoryPage() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
   async loadHistoryPage() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
   async loadTrend() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
+  async loadTemplateHead() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
   async saveTemplate() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
   async publishMonth() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
   async publishMonthV2() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
@@ -95,6 +104,7 @@ const unavailableCashControlGateway: CashControlGateway = {
 
 const unavailableRecurringGateway: RecurringGateway = {
   async loadOccurrences() { throw new Error('Recurring bills are unavailable until this browser is connected to its data service.'); },
+  async loadOverdue() { throw new Error('Recurring bills are unavailable until this browser is connected to its data service.'); },
   async saveSchedule() { throw new Error('Recurring bills are unavailable until this browser is connected to its data service.'); },
   async materialize() { throw new Error('Recurring bills are unavailable until this browser is connected to its data service.'); },
   async setOccurrenceState() { throw new Error('Recurring bills are unavailable until this browser is connected to its data service.'); },
@@ -150,15 +160,6 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-/** Window-bound arithmetic only (never an occurrence's own `dueDate`, which
- * this feature always displays as the server's plain string, unshifted) --
- * safe, ordinary `Date` use for picking the materialize/load range. */
-function addDaysIso(iso: string, days: number): string {
-  const date = new Date(`${iso}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
 function isSpaceUnavailable(cause: unknown): boolean {
   const message = cause instanceof Error ? cause.message : '';
   return /active space membership|selected space is not available|permission denied|missing_membership/i.test(message);
@@ -191,24 +192,43 @@ interface HomeRoutesProps {
  * instead of reimplementing that request lifecycle a second time here. This
  * does issue an unused `cash_outlook` read on Home too (the compact variant
  * only reads `available`); accepted as a bounded, cheap read-only RPC --
- * see `docs/decisions.md`. */
+ * see `docs/decisions.md`. Also owns Home's one auto-materialize attempt:
+ * this is where Home's per-currency `available` reads already live, so the
+ * generation-gap check and the refresh it triggers belong here too, rather
+ * than a second place reaching into the same state. */
 function useCashControlHomeSummary(
-  gateway: CashControlGateway, spaceId: string, onSpaceUnavailable: (() => void) | undefined,
-): readonly { currency: Currency; available: ReturnType<typeof useCashControl>['available'] }[] {
+  gateway: CashControlGateway, recurringGateway: RecurringGateway | null, spaceId: string, onSpaceUnavailable: (() => void) | undefined,
+): {
+  byCurrency: readonly { currency: Currency; available: ReturnType<typeof useCashControl>['available'] }[];
+  autoMaterialize: AutoMaterializeState;
+} {
   const today = todayIso();
   const usd = useCashControl(gateway, spaceId, 'USD', today, 60, 'expected', onSpaceUnavailable);
   const lbp = useCashControl(gateway, spaceId, 'LBP', today, 60, 'expected', onSpaceUnavailable);
-  return [
-    { currency: 'USD', available: usd.available },
-    { currency: 'LBP', available: lbp.available },
+  const byCurrency = [
+    { currency: 'USD' as const, available: usd.available },
+    { currency: 'LBP' as const, available: lbp.available },
   ];
+  const needed = byCurrency.some(
+    (entry) => entry.available.data.state === 'incomplete' && entry.available.data.unmaterializedCount > 0,
+  );
+  const autoMaterialize = useAutoMaterialize({
+    gateway: recurringGateway,
+    spaceId,
+    today,
+    needed,
+    onGenerated: async () => { usd.available.refresh(); lbp.available.refresh(); },
+  });
+  return { byCurrency, autoMaterialize };
 }
 
 function HomeRoutes(props: HomeRoutesProps) {
   const { locale, spaceId, spaceKind, gateways } = props;
   const month = props.month;
   const insightsClient = gateways.insights ?? unavailableInsightsClient;
-  const cashControlByCurrency = useCashControlHomeSummary(gateways.cashControl ?? unavailableCashControlGateway, spaceId, props.onSpaceUnavailable);
+  const { byCurrency: cashControlByCurrency, autoMaterialize } = useCashControlHomeSummary(
+    gateways.cashControl ?? unavailableCashControlGateway, gateways.recurring, spaceId, props.onSpaceUnavailable,
+  );
 
   const wallets = props.wallets;
 
@@ -255,23 +275,26 @@ function HomeRoutes(props: HomeRoutesProps) {
   }, [wallets.wallets]);
 
   return (
-    <HomeScreen
-      locale={locale}
-      spaceKind={spaceKind}
-      month={month}
-      onMonthChange={props.onMonthChange}
-      onRecord={() => props.onOpenRecord?.()}
-      totals={totals}
-      budgets={data.budgets}
-      trend={data.trend}
-      dataStatus={data.status}
-      dataError={data.error}
-      onRetryLoad={() => setAttempt((current) => current + 1)}
-      loansOutstanding={props.loansOutstanding}
-      recentEvents={wallets.events}
-      cashControlByCurrency={cashControlByCurrency}
-      onSeeAll={() => props.onSeeAll?.()}
-    />
+    <>
+      <HomeScreen
+        locale={locale}
+        spaceKind={spaceKind}
+        month={month}
+        onMonthChange={props.onMonthChange}
+        onRecord={() => props.onOpenRecord?.()}
+        totals={totals}
+        budgets={data.budgets}
+        trend={data.trend}
+        dataStatus={data.status}
+        dataError={data.error}
+        onRetryLoad={() => setAttempt((current) => current + 1)}
+        loansOutstanding={props.loansOutstanding}
+        recentEvents={wallets.events}
+        cashControlByCurrency={cashControlByCurrency}
+        onSeeAll={() => props.onSeeAll?.()}
+      />
+      <AutoMaterializeBanner locale={locale} state={autoMaterialize} />
+    </>
   );
 }
 
@@ -300,7 +323,7 @@ function JournalRoutes(props: JournalRoutesProps) {
         nextCursor={wallets.nextCursor}
         loadingMore={wallets.loadingMore}
         onLoadMore={() => void wallets.loadMore()}
-        onReverse={(id) => wallets.reverseEvent({ eventId: id, effectiveDate: todayIso() })}
+        onReverse={(id, effectiveDate) => wallets.reverseEvent({ eventId: id, effectiveDate })}
         reversePending={wallets.pending}
         search={wallets.journalSearch}
         onSearchQueryChange={wallets.searchJournal}
@@ -325,6 +348,9 @@ interface PlanRoutesProps {
   month: string;
   expenseRootCategories: readonly CategoryOption[];
   referenceOptions: Omit<ScheduleReferenceOptions, 'goals'>;
+  /** Bumped by `ControlRoomRoutes` whenever a settle outcome linked
+   * something; mounted Upcoming bills and cash sections reload on it (M7). */
+  settledVersion: number;
   onSpaceUnavailable?: (() => void) | undefined;
 }
 
@@ -337,6 +363,8 @@ function AllocationCurrencySection(props: {
   categories: readonly CategoryOption[];
   categoryTargets: ReadonlyMap<string, { amountMinor: string; revisionId: string | null }>;
   plannedIncomeMinor: string | null;
+  plannedIncomeRevisionId: string | null;
+  onPublished(): void;
   onSpaceUnavailable?: (() => void) | undefined;
 }) {
   const allocation = useAllocation(props.gateway, props.spaceId, props.month, props.currency, props.onSpaceUnavailable);
@@ -349,8 +377,10 @@ function AllocationCurrencySection(props: {
         categories={props.categories}
         categoryTargets={props.categoryTargets}
         monthlyPlanIncomeMinor={props.plannedIncomeMinor}
+        monthlyPlanIncomeRevisionId={props.plannedIncomeRevisionId}
         allocation={allocation}
         gateway={props.gateway}
+        onPublished={props.onPublished}
       />
     </section>
   );
@@ -375,6 +405,23 @@ function GoalsCurrencySection(props: {
   );
 }
 
+/** Reloads a mounted section when `settledVersion` changes after it mounted:
+ * a recorded entry that settled a bill (or a loan instalment) makes that
+ * section's list or figures stale, and the settle notice above it must not
+ * contradict what is still on screen (final review M7). A section mounted
+ * after the settle already loads fresh, so the version seen at mount is
+ * skipped. */
+function useReloadAfterSettle(settledVersion: number, reload: () => void): void {
+  const reloadRef = useRef(reload);
+  reloadRef.current = reload;
+  const seenVersion = useRef(settledVersion);
+  useEffect(() => {
+    if (seenVersion.current === settledVersion) return;
+    seenVersion.current = settledVersion;
+    reloadRef.current();
+  }, [settledVersion]);
+}
+
 function UpcomingBillsSection(props: {
   locale: Locale;
   spaceId: string;
@@ -383,15 +430,19 @@ function UpcomingBillsSection(props: {
   goalsGateway: GoalsGateway;
   referenceOptions: Omit<ScheduleReferenceOptions, 'goals'>;
   plannedIncomeByCurrency: Readonly<Record<Currency, string | null>>;
+  settledVersion: number;
   onSpaceUnavailable?: (() => void) | undefined;
 }) {
-  // A fixed 60-day-ahead window, re-derived every render off "today" rather
-  // than stored in state -- occurrences never need a wider client-chosen
-  // range in this task's scope, and materialize (explicit-refresh only,
-  // never on mount) reuses this exact same bound.
+  // A fixed window, re-derived every render off "today" rather than stored
+  // in state, and shared with the automatic generate in `CashControlSection`
+  // below via the same `occurrenceWindow` helper -- one constant
+  // (`OCCURRENCE_WINDOW_DAYS`) drives the list, its explicit "Refresh
+  // occurrences" (still explicit-refresh only, never on mount here), and the
+  // automatic generate alike.
   const fromDate = todayIso();
-  const toDate = addDaysIso(fromDate, 60);
+  const { toDate } = occurrenceWindow(fromDate);
   const recurring = useRecurring(props.gateway, props.spaceId, fromDate, toDate, props.onSpaceUnavailable);
+  useReloadAfterSettle(props.settledVersion, () => { void recurring.refresh(); });
   // The schedule editor's "Funding goal" dropdown lists goals from both
   // currencies, suffixed with the currency, since a schedule's own currency
   // choice is independent of which goal it funds.
@@ -426,13 +477,29 @@ function CashControlSection(props: {
   spaceId: string;
   currency: 'USD' | 'LBP';
   gateway: CashControlGateway;
+  recurringGateway: RecurringGateway | null;
+  settledVersion: number;
   onSpaceUnavailable?: (() => void) | undefined;
 }) {
   const [scenario, setScenario] = useState<CashOutlookScenario>('expected');
-  const cashControl = useCashControl(props.gateway, props.spaceId, props.currency, todayIso(), 60, scenario, props.onSpaceUnavailable);
+  const today = todayIso();
+  const cashControl = useCashControl(props.gateway, props.spaceId, props.currency, today, 60, scenario, props.onSpaceUnavailable);
+  useReloadAfterSettle(props.settledVersion, () => {
+    cashControl.available.refresh();
+    cashControl.outlook.refresh();
+  });
+  const availableData = cashControl.available.data;
+  const autoMaterialize = useAutoMaterialize({
+    gateway: props.recurringGateway,
+    spaceId: props.spaceId,
+    today,
+    needed: availableData.state === 'incomplete' && availableData.unmaterializedCount > 0,
+    onGenerated: async () => { cashControl.available.refresh(); },
+  });
   return (
     <section className="cr-card" aria-label={`${props.locale === 'ar' ? 'المتاح بعد الالتزامات' : 'Available after commitments'} ${props.currency}`}>
       <CashControlSummary locale={props.locale} currency={props.currency} available={cashControl.available} variant="full" />
+      <AutoMaterializeBanner locale={props.locale} state={autoMaterialize} />
       {cashControl.available.status === 'ready' && cashControl.available.data.state === 'ready' && (
         <>
           <h4 className="cc-subheading">{props.locale === 'ar' ? 'الحجوزات' : 'Reservations'}</h4>
@@ -485,6 +552,19 @@ function PlanRoutes(props: PlanRoutesProps) {
     if (plan.status === 'ready') {
       for (const summary of plan.summaries) {
         map[summary.currency] = summary.plannedIncomeMinor;
+      }
+    }
+    return map;
+  }, [plan.status, plan.summaries]);
+
+  // The Plan's own income-plan revision id per currency -- the concurrency
+  // head allocation's publishMonth must send (audit B2), never the revision
+  // captured on the allocation snapshot at its last publish.
+  const plannedIncomeRevisionByCurrency = useMemo<Record<Currency, string | null>>(() => {
+    const map: Record<Currency, string | null> = { USD: null, LBP: null };
+    if (plan.status === 'ready') {
+      for (const summary of plan.summaries) {
+        map[summary.currency] = summary.incomePlanRevisionId;
       }
     }
     return map;
@@ -565,6 +645,10 @@ function PlanRoutes(props: PlanRoutesProps) {
           categories={props.expenseRootCategories}
           categoryTargets={categoryTargetsByCurrency.get(currency) ?? new Map()}
           plannedIncomeMinor={plannedIncomeByCurrency[currency]}
+          plannedIncomeRevisionId={plannedIncomeRevisionByCurrency[currency]}
+          // A publish writes new income and target revisions: reload the
+          // Plan heads so a second Confirm in this visit sends them (M5).
+          onPublished={() => { void plan.refresh(); }}
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
       )) : null}
@@ -586,6 +670,8 @@ function PlanRoutes(props: PlanRoutesProps) {
           spaceId={spaceId}
           currency={currency}
           gateway={gateways.cashControl ?? unavailableCashControlGateway}
+          recurringGateway={gateways.recurring}
+          settledVersion={props.settledVersion}
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
       )) : null}
@@ -598,6 +684,7 @@ function PlanRoutes(props: PlanRoutesProps) {
           goalsGateway={gateways.goals ?? unavailableGoalsGateway}
           referenceOptions={props.referenceOptions}
           plannedIncomeByCurrency={plannedIncomeByCurrency}
+          settledVersion={props.settledVersion}
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
       ) : null}
@@ -613,24 +700,51 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
   const rememberedWalletId = useMemo(() => readRememberedWallet(spaceId), [spaceId, props.recordOpen]);
   const rememberWallet = useCallback((walletId: string) => { storeRememberedWallet(spaceId, walletId); }, [spaceId]);
   const walletListRef = useRef<readonly { id: string; currency: Currency }[]>([]);
-  const settleRecordedExpense = useCallback(async (info: { eventId: string; kind: string; effectiveDate: string; movements: readonly { walletId: string; amountMinor: string }[]; categoryId: string | null }) => {
-    if (info.kind !== 'expense' || !gateways.recurring) return;
+  const categories = useCategories(gateways.categories, spaceId, props.onSpaceUnavailable);
+  const parentOf = useMemo(() => {
+    const byId = new Map<string, string | null>();
+    for (const category of categories.incomeCategories) byId.set(category.id, category.parentCategoryId ?? null);
+    for (const category of categories.expenseCategories) byId.set(category.id, category.parentCategoryId ?? null);
+    return (categoryId: string) => byId.get(categoryId) ?? null;
+  }, [categories.incomeCategories, categories.expenseCategories]);
+  const [settleNotice, setSettleNotice] = useState<AutoSettleOutcome | null>(null);
+  // Bumped when an outcome actually linked something, so mounted Plan
+  // sections reload instead of contradicting the notice (final review M7).
+  const [settledVersion, setSettledVersion] = useState(0);
+  const showSettleOutcome = useCallback((outcome: AutoSettleOutcome) => {
+    setSettleNotice(outcome);
+    if (outcome.status === 'settled' || outcome.status === 'partial') setSettledVersion((version) => version + 1);
+  }, []);
+  const settleRecordedEvent = useCallback(async (info: { eventId: string; kind: string; effectiveDate: string; movements: readonly { walletId: string; amountMinor: string }[]; categoryId: string | null }) => {
+    if (!gateways.recurring) return;
+    const eventKind = info.kind === 'expense' ? 'expense' as const : info.kind === 'income' ? 'income' as const : null;
+    if (!eventKind) return;
     const wallet = walletListRef.current.find((candidate) => candidate.id === info.movements[0]?.walletId);
     if (!wallet) return;
     const totalMinor = info.movements.reduce((sum, movement) => sum + BigInt(movement.amountMinor), 0n);
     const amountMinor = (totalMinor < 0n ? -totalMinor : totalMinor).toString();
-    await autoSettleExpense(gateways.recurring, spaceId, {
+    const outcome = await autoSettleRecordedEvent(gateways.recurring, spaceId, {
       eventId: info.eventId,
+      eventKind,
       categoryId: info.categoryId,
       amountMinor,
       currency: wallet.currency,
       effectiveDate: info.effectiveDate,
-    });
-  }, [gateways.recurring, spaceId]);
-  const wallets = useWallets(gateways.wallets, spaceId, props.onSpaceUnavailable, undefined, gateways.categories, { onExpenseRecorded: settleRecordedExpense });
+    }, parentOf);
+    showSettleOutcome(outcome);
+  }, [gateways.recurring, spaceId, parentOf, showSettleOutcome]);
+  const wallets = useWallets(gateways.wallets, spaceId, props.onSpaceUnavailable, undefined, gateways.categories, { onExpenseRecorded: settleRecordedEvent });
   walletListRef.current = wallets.wallets;
-  const loans = useLoans(gateways.loans, { spaceId, ...(props.onSpaceUnavailable ? { onSpaceUnavailable: props.onSpaceUnavailable } : {}) });
-  const categories = useCategories(gateways.categories, spaceId, props.onSpaceUnavailable);
+  const onRepaymentRecorded = useCallback(async (repayment: RecordedRepayment) => {
+    if (!gateways.recurring) return;
+    const outcome = await settleLoanRepayment(gateways.recurring, spaceId, repayment);
+    showSettleOutcome(outcome);
+  }, [gateways.recurring, spaceId, showSettleOutcome]);
+  const loans = useLoans(gateways.loans, {
+    spaceId,
+    ...(props.onSpaceUnavailable ? { onSpaceUnavailable: props.onSpaceUnavailable } : {}),
+    onRepaymentRecorded,
+  });
   const exchangeReceipts = useMemo(() => ({
     findEventByRequestId: (targetSpaceId: string, requestId: string) =>
       gateways.wallets.findEventByRequestId(targetSpaceId, requestId),
@@ -721,6 +835,7 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
           month={month}
           expenseRootCategories={expenseRootCategoryOptions}
           referenceOptions={scheduleReferenceOptions}
+          settledVersion={settledVersion}
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
       );
@@ -751,6 +866,7 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
 
   return (
     <>
+      <SettleNoticeBanner locale={locale} outcome={settleNotice} onDismiss={() => setSettleNotice(null)} />
       {destinationRoutes}
       <RecordSheet
         open={props.recordOpen}

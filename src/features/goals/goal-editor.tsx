@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import type { Currency, Locale } from '../loans/types.js';
+import { minorToMajorText } from '../allocation/money-allocation.js';
 import { formatMinorAmount, parsePositiveMinorAmount } from '../wallets/money.js';
 import { classifyGoalsError, localizeGoalsError } from './errors.js';
 import type { CommandOutcome } from './use-goals.js';
@@ -140,10 +141,10 @@ function GoalSheetFrame({ locale, title, closeLabel, pending = false, onClose, c
   );
 }
 
-function draftFromMilestone(milestone: GoalMilestoneInput): MilestoneDraft {
+function draftFromMilestone(milestone: GoalMilestoneInput, currency: Currency): MilestoneDraft {
   return {
     id: milestone.id, kind: milestone.kind, labelEn: milestone.labelEn ?? '', labelAr: milestone.labelAr ?? '',
-    thresholdMajor: milestone.thresholdMinor ? (BigInt(milestone.thresholdMinor) / 100n).toString() : '',
+    thresholdMajor: milestone.thresholdMinor ? minorToMajorText(milestone.thresholdMinor, currency) : '',
     dueDate: milestone.dueDate ?? '',
   };
 }
@@ -160,17 +161,21 @@ export function GoalEditor(props: GoalEditorProps) {
   const [nameEn, setNameEn] = useState(existing?.definition.nameEn ?? '');
   const [nameAr, setNameAr] = useState(existing?.definition.nameAr ?? '');
   const [note, setNote] = useState(existing?.definition.note ?? '');
-  const [targetMajor, setTargetMajor] = useState(existing ? (BigInt(existing.definition.targetMinor) / 100n).toString() : '');
+  const [targetMajor, setTargetMajor] = useState(existing ? minorToMajorText(existing.definition.targetMinor, existing.definition.currency) : '');
   const [contributionMode, setContributionMode] = useState<GoalContributionMode>(existing?.definition.contributionMode ?? 'manual_monthly');
   const [monthlySource, setMonthlySource] = useState<'custom' | 'planned'>(() =>
     existing?.definition.monthlyAmountMinor != null && existing.definition.monthlyAmountMinor === plannedIncomeMinor
       ? 'planned'
       : 'custom');
   const [deadline, setDeadline] = useState(existing?.definition.deadline ?? '');
-  const [monthlyMajor, setMonthlyMajor] = useState(existing?.definition.monthlyAmountMinor ? (BigInt(existing.definition.monthlyAmountMinor) / 100n).toString() : '');
+  const [monthlyMajor, setMonthlyMajor] = useState(existing?.definition.monthlyAmountMinor
+    ? minorToMajorText(existing.definition.monthlyAmountMinor, existing.definition.currency)
+    : '');
   const [priorityText, setPriorityText] = useState(String(existing?.definition.priority ?? 0));
   const [state, setState] = useState<GoalState>(props.initialState ?? existing?.currentState ?? 'active');
-  const [milestones, setMilestones] = useState<MilestoneDraft[]>(() => (existing?.milestones ?? []).map(draftFromMilestone));
+  const [milestones, setMilestones] = useState<MilestoneDraft[]>(() => (existing
+    ? existing.milestones.map((milestone) => draftFromMilestone(milestone, existing.definition.currency))
+    : []));
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const savingRef = useRef(false);

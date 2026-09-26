@@ -69,7 +69,7 @@ export interface JournalScreenProps {
   nextCursor: string | null;
   loadingMore: boolean;
   onLoadMore(): void;
-  onReverse(eventId: string): Promise<unknown>;
+  onReverse(eventId: string, effectiveDate: string): Promise<unknown>;
   reversePending: boolean;
   search: JournalSearchView | null;
   onSearchQueryChange(query: string): void;
@@ -119,7 +119,7 @@ export function JournalScreen(props: JournalScreenProps) {
     if (!selected) return;
     setReverseError(null);
     try {
-      await props.onReverse(selected.id);
+      await props.onReverse(selected.id, selected.effectiveDate);
     } catch (cause) {
       const message = cause instanceof Error && cause.message.trim() ? cause.message : t(locale, 'Unknown error.', 'خطأ غير معروف.');
       setReverseError(`${t(locale, 'Could not reverse this entry.', 'تعذر عكس هذا القيد.')} ${message}`);

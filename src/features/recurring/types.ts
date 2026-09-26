@@ -78,6 +78,16 @@ export interface LoadOccurrencesInput {
   readonly limit: number;
 }
 
+/** `scheduled_overdue_page` (task 11) has no date-range bound -- "overdue"
+ * already means "due before the server's UTC today" -- so this input carries
+ * only the keyset cursor and limit, unlike `LoadOccurrencesInput`. */
+export interface LoadOverdueInput {
+  readonly spaceId: string;
+  readonly afterDueDate: string | null;
+  readonly afterId: string | null;
+  readonly limit: number;
+}
+
 export interface SaveScheduleInput {
   readonly spaceId: string;
   readonly requestId: string;
@@ -157,6 +167,7 @@ export interface PlanningCommandReceipt {
 
 export interface RecurringGateway {
   loadOccurrences(input: LoadOccurrencesInput, signal?: AbortSignal): Promise<ScheduledOccurrencePage>;
+  loadOverdue(input: LoadOverdueInput, signal?: AbortSignal): Promise<ScheduledOccurrencePage>;
   saveSchedule(input: SaveScheduleInput): Promise<SaveScheduleResult>;
   materialize(input: MaterializeInput): Promise<MaterializeResult>;
   setOccurrenceState(input: SetOccurrenceStateInput): Promise<SetOccurrenceStateResult>;

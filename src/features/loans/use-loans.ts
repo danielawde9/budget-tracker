@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { classifyLoanError } from './errors.js';
 import type {
+  CommandResult,
   CreateLoanInput,
   LoanErrorView,
   LoansDashboard,
@@ -10,6 +11,7 @@ import type {
   ReversalInput,
   Space,
 } from './types.js';
+import type { RecordedRepayment } from '../recurring/settle-loan-repayment.js';
 
 type CreateDraft = Omit<CreateLoanInput, 'requestId'>;
 type RepaymentDraft = Omit<RepaymentInput, 'requestId'>;
@@ -27,6 +29,7 @@ function requestId(): string {
 export interface UseLoansOptions {
   spaceId?: string;
   onSpaceUnavailable?(): void;
+  onRepaymentRecorded?(repayment: RecordedRepayment): Promise<void>;
 }
 
 export function useLoans(gateway: LoansGateway, options?: UseLoansOptions) {
@@ -41,6 +44,7 @@ export function useLoans(gateway: LoansGateway, options?: UseLoansOptions) {
   const controlled = options?.spaceId !== undefined;
   const spaceId = controlled ? options.spaceId ?? '' : internalSpaceId;
   const onSpaceUnavailable = options?.onSpaceUnavailable;
+  const onRepaymentRecorded = options?.onRepaymentRecorded;
 
   const loadDashboard = useCallback(async (nextSpaceId: string, nextMonth: string) => {
     const sequence = ++loadSequence.current;
@@ -109,21 +113,38 @@ export function useLoans(gateway: LoansGateway, options?: UseLoansOptions) {
     if (!controlled && spaceId) void loadDashboard(spaceId, normalized);
   };
 
-  async function run<T extends object>(key: string, draft: T, command: (id: string) => Promise<unknown>) {
+  async function run<T extends object>(
+    key: string,
+    draft: T,
+    command: (id: string) => Promise<CommandResult>,
+    onSuccess?: (result: CommandResult) => Promise<void>,
+  ) {
     const fingerprint = JSON.stringify(draft);
     const previous = requests.current.get(key);
     const id = previous?.fingerprint === fingerprint ? previous.id : requestId();
     requests.current.set(key, { fingerprint, id });
-    await command(id);
+    const result = await command(id);
     requests.current.delete(key);
     if (spaceId) await loadDashboard(spaceId, month);
+    await onSuccess?.(result);
   }
 
   return {
     spaces, spaceId, month, dashboard, loading, error,
     setSpaceId, setMonth, retry: controlled ? () => loadDashboard(spaceId, month) : initialize,
     createLoan: (draft: CreateDraft) => run('create', draft, (id) => gateway.createLoan({ ...draft, requestId: id })),
-    recordRepayment: (draft: RepaymentDraft) => run(`repay:${draft.loanId}`, draft, (id) => gateway.recordRepayment({ ...draft, requestId: id })),
+    recordRepayment: (draft: RepaymentDraft) => run(`repay:${draft.loanId}`, draft, (id) => gateway.recordRepayment({ ...draft, requestId: id }), async (result) => {
+      if (!result.eventId) return;
+      const currency = dashboard?.loans.find((loan) => loan.id === draft.loanId)?.currency;
+      if (!currency) return;
+      await onRepaymentRecorded?.({
+        eventId: result.eventId,
+        loanId: draft.loanId,
+        amountMinor: draft.amountMinor,
+        currency,
+        effectiveDate: draft.effectiveDate,
+      });
+    }),
     setMonthlyTarget: (draft: TargetDraft) => run(`target:${draft.loanId}`, draft, (id) => gateway.setMonthlyTarget({ ...draft, requestId: id })),
     reverseEvent: (draft: ReversalDraft) => run(`reverse:${draft.eventId}`, draft, (id) => gateway.reverseEvent({ ...draft, requestId: id })),
   };

@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest';
 const script = join(process.cwd(), 'scripts/ops/apply-live-migrations.sh');
 const projectRef = 'hqblhzqitrbvpyoxtmew';
 const fixtureProjectRef = projectRef;
-const releaseHead = '87e5af748961df75c780fd024b00cf7f6644438d';
+const releaseHead = '0510169b78a4d21561267c48be322d72177c51d6';
 const liveRunnerCommit = 'b9537efa69216a42189cbb878c4bfa849a5b52f5';
 const subprocessTimeoutMillis = 10_000;
 const defaultProjects = JSON.stringify([{ id: fixtureProjectRef, name: 'Budget' }]);
@@ -187,14 +187,26 @@ describe('one-time live Supabase migration runner', () => {
     expect(source).not.toContain('SERVICE_ROLE_KEY:?');
   });
 
-  it('verifies the exact 49-row journal and merged schema after application', () => {
+  // Final review M6: the two release pins are separate literals in separate
+  // files; a half-updated release passed every test and failed closed only
+  // at verify-manifest time. One cross-file assertion ties them together.
+  it("ships a manifest whose source_sha is the live script's LIVE_MANIFEST_SOURCE_SHA", () => {
+    const manifestSha = /^source_sha=([a-f0-9]{40})$/m
+      .exec(readFileSync(join(process.cwd(), 'ops/budget-migrations.sha256'), 'utf8'))?.[1];
+    const scriptSha = /^readonly LIVE_MANIFEST_SOURCE_SHA='([a-f0-9]{40})'$/m.exec(readFileSync(script, 'utf8'))?.[1];
+
+    expect(manifestSha).toMatch(/^[a-f0-9]{40}$/);
+    expect(scriptSha).toBe(manifestSha);
+  });
+
+  it('verifies the exact 55-row journal and merged schema after application', () => {
     const source = readFileSync(script, 'utf8');
     const verificationSql = source.slice(
       source.indexOf('readonly LIVE_VERIFY_SQL='),
       source.indexOf('\n\nlive_fail()'),
     );
 
-    expect(verificationSql.match(/'20[0-9]{12}'/g)).toHaveLength(49);
+    expect(verificationSql.match(/'20[0-9]{12}'/g)).toHaveLength(55);
     expect(verificationSql).toContain("'20260908170000'");
     expect(verificationSql).toContain("'20260910100000'");
     expect(verificationSql).toContain("'20260911100000'");
@@ -270,6 +282,32 @@ describe('one-time live Supabase migration runner', () => {
     );
     expect(verificationSql).toContain(
       "to_regprocedure('public.set_rollover_policy(uuid,uuid,public.currency_code,uuid,boolean,bigint)')",
+    );
+    expect(verificationSql).toContain("'20260919100000'");
+    expect(verificationSql).toContain(
+      "to_regprocedure('public.journal_search_page(uuid,date,date,uuid,uuid,uuid,bigint,bigint,text,text,integer)')",
+    );
+    expect(verificationSql).toContain("'20260925100000'");
+    // Final review M6: the trigger must exist AND be enabled for normal
+    // (origin) sessions -- 'D' is disabled, and 'R' fires only for replicas.
+    expect(verificationSql).toContain(
+      "exists (select 1 from pg_trigger where tgname = 'financial_events_reversal_date_guard' and tgenabled in ('O', 'A'))",
+    );
+    expect(verificationSql).toContain("'20260925101000'");
+    expect(verificationSql).toContain(
+      "to_regprocedure('public.allocation_template_head(uuid,public.currency_code)')",
+    );
+    expect(verificationSql).toContain("'20260925102000'");
+    expect(verificationSql).toContain(
+      "to_regprocedure('public.monthly_budget_category_page_v3(uuid,date,public.currency_code,text,uuid,integer)')",
+    );
+    expect(verificationSql).toContain("'20260925103000'");
+    expect(verificationSql).toContain(
+      "to_regprocedure('public.scheduled_overdue_page(uuid,date,uuid,integer)')",
+    );
+    expect(verificationSql).toContain("'20260925104000'");
+    expect(verificationSql).toContain(
+      "n.nspname = 'private' and p.proname = 'check_goal_earmark_event' and p.prosrc like '%goal_financing_state%'",
     );
     expect(verificationSql).not.toContain("to_regclass('public.subcategories')");
   });

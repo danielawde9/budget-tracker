@@ -174,7 +174,7 @@ describe('JournalScreen', () => {
     render(<JournalScreen {...baseProps} onReverse={onReverse} events={[event({ id: 'evt-1', payeeName: 'Employer' })]} />);
     await user.click(screen.getByRole('button', { name: /Employer/ }));
     await user.click(screen.getByRole('button', { name: 'Reverse' }));
-    expect(onReverse).toHaveBeenCalledWith('evt-1');
+    expect(onReverse).toHaveBeenCalledWith('evt-1', '2026-09-07');
   });
 
   it('shows an inline alert when reversing fails and clears it on retry', async () => {

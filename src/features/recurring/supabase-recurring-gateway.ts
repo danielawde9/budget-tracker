@@ -9,6 +9,7 @@ import type {
   LinkExistingInput,
   LinkExistingResult,
   LoadOccurrencesInput,
+  LoadOverdueInput,
   MaterializeInput,
   MaterializeResult,
   OccurrenceState,
@@ -179,6 +180,17 @@ export function createSupabaseRecurringGateway(client: RecurringDataClient): Rec
         p_space_id: input.spaceId,
         p_from_date: date(input.fromDate),
         p_to_date: date(input.toDate),
+        p_after_due_date: input.afterDueDate === null ? null : date(input.afterDueDate),
+        p_after_id: input.afterId,
+        p_limit: input.limit,
+      }, signal);
+      return parseOccurrencePage(data);
+    },
+
+    async loadOverdue(input: LoadOverdueInput, signal?: AbortSignal) {
+      requireCompleteCursor([input.afterDueDate, input.afterId], 'overdue page');
+      const data = await planningRpc(client, 'scheduled_overdue_page', {
+        p_space_id: input.spaceId,
         p_after_due_date: input.afterDueDate === null ? null : date(input.afterDueDate),
         p_after_id: input.afterId,
         p_limit: input.limit,

@@ -219,6 +219,59 @@ describe('useAllocation', () => {
     expect(gateway.calls.filter((call) => call.name === 'publishMonth')).toHaveLength(0);
   });
 
+  it('a second month publishes against the current template head from loadTemplateHead, not the new month\'s null snapshot value (audit B1)', async () => {
+    const gateway = new InMemoryAllocationGateway();
+    const { result, rerender } = renderHook(
+      ({ month }) => useAllocation(gateway, 'space-1', month, 'USD'),
+      { initialProps: { month: '2026-09-01' } },
+    );
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    // September: the space's first-ever template save and publish.
+    await act(async () => {
+      const outcome = await result.current.saveTemplate({ currency: 'USD', expectedRevisionId: null, groups: [], rootMappings: [] });
+      expect(outcome).toMatchObject({ status: 'success' });
+    });
+    await act(async () => {
+      const outcome = await result.current.publishMonth({
+        templateRevisionId: '1', expectedSnapshotId: null, expectedIncomeRevisionId: null,
+        incomeMinor: '200000', rootTargets: [], loanGroupId: null,
+      });
+      expect(outcome).toMatchObject({ status: 'success' });
+    });
+    expect(gateway.templateHead).toBe('1');
+
+    // October: a brand-new month, loaded with no snapshot of its own yet.
+    rerender({ month: '2026-10-01' });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(result.current.month.templateRevisionId).toBeNull();
+
+    // Sending the new month's own (null) snapshot head -- exactly the
+    // pre-fix bug -- is rejected the same way SQL would reject it.
+    await expect(result.current.saveTemplate({
+      currency: 'USD', expectedRevisionId: result.current.month.templateRevisionId, groups: [], rootMappings: [],
+    })).rejects.toMatchObject({ code: '40001' });
+    expect(result.current.status).toBe('ready');
+
+    // The hook's own loadTemplateHead reports the space's real current head...
+    const head = await result.current.loadTemplateHead();
+    expect(head.templateRevisionId).toBe('1');
+
+    // ...and sending that succeeds, closing out a second month's publish.
+    await act(async () => {
+      const outcome = await result.current.saveTemplate({ currency: 'USD', expectedRevisionId: head.templateRevisionId, groups: [], rootMappings: [] });
+      expect(outcome).toMatchObject({ status: 'success' });
+    });
+    expect(gateway.templateHead).toBe('2');
+    await act(async () => {
+      const outcome = await result.current.publishMonth({
+        templateRevisionId: '2', expectedSnapshotId: null, expectedIncomeRevisionId: null,
+        incomeMinor: '150000', rootTargets: [], loanGroupId: null,
+      });
+      expect(outcome).toMatchObject({ status: 'success' });
+    });
+  });
+
   it('loadCategoryPage/loadHistoryPage/loadTrend fill in the current space/month/currency', async () => {
     const gateway = new InMemoryAllocationGateway();
     gateway.categoryPage = { rows: [], nextRootId: null, hasMore: false };

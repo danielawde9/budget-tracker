@@ -24,9 +24,9 @@ function page(rows: readonly ScheduledOccurrenceRow[] = [row()]): ScheduledOccur
 
 function fakeRecurringState(overrides: Partial<RecurringState> = {}): RecurringState {
   return {
-    status: 'ready', page: page(), error: null, pending: false, ambiguous: null,
+    status: 'ready', page: page(), truncated: false, error: null, pending: false, ambiguous: null,
     refresh: vi.fn(), saveSchedule: vi.fn(), materialize: vi.fn(), setOccurrenceState: vi.fn(),
-    confirm: vi.fn(), linkExisting: vi.fn(), retryAmbiguous: vi.fn(), clearAmbiguous: vi.fn(), loadMore: vi.fn(),
+    confirm: vi.fn(), linkExisting: vi.fn(), retryAmbiguous: vi.fn(), clearAmbiguous: vi.fn(),
     ...overrides,
   } as unknown as RecurringState;
 }
@@ -118,6 +118,20 @@ describe('UpcomingPage', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'Overdue' }));
     expect(screen.getByText('Overdue bill')).toBeInTheDocument();
     expect(screen.queryByText('Paid bill')).not.toBeInTheDocument();
+  });
+
+  it('shows a truncation alert (D10) verbatim in English and Arabic when a list hit the page cap', () => {
+    const { rerender } = render(<UpcomingPage locale="en" {...editorProps()} recurring={fakeRecurringState({ truncated: true })} fromDate="2026-09-01" toDate="2026-11-30" />);
+    expect(screen.getByRole('alert')).toHaveTextContent('Showing the first 1,000 bills.');
+
+    rerender(<UpcomingPage locale="ar" {...editorProps()} recurring={fakeRecurringState({ truncated: true })} fromDate="2026-09-01" toDate="2026-11-30" />);
+    // Final review M4: Arabic-Indic digits, as amounts are written in Arabic.
+    expect(screen.getByRole('alert')).toHaveTextContent('تُعرض أول ١٬٠٠٠ فاتورة.');
+  });
+
+  it('shows no truncation alert when the list was not truncated', () => {
+    render(<UpcomingPage locale="en" {...editorProps()} recurring={fakeRecurringState({ truncated: false })} fromDate="2026-09-01" toDate="2026-11-30" />);
+    expect(screen.queryByText(/Showing the first/)).not.toBeInTheDocument();
   });
 
   it('shows an over-100% settlement with a numeric overage, never just the clamped bar', () => {

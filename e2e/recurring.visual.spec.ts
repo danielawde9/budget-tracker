@@ -65,6 +65,50 @@ test('an empty occurrence list shows New schedule, not a crash', async ({ page }
   await expect(section.getByRole('button', { name: 'New schedule' })).toBeVisible();
 });
 
+// D1: an overdue bill still reduces Available even though it's due before the
+// window `useRecurring` otherwise loads from -- it must not disappear from
+// the list, and the "Overdue" filter tab must be able to match it.
+const overdueOccurrence: Record<string, unknown> = {
+  id: 'e0000000-0000-4000-8000-000000000003', scheduleId: 'e0000000-0000-4000-8000-000000000103', sourceRevisionId: '1', currentEventId: null,
+  currency: 'USD', kind: 'expense', nameEn: 'Water', nameAr: null, dueDate: '2026-09-10',
+  expectedMinor: '3000', settledMinor: '0', remainingMinor: '3000', state: 'pending', overdue: true,
+  categoryId: null, loanId: null, fundingGoalId: null, preferredWalletId: null, fundingShortfallMinor: null,
+  asOf: '2026-09-14',
+};
+
+test('D1: an overdue bill shows up under the Overdue filter', async ({ page }) => {
+  await openPlan(page, { seedOccurrences: [overdueOccurrence] });
+  const section = page.getByRole('region', { name: 'Upcoming bills' });
+  await section.getByRole('tab', { name: 'Overdue' }).click();
+  await expect(section.getByText('Water')).toBeVisible();
+});
+
+// Final review I3/M1: once paid, an overdue bill is in neither the overdue
+// list nor the window (the fixture drops it from both routes, as the server
+// does), so the detail must end on its success confirmation, not on "no
+// longer in the visible range", and the bill must leave Overdue.
+test('paying an overdue bill from its detail screen confirms it, and it leaves Overdue', async ({ page }) => {
+  await openPlan(page, { seedOccurrences: [overdueOccurrence] });
+  const section = page.getByRole('region', { name: 'Upcoming bills' });
+  await section.getByRole('tab', { name: 'Overdue' }).click();
+  await section.getByRole('button', { name: 'Review Water' }).click();
+  const detail = page.getByRole('region', { name: 'Occurrence detail' });
+  await detail.getByRole('button', { name: 'Review payment' }).click();
+
+  const dialog = page.getByRole('dialog', { name: 'Record payment' });
+  await dialog.getByLabel('Actual amount').fill('30');
+  await dialog.getByLabel('Paying wallet').selectOption({ label: 'Daily USD · USD' });
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(dialog.getByRole('status')).toContainText('The payment has been recorded against this occurrence.');
+  await expect(page.getByText('This occurrence is no longer in the visible range.')).toHaveCount(0);
+
+  await dialog.getByRole('button', { name: 'Done' }).click();
+  await expect(detail.getByRole('status')).toContainText('Payment recorded. This bill is paid and has left the list.');
+  await detail.getByRole('button', { name: 'Back to upcoming bills' }).click();
+  await section.getByRole('tab', { name: 'Overdue' }).click();
+  await expect(section.getByText('Water')).toHaveCount(0);
+});
+
 test('U16-03: creating a schedule never posts an occurrence by itself -- only the explicit Refresh occurrences click does', async ({ page }, testInfo) => {
   await openPlan(page);
   const section = page.getByRole('region', { name: 'Upcoming bills' });

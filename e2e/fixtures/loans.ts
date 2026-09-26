@@ -1,5 +1,6 @@
 import type { Page, Route } from '@playwright/test';
 import { allocateIncome, residualId as allocationResidualId } from '../../src/features/allocation/money-allocation.js';
+import { orderedV3Roots, pageV3Roots } from '../../src/test/plan-v3-paging.js';
 
 export interface ApplicationFixtureOptions {
   authenticated?: boolean;
@@ -16,8 +17,10 @@ export interface ApplicationFixtureOptions {
   rejectCategoryCreateOnce?: boolean;
   /** Control Room plan screen: rows for `monthly_budget_currency_summary`. */
   planSummary?: readonly Record<string, unknown>[];
-  /** Control Room plan/home screens: rows for `monthly_budget_category_page` and
-   *  `report_category_actual_vs_budget` (a merged key set satisfies both parsers). */
+  /** Control Room plan/home screens: rows for `monthly_budget_category_page_v3`
+   *  (Plan, root categories only, per currency), the legacy `monthly_budget_category_page`
+   *  (kept for any caller still on v1), and `report_category_actual_vs_budget`
+   *  (Home/insights) -- a merged key set satisfies all three parsers. */
   budgetRows?: readonly Record<string, unknown>[];
   /** Control Room insights: rows for `report_wallet_activity`. */
   activityRows?: readonly Record<string, unknown>[];
@@ -46,12 +49,19 @@ export interface ApplicationFixtureOptions {
   /** `goal_history_page` JSON object for a goal's detail view. */
   goalHistoryPage?: Record<string, unknown>;
   /** Upcoming bills: seeds `scheduled_occurrence_page`'s initial rows
-   *  (camelCase, matching the SQL contract exactly). `save_schedule` records
-   *  a schedule definition but creates no occurrence on its own (materialize
-   *  is explicit-only, matching the product rule); `materialize_schedule_
-   *  occurrences` then creates one occurrence per active schedule whose
-   *  `startsOn` falls at or before the requested range's end, the same
-   *  read/write split already used for allocation/goals above. */
+   *  (camelCase, matching the SQL contract exactly). A row seeded with
+   *  `overdue: true` is due before the fixture's "today": the window route
+   *  never serves it, and `scheduled_overdue_page` serves it only while it
+   *  is unpaid and not skipped -- so once linked, confirmed in full or
+   *  skipped it is in neither list, as on the server (final review M1).
+   *  The two routes partition by that seeded flag, never by date, so no
+   *  spec has to seed against the real clock (task 12). `save_
+   *  schedule` records a schedule definition but creates no occurrence on
+   *  its own (materialize is explicit-only, matching the product rule);
+   *  `materialize_schedule_occurrences` then creates one occurrence per
+   *  active schedule whose `startsOn` falls at or before the requested
+   *  range's end, the same read/write split already used for allocation/
+   *  goals above. */
   seedOccurrences?: readonly Record<string, unknown>[];
   /** Cash-control summary: the `available_cash_summary` JSON object
    *  (camelCase keys matching the SQL contract exactly). Defaults to an
@@ -303,7 +313,7 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
   let nextAllocationSnapshotId = 100;
   let nextAllocationIncomeRevisionId = 100;
   let lastSavedGroups: readonly { id: string; purpose: 'spending' | 'future'; nameEn: string | null; nameAr: string | null; order: number; basisPoints: number }[] = [];
-  let lastSavedTemplateRevisionId = '0';
+  let lastSavedTemplateRevisionId: string | null = null;
   const allocationReceipts = new Map<string, { command: string; sequenceId: string; result: unknown }>();
   const goals: Record<string, unknown>[] = cloneRows(options.seedGoals ?? []);
   let nextGoalRevisionId = 100;
@@ -312,6 +322,27 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
   const milestoneStates = new Map<string, 'complete' | 'incomplete'>();
   const goalReceipts = new Map<string, { command: string; sequenceId: string; result: unknown }>();
   const occurrences: Record<string, unknown>[] = cloneRows(options.seedOccurrences ?? []);
+  // Seeded overdue = due before the fixture's "today" (see `seedOccurrences`).
+  const pastDueOccurrenceIds = new Set(
+    occurrences.filter((row) => row['overdue'] === true).map((row) => row['id'] as string),
+  );
+  const isUnpaid = (row: Record<string, unknown>) => row['state'] === 'pending' || row['state'] === 'partial';
+  /** What the server recomputes after every command: a past-due occurrence
+   *  is overdue while it is unpaid and not skipped. */
+  function refreshOverdueFlag(record: Record<string, unknown>) {
+    record['overdue'] = pastDueOccurrenceIds.has(record['id'] as string) && isUnpaid(record);
+  }
+  /** `(dueDate, id)` keyset order, as `scheduled_overdue_page` sorts:
+   *  negative, zero or positive as `row` sorts before, with or after the key.
+   *  Plain string comparison -- ISO dates and lowercase UUIDs order the same
+   *  way as bytes. */
+  function compareKey(row: Record<string, unknown>, dueDate: string, id: string): number {
+    const rowDueDate = row['dueDate'] as string;
+    const rowId = row['id'] as string;
+    if (rowDueDate !== dueDate) return rowDueDate < dueDate ? -1 : 1;
+    if (rowId !== id) return rowId < id ? -1 : 1;
+    return 0;
+  }
   const schedules: { id: string; revisionId: string; definition: Record<string, unknown> }[] = [];
   let nextScheduleRevisionId = 100;
   let nextOccurrenceEventId = 100;
@@ -568,6 +599,40 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
     if (path.endsWith('/rpc/monthly_budget_category_page')) {
       return json(route, cloneRows(options.budgetRows ?? []));
     }
+    if (path.endsWith('/rpc/monthly_budget_category_page_v3')) {
+      const body = request.postDataJSON() as {
+        p_currency: 'USD' | 'LBP';
+        p_after_created_at?: string | null;
+        p_after_category_id?: string | null;
+        p_limit?: number | null;
+      };
+      const limit = body.p_limit ?? 100;
+      // Plan v3 lists parent (root) categories only -- spending recorded on a
+      // subcategory is rolled into its parent's actual_spent_minor before this
+      // fixture ever sees it. Nothing seeded here models a subcategory yet, so
+      // that part of orderedV3Roots is a no-op today and stays correct if one
+      // is added (its actual_spent_minor must already be pre-summed into the
+      // parent row in the seed data -- this mock does not do that arithmetic).
+      const roots = orderedV3Roots(options.budgetRows ?? [], body.p_currency);
+      const after = body.p_after_created_at != null && body.p_after_category_id != null
+        ? { createdAt: body.p_after_created_at, categoryId: body.p_after_category_id }
+        : null;
+      const { page: pageRoots, hasMore } = pageV3Roots(roots, after, limit);
+      const page = pageRoots.map(({ categoryId, createdAt, source }) => ({
+        category_id: categoryId,
+        category_created_at: createdAt,
+        name_en: source['name_en'] ?? null,
+        name_ar: source['name_ar'] ?? null,
+        archived_at: source['archived_at'] ?? null,
+        target_minor: source['target_minor'] ?? '0',
+        actual_spent_minor: source['actual_spent_minor'] ?? '0',
+        remaining_minor: source['remaining_minor'] ?? null,
+        overspent_minor: source['overspent_minor'] ?? '0',
+        target_revision_id: source['target_revision_id'] ?? null,
+        has_more: hasMore,
+      }));
+      return json(route, page);
+    }
     if (path.endsWith('/rpc/report_wallet_activity')) {
       return json(route, cloneRows(options.activityRows ?? []));
     }
@@ -588,6 +653,9 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
     }
     if (path.endsWith('/rpc/allocation_trend')) {
       return json(route, options.allocationTrend ?? { months: [] });
+    }
+    if (path.endsWith('/rpc/allocation_template_head')) {
+      return json(route, { templateRevisionId: lastSavedTemplateRevisionId });
     }
     if (path.endsWith('/rpc/save_allocation_template')) {
       const body = request.postDataJSON() as {
@@ -663,7 +731,33 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       return json(route, { ...seed, currency: body.p_currency, startDate: body.p_start_date, scenario: body.p_scenario, assumption });
     }
     if (path.endsWith('/rpc/scheduled_occurrence_page')) {
-      return json(route, { rows: cloneRows(occurrences), hasMore: false, nextCursor: null, asOf: '2026-09-14' });
+      // The window starts at "today", so a past-due row is never in it,
+      // whatever its state -- no id is ever returned by both lists (task 12).
+      const windowRows = occurrences.filter((row) => !pastDueOccurrenceIds.has(row['id'] as string));
+      return json(route, { rows: cloneRows(windowRows), hasMore: false, nextCursor: null, asOf: '2026-09-14' });
+    }
+    if (path.endsWith('/rpc/scheduled_overdue_page')) {
+      // Mirrors `scheduled_overdue_page`: unpaid, unskipped past-due rows in
+      // (dueDate, id) order after the keyset cursor, `p_limit` per page
+      // (default 50), with a real hasMore/nextCursor (final review M1).
+      const body = request.postDataJSON() as { p_limit?: number | null; p_after_due_date?: string | null; p_after_id?: string | null };
+      const limit = body.p_limit ?? 50;
+      const cursor = body.p_after_due_date != null && body.p_after_id != null
+        ? { dueDate: body.p_after_due_date, id: body.p_after_id }
+        : null;
+      const ordered = occurrences
+        .filter((row) => pastDueOccurrenceIds.has(row['id'] as string) && isUnpaid(row))
+        .filter((row) => cursor === null || compareKey(row, cursor.dueDate, cursor.id) > 0)
+        .sort((left, right) => compareKey(left, right['dueDate'] as string, right['id'] as string));
+      const pageRows = ordered.slice(0, limit);
+      const hasMore = ordered.length > limit;
+      const last = pageRows[pageRows.length - 1];
+      return json(route, {
+        rows: cloneRows(pageRows),
+        hasMore,
+        nextCursor: hasMore && last ? { dueDate: last['dueDate'], id: last['id'] } : null,
+        asOf: '2026-09-14',
+      });
     }
     if (path.endsWith('/rpc/save_schedule')) {
       const body = request.postDataJSON() as { p_request_id: string; p_schedule_id: string; p_definition: Record<string, unknown> };
@@ -712,7 +806,11 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       if (existing) return json(route, existing.result);
       const eventId = String(nextOccurrenceEventId++);
       const record = occurrences.find((occurrence) => occurrence['id'] === body.p_occurrence_id);
-      if (record) { record['state'] = body.p_action === 'skip' ? 'skipped' : 'pending'; record['currentEventId'] = eventId; }
+      if (record) {
+        record['state'] = body.p_action === 'skip' ? 'skipped' : 'pending';
+        record['currentEventId'] = eventId;
+        refreshOverdueFlag(record);
+      }
       const result = { occurrenceId: body.p_occurrence_id, eventId };
       recurringReceipts.set(body.p_request_id, { command: 'set_occurrence_state', sequenceId: eventId, result });
       return json(route, result);
@@ -732,6 +830,7 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
         record['remainingMinor'] = (remaining > 0n ? remaining : 0n).toString();
         record['state'] = remaining > 0n ? 'partial' : 'settled';
         record['currentEventId'] = eventId;
+        refreshOverdueFlag(record);
       }
       const result = { occurrenceId: body.p_occurrence_id, occurrenceEventId: eventId, financialEventId };
       recurringReceipts.set(body.p_request_id, { command: 'confirm_scheduled_occurrence', sequenceId: eventId, result });
@@ -751,6 +850,7 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
         record['remainingMinor'] = (remaining > 0n ? remaining : 0n).toString();
         record['state'] = remaining > 0n ? 'partial' : 'settled';
         record['currentEventId'] = eventId;
+        refreshOverdueFlag(record);
       }
       const result = { occurrenceId: body.p_occurrence_id, occurrenceEventId: eventId, financialEventId: body.p_event_id };
       recurringReceipts.set(body.p_request_id, { command: 'link_scheduled_payment', sequenceId: eventId, result });
