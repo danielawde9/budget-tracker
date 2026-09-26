@@ -65,6 +65,17 @@ export function classifyLoanError(error: unknown): LoanErrorView {
     };
   }
 
+  // Task 3's trigger (SQLSTATE 23514) refuses a reversal dated before the
+  // entry it reverses -- mapped here as `wallets/errors.ts` maps it (M8).
+  if (message.includes('a reversal cannot be dated before the entry it reverses')) {
+    return {
+      code: 'reversal_before_original',
+      title: "A correction can't be dated before the entry it corrects",
+      message,
+      recovery: "Pick the entry's date or later.",
+    };
+  }
+
   if (message.includes('monthly target cannot exceed')) {
     return {
       code: 'target_above_outstanding',

@@ -131,6 +131,7 @@ export type LoanErrorCode =
   | 'dependent_repayment'
   | 'target_above_outstanding'
   | 'archived_wallet'
+  | 'reversal_before_original'
   | 'database_rejection';
 
 export interface LoanErrorView {

@@ -3834,3 +3834,11 @@ select count(*) from financial_events r join financial_events o on o.id = r.reve
 **Why:** Final review M5. Nothing refreshed `usePlan` after a publish, so a second Confirm in the same visit sent stale heads and ended on a generic error. The fake threw 40001 where the server throws P0001, so no test could see what a person gets (the in-memory-fakes lesson, again). `routes.test.tsx` now publishes twice in one visit through `ControlRoomRoutes`.
 
 **If changed:** if Allocation takes its heads from its own snapshot again (a Spec 1 source-of-truth question), refresh that on `onPublished` instead.
+
+## 2026-09-26 — A loan correction defaults to its entry's own date, and a too-early one reads as copy (final review M8)
+
+**Decision:** `CorrectionDialog` (`src/features/loans/loan-dialogs.tsx`) pre-fills "Correction date" with the corrected entry's own `effectiveDate`, read from the loan's history, instead of UTC today. It falls back to today only for an entry that is not in the loaded history. `classifyLoanError` (`src/features/loans/errors.ts`) maps "a reversal cannot be dated before the entry it reverses" (Task 3's trigger, SQLSTATE 23514) to a new `reversal_before_original` code: "A correction can't be dated before the entry it corrects" / "Pick the entry's date or later.", with Arabic in the dialog's own notice. This mirrors how `wallets/errors.ts` maps the same message for Undo.
+
+**Why:** Final review M8, a regression introduced by Task 3's reversal-date trigger. For a repayment recorded between 00:00 and 03:00 in Beirut, UTC today is a day before the entry's local date, so the default correction was refused. The refusal then showed the generic "The change was not recorded" plus the raw database text, in both locales. The entry "Reversals may not be dated before the entry they reverse (schema trigger)" names the loan path as covered by the trigger; this makes that path usable under it.
+
+**If changed:** a correction meant for a later date is still one edit of the date field away; the default only keeps the common case from being refused.
