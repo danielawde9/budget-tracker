@@ -276,6 +276,48 @@ function cloneRows<T extends object>(rows: readonly T[]): T[] {
   return rows.map((row) => ({ ...row }));
 }
 
+// `monthly_budget_category_page_v3`'s mock needs a real keyset cursor, not just
+// a static list, so a Plan that pages past the fixture's first response (e.g. a
+// future e2e test seeding more root categories than one page holds) doesn't get
+// handed the same page forever. Exported so the ordering/paging logic can be
+// unit-tested directly (e2e/fixtures/loans-v3-page.test.ts) without a browser.
+export interface V3Root {
+  categoryId: string;
+  createdAt: string;
+  source: Record<string, unknown>;
+}
+
+/** Root (parent) categories for one currency, in a stable order, each given a
+ *  synthetic but stable `createdAt` (the seed data carries no real category
+ *  timestamp; the real RPC's cursor only needs a value that round-trips). */
+export function orderedV3Roots(budgetRows: readonly Record<string, unknown>[], currency: 'USD' | 'LBP'): V3Root[] {
+  return budgetRows
+    .filter((row) => row['currency'] === currency && row['parent_category_id'] === undefined)
+    .map((row, index) => ({
+      categoryId: row['category_id'] as string,
+      createdAt: `seed-${String(index).padStart(4, '0')}`,
+      source: row,
+    }));
+}
+
+/** Mirrors the real v3 SQL's keyset page: rows are ordered by
+ *  `(createdAt, categoryId)`, `after` (when given) excludes everything at or
+ *  before that pair, and `hasMore` reports whether more rows remain beyond
+ *  the returned page -- never whether more rows exist overall. */
+export function pageV3Roots(
+  roots: readonly V3Root[],
+  after: { createdAt: string; categoryId: string } | null,
+  limit: number,
+): { page: V3Root[]; hasMore: boolean } {
+  const ordered = [...roots].sort((a, b) =>
+    a.createdAt === b.createdAt ? a.categoryId.localeCompare(b.categoryId) : a.createdAt.localeCompare(b.createdAt));
+  const remaining = after === null
+    ? ordered
+    : ordered.filter((root) =>
+        root.createdAt > after.createdAt || (root.createdAt === after.createdAt && root.categoryId > after.categoryId));
+  return { page: remaining.slice(0, limit), hasMore: remaining.length > limit };
+}
+
 export async function installLoansApiFixture(page: Page, options: ApplicationFixtureOptions = {}) {
   const authenticated = options.authenticated ?? true;
   const visibleSpaces = options.emptySpaces ? [] : cloneRows(spaces);
@@ -571,26 +613,36 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       return json(route, cloneRows(options.budgetRows ?? []));
     }
     if (path.endsWith('/rpc/monthly_budget_category_page_v3')) {
-      const body = request.postDataJSON() as { p_currency: 'USD' | 'LBP'; p_limit?: number | null };
+      const body = request.postDataJSON() as {
+        p_currency: 'USD' | 'LBP';
+        p_after_created_at?: string | null;
+        p_after_category_id?: string | null;
+        p_limit?: number | null;
+      };
       const limit = body.p_limit ?? 100;
       // Plan v3 lists parent (root) categories only -- spending recorded on a
       // subcategory is rolled into its parent's actual_spent_minor before this
       // fixture ever sees it. Nothing seeded here models a subcategory yet, so
-      // this filter is a no-op today and stays correct if one is added.
-      const roots = (options.budgetRows ?? []).filter((row) =>
-        row['currency'] === body.p_currency && row['parent_category_id'] === undefined);
-      const page = roots.slice(0, limit).map((row, index) => ({
-        category_id: row['category_id'],
-        category_created_at: `seed-${String(index).padStart(4, '0')}`,
-        name_en: row['name_en'] ?? null,
-        name_ar: row['name_ar'] ?? null,
-        archived_at: row['archived_at'] ?? null,
-        target_minor: row['target_minor'] ?? '0',
-        actual_spent_minor: row['actual_spent_minor'] ?? '0',
-        remaining_minor: row['remaining_minor'] ?? null,
-        overspent_minor: row['overspent_minor'] ?? '0',
-        target_revision_id: row['target_revision_id'] ?? null,
-        has_more: roots.length > limit,
+      // that part of orderedV3Roots is a no-op today and stays correct if one
+      // is added (its actual_spent_minor must already be pre-summed into the
+      // parent row in the seed data -- this mock does not do that arithmetic).
+      const roots = orderedV3Roots(options.budgetRows ?? [], body.p_currency);
+      const after = body.p_after_created_at != null && body.p_after_category_id != null
+        ? { createdAt: body.p_after_created_at, categoryId: body.p_after_category_id }
+        : null;
+      const { page: pageRoots, hasMore } = pageV3Roots(roots, after, limit);
+      const page = pageRoots.map(({ categoryId, createdAt, source }) => ({
+        category_id: categoryId,
+        category_created_at: createdAt,
+        name_en: source['name_en'] ?? null,
+        name_ar: source['name_ar'] ?? null,
+        archived_at: source['archived_at'] ?? null,
+        target_minor: source['target_minor'] ?? '0',
+        actual_spent_minor: source['actual_spent_minor'] ?? '0',
+        remaining_minor: source['remaining_minor'] ?? null,
+        overspent_minor: source['overspent_minor'] ?? '0',
+        target_revision_id: source['target_revision_id'] ?? null,
+        has_more: hasMore,
       }));
       return json(route, page);
     }
