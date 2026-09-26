@@ -300,6 +300,25 @@ describe('useRecurring: overdue bills (D1, D10)', () => {
     expect(result.current.page.rows).toHaveLength(1000);
     expect(result.current.truncated).toBe(true);
   });
+
+  it('errors out (rather than looping to MAX_PAGES) when a page cursor does not advance', async () => {
+    const gateway = new InMemoryRecurringGateway();
+    const stalledCursor = { dueDate: '2026-09-20', id: 'stalled-0' };
+    gateway.loadOccurrences = vi.fn(async () => ({
+      rows: [{ ...coreOccurrenceRowFixture, id: 'stalled-0', overdue: false }],
+      hasMore: true, nextCursor: stalledCursor, asOf: '2026-09-14',
+    }));
+    const { result } = renderHook(() => useRecurring(gateway, 'space-1', '2026-09-01', '2026-09-30'));
+    await waitFor(() => expect(result.current.status).toBe('error'));
+    // A stalled cursor is detected on the second call (the first response's
+    // cursor is only known to be a repeat once it's sent back and echoed
+    // again) -- never all the way to MAX_PAGES.
+    expect(gateway.loadOccurrences).toHaveBeenCalledTimes(2);
+    // The error path must not leave stale or partial rows visible, and must
+    // not be mistaken for the "beyond MAX_PAGES" truncation case.
+    expect(result.current.page.rows).toHaveLength(0);
+    expect(result.current.truncated).toBe(false);
+  });
 });
 
 // The literal shared 15-second transport timeout is proved once, in isolation,

@@ -41,7 +41,15 @@ const PAGE_LIMIT = 100;
 
 /** Pages one keyset-cursor RPC to completion (or to `MAX_PAGES`, whichever
  * comes first). Shared by the overdue and upcoming-window loads below --
- * they differ only in which gateway method `fetchPage` calls. */
+ * they differ only in which gateway method `fetchPage` calls.
+ *
+ * Fails loudly rather than looping: if a page's `nextCursor` is the exact
+ * cursor that was just sent to fetch it, the RPC isn't advancing (a server
+ * regression, most likely) and re-fetching would silently re-append the same
+ * page up to `MAX_PAGES` times -- duplicate ids (duplicate React keys) and a
+ * truncation banner that misreports a stall as "more data exists". The check
+ * runs before the page's rows are folded into the accumulator, so a stalled
+ * page's rows are never added even once. */
 async function loadAll(
   fetchPage: (cursor: ScheduledOccurrencePageCursor | null) => Promise<ScheduledOccurrencePage>,
 ): Promise<{ rows: ScheduledOccurrenceRow[]; truncated: boolean }> {
@@ -49,6 +57,9 @@ async function loadAll(
   let cursor: ScheduledOccurrencePageCursor | null = null;
   for (let index = 0; index < MAX_PAGES; index += 1) {
     const page = await fetchPage(cursor);
+    if (cursor && page.nextCursor && page.nextCursor.dueDate === cursor.dueDate && page.nextCursor.id === cursor.id) {
+      throw new Error('recurring page cursor did not advance');
+    }
     rows.push(...page.rows);
     if (!page.nextCursor) return { rows, truncated: false };
     cursor = page.nextCursor;

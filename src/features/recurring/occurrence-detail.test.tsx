@@ -26,9 +26,9 @@ function page(rows: readonly ScheduledOccurrenceRow[] = [row()]): ScheduledOccur
 
 function fakeRecurringState(overrides: Partial<RecurringState> = {}): RecurringState {
   return {
-    status: 'ready', page: page(), error: null, pending: false, ambiguous: null,
+    status: 'ready', page: page(), truncated: false, error: null, pending: false, ambiguous: null,
     refresh: vi.fn(), saveSchedule: vi.fn(), materialize: vi.fn(), setOccurrenceState: vi.fn(),
-    confirm: vi.fn(), linkExisting: vi.fn(), retryAmbiguous: vi.fn(), clearAmbiguous: vi.fn(), loadMore: vi.fn(),
+    confirm: vi.fn(), linkExisting: vi.fn(), retryAmbiguous: vi.fn(), clearAmbiguous: vi.fn(),
     ...overrides,
   } as unknown as RecurringState;
 }
