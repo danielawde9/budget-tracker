@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest';
 const script = join(process.cwd(), 'scripts/ops/apply-live-migrations.sh');
 const projectRef = 'hqblhzqitrbvpyoxtmew';
 const fixtureProjectRef = projectRef;
-const releaseHead = '67cc00c09e4f10441012965ad6c591bcd7f7f7d2';
+const releaseHead = '0510169b78a4d21561267c48be322d72177c51d6';
 const liveRunnerCommit = 'b9537efa69216a42189cbb878c4bfa849a5b52f5';
 const subprocessTimeoutMillis = 10_000;
 const defaultProjects = JSON.stringify([{ id: fixtureProjectRef, name: 'Budget' }]);
@@ -187,14 +187,14 @@ describe('one-time live Supabase migration runner', () => {
     expect(source).not.toContain('SERVICE_ROLE_KEY:?');
   });
 
-  it('verifies the exact 54-row journal and merged schema after application', () => {
+  it('verifies the exact 55-row journal and merged schema after application', () => {
     const source = readFileSync(script, 'utf8');
     const verificationSql = source.slice(
       source.indexOf('readonly LIVE_VERIFY_SQL='),
       source.indexOf('\n\nlive_fail()'),
     );
 
-    expect(verificationSql.match(/'20[0-9]{12}'/g)).toHaveLength(54);
+    expect(verificationSql.match(/'20[0-9]{12}'/g)).toHaveLength(55);
     expect(verificationSql).toContain("'20260908170000'");
     expect(verificationSql).toContain("'20260910100000'");
     expect(verificationSql).toContain("'20260911100000'");
@@ -290,6 +290,10 @@ describe('one-time live Supabase migration runner', () => {
     expect(verificationSql).toContain("'20260925103000'");
     expect(verificationSql).toContain(
       "to_regprocedure('public.scheduled_overdue_page(uuid,date,uuid,integer)')",
+    );
+    expect(verificationSql).toContain("'20260925104000'");
+    expect(verificationSql).toContain(
+      "n.nspname = 'private' and p.proname = 'check_goal_earmark_event' and p.prosrc like '%goal_financing_state%'",
     );
     expect(verificationSql).not.toContain("to_regclass('public.subcategories')");
   });
