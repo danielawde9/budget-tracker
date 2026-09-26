@@ -56,6 +56,9 @@ describe('CategoriesPage', () => {
     await user.click(screen.getByRole('button', { name: 'Expense' }));
     expect(screen.getByRole('button', { name: 'Income' })).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByRole('button', { name: 'Expense' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('heading', { name: 'Income categories' }).closest('.cr-card')).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Expense categories' }).closest('.cr-card')).not.toBeNull();
+    expect(screen.getByRole('list', { name: 'Subcategories of Groceries' })).toBeInTheDocument();
   });
 
   it('nests active children under roots and requires child archival before parent archival', async () => {

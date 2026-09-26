@@ -204,7 +204,7 @@ test('a child category posts its exact identity without changing signed minor un
   await expect(dialog.getByRole('status')).toContainText('Transaction recorded');
   await dialog.getByRole('button', { name: 'Done' }).click();
   await expect(page.getByText('Groceries').last()).toBeVisible();
-  await expect(page.getByText('-$12.50')).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Transaction history entries' }).getByText('-$12.50')).toBeVisible();
 });
 
 test('archived historical label remains while ambiguity reconciles without duplicate posts', async ({ page }, testInfo) => {
@@ -222,7 +222,7 @@ test('archived historical label remains while ambiguity reconciles without dupli
   await dialog.getByRole('button', { name: 'Record income' }).click();
   await expect(dialog.getByRole('status')).toContainText('Transaction recorded');
   await dialog.getByRole('button', { name: 'Done' }).click();
-  await expect(page.getByText('$9.00')).toHaveCount(1);
+  await expect(page.getByRole('table', { name: 'Transaction history entries' }).getByText('$9.00')).toHaveCount(1);
 });
 
 test('category load failure offers a deterministic manager retry', async ({ page }, testInfo) => {

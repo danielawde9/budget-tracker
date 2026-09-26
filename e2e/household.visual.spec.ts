@@ -50,7 +50,7 @@ async function openHousehold(page: Page, options: HouseholdFixtureOptions = {}) 
   await page.goto('/');
   await chooseWorkspaceDestination(page, 'Household');
   if (!options.failHouseholdOnce) {
-    await expect(page.getByRole('heading', { name: options.memberAccess ? 'Your household access' : 'Household access' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: options.memberAccess ? 'Your household access' : 'Household', level: 1 })).toBeVisible();
   }
 }
 
@@ -143,7 +143,7 @@ test('failed household read recovers through the explicit retry', async ({ page 
   const error = page.getByRole('alert');
   await expect(error).toContainText('household request was not accepted');
   await page.getByRole('button', { name: 'Try again' }).click();
-  await expect(page.getByRole('heading', { name: 'Household access' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Household', level: 1 })).toBeVisible();
 });
 
 test('mobile owner dialog is contained and restores focus', async ({ page }, testInfo) => {
@@ -168,7 +168,7 @@ test('mobile Arabic register mirrors safely without horizontal overflow', async 
   await switchWorkspaceLanguage(page);
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await chooseWorkspaceDestination(page, 'المنزل');
-  await expect(page.getByRole('heading', { name: 'إدارة المنزل' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'المنزل', level: 1 })).toBeVisible();
   await expect(page.getByText(householdFixtureIds.member.slice(0, 8)).locator('xpath=ancestor-or-self::bdi')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.screenshot({ path: screenshotPath(testInfo, 'mobile-arabic-register.png'), fullPage: true });
@@ -182,6 +182,9 @@ test('fragment acceptance clears the secret and selects the new household', asyn
   await expect(page).toHaveURL('/');
   const dialog = page.getByRole('dialog', { name: 'Accept household invitation' });
   await dialog.getByRole('button', { name: 'Accept invitation' }).click();
-  await expect(page.getByRole('heading', { name: 'Household space' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Current space: Home budget' })).toBeVisible();
+  const homeTitle = page.getByRole('heading', { name: 'Home', level: 1 });
+  await expect(homeTitle.locator('xpath=..').getByText('Household space', { exact: true })).toBeVisible();
   await expect(page).toHaveURL('/');
 });

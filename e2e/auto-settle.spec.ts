@@ -52,7 +52,8 @@ test('recording an expense that exactly matches a bill settles it automatically'
 
   await chooseWorkspaceDestination(page, 'Home');
   await recordSixtyDollarEssentialsExpense(page);
-  await expect(page.getByRole('heading', { name: 'Personal space' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible();
+  await expect(page.locator('.cr-header-text').getByText('Personal space', { exact: true })).toBeVisible();
 
   const settleNotice = page.getByRole('status').filter({ hasText: 'Internet' });
   await expect(settleNotice).toBeVisible();
@@ -86,7 +87,8 @@ test('a non-matching expense leaves the bill pending', async ({ page }) => {
   await page.getByRole('button', { name: 'Essentials', exact: true }).click();
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('button', { name: 'Confirm' }).click();
-  await expect(page.getByRole('heading', { name: 'Personal space' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible();
+  await expect(page.locator('.cr-header-text').getByText('Personal space', { exact: true })).toBeVisible();
   await expect(page.getByRole('status').filter({ hasText: 'Internet' })).toHaveCount(0);
 
   await chooseWorkspaceDestination(page, 'Plan');

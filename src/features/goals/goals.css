@@ -50,23 +50,73 @@
   gap: var(--cr-space-3);
 }
 
-.goal-filter-tabs button[aria-selected="true"] {
-  background: var(--cr-accent);
-  color: var(--cr-surface);
-}
-
 .goal-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--cr-space-2);
   list-style: none;
   padding-inline-start: 0;
+  margin: 0;
+  min-inline-size: 0;
+}
+
+.goal-page-content {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(220px, 1fr);
+  gap: var(--cr-space-3);
+  align-items: stretch;
+}
+
+.goal-help {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-3);
+}
+
+.goal-help h3,
+.goal-help p { margin: 0; }
+
+.goal-card-heading { align-items: flex-start; }
+
+.goal-card-figures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--cr-space-2);
+}
+.goal-card-figures > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-1);
+}
+.goal-card-figures > div:last-child { text-align: end; }
+
+.goal-card-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-1);
+}
+
+.goal-card-meta { margin: 0; }
+.goal-card-meta > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--cr-space-2);
+}
+.goal-card-meta dt { flex: 1; }
+.goal-card-meta dd { margin: 0; text-align: end; }
+.goal-card-meta bdi { white-space: nowrap; }
+
+@media (max-width: 1100px) {
+  .goal-page-content { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .goal-list { grid-template-columns: 1fr; }
 }
 
 .goal-list-row {
   display: flex;
   flex-direction: column;
-  gap: var(--cr-space-1);
+  gap: var(--cr-space-3);
 }
 
 /* ---- Detail metrics ------------------------------------------------------ */

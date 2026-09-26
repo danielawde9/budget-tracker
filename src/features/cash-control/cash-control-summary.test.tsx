@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { CashControlSummary } from './cash-control-summary.js';
@@ -39,6 +39,7 @@ function HookWiredSummary({ gateway, spaceId, onSpaceUnavailable }: {
 describe('CashControlSummary: loading/error', () => {
   it('shows a skeleton while loading (full and compact)', () => {
     render(<CashControlSummary locale="en" currency="USD" variant="full" available={slice(emptyAvailableCashSummary, { status: 'loading' })} />);
+    expect(screen.getByRole('heading', { name: 'Available after commitments' })).toBeInTheDocument();
     expect(document.querySelectorAll('.cr-skeleton').length).toBeGreaterThan(0);
   });
 
@@ -48,6 +49,7 @@ describe('CashControlSummary: loading/error', () => {
     render(<CashControlSummary locale="en" currency="USD" variant="full" available={slice(emptyAvailableCashSummary, {
       status: 'error', error: { code: 'unknown', message: 'boom', recovery: 'try again' }, refresh,
     })} />);
+    expect(screen.getByRole('heading', { name: 'Available after commitments' })).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('boom');
     await user.click(screen.getByRole('button', { name: 'Retry' }));
     expect(refresh).toHaveBeenCalled();
@@ -70,6 +72,7 @@ describe('CashControlSummary: loading/error', () => {
 describe('CashControlSummary: unplanned/incomplete states never show an allowance', () => {
   it('unplanned: shows a no-plan message and no daily guide', () => {
     render(<CashControlSummary locale="en" currency="USD" variant="full" available={slice({ ...emptyAvailableCashSummary, state: 'unplanned' })} />);
+    expect(screen.getByRole('heading', { name: 'Available after commitments' })).toBeInTheDocument();
     expect(screen.getByText(/No published plan snapshot yet/)).toBeInTheDocument();
     expect(screen.queryByText('Extra unassigned cash per day')).not.toBeInTheDocument();
   });
@@ -86,6 +89,7 @@ describe('CashControlSummary: unplanned/incomplete states never show an allowanc
     render(<CashControlSummary locale="en" currency="USD" variant="compact" available={slice({ ...emptyAvailableCashSummary, state: 'incomplete' })} />);
     expect(screen.getByText('This figure needs a refresh before it can be shown.')).toBeInTheDocument();
     expect(screen.queryByText('Available after commitments')).not.toBeInTheDocument();
+    expect(document.querySelector('.cc-metric--hero')).not.toBeInTheDocument();
   });
 });
 
@@ -187,7 +191,7 @@ describe('CashControlSummary: ready state data assertions', () => {
     </>);
     expect(document.querySelector('.cc-metric--hero')).toHaveTextContent('$1,000.00'); // available, pre-payment
     expect(screen.getByText('Essentials').closest('tr')).toHaveTextContent('$500.00'); // still an unpaid bill
-    expect(screen.getByText('2026-09-15').closest('tr')).toHaveTextContent('$500.00'); // still a projected outflow
+    expect(within(screen.getByRole('table', { name: /Daily forecast/ })).getByText('2026-09-15').closest('tr')).toHaveTextContent('$500.00'); // still a projected outflow
 
     // After payment: cash drops by exactly 50000 (the bill is now settled,
     // out of actual cash), the group's unpaid-bill/commitment lines drop to
@@ -215,7 +219,7 @@ describe('CashControlSummary: ready state data assertions', () => {
     const groupRow = screen.getByText('Essentials').closest('tr')!;
     expect(groupRow).toHaveTextContent('$0.00');
     expect(groupRow).not.toHaveTextContent('$500.00'); // the bill is gone from "still owed"
-    const outlookRow = screen.getByText('2026-09-15').closest('tr')!;
+    const outlookRow = within(screen.getByRole('table', { name: /Daily forecast/ })).getByText('2026-09-15').closest('tr')!;
     expect(outlookRow).not.toHaveTextContent('$500.00'); // and never re-appears as a projected outflow
   });
 });
@@ -250,7 +254,8 @@ describe('CashControlSummary: real hook wiring covers a space switch while loadi
     const { rerender } = render(<HookWiredSummary gateway={gateway} spaceId="revoked-space" onSpaceUnavailable={onSpaceUnavailable} />);
     await waitFor(() => expect(onSpaceUnavailable).toHaveBeenCalled());
     expect(document.querySelectorAll('.cr-skeleton').length).toBeGreaterThan(0); // membership loss clears data back to loading
-    expect(screen.queryByText('Available after commitments')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Available after commitments' })).toBeInTheDocument();
+    expect(document.querySelector('.cc-metric--hero')).not.toBeInTheDocument();
 
     gateway.error = null;
     gateway.available = coreAvailableCashSummaryFixture;

@@ -11,6 +11,7 @@ import { SkeletonStatus } from '../control-room/skeletons.js';
 
 interface UpcomingPageProps {
   locale: Locale;
+  currency: Currency;
   recurring: RecurringState;
   /** The same bounded window `useRecurring` was constructed with -- reused
    * verbatim for the explicit "Refresh occurrences" materialize call so the
@@ -43,6 +44,26 @@ function kindLabel(locale: Locale, kind: 'income' | 'expense' | 'debt_payment'):
   return t(locale, 'Expense', 'مصروف');
 }
 
+function windowTotals(rows: RecurringState['page']['rows'], fromDate: string, toDate: string) {
+  let inflowMinor = 0n;
+  let outflowMinor = 0n;
+  let inflowCount = 0;
+  let outflowCount = 0;
+  for (const row of rows.slice(0, MAX_PAGES * PAGE_LIMIT)) {
+    if (row.dueDate < fromDate || row.dueDate > toDate || row.state === 'settled' || row.state === 'skipped') continue;
+    const remaining = BigInt(row.remainingMinor);
+    if (remaining <= 0n) continue;
+    if (row.kind === 'income') {
+      inflowMinor += remaining;
+      inflowCount += 1;
+    } else {
+      outflowMinor += remaining;
+      outflowCount += 1;
+    }
+  }
+  return { inflowMinor, outflowMinor, inflowCount, outflowCount, netMinor: inflowMinor - outflowMinor };
+}
+
 /** The full occurrence list as one accessible table -- an exact-value table
  * with a per-row bar-chart equivalent, matching `allocation-bars.tsx`'s own
  * shape (task 08, the closest chart/bars precedent) rather than goals'
@@ -60,8 +81,9 @@ export function UpcomingPage(props: UpcomingPageProps) {
     return <OccurrenceDetail locale={props.locale} recurring={recurring} occurrenceId={selectedId} onBack={() => setSelectedId(null)} walletOptions={props.walletOptions} />;
   }
 
-  const rows = recurring.page.rows;
+  const rows = recurring.page.rows.filter((row) => row.currency === props.currency);
   const filteredRows = rows.filter((row) => filter === 'all' || occurrenceBucket(row) === filter);
+  const totals = windowTotals(rows, props.fromDate, props.toDate);
   const busy = recurring.status === 'saving';
 
   // No own landmark region here -- the route wiring's `UpcomingBillsSection`
@@ -77,14 +99,15 @@ export function UpcomingPage(props: UpcomingPageProps) {
           onClick={() => void recurring.materialize({ fromDate: props.fromDate, toDate: props.toDate })}>
           {t(props.locale, 'Refresh occurrences', 'تحديث الدفعات')}
         </button>
-        <button type="button" className="cr-button" onClick={() => setCreating(true)}>{t(props.locale, 'New schedule', 'جدول جديد')}</button>
+        <button type="button" className="cr-button cr-button--primary" onClick={() => setCreating(true)}>{t(props.locale, 'New schedule', 'جدول جديد')}</button>
       </div>
     </div>
 
-    <div className="rec-row rec-filter-tabs" role="tablist" aria-label={t(props.locale, 'Filter occurrences', 'تصفية الدفعات')}>
-      {FILTERS.map((value) => <button key={value} type="button" role="tab" aria-selected={filter === value}
-        className="cr-button" onClick={() => setFilter(value)}>{filterLabel(props.locale, value)}</button>)}
-    </div>
+    <div className="rec-content"><div className="rec-list-panel">
+      <div className="cr-chips rec-filter-tabs" role="tablist" aria-label={t(props.locale, 'Filter occurrences', 'تصفية الدفعات')}>
+        {FILTERS.map((value) => <button key={value} type="button" role="tab" aria-selected={filter === value}
+          className={`cr-chip${filter === value ? ' cr-chip--active' : ''}`} onClick={() => setFilter(value)}>{filterLabel(props.locale, value)}</button>)}
+      </div>
 
     {/* The count is the shared pager's own cap, in the locale's digits (M4). */}
     {recurring.truncated && <p className="cr-banner" role="alert">
@@ -125,6 +148,7 @@ export function UpcomingPage(props: UpcomingPageProps) {
               <th scope="col">{t(props.locale, 'Due', 'الاستحقاق')}</th>
               <th scope="col">{t(props.locale, 'Status', 'الحالة')}</th>
               <th scope="col">{t(props.locale, 'Expected', 'المتوقع')}</th>
+              <th scope="col">{t(props.locale, 'Settled', 'المُسدَّد')}</th>
               <th scope="col">{t(props.locale, 'Remaining', 'المتبقي')}</th>
               <th scope="col">{t(props.locale, 'Progress', 'التقدم')}</th>
               <th scope="col"><span className="rec-visually-hidden">{t(props.locale, 'Actions', 'الإجراءات')}</span></th>
@@ -144,9 +168,11 @@ export function UpcomingPage(props: UpcomingPageProps) {
                     <span className={`rec-badge rec-badge-${bucket}`}>{occurrenceBucketLabel(props.locale, bucket)}</span>
                   </td>
                   <td data-label={t(props.locale, 'Expected', 'المتوقع')}><bdi>{formatMinorAmount(row.expectedMinor, row.currency, props.locale)}</bdi></td>
+                  <td data-label={t(props.locale, 'Settled', 'المُسدَّد')}><bdi>{formatMinorAmount(row.settledMinor, row.currency, props.locale)}</bdi></td>
                   <td data-label={t(props.locale, 'Remaining', 'المتبقي')}><bdi>{formatMinorAmount(row.remainingMinor, row.currency, props.locale)}</bdi></td>
                   <td className="rec-bar-visual">
                     {hasTarget && <div className="rec-progress" data-over={over ? 'true' : undefined} aria-hidden="true"><span style={{ inlineSize: `${percent}%` }} /></div>}
+                    {hasTarget && BigInt(row.settledMinor) > 0n && <span className="rec-label-muted"><bdi>{new Intl.NumberFormat(props.locale === 'ar' ? 'ar-LB' : 'en-US', { maximumFractionDigits: 0 }).format(percent)}%</bdi> {t(props.locale, 'settled', 'مُسدَّد')}</span>}
                     {over && overageMinor && <span className="rec-overage-text">+<bdi>{formatMinorAmount(overageMinor, row.currency, props.locale)}</bdi></span>}
                   </td>
                   <td>
@@ -162,6 +188,20 @@ export function UpcomingPage(props: UpcomingPageProps) {
           </table>
         </div>
     )}
+
+    </div>
+    {(recurring.status === 'ready' || recurring.status === 'saving') && <aside className="cr-card rec-window-summary" aria-label={t(props.locale, 'Window summary', 'ملخص الفترة')}>
+      <h3>{t(props.locale, 'In this window', 'خلال هذه الفترة')}</h3>
+      <p className="cr-helper"><bdi>{props.fromDate}</bdi> – <bdi>{props.toDate}</bdi> · {props.currency}</p>
+      <dl>
+        <div><dt><bdi>{new Intl.NumberFormat(props.locale === 'ar' ? 'ar-LB' : 'en-US').format(totals.outflowCount)}</bdi> {t(props.locale, totals.outflowCount === 1 ? 'outflow' : 'outflows', 'مدفوعات خارجة')}</dt><dd><bdi>{formatMinorAmount(totals.outflowMinor.toString(), props.currency, props.locale)}</bdi></dd></div>
+        <div><dt><bdi>{new Intl.NumberFormat(props.locale === 'ar' ? 'ar-LB' : 'en-US').format(totals.inflowCount)}</bdi> {t(props.locale, totals.inflowCount === 1 ? 'inflow' : 'inflows', 'مدفوعات واردة')}</dt><dd><bdi>{formatMinorAmount(totals.inflowMinor.toString(), props.currency, props.locale)}</bdi></dd></div>
+        <div><dt>{t(props.locale, 'Net', 'الصافي')}</dt><dd><bdi>{formatMinorAmount(totals.netMinor.toString(), props.currency, props.locale)}</bdi></dd></div>
+      </dl>
+      <p className="cr-helper">{t(props.locale, 'Unsettled scheduled amounts; these are not cash already received or paid.', 'مبالغ مجدولة لم تُسوَّ بعد؛ وليست سيولة مستلمة أو مدفوعة بالفعل.')}</p>
+      {recurring.truncated && <p className="cr-helper">{t(props.locale, 'Totals include listed occurrences only.', 'تشمل المجاميع الدفعات المعروضة فقط.')}</p>}
+    </aside>}
+    </div>
 
     {creating && <ScheduleEditor locale={props.locale}
       referenceOptions={props.referenceOptions} plannedIncomeByCurrency={props.plannedIncomeByCurrency}

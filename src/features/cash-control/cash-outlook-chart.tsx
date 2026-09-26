@@ -37,6 +37,35 @@ function widestMagnitude(days: readonly CashOutlookDay[]): string {
   return widest.toString();
 }
 
+/** A scaled line over the same exact daily values shown in the table below.
+ * BigInt normalization happens before Number conversion so large balances
+ * cannot overflow plot coordinates. The selected scenario is the sole line;
+ * the other scenario is loaded only when its tab is selected. */
+function OutlookTrend({ locale, currency, days }: { locale: Locale; currency: Currency; days: readonly CashOutlookDay[] }) {
+  let low = days[0]!;
+  let minimum = 0n;
+  let maximum = 0n;
+  for (const day of days) {
+    const amount = BigInt(day.closingCashMinor);
+    if (amount < BigInt(low.closingCashMinor)) low = day;
+    if (amount < minimum) minimum = amount;
+    if (amount > maximum) maximum = amount;
+  }
+  const range = maximum - minimum;
+  const coordinate = (day: CashOutlookDay, index: number): string => {
+    const x = days.length === 1 ? 160 : 12 + (index * 296) / (days.length - 1);
+    const y = range === 0n ? 80 : 12 + Number(((maximum - BigInt(day.closingCashMinor)) * 13600n) / range) / 100;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  };
+  return <div className="cc-trend-block">
+    <svg className="cc-trend" role="img" aria-label={t(locale, 'Expected cash trend', 'اتجاه السيولة المتوقعة')} viewBox="0 0 320 160" preserveAspectRatio="none">
+      <line x1="12" y1="148" x2="308" y2="148" />
+      <polyline points={days.map(coordinate).join(' ')} />
+    </svg>
+    <p className="cr-helper">{t(locale, 'Lowest projected cash', 'أدنى سيولة متوقعة')}: <bdi>{formatMinorAmount(low.closingCashMinor, currency, locale)}</bdi> {t(locale, 'on', 'في')} <bdi>{low.date}</bdi></p>
+  </div>;
+}
+
 interface CashOutlookChartProps {
   locale: Locale;
   currency: Currency;
@@ -56,9 +85,9 @@ export function CashOutlookChart({ locale, currency, outlook, scenario, onScenar
     <section className="cc-outlook" aria-label={t(locale, 'Expected outlook', 'التوقع المتوقع')}>
       <div className="cc-row">
         <h3 className="cc-subheading">{t(locale, 'Expected outlook', 'التوقع المتوقع')}</h3>
-        <div className="cc-row cc-scenario-tabs" role="tablist" aria-label={t(locale, 'Forecast scenario', 'سيناريو التوقع')}>
+        <div className="cr-chips cc-scenario-tabs" role="tablist" aria-label={t(locale, 'Forecast scenario', 'سيناريو التوقع')}>
           {SCENARIOS.map((value) => (
-            <button key={value} type="button" role="tab" aria-selected={scenario === value} className="cr-button"
+            <button key={value} type="button" role="tab" aria-selected={scenario === value} className={`cr-chip${scenario === value ? ' cr-chip--active' : ''}`}
               onClick={() => onScenarioChange(value)}>
               {scenarioLabel(locale, value)}
             </button>
@@ -106,6 +135,7 @@ export function CashOutlookChart({ locale, currency, outlook, scenario, onScenar
             ) : (
               <p className="cc-label-muted">{t(locale, 'No shortfall projected in this window.', 'لا يوجد عجز متوقع في هذا النطاق.')}</p>
             )}
+            <OutlookTrend locale={locale} currency={currency} days={outlook.data.days} />
             <OutlookTable locale={locale} currency={currency} outlook={outlook.data} />
           </>
         )

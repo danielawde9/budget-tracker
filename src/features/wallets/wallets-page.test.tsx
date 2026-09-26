@@ -12,9 +12,9 @@ import { WalletsPage } from './wallets-page.js';
 
 const onSpaceUnavailable = vi.fn();
 
-function WalletsPageHarness({ gateway, categoriesGateway, initialDialog, locale = 'en' }: { gateway: InMemoryWalletsGateway; categoriesGateway?: CategoriesGateway; initialDialog?: 'transaction' | null; locale?: 'en' | 'ar' }) {
+function WalletsPageHarness({ gateway, categoriesGateway, initialDialog, locale = 'en', onOpenLoans = vi.fn() }: { gateway: InMemoryWalletsGateway; categoriesGateway?: CategoriesGateway; initialDialog?: 'transaction' | null; locale?: 'en' | 'ar'; onOpenLoans?: () => void }) {
   const walletState = useWallets(gateway, 'personal-space', undefined, undefined, categoriesGateway);
-  return <WalletsPage {...(categoriesGateway ? { categoriesGateway } : {})} {...(initialDialog === undefined ? {} : { initialDialog })} spaceId="personal-space" userId="11111111-1111-4111-8111-111111111111" locale={locale} walletState={walletState} onSpaceUnavailable={onSpaceUnavailable} onOpenLoans={vi.fn()} openTransaction={false} onTransactionDialogOpened={vi.fn()} />;
+  return <WalletsPage {...(categoriesGateway ? { categoriesGateway } : {})} {...(initialDialog === undefined ? {} : { initialDialog })} spaceId="personal-space" userId="11111111-1111-4111-8111-111111111111" locale={locale} walletState={walletState} onSpaceUnavailable={onSpaceUnavailable} onOpenLoans={onOpenLoans} openTransaction={false} onTransactionDialogOpened={vi.fn()} />;
 }
 
 function InitialTransactionHarness({ gateway }: { gateway: InMemoryWalletsGateway }) {
@@ -33,9 +33,10 @@ async function renderPage(
   gateway = new InMemoryWalletsGateway(),
   locale: 'en' | 'ar' = 'en',
   categoriesGateway?: CategoriesGateway,
+  onOpenLoans?: () => void,
 ) {
   const user = userEvent.setup();
-  render(<WalletsPageHarness gateway={gateway} {...(categoriesGateway ? { categoriesGateway } : {})} locale={locale} />);
+  render(<WalletsPageHarness gateway={gateway} {...(categoriesGateway ? { categoriesGateway } : {})} locale={locale} {...(onOpenLoans ? { onOpenLoans } : {})} />);
   await screen.findByRole('heading', { name: locale === 'ar' ? 'المحافظ' : 'Wallets' });
   await waitFor(() => expect(screen.queryByRole('status', { name: /loading/i })).not.toBeInTheDocument());
   return { gateway, user };
@@ -52,6 +53,18 @@ async function openArabicCategorizedIncome(user: ReturnType<typeof userEvent.set
 }
 
 describe('WalletsPage', () => {
+  it.each([
+    ['en', 'View in Loans'],
+    ['ar', 'عرض في القروض'],
+  ] as const)('opens the Loans plan from a loan-linked wallet entry in %s', async (locale, label) => {
+    const onOpenLoans = vi.fn();
+    const { user } = await renderPage(new InMemoryWalletsGateway(), locale, undefined, onOpenLoans);
+
+    await user.click(screen.getByRole('button', { name: label }));
+
+    expect(onOpenLoans).toHaveBeenCalledTimes(1);
+  });
+
   it('repeats an eligible journal entry as a new reviewed draft without posting it', async () => {
     const { gateway, user } = await renderPage();
 
@@ -65,6 +78,7 @@ describe('WalletsPage', () => {
   it('presents one primary transaction action, compact active balances, and a labelled journal in row order', async () => {
     await renderPage();
 
+    expect(screen.getByText('Balances, transactions and history.')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Add transaction' })).toHaveLength(1);
     expect(screen.getByRole('heading', { name: 'Active balances' }).closest('.wallet-context')).not.toBeNull();
     const table = screen.getByRole('table', { name: 'Transaction history entries' });
@@ -118,6 +132,25 @@ describe('WalletsPage', () => {
     expect(screen.queryByRole('button', { name: /delete/i })).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Undo income' })).toHaveLength(1);
     expect(screen.queryByRole('button', { name: 'Undo loan payment' })).not.toBeInTheDocument();
+  });
+
+  it('shows separate mobile wallet totals by currency from active balances', async () => {
+    await renderPage();
+
+    const totals = screen.getByRole('region', { name: 'Wallet totals by currency' });
+    expect(within(totals).getByText('$1,750.50')).toBeInTheDocument();
+    expect(within(totals).getByText('LBP 2,500,000')).toBeInTheDocument();
+  });
+
+  it('shows each wallet its own loaded recent activity', async () => {
+    await renderPage();
+
+    const daily = screen.getByRole('listitem', { name: 'Daily USD wallet' });
+    expect(within(daily).getByText('Recent transactions')).toBeInTheDocument();
+    expect(within(daily).getByText('Income')).toBeInTheDocument();
+    expect(within(daily).getByText('Loan payment')).toBeInTheDocument();
+    const reserve = screen.getByRole('listitem', { name: 'Reserve USD wallet' });
+    expect(within(reserve).getByText('No recent transactions')).toBeInTheDocument();
   });
 
   it('keeps wallet form values after a database rejection', async () => {
@@ -513,18 +546,19 @@ describe('WalletsPage', () => {
       }]);
     const { user } = await renderPage(walletGateway, 'ar', categoriesGateway);
 
-    expect(screen.getByText(currentEvent.effectiveDate)).toBeInTheDocument();
+    const journal = screen.getByRole('table', { name: 'قيود سجل المعاملات' });
+    expect(within(journal).getByText(currentEvent.effectiveDate)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'تحميل قيود أقدم' }));
 
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('تعذّر تحميل القيود الأقدم');
     expect(alert).toHaveTextContent('لم يتم قبول طلب الفئة');
     expect(alert).not.toHaveTextContent('raw category history failure');
-    expect(screen.getByText(currentEvent.effectiveDate)).toBeInTheDocument();
+    expect(within(journal).getByText(currentEvent.effectiveDate)).toBeInTheDocument();
 
     await user.click(within(alert).getByRole('button', { name: 'إعادة تحميل القيود الأقدم' }));
 
-    expect(await screen.findByText(olderEvent.effectiveDate)).toBeInTheDocument();
+    expect(await within(journal).findByText(olderEvent.effectiveDate)).toBeInTheDocument();
     expect(screen.getByText('راتب').closest('bdi')).not.toBeNull();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(walletGateway.calls.some((call) => call.name === 'recordEvent')).toBe(false);

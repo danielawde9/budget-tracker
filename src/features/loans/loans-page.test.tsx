@@ -9,7 +9,7 @@ import type { LoanHistoryItem, Locale } from './types.js';
 async function renderPage(gateway = new InMemoryLoansGateway()) {
   const user = userEvent.setup();
   render(<LoansPage gateway={gateway} />);
-  await screen.findByText('Maya');
+  await screen.findByRole('button', { name: 'Open Maya loan' });
   return { gateway, user };
 }
 
@@ -86,12 +86,49 @@ describe('LoansPage', () => {
     expect(within(usd).getByText('$500.00')).toBeInTheDocument();
     expect(within(usd).getByText('$200.00')).toBeInTheDocument();
     expect(within(usd).getByText('$300.00')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'They owe me' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'I owe them' })).toBeInTheDocument();
+    expect(within(usd).getAllByText('1 active loan')).toHaveLength(2);
+    expect(screen.getByRole('heading', { name: 'Money lent' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Money borrowed' })).toBeInTheDocument();
     expect(screen.getByText('Outstanding')).toBeInTheDocument();
     expect(screen.getByText('Overdue')).toBeInTheDocument();
     expect(screen.getByText('Settled')).toBeInTheDocument();
     expect(screen.queryByText(/grand total/i)).not.toBeInTheDocument();
+  });
+
+  it('opens the existing repayment flow directly from each outstanding loan card', async () => {
+    const { user } = await renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'Receive repayment from Maya' }));
+    expect(screen.getByRole('dialog', { name: 'Receive repayment from Maya' })).toBeInTheDocument();
+    await user.click(within(screen.getByRole('dialog', { name: 'Receive repayment from Maya' })).getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('dialog', { name: 'Maya loan details' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Record repayment to Karim' }));
+    expect(screen.getByRole('dialog', { name: 'Record repayment to Karim' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Receive repayment from Rana' })).not.toBeInTheDocument();
+  });
+
+  it('shows recent loan activity from the loaded ledger in date order', async () => {
+    await renderPage();
+
+    const activity = screen.getByRole('region', { name: 'Recent loan activity' });
+    const rows = within(activity).getAllByRole('listitem');
+    expect(rows.map((row) => within(row).getByRole('time').getAttribute('datetime'))).toEqual([
+      '2026-09-05', '2026-07-01', '2026-06-01',
+    ]);
+    expect(within(rows[0]!).getByText('Maya')).toBeInTheDocument();
+    expect(within(rows[0]!).getByText('Repayment received')).toBeInTheDocument();
+  });
+
+  it('labels a loan date as a date and shows the monthly target on borrowed cards', async () => {
+    await renderPage();
+
+    const maya = screen.getByRole('button', { name: 'Open Maya loan' });
+    expect(within(maya).getByText('Due date')).toBeInTheDocument();
+    expect(within(maya).getByText('2026-09-30')).toBeInTheDocument();
+    const karim = screen.getByRole('button', { name: 'Open Karim loan' });
+    expect(within(karim).getByText('Monthly target')).toBeInTheDocument();
+    expect(within(karim).getByText('$500.00')).toBeInTheDocument();
   });
 
   it('uses the workspace page hierarchy and mobile-safe rows while keeping recovery and dialog actions clear', async () => {

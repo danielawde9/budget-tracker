@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import type { CurrencySummary } from '../loans/types.js';
+import type { CurrencySummary, Loan } from '../loans/types.js';
 import { formatMinorAmount } from '../wallets/money.js';
 import { PlanPage } from './plan-page.js';
 import type { BudgetCategoryRow, BudgetCurrencySummary } from './types.js';
@@ -51,6 +51,16 @@ function loansSummary(overrides: Partial<CurrencySummary> = {}): CurrencySummary
     expectedCollectionMinor: '0',
     owedToMeMinor: '0',
     iOweMinor: '0',
+    ...overrides,
+  };
+}
+
+function owedLoan(overrides: Partial<Loan> = {}): Loan {
+  return {
+    id: 'loan-maya', spaceId: 'space-1', direction: 'i_owe_them', personName: 'Maya', currency: 'USD',
+    effectiveDate: '2026-01-01', dueDate: null, note: null, outstandingMinor: '100000',
+    originalPrincipalMinor: '100000', totalRepaidMinor: '0', status: 'outstanding',
+    plan: { targetMinor: '20000', actualRepaymentMinor: '0', remainingReservationMinor: '20000', dueAmountMinor: '0', expectedCollectionMinor: '0' },
     ...overrides,
   };
 }
@@ -154,7 +164,7 @@ describe('PlanPage', () => {
   });
 
   it('renders category rows with name, target vs actual, and an over progress bar when overspent', () => {
-    const { container } = setup({
+    setup({
       categoryRows: [
         categoryRow(),
         categoryRow({
@@ -168,8 +178,57 @@ describe('PlanPage', () => {
     expect(within(list).getByText('Groceries')).toBeInTheDocument();
     expect(within(list).getByText('Dining')).toBeInTheDocument();
     expect(within(list).queryByText('Old')).not.toBeInTheDocument();
-    expect(container.querySelectorAll('.cr-progress')).toHaveLength(2);
-    expect(container.querySelectorAll('.cr-progress--over')).toHaveLength(1);
+    expect(list.querySelectorAll('.cr-progress')).toHaveLength(2);
+    expect(list.querySelectorAll('.cr-progress--over')).toHaveLength(1);
+  });
+
+  it('shows each target share of planned income without replacing spent-versus-target context', () => {
+    setup({
+      summaries: [summary({ plannedIncomeMinor: '300000' })],
+      categoryRows: [categoryRow({ targetMinor: '100000', actualSpentMinor: '80000' })],
+    });
+    const row = screen.getByText('Groceries').closest('li');
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLElement).getByText('33% of planned income')).toBeInTheDocument();
+    expect(within(row as HTMLElement).getByText('$800.00').closest('p')).toHaveTextContent('$800.00 spent');
+    expect(within(row as HTMLElement).getByText('$1,000.00')).toBeInTheDocument();
+  });
+
+  it('shows an empty category and loan state for the selected currency', async () => {
+    const user = userEvent.setup();
+    setup({ categoryRows: [categoryRow()], loansSummary: [loansSummary()] });
+    await user.click(screen.getByRole('tab', { name: 'LBP' }));
+    expect(screen.getByText('No category targets this month.')).toBeInTheDocument();
+    expect(screen.getByText('No loan commitments this month.')).toBeInTheDocument();
+  });
+
+  it('summarizes category and loan commitments against planned income', () => {
+    setup({
+      summaries: [summary({ plannedIncomeMinor: '300000', categoryTargetTotalMinor: '200000', loanCommitmentMinor: '50000', unallocatedMinor: '50000' })],
+      loansSummary: [loansSummary({ targetMinor: '50000', actualRepaymentMinor: '10000', remainingReservationMinor: '40000' })],
+    });
+    const remaining = screen.getByRole('region', { name: 'Left to allocate USD' });
+    expect(within(remaining).getByText('83% allocated')).toBeInTheDocument();
+    const commitments = screen.getByRole('region', { name: 'Loan commitments' });
+    expect(within(commitments).getByText('$500.00')).toBeInTheDocument();
+    expect(within(commitments).getByText('$100.00').closest('small')).toHaveTextContent('$100.00 paid this month');
+  });
+
+  it('shows named outgoing loan commitments when current loan data is available', () => {
+    setup({
+      loansSummary: [loansSummary({ targetMinor: '50000' })],
+      loanRows: [
+        owedLoan(),
+        owedLoan({ id: 'loan-karim', personName: 'Karim', plan: { targetMinor: '30000', actualRepaymentMinor: '0', remainingReservationMinor: '30000', dueAmountMinor: '0', expectedCollectionMinor: '0' } }),
+        owedLoan({ id: 'loan-receivable', direction: 'they_owe_me', personName: 'Omar' }),
+      ],
+    });
+    const commitments = screen.getByRole('region', { name: 'Loan commitments' });
+    expect(within(commitments).getByText('Maya').closest('bdi')).not.toBeNull();
+    expect(within(commitments).getByText('Karim').closest('bdi')).not.toBeNull();
+    expect(within(commitments).queryByText('Omar')).not.toBeInTheDocument();
+    expect(within(commitments).getByText('$200.00')).toBeInTheDocument();
+    expect(within(commitments).getByText('$300.00')).toBeInTheDocument();
   });
 
   it('edits income through a plain numeric input and saves with the income revision', async () => {

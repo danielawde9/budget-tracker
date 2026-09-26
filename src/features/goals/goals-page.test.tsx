@@ -45,9 +45,20 @@ describe('GoalsPage', () => {
 
   it('lists active goals by default with their earmarked/covered figures', () => {
     render(<GoalsPage locale="en" currency="USD" plannedIncomeMinor={null} goals={fakeGoalsState()} />);
-    expect(screen.getByText('Emergency fund')).toBeInTheDocument();
-    expect(screen.getByText(/Earmarked \$600\.00/)).toBeInTheDocument();
-    expect(screen.getByText(/Covered \$300\.00/)).toBeInTheDocument();
+    const card = screen.getByText('Emergency fund').closest('li');
+    expect(card).toHaveTextContent('Earmarked$600.00');
+    expect(card).toHaveTextContent('Cash-covered$300.00');
+  });
+
+  it('shows target progress from cash coverage, plus the real date and monthly target', () => {
+    render(<GoalsPage locale="en" currency="USD" plannedIncomeMinor={null} goals={fakeGoalsState({ page: page([
+      summary({ coveredMinor: '30000', targetMinor: '600000', monthlyTargetMinor: '15000', dueDate: '2027-03-31' }),
+    ]) })} />);
+    const card = screen.getByText('Emergency fund').closest('li');
+    expect(card).toHaveTextContent('Target$6,000.00');
+    expect(card).toHaveTextContent('5% toward target');
+    expect(card).toHaveTextContent('Target date2027-03-31');
+    expect(card).toHaveTextContent('Monthly target$150.00');
   });
 
   it('shows an empty state distinct from loading when a filter has no matches', async () => {
@@ -57,12 +68,21 @@ describe('GoalsPage', () => {
     expect(screen.getByText('Emergency fund')).toBeInTheDocument();
   });
 
+  it('shows only flagged goals in Needs review, regardless of lifecycle state', async () => {
+    const flagged = summary({ id: 'flagged', nameEn: 'Check plan', state: 'active', needsReview: true });
+    const closed = summary({ id: 'closed', nameEn: 'Finished goal', state: 'closed', needsReview: false });
+    render(<GoalsPage locale="en" currency="USD" plannedIncomeMinor={null} goals={fakeGoalsState({ page: page([flagged, closed]) })} />);
+    await userEvent.click(screen.getByRole('tab', { name: 'Needs review' }));
+    expect(screen.getByText('Check plan')).toBeInTheDocument();
+    expect(screen.queryByText('Finished goal')).not.toBeInTheDocument();
+  });
+
   it('surfaces a wallet transfer never inflating goal progress (progress comes only from earmarked/covered/fulfilled fields)', () => {
     // U13-02: a wallet transfer has no goal command at all -- the fixture's
     // earmarkedMinor/coveredMinor are exactly what the row shows, proving
     // the UI never derives progress from anything but these DTO fields.
     render(<GoalsPage locale="en" currency="USD" plannedIncomeMinor={null} goals={fakeGoalsState({ page: page([summary({ earmarkedMinor: '60000', coveredMinor: '30000' })]) })} />);
-    expect(screen.getByText(/Earmarked \$600\.00/)).toBeInTheDocument();
+    expect(screen.getByText('Emergency fund').closest('li')).toHaveTextContent('Earmarked$600.00');
   });
 
   it('shows a retry action on error', async () => {

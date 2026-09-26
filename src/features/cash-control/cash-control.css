@@ -14,6 +14,26 @@
   white-space: nowrap;
 }
 
+.cc-page {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--cr-space-3);
+  align-items: start;
+}
+.cc-page-summary,
+.cc-page-outlook,
+.cc-page-reservations { min-inline-size: 0; }
+.cc-page-summary { grid-column: 1; grid-row: 1; }
+.cc-page-outlook { grid-column: 2; grid-row: 1; }
+.cc-page-reservations { grid-column: 1 / -1; grid-row: 2; }
+
+@media (max-width: 1000px) {
+  .cc-page { grid-template-columns: 1fr; }
+  .cc-page-summary,
+  .cc-page-outlook,
+  .cc-page-reservations { grid-column: 1; grid-row: auto; }
+}
+
 .cc-row {
   display: flex;
   flex-wrap: wrap;
@@ -112,13 +132,14 @@
 
 .cc-metrics {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--cr-space-3);
   margin: 0;
 }
 .cc-metrics--secondary {
   grid-template-columns: repeat(3, 1fr);
 }
+.cc-metric--hero { grid-column: 1 / -1; }
 .cc-metric dt {
   color: var(--cr-ink-soft);
   font-size: 11px;
@@ -279,13 +300,32 @@ td .cc-signed-bar {
   gap: var(--cr-space-2);
 }
 
-.cc-scenario-tabs button[aria-selected="true"] {
-  background: var(--cr-accent);
-  color: var(--cr-surface-sunken);
+.cc-trend-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-2);
+}
+.cc-trend {
+  display: block;
+  inline-size: 100%;
+  block-size: 180px;
+}
+.cc-trend line {
+  stroke: var(--cr-hairline);
+  stroke-width: 1;
+}
+.cc-trend polyline {
+  fill: none;
+  stroke: var(--cr-accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
 }
 
 .cc-bars {
-  overflow-x: auto;
+  overflow: auto;
+  max-block-size: 280px;
 }
 
 /* Phone-width layouts: responsive table -> stacked cards, matching the

@@ -79,8 +79,9 @@ test('first wallet creation preserves an honest zero balance', async ({ page }, 
   await dialog.getByRole('button', { name: 'Create wallet' }).click();
   await expect(dialog.getByRole('status')).toContainText('Wallet created');
   await dialog.getByRole('button', { name: 'Done' }).click();
-  await expect(page.getByText('First safe wallet').first()).toBeVisible();
-  await expect(page.getByText(/LBP.*0/)).toBeVisible();
+  const wallet = page.getByRole('listitem', { name: 'First safe wallet wallet' });
+  await expect(wallet).toBeVisible();
+  await expect(wallet.getByText(/LBP.*0/)).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-first-wallet.png'), fullPage: true });
 });
 
@@ -120,7 +121,7 @@ test('ambiguous posting reconciles by request ID without a second mutation', asy
   test.skip(testInfo.project.name !== 'desktop');
   await openWallets(page, { ambiguousEventOnce: true });
   await postTransaction(page, 'income', '7');
-  await expect(page.getByText('$7.00')).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Transaction history entries' }).getByText('$7.00')).toHaveCount(1);
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-ambiguous-reconciled.png'), fullPage: true });
 });
 

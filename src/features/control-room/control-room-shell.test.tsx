@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ControlRoomShell } from './control-room-shell.js';
@@ -15,6 +15,14 @@ const baseProps = {
 };
 
 describe('ControlRoomShell', () => {
+  it('shows the product identity in the desktop rail and a visible Record label on mobile', () => {
+    render(<ControlRoomShell {...baseProps}>content</ControlRoomShell>);
+    const rail = screen.getAllByRole('navigation', { name: 'Workspace' })[0]!;
+    expect(within(rail).getByText('Budget ledger')).toBeInTheDocument();
+    const mobileBar = screen.getAllByRole('navigation', { name: 'Workspace' })[1]!;
+    expect(within(mobileBar).getByText('Record')).toBeInTheDocument();
+  });
+
   it('renders five tab-bar slots with the record action in the center', () => {
     render(<ControlRoomShell {...baseProps}>content</ControlRoomShell>);
     for (const name of ['Home', 'Journal', 'Plan', 'Manage']) {

@@ -27,10 +27,13 @@ async function confirm(user: ReturnType<typeof userEvent.setup>, actionName: str
 describe('HouseholdPage', () => {
   it('renders the bounded owner roster and invitation lifecycle using isolated database values', async () => {
     await renderPage();
-    expect(screen.getByRole('heading', { name: 'Household access' }).closest('.cr-header')).not.toBeNull();
-    expect(screen.getByRole('heading', { name: 'Household access' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Household' }).closest('.cr-header')).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Household' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Members' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Invitations' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Your access' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Members' }).closest('.cr-card')).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Invitations' }).closest('.cr-card')).not.toBeNull();
     expect(screen.getAllByText(householdMemberId.slice(0, 8)).every((node) => node.closest('bdi') !== null)).toBe(true);
     expect(screen.queryByText(householdMemberId)).not.toBeInTheDocument();
     expect(screen.getAllByText('Home budget').every((node) => node.closest('bdi') !== null)).toBe(true);
@@ -152,7 +155,7 @@ describe('HouseholdPage', () => {
 
   it('localizes Arabic management and restores opener focus after Escape', async () => {
     const { user } = await renderPage(new InMemoryHouseholdGateway(), 'ar');
-    expect(screen.getByRole('heading', { name: 'إدارة المنزل' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'المنزل' })).toBeInTheDocument();
     const opener = screen.getByRole('button', { name: 'دعوة عضو' });
     await user.click(opener);
     const dialog = screen.getByRole('dialog', { name: 'دعوة عضو' });

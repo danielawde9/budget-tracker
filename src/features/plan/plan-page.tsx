@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Currency, CurrencySummary, Locale } from '../loans/types.js';
+import type { Currency, CurrencySummary, Loan, Locale } from '../loans/types.js';
 import { formatMinorAmount, parsePositiveMinorAmount } from '../wallets/money.js';
 import type { BudgetCategoryRow, BudgetCurrencySummary } from './types.js';
 
@@ -29,6 +29,13 @@ function categoryName(row: BudgetCategoryRow, locale: Locale): string {
   return primary ?? secondary ?? '';
 }
 
+function percentOf(partMinor: string, totalMinor: string): bigint | null {
+  const total = BigInt(totalMinor);
+  if (total <= 0n) return null;
+  const part = BigInt(partMinor);
+  return (part * 100n) / total;
+}
+
 export interface PlanPageProps {
   locale: Locale;
   month: string;
@@ -37,6 +44,7 @@ export interface PlanPageProps {
   pending: boolean;
   error: string | null;
   loansSummary: readonly CurrencySummary[];
+  loanRows?: readonly Loan[];
   onSaveIncome(input: { currency: Currency; amountMinor: string; expectedRevisionId: string | null }): Promise<boolean>;
   onSaveTarget(input: { categoryId: string; currency: Currency; amountMinor: string; expectedRevisionId: string | null }): Promise<boolean>;
 }
@@ -138,7 +146,12 @@ export function PlanPage(props: PlanPageProps) {
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
 
-  const activeRows = props.categoryRows.filter((row) => row.archivedAt === null);
+  const activeRows = props.categoryRows.filter((row) => row.archivedAt === null && row.currency === currency);
+  const activeSummary = summaries.find((summary) => summary.currency === currency);
+  const activeLoanSummary = props.loansSummary.find((row) => row.currency === currency);
+  const activeLoans = props.loanRows?.filter((row) => row.currency === currency && row.direction === 'i_owe_them' && BigInt(row.plan.targetMinor) > 0n) ?? [];
+  const commitmentMinor = activeLoanSummary?.targetMinor ?? activeSummary?.loanCommitmentMinor ?? '0';
+  const repaymentMinor = activeLoanSummary?.actualRepaymentMinor ?? activeSummary?.actualLoanRepaymentMinor ?? '0';
 
   const summaryFor = (currency: Currency): BudgetCurrencySummary | undefined =>
     summaries.find((summary) => summary.currency === currency);
@@ -177,6 +190,7 @@ export function PlanPage(props: PlanPageProps) {
           <span className="cr-danger-text">{failureMessage}</span>
         </div>
       ) : null}
+      <div className="cr-plan-summary-grid">
       {PLAN_CURRENCIES.filter((option) => option === currency).map((currency) => {
         const summary = summaryFor(currency);
         if (!summary) {
@@ -203,33 +217,53 @@ export function PlanPage(props: PlanPageProps) {
                 {t(locale, 'Edit', 'تعديل')}
               </button>
             </div>
-            <p className="cr-amount">{formatMinorAmount(summary.plannedIncomeMinor, currency, locale)}</p>
+            <p className="cr-amount cr-amount--hero"><bdi>{formatMinorAmount(summary.plannedIncomeMinor, currency, locale)}</bdi></p>
+            <p className="cr-helper">{t(locale, `Total expected income for ${monthLabel(props.month, locale)}.`, `إجمالي الدخل المتوقع لشهر ${monthLabel(props.month, locale)}.`)}</p>
           </section>
         );
       })}
       {summaries.filter((summary) => summary.currency === currency).map((summary) => {
         const overallocated = BigInt(summary.overallocatedMinor) !== 0n;
+        const allocatedMinor = (BigInt(summary.categoryTargetTotalMinor) + BigInt(summary.loanCommitmentMinor)).toString();
+        const allocatedPercent = percentOf(allocatedMinor, summary.plannedIncomeMinor);
         return (
           <section key={`allocate-${summary.currency}`} className="cr-card" aria-label={t(locale, 'Left to allocate', 'المتبقي للتخصيص') + ' ' + summary.currency}>
-            <h2 className="cr-label">
+            <h2>
               {overallocated
                 ? t(locale, 'Overallocated', 'تجاوز التخصيص')
                 : t(locale, 'Left to allocate', 'المتبقي للتخصيص')}
             </h2>
-            <p className={overallocated ? 'cr-amount cr-danger-text' : 'cr-amount'}>
-              {formatMinorAmount(overallocated ? summary.overallocatedMinor : summary.unallocatedMinor, summary.currency, locale)}
+            <p className={overallocated ? 'cr-amount cr-amount--hero cr-danger-text' : 'cr-amount cr-amount--hero'}>
+              <bdi>{formatMinorAmount(overallocated ? summary.overallocatedMinor : summary.unallocatedMinor, summary.currency, locale)}</bdi>
             </p>
+            {allocatedPercent !== null ? (
+              <>
+                <div className={overallocated ? 'cr-progress cr-progress--over' : 'cr-progress'} aria-hidden="true">
+                  <span style={{ inlineSize: `${Number(allocatedPercent > 100n ? 100n : allocatedPercent)}%` }} />
+                </div>
+                <p className="cr-helper cr-plan-allocation-caption">
+                  <span>{new Intl.NumberFormat(locale === 'ar' ? 'ar-LB' : 'en-US').format(allocatedPercent)}% {t(locale, 'allocated', 'مخصص')}</span>
+                  <bdi>{formatMinorAmount(allocatedMinor, currency, locale)} / {formatMinorAmount(summary.plannedIncomeMinor, currency, locale)}</bdi>
+                </p>
+              </>
+            ) : null}
           </section>
         );
       })}
+      </div>
+      <div className="cr-plan-detail-grid">
       <section className="cr-card" aria-label={t(locale, 'Category targets', 'أهداف الفئات')}>
-        <h2 className="cr-label">{t(locale, 'Category targets', 'أهداف الفئات')}</h2>
+        <h2>{t(locale, 'Category targets', 'أهداف الفئات')}</h2>
+        <p className="cr-helper">{t(locale, 'Plan how you want to allocate your income.', 'خطط لكيفية تخصيص دخلك.')}</p>
         {activeRows.length === 0 ? (
           <p>{t(locale, 'No category targets this month.', 'لا توجد أهداف فئات هذا الشهر.')}</p>
         ) : (
           <ul aria-label={t(locale, 'Category targets', 'أهداف الفئات')}>
-            {activeRows.filter((row) => row.currency === currency).map((row) => {
+            {activeRows.map((row) => {
               const overspent = row.overspentMinor !== '0';
+              const share = row.targetMinor !== null && activeSummary
+                ? percentOf(row.targetMinor, activeSummary.plannedIncomeMinor)
+                : null;
               let width: number | null = null;
               if (row.targetMinor !== null && BigInt(row.targetMinor) > 0n) {
                 const raw = (BigInt(row.actualSpentMinor) * 100n) / BigInt(row.targetMinor);
@@ -241,7 +275,7 @@ export function PlanPage(props: PlanPageProps) {
               return (
                 <li key={`${row.categoryId}-${row.currency}`} className="cr-plan-category">
                   <div className="cr-row">
-                    <span className="cr-plan-category-name">{categoryName(row, locale)}</span>
+                    <bdi className="cr-plan-category-name">{categoryName(row, locale)}</bdi>
                     <button
                       type="button"
                       className="cr-button cr-button--sm"
@@ -259,11 +293,12 @@ export function PlanPage(props: PlanPageProps) {
                     </button>
                   </div>
                   <div className="cr-row cr-plan-category-amounts">
-                    <span className={overspent ? 'cr-warn-text' : undefined}>
-                      {formatMinorAmount(row.actualSpentMinor, row.currency, locale)}
-                    </span>
-                    <span className="cr-label">/ {targetText}</span>
+                    <bdi className="cr-amount">{targetText}</bdi>
+                    {share !== null ? <span className="cr-helper">{new Intl.NumberFormat(locale === 'ar' ? 'ar-LB' : 'en-US').format(share)}% {t(locale, 'of planned income', 'من الدخل المخطط')}</span> : null}
                   </div>
+                  <p className={overspent ? 'cr-helper cr-warn-text' : 'cr-helper'}>
+                    <bdi>{formatMinorAmount(row.actualSpentMinor, row.currency, locale)}</bdi> {t(locale, 'spent', 'مصروف')}
+                  </p>
                   {width !== null ? (
                     <div className={overspent ? 'cr-progress cr-progress--over' : 'cr-progress'} aria-hidden="true">
                       <span style={{ inlineSize: `${width}%` }} />
@@ -276,16 +311,31 @@ export function PlanPage(props: PlanPageProps) {
         )}
       </section>
       <section className="cr-card" aria-label={t(locale, 'Loan commitments', 'التزامات الديون')}>
-        <h2 className="cr-label">{t(locale, 'Loan commitments', 'التزامات الديون')}</h2>
-        {props.loansSummary.length === 0 ? (
+        <h2>{t(locale, 'Loan commitments', 'التزامات الديون')}</h2>
+        <p className="cr-helper">{t(locale, 'Monthly loan payments.', 'دفعات القروض الشهرية.')}</p>
+        {BigInt(commitmentMinor) === 0n ? (
           <p>{t(locale, 'No loan commitments this month.', 'لا توجد التزامات ديون هذا الشهر.')}</p>
-        ) : props.loansSummary.filter((row) => row.currency === currency).map((row) => (
-          <div key={row.currency} className="cr-journal-row">
-            <span className="cr-chip">{row.currency}</span>
-            <span className="cr-amount">{formatMinorAmount(row.targetMinor, row.currency, locale)}</span>
-          </div>
-        ))}
+        ) : (
+          <>
+            {activeLoans.length > 0 ? (
+              <ul aria-label={t(locale, 'Monthly loan payments', 'دفعات القروض الشهرية')}>
+                {activeLoans.map((loan) => (
+                  <li key={loan.id} className="cr-journal-row cr-plan-loan-row">
+                    <bdi>{loan.personName}</bdi>
+                    <bdi className="cr-amount">{formatMinorAmount(loan.plan.targetMinor, currency, locale)}</bdi>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <div className="cr-journal-row cr-plan-loan-row">
+              <strong>{t(locale, 'Monthly total', 'إجمالي الشهر')}</strong>
+              <bdi className="cr-amount">{formatMinorAmount(commitmentMinor, currency, locale)}</bdi>
+              <small className="cr-helper"><bdi>{formatMinorAmount(repaymentMinor, currency, locale)}</bdi> {t(locale, 'paid this month', 'مسدد هذا الشهر')}</small>
+            </div>
+          </>
+        )}
       </section>
+      </div>
       {editTarget ? (
         <EditDialog
           locale={locale}

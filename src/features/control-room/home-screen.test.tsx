@@ -46,8 +46,10 @@ function event(overrides: Partial<JournalEvent>): JournalEvent {
 }
 
 describe('HomeScreen', () => {
-  it('shows net position per currency and the month selector', () => {
+  it('labels actual wallet balances per currency and keeps the month selector', () => {
     render(<HomeScreen {...props} />);
+    expect(screen.getByRole('region', { name: 'Wallet balances' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Net position' })).not.toBeInTheDocument();
     expect(screen.getByText('$1,284.50')).toBeInTheDocument();
     expect(screen.getByText(byExactText(formatMinorAmount('86700000', 'LBP', 'en')))).toBeInTheDocument();
     expect(screen.getByRole('combobox')).toHaveValue('2026-09-01');
@@ -67,6 +69,7 @@ describe('HomeScreen', () => {
     }]} />);
     expect(document.querySelector('.cr-progress--over')).not.toBeNull();
     expect(document.querySelector('.cr-warn-text')).not.toBeNull();
+    expect(screen.getByText('117%')).toBeInTheDocument();
   });
 
   it('falls back to a localized Uncategorized label for null names', () => {
@@ -94,11 +97,42 @@ describe('HomeScreen', () => {
     expect(document.querySelector('.cr-bars [data-role="previous"]')).not.toBeNull();
   });
 
+  it('compares real income and expense in a named currency without merging currencies', () => {
+    const trend: MonthlyCashSummary[] = [
+      { periodMonth: '2026-09-01', periodRole: 'current', currency: 'USD', incomeNetMinor: '70000', expenseNetMinor: '-40000', walletDeltaNetMinor: '30000' },
+      { periodMonth: '2026-09-01', periodRole: 'current', currency: 'LBP', incomeNetMinor: '2000000', expenseNetMinor: '-1500000', walletDeltaNetMinor: '500000' },
+    ];
+    render(<HomeScreen {...props} trend={trend} />);
+    const chart = screen.getByRole('region', { name: 'Monthly trend' });
+    expect(chart).toHaveTextContent('USD');
+    expect(chart).toHaveTextContent('LBP');
+    expect(chart).toHaveTextContent('Income');
+    expect(chart).toHaveTextContent('Expenses');
+    expect(chart).toHaveTextContent('In $700.00');
+    expect(chart).toHaveTextContent('Out $400.00');
+    expect(chart.querySelectorAll('[data-series="income"]')).toHaveLength(2);
+    expect(chart.querySelectorAll('[data-series="expense"]')).toHaveLength(2);
+  });
+
   it('shows recent activity with positive styling for income and hides the loans card when empty', () => {
     render(<HomeScreen {...props} recentEvents={[event({ payeeName: 'Employer' })]} />);
     expect(screen.getByText('Employer')).toBeInTheDocument();
     expect(screen.getByText('$250.00')).toHaveClass('cr-positive');
     expect(screen.queryByText(/Loans/)).not.toBeInTheDocument();
+  });
+
+  it('opens the full journal from recent activity and keeps Record for the empty state', async () => {
+    const user = userEvent.setup();
+    const onSeeAll = vi.fn();
+    const onRecord = vi.fn();
+    const { rerender } = render(<HomeScreen {...props} recentEvents={[event({ payeeName: 'Employer' })]} onSeeAll={onSeeAll} onRecord={onRecord} />);
+    await user.click(screen.getByRole('button', { name: 'See all activity' }));
+    expect(onSeeAll).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('button', { name: 'Record' })).not.toBeInTheDocument();
+
+    rerender(<HomeScreen {...props} recentEvents={[]} onSeeAll={onSeeAll} onRecord={onRecord} />);
+    await user.click(screen.getByRole('button', { name: 'Record' }));
+    expect(onRecord).toHaveBeenCalledOnce();
   });
 
   it('shows an inline error note with a retry action when data failed to load', async () => {

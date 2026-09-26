@@ -12,6 +12,15 @@ function rowLabel(row: AllocationGroupRow, locale: Locale): string {
   return name ?? (locale === 'ar' ? row.nameEn : row.nameAr) ?? t(locale, 'Group', 'مجموعة');
 }
 
+function incomeShare(basisPoints: string, locale: Locale): string {
+  const value = BigInt(basisPoints);
+  const negative = value < 0n;
+  const tenths = ((negative ? -value : value) + 5n) / 10n;
+  const formatter = new Intl.NumberFormat(locale === 'ar' ? 'ar-LB' : 'en-US');
+  const decimal = locale === 'ar' ? '٫' : '.';
+  return `${negative ? '-' : ''}${formatter.format(tenths / 10n)}${decimal}${formatter.format(tenths % 10n)}%`;
+}
+
 export interface AllocationBarsProps {
   locale: Locale;
   currency: Currency;
@@ -53,7 +62,7 @@ export function AllocationBars(props: AllocationBarsProps) {
             const negative = actual < 0n;
             const percent = target !== null ? chartPercent(negative ? '0' : row.actualMinor, target) : 0;
             const over = target !== null && BigInt(target) > 0n && actual > BigInt(target);
-            const overageMinor = over && target !== null ? (actual - BigInt(target)).toString() : null;
+            const variance = target !== null && row.varianceMinor !== null ? BigInt(row.varianceMinor) : null;
             const key = row.groupId ?? row.rowKind;
             const future = row.rowKind === 'future';
 
@@ -75,17 +84,20 @@ export function AllocationBars(props: AllocationBarsProps) {
                   {future ? <span className="alloc-label-muted">{' '}{t(locale, '(paid/allocated)', '(مدفوع/مخصَّص)')}</span> : null}
                 </td>
                 <td data-label={t(locale, 'Variance', 'الفرق')}>
-                  {row.varianceMinor === null ? (
+                  {variance === null ? (
                     <span className="alloc-label-muted">—</span>
                   ) : (
-                    <bdi className={BigInt(row.varianceMinor) < 0n ? 'alloc-danger-text' : undefined}>
-                      {formatMinorAmount(row.varianceMinor, currency, locale)}
+                    <bdi className={variance < 0n ? 'alloc-danger-text' : variance > 0n ? 'cr-positive' : undefined}>
+                      {formatMinorAmount((variance < 0n ? -variance : variance).toString(), currency, locale)}{' '}
+                      {variance < 0n
+                        ? t(locale, 'over target', 'فوق الهدف')
+                        : variance > 0n ? t(locale, 'under target', 'دون الهدف') : t(locale, 'on target', 'على الهدف')}
                     </bdi>
                   )}
                 </td>
                 <td data-label={t(locale, '% of income', 'نسبة من الدخل')}>
-                  {row.actualShareOfIncomeBps !== null && row.actualShareOfIncomeBps !== '0' ? (
-                    <bdi>{(BigInt(row.actualShareOfIncomeBps) / 100n).toString()}%</bdi>
+                  {row.actualShareOfIncomeBps !== null ? (
+                    <bdi>{incomeShare(row.actualShareOfIncomeBps, locale)}</bdi>
                   ) : (
                     <span className="alloc-label-muted">—</span>
                   )}
@@ -95,11 +107,6 @@ export function AllocationBars(props: AllocationBarsProps) {
                     <div className="alloc-progress" data-over={over ? 'true' : undefined} aria-hidden="true">
                       <span style={{ inlineSize: `${percent}%` }} />
                     </div>
-                  ) : null}
-                  {over && overageMinor ? (
-                    <span className="alloc-overage-text">
-                      +{formatMinorAmount(overageMinor, currency, locale)} {t(locale, 'over', 'زيادة')}
-                    </span>
                   ) : null}
                   {props.onDrilldown && (row.rowKind === 'spending' || row.rowKind === 'unmapped' || row.rowKind === 'uncategorized') ? (
                     <button

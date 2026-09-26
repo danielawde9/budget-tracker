@@ -3888,3 +3888,19 @@ The natural "merge and push" order would ship that frontend against a database t
 **Why:** Plan already summarizes loan commitments alongside budgets, goals, bills, and available cash. Opening loan balances and recording repayments from that context gives a direct path from the summary to the underlying commitments. The client asked whether Loans should move to Plan while reviewing the page concepts.
 
 **If changed:** If the client prefers Loans in Manage, revert the concept navigation before implementation. If the client approves this placement for the product, update the route and tab structure in a separate UI implementation session, with EN/AR and RTL review.
+
+## 2026-09-26 — Implement the approved desktop and mobile concepts across the current UI
+
+**Decision:** The client approved implementing the full 16-screen desktop and mobile concepts in an isolated UI worktree. Loans is now the last Plan section, after Upcoming bills. Manage contains Wallets, Categories, Household when applicable, phone setup, language, and account. A loan-linked wallet entry opens Plan > Loans. Home may show a read-only loan summary, while loan creation, repayment, and corrections live in Plan. This supersedes the proposal-only status in the preceding entry.
+
+**Why:** The concepts give daily activity, planning, and account management separate destinations, and the client explicitly selected the full concept across pages. The images contain illustrative amounts and some proposed data, so the implementation uses the app's real gateways, commands, and existing EN/AR flows. The visual changes do not add a backend contract for mock invitation links, net-position figures, or a second forecast scenario.
+
+**If changed:** If the client wants a different navigation home for Loans, update the Plan/Manage routes, wallet deep link, and EN/AR navigation tests together. If the illustrated metrics or invitation actions become product requirements, define their data source and behavior before adding the UI; the generated sample values cannot stand in for user data.
+
+## 2026-09-27 — Bound UI test workers to two
+
+**Decision:** `vitest.ui.config.ts` caps UI test workers at two. The test files and assertions remain the same.
+
+**Why:** During final verification, the default fork pool passed 926 tests but timed out while starting workers for 17 of the 104 files. Rerunning the complete 104-file, 1,331-test suite with `--maxWorkers=2` passed. A fixed cap makes the normal `pnpm check:ui` command use that verified execution shape on this development host.
+
+**If changed:** A host with a measured higher safe concurrency can raise the cap and compare full-suite runtime and worker-start reliability. Removing the cap restores host-dependent fork counts and may reproduce the startup timeout.

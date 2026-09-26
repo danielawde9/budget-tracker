@@ -1,12 +1,10 @@
 import { useId, useState, type ReactNode } from 'react';
-import { ChevronLeft, ChevronRight, Globe, HandCoins, LogOut, Smartphone, Tags, Users, Wallet } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Globe, LogOut, Mail, Smartphone, Tags, Users, Wallet } from 'lucide-react';
 import { CategoriesPage } from '../categories/categories-page.js';
 import type { CategoriesGateway } from '../categories/types.js';
 import { HouseholdPage } from '../household/household-page.js';
 import type { HouseholdGateway } from '../household/types.js';
 import type { Locale, SpaceKind } from '../loans/types.js';
-import type { LoansGateway } from '../loans/types.js';
-import { LoansPage } from '../loans/loans-page.js';
 import { PhoneShortcutPage } from '../quick-add/phone-shortcut-page.js';
 import { WalletsPage } from '../wallets/wallets-page.js';
 import type { WalletsState } from '../wallets/use-wallets.js';
@@ -15,7 +13,7 @@ import './manage-hub.css';
 
 const t = (locale: Locale, en: string, ar: string) => (locale === 'ar' ? ar : en);
 
-export type ManageSection = 'wallets' | 'categories' | 'loans' | 'household' | 'phone';
+export type ManageSection = 'wallets' | 'categories' | 'household' | 'phone';
 
 export interface ManageScreenProps {
   locale: Locale;
@@ -25,12 +23,12 @@ export interface ManageScreenProps {
   userId: string;
   userEmail: string | null;
   gateways: {
-    loans: LoansGateway;
     categories: CategoriesGateway;
     household: HouseholdGateway;
   };
   walletState: WalletsState;
   onLocaleChange(): void;
+  onOpenLoans(): void;
   onSignOut(): void;
   onSpaceUnavailable?: (() => void) | undefined;
 }
@@ -38,7 +36,6 @@ export interface ManageScreenProps {
 const SECTIONS: readonly { id: ManageSection; en: string; ar: string; descEn: string; descAr: string; icon: typeof Wallet }[] = [
   { id: 'wallets', en: 'Wallets', ar: 'المحافظ', descEn: 'Balances, transactions and history', descAr: 'الأرصدة والمعاملات والسجل', icon: Wallet },
   { id: 'categories', en: 'Categories', ar: 'الفئات', descEn: 'Income and expense labels', descAr: 'تسميات الدخل والمصروف', icon: Tags },
-  { id: 'loans', en: 'Loans', ar: 'القروض', descEn: 'Money borrowed and lent', descAr: 'أموال مقترضة ومُقرضة', icon: HandCoins },
   { id: 'household', en: 'Household', ar: 'المنزل', descEn: 'Members and invitations', descAr: 'الأعضاء والدعوات', icon: Users },
 ];
 
@@ -80,7 +77,8 @@ export function ManageScreen(props: ManageScreenProps) {
       <>
         <PageHeader title={t(locale, 'Manage', 'الإدارة')} />
         <nav className="cr-manage-menu mg-hub" aria-label={t(locale, 'Manage sections', 'أقسام الإدارة')}>
-          <div className="cr-card mg-hub-group">
+          <div className="cr-card mg-hub-group mg-hub-money">
+            <h2 className="mg-hub-heading">{t(locale, 'Your money', 'أموالك')}</h2>
             {sections.map((item) => (
               <ManageHubRow
                 key={item.id}
@@ -92,13 +90,13 @@ export function ManageScreen(props: ManageScreenProps) {
               />
             ))}
           </div>
-          <div className="cr-card mg-hub-group">
+          <div className="cr-card mg-hub-group mg-hub-preferences">
             <h2 className="mg-hub-heading">{t(locale, 'Preferences', 'التفضيلات')}</h2>
             <ManageHubRow
               name={t(locale, 'Language', 'اللغة')}
-              description={null}
+              description={locale === 'ar' ? 'العربية' : 'English'}
               icon={<Globe size={19} strokeWidth={2} />}
-              trail={<span className="cr-label">{locale === 'ar' ? 'العربية' : 'English'}</span>}
+              trail={locale === 'ar' ? <ChevronLeft aria-hidden size={18} /> : <ChevronRight aria-hidden size={18} />}
               onClick={props.onLocaleChange}
             />
             <ManageHubRow
@@ -109,12 +107,13 @@ export function ManageScreen(props: ManageScreenProps) {
               onClick={() => setSection('phone')}
             />
           </div>
-          <div className="cr-card mg-hub-group">
+          <div className="cr-card mg-hub-group mg-hub-account-group">
             <h2 className="mg-hub-heading">{t(locale, 'Account', 'الحساب')}</h2>
             <div className="cr-manage-row cr-manage-account mg-hub-account" role="group" aria-label={t(locale, 'Account', 'الحساب')}>
-              <span className="cr-manage-identity mg-hub-identity">
-                <span className="cr-label">{props.userEmail ?? t(locale, 'No email on file', 'لا يوجد بريد مسجّل')}</span>
-              </span>
+              <div className="mg-hub-account-email">
+                <span className="mg-hub-icon" aria-hidden="true"><Mail size={19} strokeWidth={2} /></span>
+                <span className="cr-manage-identity mg-hub-identity"><bdi>{props.userEmail ?? t(locale, 'No email on file', 'لا يوجد بريد مسجّل')}</bdi></span>
+              </div>
               <button type="button" className="cr-button mg-hub-signout" onClick={props.onSignOut}>
                 <LogOut aria-hidden size={16} />
                 {t(locale, 'Sign out', 'تسجيل الخروج')}
@@ -140,7 +139,7 @@ export function ManageScreen(props: ManageScreenProps) {
           walletState={props.walletState}
           locale={locale}
           onSpaceUnavailable={() => props.onSpaceUnavailable?.()}
-          onOpenLoans={() => setSection('loans')}
+          onOpenLoans={props.onOpenLoans}
         />
       ) : section === 'categories' ? (
         <CategoriesPage
@@ -151,14 +150,6 @@ export function ManageScreen(props: ManageScreenProps) {
         />
       ) : section === 'phone' ? (
         <PhoneShortcutPage locale={locale} />
-      ) : section === 'loans' ? (
-        <LoansPage
-          gateway={props.gateways.loans}
-          spaceId={spaceId}
-          locale={locale}
-          onSpaceUnavailable={() => props.onSpaceUnavailable?.()}
-          embedded
-        />
       ) : (
         <HouseholdPage
           gateway={props.gateways.household}

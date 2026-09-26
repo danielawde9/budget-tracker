@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import { translate } from '../../i18n.js';
 import { LoanList } from './loan-list.js';
 import { LoanSummary } from './loan-summary.js';
+import { formatMinorAmount } from './money.js';
 import { CorrectionDialog, CreateLoanDialog, LoanDetailDialog, RepaymentDialog, TargetDialog } from './loan-dialogs.js';
 import { useLoans } from './use-loans.js';
-import type { Loan, LoansGateway, Locale, Space } from './types.js';
+import type { Loan, LoanHistoryItem, LoansGateway, Locale, Space } from './types.js';
 import { LoansSkeleton } from '../control-room/skeletons.js';
 import { PageHeader } from '../control-room/page-header.js';
 import './loans-workspace.css';
@@ -20,6 +21,27 @@ interface LoansPageProps {
   embedded?: boolean;
 }
 
+const activityLabels: Record<LoanHistoryItem['kind'], readonly [string, string]> = {
+  loan_opening: ['Opening balance', 'رصيد افتتاحي'],
+  loan_lend: ['Loan given', 'قرض مُعطى'],
+  loan_borrow: ['Loan received', 'قرض مستلم'],
+  loan_receive_repayment: ['Repayment received', 'دفعة مستلمة'],
+  loan_repay_borrowing: ['Repayment paid', 'دفعة مدفوعة'],
+  reversal: ['Correction', 'تصحيح'],
+};
+
+function recentLoanActivity(loans: readonly Loan[]): { loan: Loan; item: LoanHistoryItem }[] {
+  const recent: { loan: Loan; item: LoanHistoryItem }[] = [];
+  for (const loan of loans) {
+    for (const item of loan.history ?? []) {
+      recent.push({ loan, item });
+      recent.sort((a, b) => b.item.effectiveDate.localeCompare(a.item.effectiveDate) || b.item.createdAt.localeCompare(a.item.createdAt));
+      if (recent.length > 5) recent.pop();
+    }
+  }
+  return recent;
+}
+
 export function LoansPage({ gateway, locale: controlledLocale, spaces: controlledSpaces, spaceId, onLocaleChange, onSpaceChange, onSpaceUnavailable, embedded = false }: LoansPageProps) {
   const state = useLoans(gateway, spaceId === undefined ? undefined : {
     spaceId,
@@ -30,9 +52,12 @@ export function LoansPage({ gateway, locale: controlledLocale, spaces: controlle
   const spaces = controlledSpaces ?? state.spaces;
   const [creating, setCreating] = useState(false);
   const [selectedLoanId, setSelectedLoanId] = useState<string | null>(null);
-  const [subdialog, setSubdialog] = useState<'repay' | 'target' | null>(null);
+  const [repaymentLoanId, setRepaymentLoanId] = useState<string | null>(null);
+  const [subdialog, setSubdialog] = useState<'target' | null>(null);
   const [correctionEventId, setCorrectionEventId] = useState<string | null>(null);
   const selectedLoan = state.dashboard?.loans.find((loan) => loan.id === selectedLoanId) ?? null;
+  const repaymentLoan = state.dashboard?.loans.find((loan) => loan.id === repaymentLoanId) ?? null;
+  const activity = state.dashboard ? recentLoanActivity(state.dashboard.loans) : [];
   const Root = embedded ? 'div' : 'main';
 
   useEffect(() => {
@@ -59,16 +84,25 @@ export function LoansPage({ gateway, locale: controlledLocale, spaces: controlle
     {state.loading && !state.dashboard ? <LoansSkeleton locale={locale} /> : null}
     {state.error ? <div className="error-notice ln-state-error" role="alert"><strong>{state.error.title}</strong><p>{state.error.message}</p><p>{state.error.recovery}</p><button type="button" onClick={() => void state.retry()}>{translate(locale, 'tryAgain')}</button></div> : null}
     {state.dashboard ? <>
-      <LoanSummary summaries={state.dashboard.summaries} locale={locale} />
+      <LoanSummary summaries={state.dashboard.summaries} loans={state.dashboard.loans} locale={locale} />
       <div className="loan-columns ln-registers">
-        <LoanList loans={state.dashboard.loans} direction="they_owe_me" locale={locale} onOpen={(loan) => setSelectedLoanId(loan.id)} onAddLoan={() => setCreating(true)} />
-        <LoanList loans={state.dashboard.loans} direction="i_owe_them" locale={locale} onOpen={(loan) => setSelectedLoanId(loan.id)} onAddLoan={() => setCreating(true)} />
+        <LoanList loans={state.dashboard.loans} direction="they_owe_me" locale={locale} onOpen={(loan) => setSelectedLoanId(loan.id)} onRepay={(loan) => setRepaymentLoanId(loan.id)} onAddLoan={() => setCreating(true)} />
+        <LoanList loans={state.dashboard.loans} direction="i_owe_them" locale={locale} onOpen={(loan) => setSelectedLoanId(loan.id)} onRepay={(loan) => setRepaymentLoanId(loan.id)} onAddLoan={() => setCreating(true)} />
       </div>
+      {activity.length > 0 && <section className="cr-card ln-activity" aria-label={locale === 'ar' ? 'نشاط القروض الأخير' : 'Recent loan activity'}>
+        <div className="cr-section-header"><h2>{locale === 'ar' ? 'نشاط القروض الأخير' : 'Recent loan activity'}</h2></div>
+        <ol className="ln-activity-list">{activity.map(({ loan, item }) => <li key={`${loan.id}-${item.eventId}`} className="ln-activity-row">
+          <time className="cr-helper" dateTime={item.effectiveDate}>{item.effectiveDate}</time>
+          <span className="ln-activity-description"><bdi>{loan.personName}</bdi><span className="cr-helper">{activityLabels[item.kind][locale === 'ar' ? 1 : 0]}</span></span>
+          <bdi className="cr-amount ln-activity-amount">{formatMinorAmount((item.walletAmountMinor ?? item.principalDeltaMinor).replace('-', ''), loan.currency, locale)}</bdi>
+          <button type="button" className="text-button" onClick={() => setSelectedLoanId(loan.id)} aria-label={locale === 'ar' ? `عرض سجل قرض ${loan.personName}` : `View ${loan.personName} loan history`}>{locale === 'ar' ? 'عرض القرض' : 'View loan'}</button>
+        </li>)}</ol>
+      </section>}
     </> : null}
 
     {creating && state.dashboard ? <CreateLoanDialog spaceId={state.dashboard.space.id} wallets={state.dashboard.wallets} locale={locale} onClose={() => setCreating(false)} onSave={state.createLoan} /> : null}
-    {selectedLoan ? <LoanDetailDialog loan={selectedLoan} locale={locale} active={!subdialog && !correctionEventId} onClose={() => setSelectedLoanId(null)} onRepay={() => setSubdialog('repay')} onTarget={() => setSubdialog('target')} onCorrect={setCorrectionEventId} /> : null}
-    {selectedLoan && subdialog === 'repay' && state.dashboard ? <RepaymentDialog loan={selectedLoan} wallets={state.dashboard.wallets} locale={locale} onClose={() => setSubdialog(null)} onSave={state.recordRepayment} /> : null}
+    {selectedLoan ? <LoanDetailDialog loan={selectedLoan} locale={locale} active={!repaymentLoanId && !subdialog && !correctionEventId} onClose={() => setSelectedLoanId(null)} onRepay={() => setRepaymentLoanId(selectedLoan.id)} onTarget={() => setSubdialog('target')} onCorrect={setCorrectionEventId} /> : null}
+    {repaymentLoan && state.dashboard ? <RepaymentDialog loan={repaymentLoan} wallets={state.dashboard.wallets} locale={locale} onClose={() => setRepaymentLoanId(null)} onSave={state.recordRepayment} /> : null}
     {selectedLoan && subdialog === 'target' ? <TargetDialog loan={selectedLoan} month={state.month} locale={locale} onClose={() => setSubdialog(null)} onSave={state.setMonthlyTarget} /> : null}
     {selectedLoan && correctionEventId ? <CorrectionDialog loan={selectedLoan} eventId={correctionEventId} locale={locale} onClose={() => setCorrectionEventId(null)} onSave={state.reverseEvent} /> : null}
   </Root>;

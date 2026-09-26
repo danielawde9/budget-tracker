@@ -18,6 +18,7 @@ spacing value, radius, shadow, or duration.
 | `--cr-border`, `--cr-hairline` | Control borders, dividers (hairline = subtler, dividers only) |
 | `--cr-ink`, `--cr-ink-soft` | Primary text, secondary text + hints |
 | `--cr-accent`, `--cr-accent-strong`, `--cr-accent-soft`, `--cr-accent-ink` | Primary action, selected state, selected tint, text-on-accent |
+| `--cr-rail-bg`, `--cr-rail-surface`, `--cr-rail-border`, `--cr-rail-ink`, `--cr-rail-muted`, `--cr-rail-indicator` | Desktop navigation rail and its selected state |
 | `--cr-warn`, `--cr-warn-strong`, `--cr-danger`, `--cr-danger-soft` | Warning, warning text, destructive, destructive tint |
 | `--cr-space-1..6` (4–32px) | All spacing. Sections breathe at `--cr-space-4`; related controls group at `--cr-space-2` |
 | `--cr-radius-sm` (12px), `--cr-radius` (16px), `--cr-radius-full` | Controls/inner groups, cards/dialogs, pills |
@@ -213,3 +214,43 @@ Rules:
 - Retired: `cr-title`, `cr-plan-header`, and the legacy
   `topbar`/`page-header`/`ln-header` header families (the unrouted
   `reports-page.tsx` is the only file still carrying the legacy classes).
+
+## 15. Responsive workspace and data cards
+
+- The desktop workspace has a dark forest `.cr-rail` with the space switcher,
+  Record action, and four destinations. The active destination uses the rail
+  surface and a narrow inline-start indicator. Keep readable text contrast on
+  both active and resting destinations, in EN and AR.
+- At narrow widths, the space switcher sits above the page and the fixed
+  `.cr-tabbar` shows Home, Journal, Record, Plan, and Manage. The Record label
+  stays visible below its button. Plan sections may scroll horizontally within
+  their navigation; the document itself must not scroll horizontally at 390px.
+- The main canvas uses `--cr-bg` and the wider `--cr-content-w-wide` limit on
+  desktop. Home and other summary pages may arrange existing `.cr-card`
+  sections in a grid, then stack them on mobile. Feature stylesheets determine
+  grid placement only; tokens and shared `cr-*` styles determine appearance.
+- A summary metric uses `.cr-label` for its name and `.cr-amount` with `<bdi>`
+  for its value. Use `.cr-amount--dashboard` for paired large currency balances
+  so long LBP values fit beside USD. Trend bars use the shared
+  `.daily-trend-pair` fill treatment.
+  Every trend still needs readable text values; bars alone never carry the
+  result. Registers use the existing row and card rules above.
+- The mobile Record sheet takes the full viewport height. Its existing stepped
+  flow, focus handling, and visible amount remain intact; on wider screens it
+  uses the normal dialog frame.
+
+## 16. Entry and first-space screens
+
+- The signed-out entry lives outside `.cr-shell`. Its `.auth-boundary` uses a
+  two-column card at desktop widths: the form on one side and a simple ledger
+  illustration on the other. The illustration is decorative and built from
+  local CSS with the shared tokens. Mobile shows the form in one column and
+  hides the illustration; the language control remains visible at the top.
+- First-space setup uses the existing two-step `.onboarding-dialog`. The
+  visible `.onboarding-progress` identifies the current step, and the space
+  type choices keep their descriptions and keyboard-operable controls. The
+  active choice uses the shared accent colors. The privacy and boundary notes
+  stay visible in the step where they inform the choice.
+- Entry styles live in `src/styles.css` because these screens render before
+  the Control Room shell. Reuse `--cr-*` tokens and the shared field, button,
+  focus, and dialog geometry; do not introduce another color palette.

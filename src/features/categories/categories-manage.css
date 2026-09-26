@@ -3,27 +3,35 @@
    Only --cr-* tokens, logical properties, mobile-first.
    ========================================================================== */
 
-/* ---- Registers as clean cards ---- */
-.cg-register {
-  background: var(--cr-surface);
-  border: 1px solid var(--cr-border);
-  border-radius: var(--cr-radius);
-  padding: var(--cr-space-4);
-  box-shadow: var(--cr-shadow-card);
-}
-
 .cg-register-header {
-  padding-block-end: var(--cr-space-3);
   margin-block-end: var(--cr-space-2);
-  border-block-end: 1px solid var(--cr-hairline);
 }
 
 .cg-count {
-  border-color: transparent;
-  background: var(--cr-accent-soft);
-  color: var(--cr-accent-strong);
-  font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.categories-workspace .cr-header-actions .cr-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cr-space-2);
+}
+
+.cr-main .cg-kind-tabs {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-inline-size: min(100%, 16rem);
+}
+
+.cr-main .cg-registers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
+  align-items: stretch;
+}
+
+.cr-main .cg-register {
+  display: flex;
+  min-inline-size: 0;
 }
 
 /* ---- Category tree rows ----
@@ -116,13 +124,6 @@
   margin-block-start: var(--cr-space-2);
 }
 
-/* ---- Mobile kind tabs ---- */
-.cg-kind-tabs button {
-  font-weight: 700;
-  border-radius: calc(var(--cr-radius-sm) - 4px);
-  transition: background-color var(--cr-duration) var(--cr-ease), color var(--cr-duration) var(--cr-ease);
-}
-
 /* ---- Dialog internals ---- */
 .cg-form {
   gap: var(--cr-space-4);
@@ -174,8 +175,29 @@
   padding-block: var(--cr-space-5) var(--cr-space-2);
 }
 
+@media (max-width: 800px) {
+  .cr-main .cg-registers {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cr-main .cg-kind-tabs {
+    inline-size: 100%;
+  }
+
+  .cg-list .cg-row-root {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cg-list .cg-row-root .cg-actions {
+    justify-content: start;
+  }
+
+  .cg-list .cg-row-root .cg-archive-note {
+    justify-self: start;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .cg-kind-tabs button,
   .cg-kind label,
   .cg-action {
     transition: none;

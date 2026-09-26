@@ -1,7 +1,7 @@
-import { expect, test, type TestInfo } from '@playwright/test';
+import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { installLoansApiFixture } from './fixtures/loans.js';
 import { expectDialogReturnsFocus } from './workspace-contract.js';
-import { chooseWorkspaceDestination, switchWorkspaceLanguage, switchWorkspaceSpace } from './workspace-navigation.js';
+import { chooseWorkspaceDestination, openPlanSection, switchWorkspaceLanguage, switchWorkspaceSpace } from './workspace-navigation.js';
 
 function screenshotPath(testInfo: TestInfo, name: string) {
   return process.env['UPDATE_VISUAL_ARTIFACTS'] === '1'
@@ -9,17 +9,35 @@ function screenshotPath(testInfo: TestInfo, name: string) {
     : testInfo.outputPath(name);
 }
 
+async function openLoans(page: Page, locale: 'en' | 'ar' = 'en') {
+  await chooseWorkspaceDestination(page, locale === 'ar' ? 'الخطة' : 'Plan');
+  await openPlanSection(page, locale === 'ar' ? 'القروض' : 'Loans');
+}
+
+function loanRegister(page: Page, direction: 'lent' | 'borrowed', locale: 'en' | 'ar' = 'en') {
+  const name = locale === 'ar'
+    ? (direction === 'lent' ? 'أموال أقرضتها' : 'أموال اقترضتها')
+    : (direction === 'lent' ? 'Money lent' : 'Money borrowed');
+  return page.getByRole('heading', { name, exact: true }).locator('xpath=ancestor::section[1]');
+}
+
+function openLoanButton(page: Page, person: 'Maya' | 'Karim', locale: 'en' | 'ar' = 'en') {
+  const direction = person === 'Maya' ? 'lent' : 'borrowed';
+  const name = locale === 'ar' ? `فتح قرض ${person}` : `Open ${person} loan`;
+  return loanRegister(page, direction, locale).getByRole('button', { name, exact: true });
+}
+
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await installLoansApiFixture(page);
   await page.goto('/');
-  await chooseWorkspaceDestination(page, 'Loans');
-  await expect(page.getByText('Maya')).toBeVisible();
+  await openLoans(page);
+  await expect(openLoanButton(page, 'Maya')).toBeVisible();
 });
 
 test('loan creation and detail dialogs return focus to their opener', async ({ page }) => {
   await expectDialogReturnsFocus(page, page.getByRole('button', { name: 'Add loan' }), 'Add a loan');
-  await expectDialogReturnsFocus(page, page.getByRole('button', { name: 'Open Karim loan' }), 'Karim loan details');
+  await expectDialogReturnsFocus(page, openLoanButton(page, 'Karim'), 'Karim loan details');
 });
 
 for (const [action, title] of [
@@ -28,7 +46,7 @@ for (const [action, title] of [
   ['Correct borrowing entry from Jun 1, 2026', 'Correct this ledger entry'],
 ] as const) {
   test(`closing ${title} returns focus to its detail action`, async ({ page }) => {
-    await page.getByRole('button', { name: 'Open Karim loan' }).click();
+    await openLoanButton(page, 'Karim').click();
     await expectDialogReturnsFocus(page, page.getByRole('button', { name: action, exact: true }), title);
   });
 }
@@ -36,17 +54,17 @@ for (const [action, title] of [
 test('desktop English overview and immutable detail', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop');
   await expect(page.getByTestId('summary-USD')).toContainText('Still reserved');
-  await expect(page.getByRole('heading', { name: 'They owe me' })).toBeVisible();
+  await expect(loanRegister(page, 'lent').getByRole('heading', { name: 'Money lent', exact: true })).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-en-overview.png'), fullPage: true });
 
-  await page.getByRole('button', { name: 'Open Karim loan' }).click();
+  await openLoanButton(page, 'Karim').click();
   await expect(page.getByRole('dialog', { name: 'Karim loan details' })).toContainText('Ledger history');
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-en-detail.png'), fullPage: true });
 });
 
 test('loan history correction actions name borrowing repayments in English and Arabic', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop');
-  await page.getByRole('button', { name: 'Open Karim loan' }).click();
+  await openLoanButton(page, 'Karim').click();
   let detail = page.getByRole('dialog', { name: 'Karim loan details' });
   await expect(detail.getByRole('button', { name: 'Correct borrowing entry from Jun 1, 2026' })).toBeVisible();
   await expect(detail.getByRole('button', { name: 'Correct borrowing repayment from Sep 3, 2026' })).toBeVisible();
@@ -54,8 +72,8 @@ test('loan history correction actions name borrowing repayments in English and A
 
   await switchWorkspaceLanguage(page);
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-  await chooseWorkspaceDestination(page, 'القروض');
-  await page.getByRole('button', { name: 'فتح قرض Karim' }).click();
+  await openLoans(page, 'ar');
+  await openLoanButton(page, 'Karim', 'ar').click();
   detail = page.getByRole('dialog', { name: 'تفاصيل قرض Karim' });
   await expect(detail.getByRole('button', { name: 'تصحيح قرض اقتراض بتاريخ ١ حزيران ٢٠٢٦' })).toBeVisible();
   await expect(detail.getByRole('button', { name: 'تصحيح دفعة سداد قرض بتاريخ ٣ أيلول ٢٠٢٦' })).toBeVisible();
@@ -70,8 +88,9 @@ test('mobile English creation and repayment overlays', async ({ page }, testInfo
   await page.screenshot({ path: screenshotPath(testInfo, 'mobile-en-create.png') });
   await create.getByRole('button', { name: 'Close' }).click();
 
-  await page.getByRole('button', { name: 'Open Maya loan' }).click();
-  await page.getByRole('button', { name: 'Receive repayment' }).click();
+  await openLoanButton(page, 'Maya').click();
+  const detail = page.getByRole('dialog', { name: 'Maya loan details' });
+  await detail.getByRole('button', { name: 'Receive repayment', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Receive repayment from Maya' })).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'mobile-en-repayment.png') });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
@@ -81,7 +100,7 @@ test('desktop Arabic household workspace mirrors the ledger', async ({ page }, t
   test.skip(testInfo.project.name !== 'desktop');
   await switchWorkspaceLanguage(page);
   await switchWorkspaceSpace(page, 'المساحة الحالية: My money', 'التبديل إلى Home budget');
-  await chooseWorkspaceDestination(page, 'القروض');
+  await openLoans(page, 'ar');
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await expect(page.getByRole('button', { name: 'المساحة الحالية: Home budget' })).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-ar-household.png'), fullPage: true });
@@ -90,8 +109,8 @@ test('desktop Arabic household workspace mirrors the ledger', async ({ page }, t
 test('mobile Arabic overdue correction rejection explains recovery', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile');
   await switchWorkspaceLanguage(page);
-  await chooseWorkspaceDestination(page, 'القروض');
-  await page.getByRole('button', { name: 'فتح قرض Karim' }).click();
+  await openLoans(page, 'ar');
+  await openLoanButton(page, 'Karim', 'ar').click();
   await page.getByRole('button', { name: /تصحيح قرض/ }).click();
   const correction = page.getByRole('dialog', { name: 'تصحيح هذا القيد' });
   await correction.getByRole('checkbox').check();
@@ -103,8 +122,9 @@ test('mobile Arabic overdue correction rejection explains recovery', async ({ pa
 
 test('mobile English overpayment keeps the entered amount and recovery', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile');
-  await page.getByRole('button', { name: 'Open Maya loan' }).click();
-  await page.getByRole('button', { name: 'Receive repayment' }).click();
+  await openLoanButton(page, 'Maya').click();
+  const detail = page.getByRole('dialog', { name: 'Maya loan details' });
+  await detail.getByRole('button', { name: 'Receive repayment', exact: true }).click();
   const repayment = page.getByRole('dialog', { name: 'Receive repayment from Maya' });
   await repayment.getByLabel('Repayment amount').fill('800');
   await repayment.getByRole('button', { name: 'Receive $800.00' }).click();

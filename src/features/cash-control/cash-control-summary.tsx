@@ -60,13 +60,15 @@ interface CashControlSummaryProps {
  * gets a fabricated positive allowance. */
 export function CashControlSummary({ locale, currency, available, variant }: CashControlSummaryProps) {
   const compact = variant === 'compact';
+  const fullHeading = <div className="cr-section-header"><h2>{t(locale, 'Available after commitments', 'المتاح بعد الالتزامات')}</h2></div>;
 
   if (available.status === 'loading') {
     return (
+      <>{!compact && fullHeading}
       <div className="cc-skeleton-rows" aria-hidden="true">
         <span className="cr-skeleton cr-skeleton--line-short" />
         <span className="cr-skeleton cr-skeleton--hero" />
-      </div>
+      </div></>
     );
   }
 
@@ -79,11 +81,11 @@ export function CashControlSummary({ locale, currency, available, variant }: Cas
         </button>
       </p>
     ) : (
-      <div className="cr-card" role="alert">
+      <>{fullHeading}<div className="cr-card" role="alert">
         <p>{available.error?.message}</p>
         <p><small>{available.error?.recovery}</small></p>
         <button type="button" className="cr-button" onClick={available.refresh}>{t(locale, 'Retry', 'إعادة المحاولة')}</button>
-      </div>
+      </div></>
     );
   }
 
@@ -92,16 +94,16 @@ export function CashControlSummary({ locale, currency, available, variant }: Cas
   if (data.state === 'unplanned') {
     return compact
       ? <p className="cc-compact-note">{t(locale, 'No published plan yet for this currency.', 'لا توجد خطة منشورة بعد لهذه العملة.')}</p>
-      : <p className="cc-label-muted">{t(locale, 'No published plan snapshot yet -- publish this month’s plan to see what is available after commitments.', 'لا يوجد لقطة خطة منشورة بعد — انشر خطة هذا الشهر لرؤية المتاح بعد الالتزامات.')}</p>;
+      : <div className="cc-summary">{fullHeading}<p className="cc-label-muted">{t(locale, 'No published plan snapshot yet -- publish this month’s plan to see what is available after commitments.', 'لا يوجد لقطة خطة منشورة بعد — انشر خطة هذا الشهر لرؤية المتاح بعد الالتزامات.')}</p></div>;
   }
 
   if (data.state === 'incomplete') {
     return compact
       ? <p className="cc-compact-note">{t(locale, 'This figure needs a refresh before it can be shown.', 'يحتاج هذا الرقم إلى تحديث قبل عرضه.')}</p>
-      : <div className="cc-label-muted">
+      : <div className="cc-summary">{fullHeading}<div className="cc-label-muted">
         <p>{t(locale, 'Some occurrences need materializing (or the overdue backlog is too large) before this figure can be trusted.', 'تحتاج بعض الدفعات إلى التوليد (أو أن التراكم المتأخر كبير جدًا) قبل الوثوق بهذا الرقم.')}</p>
         {data.unmaterializedCount > 0 && <p>{t(locale, 'Unmaterialized occurrences', 'دفعات غير مولَّدة')}: {data.unmaterializedCount}</p>}
-      </div>;
+      </div></div>;
   }
 
   // state === 'ready': availableMinor/spendableMinor/deficitMinor/
@@ -131,9 +133,7 @@ export function CashControlSummary({ locale, currency, available, variant }: Cas
 
   return (
     <div className="cc-summary">
-      <div className="cr-section-header">
-        <h2>{t(locale, 'Available after commitments', 'المتاح بعد الالتزامات')}</h2>
-      </div>
+      {fullHeading}
       <p className="cr-helper">
         {t(locale, 'Cash left after everything you have already committed to this month — bills, goals, and debt.', 'السيولة المتبقية بعد كل ما التزمت به هذا الشهر — الفواتير والأهداف والديون.')}
       </p>
@@ -144,13 +144,13 @@ export function CashControlSummary({ locale, currency, available, variant }: Cas
       )}
 
       <dl className="cc-metrics">
+        <div className="cc-metric cc-metric--hero">
+          <dt>{t(locale, 'Available after commitments', 'المتاح بعد الالتزامات')}</dt>
+          <dd><bdi className={`cr-amount cr-amount--hero${negative ? ' cc-danger-text' : ''}`}>{formatMinorAmount(availableMinor, currency, locale)}</bdi></dd>
+        </div>
         <div className="cc-metric">
           <dt>{t(locale, 'Actual cash', 'السيولة الفعلية')}</dt>
           <dd><bdi>{formatMinorAmount(data.cashMinor, currency, locale)}</bdi></dd>
-        </div>
-        <div className="cc-metric cc-metric--hero">
-          <dt>{t(locale, 'Available after commitments', 'المتاح بعد الالتزامات')}</dt>
-          <dd><bdi className={negative ? 'cc-danger-text' : undefined}>{formatMinorAmount(availableMinor, currency, locale)}</bdi></dd>
         </div>
         <div className="cc-metric">
           <dt>{t(locale, 'Spendable now', 'المتاح للإنفاق الآن')}</dt>

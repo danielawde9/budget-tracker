@@ -50,7 +50,7 @@ const readyCashOutlook: Record<string, unknown> = {
 async function openPlan(page: import('@playwright/test').Page, options: Parameters<typeof installApplicationFixture>[1] = {}) {
   await installApplicationFixture(page, options);
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Personal space' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
   await chooseWorkspaceDestination(page, 'Plan');
   await expect(page.getByRole('heading', { name: 'Plan', exact: true })).toBeVisible();
   await openPlanSection(page, 'Available cash');
@@ -59,7 +59,7 @@ async function openPlan(page: import('@playwright/test').Page, options: Paramete
 test('U19-01/U19-02: Home shows a compact signed shortfall, Plan shows the full breakdown with the already-deduplicated group commitment', async ({ page }, testInfo) => {
   await installApplicationFixture(page, { seedAvailableCashSummary: readyCashSummary, seedCashOutlook: readyCashOutlook });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Personal space' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
 
   const homeCard = page.getByRole('region', { name: 'Available after commitments', exact: true });
   await expect(homeCard).toContainText('-$100.00'); // signed, not clamped
@@ -75,7 +75,8 @@ test('U19-01/U19-02: Home shows a compact signed shortfall, Plan shows the full 
   await expect(usdSection).toContainText('$100.00'); // shortfall figure
   await expect(usdSection).toContainText('$0.00'); // spendable, floored at zero
 
-  const groupRow = usdSection.getByText('Essentials').locator('xpath=ancestor::tr[1]');
+  const reservations = page.getByRole('region', { name: 'Reservations by group USD', exact: true });
+  const groupRow = reservations.getByText('Essentials').locator('xpath=ancestor::tr[1]');
   await expect(groupRow).toContainText('$500.00'); // unpaid bills
   await expect(groupRow).toContainText('$300.00'); // covered by goal
   await expect(groupRow).toContainText('$200.00'); // net reserved -- 20000, never 50000+30000=80000
@@ -88,7 +89,7 @@ test('U19-01/U19-02: Home shows a compact signed shortfall, Plan shows the full 
 test('an unplanned currency shows a no-plan message on Home and Plan, not a crash', async ({ page }) => {
   await installApplicationFixture(page);
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Personal space' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Available after commitments', exact: true })).toContainText('No published plan yet');
 
   await chooseWorkspaceDestination(page, 'Plan');
@@ -108,30 +109,30 @@ test('U19-05: the daily extra guide renders the server-computed inclusive remain
 
 test('the outlook scenario switch changes the visible assumption text, and the negative day is flagged', async ({ page }) => {
   await openPlan(page, { seedAvailableCashSummary: readyCashSummary, seedCashOutlook: readyCashOutlook });
-  const usdSection = page.getByRole('region', { name: 'Available after commitments USD' });
-  await expect(usdSection).toContainText('First projected shortfall');
-  await expect(usdSection).toContainText('Overdue');
-  await expect(usdSection.getByText('First shortfall')).toBeVisible();
+  const outlook = page.getByRole('region', { name: 'Expected outlook USD', exact: true });
+  await expect(outlook).toContainText('First projected shortfall');
+  await expect(outlook).toContainText('Overdue');
+  await expect(outlook.getByText('First shortfall')).toBeVisible();
 
-  await expect(usdSection).toContainText('Projects only unpaid scheduled income');
-  await usdSection.getByRole('tab', { name: 'Conservative (no future income)' }).click();
-  await expect(usdSection).toContainText('Assumes no further income arrives');
+  await expect(outlook).toContainText('Projects only unpaid scheduled income');
+  await outlook.getByRole('tab', { name: 'Conservative (no future income)' }).click();
+  await expect(outlook).toContainText('Assumes no further income arrives');
 });
 
 test('a group’s Details drilldown expands its plain-language reservation explanation', async ({ page }) => {
   await openPlan(page, { seedAvailableCashSummary: readyCashSummary });
-  const usdSection = page.getByRole('region', { name: 'Available after commitments USD' });
-  const detailsButton = usdSection.getByRole('button', { name: 'Details Essentials' });
+  const reservations = page.getByRole('region', { name: 'Reservations by group USD', exact: true });
+  const detailsButton = reservations.getByRole('button', { name: 'Details Essentials' });
   await expect(detailsButton).toHaveAttribute('aria-expanded', 'false');
   await detailsButton.click();
-  await expect(usdSection).toContainText('still reserved against a remaining budget');
+  await expect(reservations).toContainText('still reserved against a remaining budget');
   await expect(detailsButton).toHaveAttribute('aria-expanded', 'true');
 });
 
 test('the compact Home card recovers from a load failure via its own distinctly-labelled retry', async ({ page }) => {
   await installApplicationFixture(page, { failAvailableCashSummaryOnce: true, seedAvailableCashSummary: readyCashSummary });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Personal space' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
   await expect(page.getByText('Available after commitments could not be loaded.')).toBeVisible();
   await page.getByRole('button', { name: 'Retry available cash' }).first().click();
   await expect(page.getByText('Available after commitments could not be loaded.')).toHaveCount(0);
@@ -140,7 +141,7 @@ test('the compact Home card recovers from a load failure via its own distinctly-
 test('Arabic RTL mirrors the compact and full available-after-commitments views', async ({ page }, testInfo) => {
   await installApplicationFixture(page, { seedAvailableCashSummary: readyCashSummary, seedCashOutlook: readyCashOutlook });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Personal space' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
   await switchWorkspaceLanguage(page);
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
 
@@ -152,7 +153,8 @@ test('Arabic RTL mirrors the compact and full available-after-commitments views'
   const arSection = page.getByRole('region', { name: 'المتاح بعد الالتزامات USD' });
   await arSection.scrollIntoViewIfNeeded();
   await expect(arSection).toContainText(formatMinorAmount('-10000', 'USD', 'ar'));
-  await expect(arSection.getByText('الأساسيات')).toBeVisible();
+  const arReservations = page.getByRole('region', { name: 'الحجوزات حسب المجموعة USD', exact: true });
+  await expect(arReservations.getByText('الأساسيات')).toBeVisible();
   await expectContainedControls(page);
   await page.screenshot({ path: screenshotPath(testInfo, `cash-control-ar-${testInfo.project.name}.png`), fullPage: true });
 });

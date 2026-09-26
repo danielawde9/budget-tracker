@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -7,7 +8,7 @@ import type { PublishMonthInput } from '../allocation/types.js';
 import type { LinkExistingInput } from '../recurring/types.js';
 import type { MonthlyCashSummary, ReportsGateway } from '../reports/types.js';
 import { InMemoryAllocationGateway } from '../../test/in-memory-allocation-gateway.js';
-import { InMemoryCashControlGateway } from '../../test/in-memory-cash-control-gateway.js';
+import { coreAvailableCashSummaryFixture, coreCashOutlookFixture, InMemoryCashControlGateway } from '../../test/in-memory-cash-control-gateway.js';
 import { InMemoryCategoriesGateway } from '../../test/in-memory-categories-gateway.js';
 import { InMemoryHouseholdGateway } from '../../test/in-memory-household-gateway.js';
 import { InMemoryLoansGateway } from '../../test/in-memory-loans-gateway.js';
@@ -16,6 +17,7 @@ import { coreOccurrenceRowFixture, InMemoryRecurringGateway } from '../../test/i
 import { InMemoryWalletsGateway } from '../../test/in-memory-wallets-gateway.js';
 import { ControlRoomRoutes } from './routes.js';
 import type { ControlRoomGateways } from './routes.js';
+import type { ControlRoomDestination } from './types.js';
 
 const BUDGET_ROW: CategoryBudgetRow = {
   categoryKey: 'groceries', nameEn: 'Groceries', nameAr: 'بقالة', kind: 'expense',
@@ -123,10 +125,10 @@ describe('ControlRoomRoutes skeleton loading states', () => {
     const skeletons = document.querySelectorAll('.cr-skeleton');
     expect(skeletons.length).toBeGreaterThan(0);
     for (const block of skeletons) expect(block).toHaveAttribute('aria-hidden', 'true');
-    expect(screen.queryByRole('region', { name: 'Net position' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Wallet balances' })).not.toBeInTheDocument();
 
     gate.resolve([BUDGET_ROW]);
-    expect(await screen.findByRole('region', { name: 'Net position' })).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Wallet balances' })).toBeInTheDocument();
     expect(screen.getByText('Groceries')).toBeInTheDocument();
     expect(document.querySelector('.cr-skeleton')).toBeNull();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
@@ -235,10 +237,12 @@ describe('ControlRoomRoutes record sheet', () => {
     expect(await screen.findByRole('dialog', { name: 'Record' })).toBeInTheDocument();
   });
 
-  it('requests the record sheet when the home Record action is pressed', async () => {
+  it('requests the record sheet from the empty Home activity action', async () => {
     const user = userEvent.setup();
     const onOpenRecord = vi.fn();
-    renderHome(gateways({}), { onOpenRecord });
+    const wallets = new InMemoryWalletsGateway();
+    wallets.events = [];
+    renderHome(gateways({ wallets }), { onOpenRecord });
     await user.click(await screen.findByRole('button', { name: 'Record' }));
     expect(onOpenRecord).toHaveBeenCalled();
   });
@@ -583,6 +587,71 @@ describe('ControlRoomRoutes allocation publish, twice in one visit', () => {
 });
 
 describe('ControlRoomRoutes plan destination', () => {
+  it('shows available cash, reservations, and forecast in separate cards', async () => {
+    const user = userEvent.setup();
+    const cashControl = new InMemoryCashControlGateway();
+    cashControl.available = coreAvailableCashSummaryFixture;
+    cashControl.outlook = coreCashOutlookFixture;
+    const gatewaysBag = gateways({});
+    gatewaysBag.cashControl = cashControl;
+    renderHome(gatewaysBag, { destination: 'plan' });
+
+    await user.click(within(screen.getByRole('navigation', { name: 'Plan sections' }))
+      .getByRole('button', { name: 'Available cash' }));
+
+    const summary = await screen.findByRole('region', { name: 'Available after commitments USD' });
+    const reservations = await screen.findByRole('region', { name: 'Reservations by group USD' });
+    const outlook = await screen.findByRole('region', { name: 'Expected outlook USD' });
+    for (const card of [summary, reservations, outlook]) {
+      expect(card.closest('.cr-card')).toBe(card);
+    }
+    expect(summary).not.toContainElement(reservations);
+    expect(summary).not.toContainElement(outlook);
+    expect(within(reservations).getByText('Essentials')).toBeInTheDocument();
+    expect(within(outlook).getByRole('tablist', { name: 'Forecast scenario' })).toBeInTheDocument();
+  });
+
+  it('opens Plan Loans from a loan-linked wallet entry', async () => {
+    const user = userEvent.setup();
+    const gatewaysBag = gateways({});
+    function ControlledRoutes() {
+      const [destination, setDestination] = useState<ControlRoomDestination>('manage');
+      return (
+        <ControlRoomRoutes
+          locale="en"
+          spaceId="personal-space"
+          spaceKind="personal"
+          destination={destination}
+          onDestinationChange={setDestination}
+          gateways={gatewaysBag}
+          recordOpen={false}
+          onCloseRecord={() => undefined}
+        />
+      );
+    }
+    render(<ControlledRoutes />);
+
+    await user.click(screen.getByRole('button', { name: 'Wallets' }));
+    await user.click(await screen.findByRole('button', { name: 'View in Loans' }));
+
+    const sections = await screen.findByRole('navigation', { name: 'Plan sections' });
+    expect(within(sections).getByRole('button', { name: 'Loans' })).toHaveAttribute('aria-pressed', 'true');
+    expect(await screen.findByRole('heading', { name: 'Loans' })).toBeInTheDocument();
+  });
+
+  it('opens the loan register from Plan without a currency filter', async () => {
+    const user = userEvent.setup();
+    renderHome(gateways({}), { destination: 'plan' });
+
+    const sections = screen.getByRole('navigation', { name: 'Plan sections' });
+    await user.click(within(sections).getByRole('button', { name: 'Loans' }));
+
+    expect(await screen.findByRole('heading', { name: 'Loans' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open Maya loan' })).toBeInTheDocument();
+    expect(screen.queryByRole('tablist', { name: 'Currency' })).not.toBeInTheDocument();
+    expect(within(sections).getByRole('button', { name: 'Loans' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
   it('renders the plan screen from the plan client and saves income through usePlan', async () => {
     const user = userEvent.setup();
     const plan = new InMemoryPlanClient();

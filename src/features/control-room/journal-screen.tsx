@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Download, HandCoins, Search } from 'lucide-react';
 
 import type { JournalCsvResult } from '../wallets/journal-csv.js';
-import type { Locale } from '../loans/types.js';
+import type { Currency, Locale } from '../loans/types.js';
 import { formatMinorAmount } from '../wallets/money.js';
 import type { JournalEvent, JournalEventKind } from '../wallets/types.js';
 import { KIND_LABELS, eventLabel } from './home-screen.js';
 import { PageHeader } from './page-header.js';
+import './daily-layout.css';
 
 const t = (locale: Locale, en: string, ar: string) => (locale === 'ar' ? ar : en);
 
@@ -61,6 +63,41 @@ function rowLabel(event: JournalEvent, locale: Locale): string {
     return t(locale, `Reversal of ${event.reversalOf}`, `عكس قيد ${event.reversalOf}`);
   }
   return eventLabel(event, locale);
+}
+
+function entryType(event: JournalEvent, locale: Locale): string {
+  if (isMultiCurrency(event)) return t(locale, 'Exchange', 'صرف');
+  if (LOAN_KINDS.includes(event.kind)) return t(locale, 'Loans', 'الديون');
+  return t(locale, KIND_LABELS[event.kind].en, KIND_LABELS[event.kind].ar);
+}
+
+function entryIcon(kind: JournalEventKind) {
+  if (kind === 'income') return ArrowUpRight;
+  if (kind === 'expense') return ArrowDownLeft;
+  if (LOAN_KINDS.includes(kind)) return HandCoins;
+  return ArrowLeftRight;
+}
+
+function displayDate(value: string, locale: Locale): string {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Intl.DateTimeFormat(locale === 'ar' ? 'ar-LB' : 'en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+  }).format(new Date(year ?? 0, (month ?? 1) - 1, day ?? 1));
+}
+
+function shownEntryTotals(events: readonly JournalEvent[]): Map<Currency, { income: bigint; expense: bigint }> {
+  const totals = new Map<Currency, { income: bigint; expense: bigint }>();
+  for (const event of events) {
+    if (event.kind !== 'income' && event.kind !== 'expense') continue;
+    for (const movement of event.movements) {
+      const current = totals.get(movement.currency) ?? { income: 0n, expense: 0n };
+      const amount = BigInt(movement.amountMinor);
+      totals.set(movement.currency, event.kind === 'income'
+        ? { ...current, income: current.income + amount }
+        : { ...current, expense: current.expense + (amount < 0n ? -amount : amount) });
+    }
+  }
+  return totals;
 }
 
 export interface JournalScreenProps {
@@ -156,6 +193,7 @@ export function JournalScreen(props: JournalScreenProps) {
   const visibleEvents = sourceEvents.filter(
     (event) => matchesFilter(event, kindFilter) && matchesDateRange(event, fromDate, toDate),
   );
+  const shownTotals = shownEntryTotals(visibleEvents);
   const filtersActive = kindFilter !== 'all' || fromDate !== '' || toDate !== '';
   const clearFilters = () => {
     setKindFilter('all');
@@ -166,7 +204,11 @@ export function JournalScreen(props: JournalScreenProps) {
 
   return (
     <>
-      <PageHeader title={t(locale, 'Journal', 'القيود')} />
+      <PageHeader
+        title={t(locale, 'Journal', 'القيود')}
+        subtitle={t(locale, 'Everything that has happened with your money.', 'كل ما حدث بأموالك.')}
+        actions={<button type="button" className="cr-button cr-button--sm" disabled={exportPending} onClick={() => void runExport()}><Download aria-hidden="true" size={18} />{exportPending ? t(locale, 'Exporting…', 'جارٍ التصدير…') : t(locale, 'Export CSV', 'تصدير CSV')}</button>}
+      />
       {exportFailed ? (
         <div role="alert">
           <span className="cr-danger-text">
@@ -179,14 +221,24 @@ export function JournalScreen(props: JournalScreenProps) {
           {t(locale, 'The export reached the row limit. Narrow the range and export again.', 'بلغ التصدير حد الصفوف. ضيّق النطاق وصدّر مجددًا.')}
         </p>
       ) : null}
+      <section className="cr-card daily-journal-totals" aria-label={t(locale, 'Shown entry totals', 'إجماليات القيود المعروضة')}>
+        <p className="cr-helper">{t(locale, 'Shown entries', 'القيود المعروضة')}</p>
+        {shownTotals.size === 0 ? <p className="cr-helper">{t(locale, 'No income or expenses in the entries shown.', 'لا دخل أو مصروفات في القيود المعروضة.')}</p> : (
+          <div className="daily-journal-total-grid">
+            <div><span className="cr-label">{t(locale, 'Total in', 'إجمالي الدخل')}</span>{[...shownTotals.entries()].map(([currency, values]) => <bdi key={currency} className="cr-amount cr-positive">{formatMinorAmount(values.income.toString(), currency, locale)}</bdi>)}</div>
+            <div><span className="cr-label">{t(locale, 'Total out', 'إجمالي المصروفات')}</span>{[...shownTotals.entries()].map(([currency, values]) => <bdi key={currency} className="cr-amount">{formatMinorAmount(values.expense.toString(), currency, locale)}</bdi>)}</div>
+          </div>
+        )}
+      </section>
+      <div className="daily-journal-filters">
       <label className="cr-field cr-journal-search">
         <span className="cr-label">{t(locale, 'Search', 'بحث')}</span>
-        <input
+        <span className="daily-search-control"><Search aria-hidden="true" size={18} /><input
           type="search"
           placeholder={t(locale, 'Notes, labels, wallets…', 'ملاحظات، أسماء، محافظ…')}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-        />
+        /></span>
       </label>
       <div className="cr-journal-dates">
         <label className="cr-field cr-journal-date">
@@ -211,6 +263,7 @@ export function JournalScreen(props: JournalScreenProps) {
           </button>
         ) : null}
       </div>
+      </div>
       <div className="cr-toolbar">
         <div className="cr-chips" role="group" aria-label={t(locale, 'Filter by type', 'تصفية حسب النوع')}>
           {FILTER_CHIPS.map((chip) => (
@@ -225,16 +278,9 @@ export function JournalScreen(props: JournalScreenProps) {
             </button>
           ))}
         </div>
-        <button
-          type="button"
-          className="cr-button cr-button--sm"
-          disabled={exportPending}
-          onClick={() => void runExport()}
-        >
-          {exportPending ? t(locale, 'Exporting…', 'جارٍ التصدير…') : t(locale, 'Export CSV', 'تصدير CSV')}
-        </button>
       </div>
-      <section className="cr-card" aria-label={t(locale, 'Journal entries', 'قيود اليومية')}>
+      <section className="cr-card daily-journal-register" aria-label={t(locale, 'Journal entries', 'قيود اليومية')}>
+        {visibleEvents.length > 0 ? <div className="daily-journal-columns cr-label" aria-hidden="true"><span>{t(locale, 'Date', 'التاريخ')}</span><span>{t(locale, 'Description', 'الوصف')}</span><span>{t(locale, 'Wallet', 'المحفظة')}</span><span>{t(locale, 'Type', 'النوع')}</span><span>{t(locale, 'Amount', 'المبلغ')}</span></div> : null}
         {searchActive && searchView?.pending === true && sourceEvents.length === 0 ? (
           <p role="status">{t(locale, 'Searching…', 'جارٍ البحث…')}</p>
         ) : null}
@@ -252,19 +298,24 @@ export function JournalScreen(props: JournalScreenProps) {
         ) : visibleEvents.map((event) => {
           const label = rowLabel(event, locale);
           const reversal = event.reversalOf !== null;
+          const Icon = entryIcon(event.kind);
+          const categoryName = locale === 'ar' ? event.category?.nameAr : event.category?.nameEn;
           return (
             <button
               key={event.id}
               type="button"
-              className="cr-journal-row cr-journal-row--button"
+              className="cr-journal-row cr-journal-row--button daily-journal-row"
               onClick={(click) => {
                 openerRef.current = click.currentTarget;
                 setReverseError(null);
                 setSelected(event);
               }}
             >
-              <span>{label}</span>
-              <span>
+              <span className="daily-journal-date cr-helper">{displayDate(event.effectiveDate, locale)}</span>
+              <span className="daily-journal-description"><Icon aria-hidden="true" size={18} /><span><bdi>{label}</bdi>{event.note?.trim() ? <small className="cr-helper"><bdi>{event.note.trim()}</bdi></small> : categoryName && categoryName !== label ? <small className="cr-helper"><bdi>{categoryName}</bdi></small> : null}</span></span>
+              <span className="daily-journal-wallet cr-helper">{event.movements.map((movement) => <bdi key={`${movement.walletId}-${movement.currency}`}>{movement.walletName}</bdi>)}</span>
+              <span className="daily-journal-kind cr-chip">{entryType(event, locale)}</span>
+              <span className="daily-journal-amount">
                 {event.movements.map((movement) => {
                   const positive = event.kind === 'income' && BigInt(movement.amountMinor) > 0n;
                   const className = reversal
@@ -273,9 +324,9 @@ export function JournalScreen(props: JournalScreenProps) {
                       ? 'cr-positive'
                       : undefined;
                   return (
-                    <span key={`${event.id}-${movement.walletId}-${movement.currency}`} className={className}>
+                    <bdi key={`${event.id}-${movement.walletId}-${movement.currency}`} className={className}>
                       {formatMinorAmount(movement.amountMinor, movement.currency, locale)}
-                    </span>
+                    </bdi>
                   );
                 })}
               </span>
@@ -315,18 +366,18 @@ export function JournalScreen(props: JournalScreenProps) {
             tabIndex={-1}
             onClick={(click) => click.stopPropagation()}
           >
-            <h2>{rowLabel(selected, locale)}</h2>
+            <h2><bdi>{rowLabel(selected, locale)}</bdi></h2>
             <p className="cr-label">
               {t(locale, KIND_LABELS[selected.kind].en, KIND_LABELS[selected.kind].ar)}
               {' · '}
               {selected.effectiveDate}
             </p>
-            {selected.note?.trim() ? <p>{selected.note.trim()}</p> : null}
+            {selected.note?.trim() ? <p><bdi>{selected.note.trim()}</bdi></p> : null}
             <ul className="cr-movements">
               {selected.movements.map((movement) => (
                 <li key={`${movement.walletId}-${movement.currency}`}>
                   <span>
-                    {movement.walletName}
+                    <bdi>{movement.walletName}</bdi>
                     {movement.walletArchived ? ` ${t(locale, '(archived)', '(مؤرشفة)')}` : ''}
                   </span>
                   <span className={selected.reversalOf !== null ? 'cr-reversal-text' : 'cr-amount'}>

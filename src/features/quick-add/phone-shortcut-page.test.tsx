@@ -38,6 +38,8 @@ describe('PhoneShortcutPage', () => {
     expect(within(iphone).getByText(/Open URLs/)).toBeInTheDocument();
     const android = screen.getByRole('region', { name: 'Android' });
     expect(within(android).getAllByRole('listitem').some((item) => item.textContent?.includes('Add expense'))).toBe(true);
+    expect(iphone.parentElement).toHaveClass('cr-phone-setup');
+    expect(android.parentElement).toBe(iphone.parentElement);
     expect(screen.getByText('The link only opens the form. Nothing is saved until you tap Save.')).toBeInTheDocument();
   });
 

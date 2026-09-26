@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { CashOutlookChart } from './cash-outlook-chart.js';
@@ -88,8 +88,11 @@ describe('CashOutlookChart', () => {
       },
     });
     expect(screen.getByText('No shortfall projected in this window.')).toBeInTheDocument();
-    expect(screen.getByText('2026-09-15')).toBeInTheDocument();
-    expect(screen.getByText('2026-09-16')).toBeInTheDocument();
+    const table = screen.getByRole('table');
+    expect(within(table).getByText('2026-09-15')).toBeInTheDocument();
+    expect(within(table).getByText('2026-09-16')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Expected cash trend' }).querySelector('polyline')).toBeInTheDocument();
+    expect(screen.getByText(/Lowest projected cash/)).toHaveTextContent('$700.00');
   });
 
   it('flags the first-negative-date row, colors the closing cash danger, and renders a negative-side bar segment', () => {
@@ -104,12 +107,13 @@ describe('CashOutlookChart', () => {
       },
     });
     expect(screen.getByText('First shortfall')).toBeInTheDocument();
-    const negativeRow = screen.getByText('2026-09-16').closest('tr')!;
+    const table = screen.getByRole('table');
+    const negativeRow = within(table).getByText('2026-09-16').closest('tr')!;
     expect(negativeRow).toHaveAttribute('data-first-negative', 'true');
     expect(negativeRow.querySelector('.cc-danger-text')).toBeInTheDocument();
     const negativeSegment = negativeRow.querySelector('.cc-signed-bar-negative > span') as HTMLElement;
     expect(negativeSegment.style.inlineSize).not.toBe('0%');
-    const positiveRow = screen.getByText('2026-09-15').closest('tr')!;
+    const positiveRow = within(table).getByText('2026-09-15').closest('tr')!;
     const positiveSegment = positiveRow.querySelector('.cc-signed-bar-positive > span') as HTMLElement;
     expect(positiveSegment.style.inlineSize).not.toBe('0%');
   });

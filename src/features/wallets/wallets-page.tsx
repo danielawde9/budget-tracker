@@ -46,6 +46,17 @@ function eventLabel(locale: Locale, kind: JournalEventKind): string {
 
 const generalKinds = new Set<JournalEventKind>(['opening_balance', 'income', 'expense', 'transfer']);
 
+function recentWalletEvents(events: readonly JournalEvent[], walletId: string): { event: JournalEvent; amountMinor: string; currency: WalletProjection['currency'] }[] {
+  const recent: { event: JournalEvent; amountMinor: string; currency: WalletProjection['currency'] }[] = [];
+  for (const event of events) {
+    const movement = event.movements.find((item) => item.walletId === walletId);
+    if (!movement) continue;
+    recent.push({ event, amountMinor: movement.amountMinor, currency: movement.currency });
+    if (recent.length === 2) break;
+  }
+  return recent;
+}
+
 function archivedMovementWallet(event: JournalEvent): string | null {
   return event.movements.find((movement) => movement.walletArchived)?.walletName ?? null;
 }
@@ -100,6 +111,11 @@ export function WalletsPage({ categoriesGateway, spaceId, userId, walletState, l
   const initialDialogConsumed = useRef(false);
   const activeCategories = [...categoryState.incomeCategories, ...categoryState.expenseCategories];
   const filteredEvents = useMemo(() => filterJournalEvents(walletState.events, filters), [filters, walletState.events]);
+  const currencyTotals = (['USD', 'LBP'] as const).map((currency) => ({
+    currency,
+    amountMinor: walletState.wallets.reduce((sum, wallet) => wallet.currency === currency ? sum + BigInt(wallet.balanceMinor) : sum, 0n).toString(),
+    count: walletState.wallets.filter((wallet) => wallet.currency === currency).length,
+  })).filter((total) => total.count > 0);
 
   function exportCsv() {
     const csv = journalEventsToCsv(filteredEvents);
@@ -129,7 +145,7 @@ export function WalletsPage({ categoriesGateway, spaceId, userId, walletState, l
   return <section className="wallets-workspace">
     <PageHeader
       title={t(locale, 'Wallets', 'المحافظ')}
-      subtitle={t(locale, 'See server-derived balances, record wallet activity, and undo mistaken transactions.', 'اطّلع على الأرصدة المشتقة من الخادم، وسجّل حركة المحافظ، وتراجع عن المعاملات الخاطئة.')}
+      subtitle={t(locale, 'Balances, transactions and history.', 'الأرصدة والمعاملات والسجل.')}
       actions={<>
         <button type="button" className="cr-button button-secondary" onClick={() => setDialog('wallet')}>{t(locale, 'New wallet', 'محفظة جديدة')}</button>
         <button type="button" className="cr-button cr-button--primary wl-action-grow" disabled={walletState.wallets.length === 0 || walletState.status !== 'ready'} onClick={() => openQuickEntry()}>{t(locale, 'Add transaction', 'إضافة معاملة')}</button>
@@ -141,13 +157,32 @@ export function WalletsPage({ categoriesGateway, spaceId, userId, walletState, l
     {categoriesGateway && categoryState.status === 'error' && <div className="state-panel error-notice" role="alert"><strong>{t(locale, 'Categories are unavailable', 'الفئات غير متاحة')}</strong><p>{categoryError?.message}</p><p>{categoryError?.recovery}</p><button type="button" onClick={() => void categoryState.refresh()}>{t(locale, 'Try again', 'المحاولة مجددًا')}</button></div>}
 
     {walletState.status === 'ready' && <>
+      {currencyTotals.length > 0 && <section className="wl-totals" aria-label={t(locale, 'Wallet totals by currency', 'إجمالي المحافظ حسب العملة')}>
+        {currencyTotals.map(({ currency, amountMinor }) => <div key={currency} className="cr-card wl-total-card">
+          <span className="cr-label">{t(locale, 'Total', 'الإجمالي')} ({currency})</span>
+          <bdi className="cr-amount">{formatMinorAmount(amountMinor, currency, locale)}</bdi>
+        </div>)}
+      </section>}
       <aside className="wallet-context wl-balances" aria-labelledby="wallet-balances-heading">
         <div className="section-heading"><div><span className="section-kicker">{t(locale, 'Current space', 'المساحة الحالية')}</span><h2 id="wallet-balances-heading"><Wallet size={18} aria-hidden className="wl-heading-icon" />{t(locale, 'Active balances', 'الأرصدة الفعالة')}</h2></div><span className="count-badge">{walletState.wallets.length}</span></div>
-        {walletState.wallets.length === 0 ? <div className="empty wallet-empty wl-empty-panel"><Wallet size={28} aria-hidden className="wl-empty-icon" /><strong>{t(locale, 'No wallets yet', 'لا توجد محافظ بعد')}</strong><p>{t(locale, 'Create a USD or LBP wallet to start this space’s journal.', 'أنشئ محفظة بالدولار أو الليرة لبدء سجل هذه المساحة.')}</p><button type="button" className="cr-button cr-button--primary" onClick={() => setDialog('wallet')}>{t(locale, 'Create first wallet', 'إنشاء أول محفظة')}</button></div> : <ul className="wallet-list wl-balance-grid">{walletState.wallets.map((wallet) => <li key={wallet.id} className="wl-balance-card">
+        {walletState.wallets.length === 0 ? <div className="empty wallet-empty wl-empty-panel"><Wallet size={28} aria-hidden className="wl-empty-icon" /><strong>{t(locale, 'No wallets yet', 'لا توجد محافظ بعد')}</strong><p>{t(locale, 'Create a USD or LBP wallet to start this space’s journal.', 'أنشئ محفظة بالدولار أو الليرة لبدء سجل هذه المساحة.')}</p><button type="button" className="cr-button cr-button--primary" onClick={() => setDialog('wallet')}>{t(locale, 'Create first wallet', 'إنشاء أول محفظة')}</button></div> : <ul className="wallet-list wl-balance-grid">{walletState.wallets.map((wallet) => {
+          const recent = recentWalletEvents(walletState.events, wallet.id);
+          return <li key={wallet.id} className="wl-balance-card" aria-label={t(locale, `${wallet.name} wallet`, `محفظة ${wallet.name}`)}>
           <div className="wl-balance-head"><bdi>{wallet.name}</bdi><span className="wl-currency-chip">{wallet.currency}</span></div>
           <bdi className="wallet-balance">{formatMinorAmount(wallet.balanceMinor, wallet.currency, locale)}</bdi>
           <footer className="wl-balance-actions"><button type="button" className="text-button" onClick={() => setDialog({ rename: wallet })}>{t(locale, 'Rename', 'إعادة تسمية')} <bdi>{wallet.name}</bdi></button><button type="button" className="text-button" onClick={() => setDialog({ archive: wallet })}>{t(locale, 'Archive', 'أرشفة')} <bdi>{wallet.name}</bdi></button></footer>
-        </li>)}</ul>}
+          <div className="wl-card-recent">
+            <span className="cr-label">{t(locale, 'Recent transactions', 'معاملات حديثة')}</span>
+            {recent.length === 0
+              ? <p className="cr-helper">{t(locale, 'No recent transactions', 'لا توجد معاملات حديثة')}</p>
+              : <ul>{recent.map(({ event, amountMinor, currency }) => <li key={event.id}>
+                <time dateTime={event.effectiveDate}>{event.effectiveDate}</time>
+                <span>{eventLabel(locale, event.kind)}</span>
+                <bdi className={BigInt(amountMinor) < 0n ? 'cr-danger-text' : 'cr-positive'}>{formatMinorAmount(amountMinor, currency, locale)}</bdi>
+              </li>)}</ul>}
+          </div>
+        </li>;
+        })}</ul>}
         {walletState.archivedWallets.length > 0 && <div className="wl-archived">
           <button type="button" className="wl-archived-toggle" aria-expanded={archivedOpen} aria-controls={archivedRegionId} onClick={() => setArchivedOpen((open) => !open)}>
             <Archive size={16} aria-hidden />
@@ -195,7 +230,7 @@ export function WalletsPage({ categoriesGateway, spaceId, userId, walletState, l
                   <bdi className={movement && BigInt(movement.amountMinor) < 0n ? 'cr-danger-text' : 'cr-positive'}>{amountValue}</bdi>
                 </div>;
               })}
-              <footer>{(event.payeeName || event.note) && <div className="journal-state">{event.payeeName && <span><bdi>{event.payeeName}</bdi></span>}{event.note && <span><bdi>{event.note}</bdi></span>}</div>}{(event.reversedBy || event.reversalOf || event.loanLinked) && <div className="journal-state">{event.reversedBy && <span>{t(locale, 'Undone', 'تم التراجع عنه')}</span>}{event.reversalOf && <span>{t(locale, 'Undoes an earlier entry', 'تراجع عن قيد سابق')}</span>}{event.loanLinked && <span>{t(locale, 'Loan-linked', 'مرتبط بقرض')}</span>}</div>}{canCorrect && <button type="button" className="text-button" onClick={() => openQuickEntry(event)}>{t(locale, 'Repeat as new', 'كرّر كقيد جديد')}</button>}{canCorrect && (archivedMovementWallet(event) ? <span className="undo-gated">{t(locale, 'Restore', 'استعد')} <bdi>{archivedMovementWallet(event)}</bdi> {t(locale, 'to undo this', 'للتراجع عن هذا')}</span> : <button type="button" className="text-button" onClick={() => setDialog({ correction: event })}>{t(locale, `Undo ${label.toLowerCase()}`, `تراجع عن ${label}`)}</button>)}{event.loanLinked && <button type="button" className="text-button" onClick={onOpenLoans}>{t(locale, 'Manage in Loans', 'الإدارة في القروض')}</button>}</footer>
+              <footer>{(event.payeeName || event.note) && <div className="journal-state">{event.payeeName && <span><bdi>{event.payeeName}</bdi></span>}{event.note && <span><bdi>{event.note}</bdi></span>}</div>}{(event.reversedBy || event.reversalOf || event.loanLinked) && <div className="journal-state">{event.reversedBy && <span>{t(locale, 'Undone', 'تم التراجع عنه')}</span>}{event.reversalOf && <span>{t(locale, 'Undoes an earlier entry', 'تراجع عن قيد سابق')}</span>}{event.loanLinked && <span>{t(locale, 'Loan-linked', 'مرتبط بقرض')}</span>}</div>}{canCorrect && <button type="button" className="text-button" onClick={() => openQuickEntry(event)}>{t(locale, 'Repeat as new', 'كرّر كقيد جديد')}</button>}{canCorrect && (archivedMovementWallet(event) ? <span className="undo-gated">{t(locale, 'Restore', 'استعد')} <bdi>{archivedMovementWallet(event)}</bdi> {t(locale, 'to undo this', 'للتراجع عن هذا')}</span> : <button type="button" className="text-button" onClick={() => setDialog({ correction: event })}>{t(locale, `Undo ${label.toLowerCase()}`, `تراجع عن ${label}`)}</button>)}{event.loanLinked && <button type="button" className="text-button" onClick={onOpenLoans}>{t(locale, 'View in Loans', 'عرض في القروض')}</button>}</footer>
             </li>;
           })}</ol>
         </div>}</>}

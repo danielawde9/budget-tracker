@@ -30,9 +30,29 @@ describe('AllocationBars', () => {
     render(<AllocationBars locale="en" currency="USD" monthHasPlan rows={[group()]} />);
     expect(screen.getByText('$1,120.00')).toBeInTheDocument();
     expect(screen.getByText('$1,180.00')).toBeInTheDocument();
-    expect(screen.getByText('-$60.00')).toBeInTheDocument();
+    expect(screen.getByText('$60.00 over target')).toBeInTheDocument();
     expect(screen.getByText('56% target')).toBeInTheDocument();
-    expect(screen.getByText('65%')).toBeInTheDocument();
+    expect(screen.getByText('65.6%')).toBeInTheDocument();
+  });
+
+  it('describes whether actual spending is over or under the group target', () => {
+    render(<AllocationBars locale="en" currency="USD" monthHasPlan rows={[
+      group({ groupId: 'over', actualMinor: '118000', targetMinor: '112000', varianceMinor: '-6000' }),
+      group({ groupId: 'under', nameEn: 'Lifestyle', actualMinor: '43000', targetMinor: '48000', varianceMinor: '5000' }),
+    ]} />);
+    expect(screen.getByText('$60.00 over target')).toBeInTheDocument();
+    expect(screen.getByText('$50.00 under target')).toBeInTheDocument();
+  });
+
+  it('does not claim an over or under target when the row is unplanned or exactly on target', () => {
+    render(<AllocationBars locale="en" currency="USD" monthHasPlan rows={[
+      group({ groupId: null, rowKind: 'unmapped', hasPlan: false, targetMinor: '0', actualMinor: '0', varianceMinor: '0', basisPoints: null, actualShareOfIncomeBps: '0' }),
+      group({ groupId: 'exact', targetMinor: '10000', actualMinor: '10000', varianceMinor: '0' }),
+    ]} />);
+    const rows = screen.getAllByRole('row').slice(1);
+    expect(rows[0]?.querySelector('td[data-label="Variance"]')).toHaveTextContent('—');
+    expect(rows[0]?.querySelector('td[data-label="% of income"]')).toHaveTextContent('0.0%');
+    expect(rows[1]?.querySelector('td[data-label="Variance"]')).toHaveTextContent('$0.00 on target');
   });
 
   it('names the bar column so header and body column counts match in both languages', () => {
@@ -64,7 +84,8 @@ describe('AllocationBars', () => {
 
   it('shows a visible overflow and the exact numeric overage for an over-100% group', () => {
     render(<AllocationBars locale="en" currency="USD" monthHasPlan rows={[group({ targetMinor: '10000', actualMinor: '15000', varianceMinor: '-5000' })]} />);
-    expect(screen.getByText(/\+\$50\.00 over/)).toBeInTheDocument();
+    expect(screen.getByText('$50.00 over target')).toBeInTheDocument();
+    expect(document.querySelector('.alloc-progress')).toHaveAttribute('data-over', 'true');
   });
 
   it('uses a zero baseline and a distinguishing style for a negative (credit) actual, never color alone', () => {

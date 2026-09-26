@@ -33,6 +33,7 @@ import type { ScheduleReferenceOptions } from '../recurring/schedule-editor.js';
 import type { InsightsClient, CategoryBudgetRow } from '../insights/types.js';
 import type { Currency, Locale, SpaceKind } from '../loans/types.js';
 import type { LoansGateway } from '../loans/types.js';
+import { LoansPage } from '../loans/loans-page.js';
 import { useLoans } from '../loans/use-loans.js';
 import { PlanPage, monthLabel } from '../plan/plan-page.js';
 import { usePlan } from '../plan/use-plan.js';
@@ -343,6 +344,7 @@ function JournalRoutes(props: JournalRoutesProps) {
 interface PlanRoutesProps {
   locale: Locale;
   spaceId: string;
+  initialSection: PlanSection;
   gateways: ControlRoomGateways;
   loans: ReturnType<typeof useLoans>;
   month: string;
@@ -458,7 +460,7 @@ function UpcomingBillsSection(props: {
   }), [props.referenceOptions, goalsUsd.page.rows, goalsLbp.page.rows]);
   return (
     <section className="cr-card" aria-label={props.locale === 'ar' ? 'الفواتير القادمة' : 'Upcoming bills'}>
-      <UpcomingPage locale={props.locale} recurring={recurring} fromDate={fromDate} toDate={toDate}
+      <UpcomingPage locale={props.locale} currency={props.currency} recurring={recurring} fromDate={fromDate} toDate={toDate}
         referenceOptions={referenceOptions}
         plannedIncomeByCurrency={props.plannedIncomeByCurrency}
         walletOptions={props.referenceOptions.wallets} />
@@ -497,17 +499,29 @@ function CashControlSection(props: {
     onGenerated: async () => { cashControl.available.refresh(); },
   });
   return (
-    <section className="cr-card" aria-label={`${props.locale === 'ar' ? 'المتاح بعد الالتزامات' : 'Available after commitments'} ${props.currency}`}>
-      <CashControlSummary locale={props.locale} currency={props.currency} available={cashControl.available} variant="full" />
-      <AutoMaterializeBanner locale={props.locale} state={autoMaterialize} />
+    <div className="cc-page">
+      <section
+        className={cashControl.available.status === 'error' ? 'cc-page-summary' : 'cr-card cc-page-summary'}
+        aria-label={`${props.locale === 'ar' ? 'المتاح بعد الالتزامات' : 'Available after commitments'} ${props.currency}`}
+      >
+        <CashControlSummary locale={props.locale} currency={props.currency} available={cashControl.available} variant="full" />
+        <AutoMaterializeBanner locale={props.locale} state={autoMaterialize} />
+      </section>
       {cashControl.available.status === 'ready' && cashControl.available.data.state === 'ready' && (
-        <>
-          <h4 className="cc-subheading">{props.locale === 'ar' ? 'الحجوزات' : 'Reservations'}</h4>
+        <section className="cr-card cc-page-reservations" aria-label={`${props.locale === 'ar' ? 'الحجوزات حسب المجموعة' : 'Reservations by group'} ${props.currency}`}>
+          <div className="cr-section-header">
+            <h2>{props.locale === 'ar' ? 'الحجوزات حسب المجموعة' : 'Reservations by group'}</h2>
+          </div>
           <CommitmentBreakdown locale={props.locale} currency={props.currency} groups={cashControl.available.data.groups} />
-        </>
+        </section>
       )}
-      <CashOutlookChart locale={props.locale} currency={props.currency} outlook={cashControl.outlook} scenario={scenario} onScenarioChange={setScenario} />
-    </section>
+      <section
+        className={cashControl.outlook.status === 'error' ? 'cc-page-outlook' : 'cr-card cc-page-outlook'}
+        aria-label={`${props.locale === 'ar' ? 'التوقع المتوقع' : 'Expected outlook'} ${props.currency}`}
+      >
+        <CashOutlookChart locale={props.locale} currency={props.currency} outlook={cashControl.outlook} scenario={scenario} onScenarioChange={setScenario} />
+      </section>
+    </div>
   );
 }
 
@@ -516,7 +530,7 @@ const GOAL_CURRENCIES = ['USD', 'LBP'] as const;
 const CASH_CONTROL_CURRENCIES = ['USD', 'LBP'] as const;
 const PLAN_CURRENCY_OPTIONS = ['USD', 'LBP'] as const;
 
-type PlanSection = 'plan' | 'allocation' | 'goals' | 'cash' | 'bills';
+type PlanSection = 'plan' | 'allocation' | 'goals' | 'cash' | 'bills' | 'loans';
 
 const PLAN_SECTIONS: readonly { id: PlanSection; en: string; ar: string }[] = [
   { id: 'plan', en: 'Plan', ar: 'الخطة' },
@@ -524,11 +538,12 @@ const PLAN_SECTIONS: readonly { id: PlanSection; en: string; ar: string }[] = [
   { id: 'goals', en: 'Goals', ar: 'الأهداف' },
   { id: 'cash', en: 'Available cash', ar: 'السيولة المتاحة' },
   { id: 'bills', en: 'Upcoming bills', ar: 'الفواتير القادمة' },
+  { id: 'loans', en: 'Loans', ar: 'القروض' },
 ];
 
 function PlanRoutes(props: PlanRoutesProps) {
   const { locale, spaceId, gateways } = props;
-  const [section, setSection] = useState<PlanSection>('plan');
+  const [section, setSection] = useState<PlanSection>(props.initialSection);
   const [planCurrency, setPlanCurrency] = useState<Currency>('USD');
   const plan = usePlan(gateways.plan ?? unavailablePlanClient, spaceId, props.month);
 
@@ -595,6 +610,7 @@ function PlanRoutes(props: PlanRoutesProps) {
         pending={plan.pending}
         error={plan.saveError}
         loansSummary={props.loans.dashboard?.summaries ?? []}
+        loanRows={props.loans.dashboard?.loans ?? []}
         onSaveIncome={plan.setIncomePlan}
         onSaveTarget={plan.setCategoryTarget}
       />
@@ -688,6 +704,15 @@ function PlanRoutes(props: PlanRoutesProps) {
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
       ) : null}
+      {section === 'loans' ? (
+        <LoansPage
+          gateway={gateways.loans}
+          spaceId={spaceId}
+          locale={locale}
+          onSpaceUnavailable={() => props.onSpaceUnavailable?.()}
+          embedded
+        />
+      ) : null}
     </>
   );
 }
@@ -695,6 +720,12 @@ function PlanRoutes(props: PlanRoutesProps) {
 export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
   const { locale, spaceId, gateways } = props;
   const [month, setMonth] = useState(currentMonthStart);
+  // A Manage wallet entry can open the Loans section when Plan mounts.
+  // Consume the request on entry so later visits open the Plan overview.
+  const [planEntrySection, setPlanEntrySection] = useState<PlanSection>('plan');
+  useEffect(() => {
+    if (props.destination === 'plan' && planEntrySection !== 'plan') setPlanEntrySection('plan');
+  }, [props.destination, planEntrySection]);
   // Re-read whenever the sheet opens or closes or the space changes, so a
   // wallet stored by the last save is preselected on the next quick entry.
   const rememberedWalletId = useMemo(() => readRememberedWallet(spaceId), [spaceId, props.recordOpen]);
@@ -830,6 +861,7 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
         <PlanRoutes
           locale={locale}
           spaceId={spaceId}
+          initialSection={planEntrySection}
           gateways={gateways}
           loans={loans}
           month={month}
@@ -851,11 +883,14 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
           userId={props.userId ?? ''}
           userEmail={props.userEmail ?? null}
           gateways={{
-            loans: gateways.loans,
             categories: gateways.categories,
             household: gateways.household,
           }}
           walletState={wallets}
+          onOpenLoans={() => {
+            setPlanEntrySection('loans');
+            props.onDestinationChange?.('plan');
+          }}
           onLocaleChange={() => props.onLocaleChange?.()}
           onSignOut={() => props.onSignOut?.()}
           onSpaceUnavailable={props.onSpaceUnavailable}

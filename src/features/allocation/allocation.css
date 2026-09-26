@@ -32,6 +32,63 @@
   color: var(--cr-danger);
 }
 
+/* Plan overview uses the shared cards and money typography. These selectors
+   only arrange the existing components into the approved dashboard hierarchy. */
+.cr-plan-summary-grid,
+.cr-plan-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--cr-space-4);
+  margin-block-end: var(--cr-space-4);
+}
+
+.cr-plan-summary-grid > .cr-card,
+.cr-plan-detail-grid > .cr-card {
+  min-inline-size: 0;
+  margin-block-start: 0;
+}
+
+.cr-plan-allocation-caption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--cr-space-2);
+}
+
+.cr-plan-detail-grid ul {
+  list-style: none;
+  padding: 0;
+}
+
+.cr-plan-category .cr-row,
+.cr-plan-category-amounts {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.cr-plan-loan-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--cr-space-2);
+}
+
+.cr-plan-loan-row .cr-helper {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 620px) {
+  .cr-plan-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 900px) {
+  .cr-plan-detail-grid {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  }
+}
+
 /* ---- Overview metrics -------------------------------------------------- */
 
 .alloc-overview {
@@ -52,7 +109,7 @@
 
 .alloc-metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--cr-space-3);
 }
 
@@ -60,6 +117,13 @@
   display: flex;
   flex-direction: column;
   gap: var(--cr-space-1);
+  min-inline-size: 0;
+}
+
+@media (min-width: 900px) {
+  .alloc-metrics {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
 }
 
 .alloc-metric-value {
@@ -121,12 +185,6 @@
 }
 .alloc-progress[data-over="true"] > span {
   background: var(--cr-danger);
-}
-
-.alloc-overage-text {
-  display: block;
-  color: var(--cr-danger);
-  font-size: 11px;
 }
 
 .alloc-drilldown-button {
@@ -222,10 +280,6 @@
   .alloc-group-row > .cr-affix {
     align-self: flex-start;
   }
-  .alloc-metrics {
-    grid-template-columns: 1fr 1fr;
-  }
-
   /* Responsive table -> stacked cards. The table stays in the accessibility
      tree (no display:none on its structure beyond hiding the header row
      visually, the same clip technique as .alloc-visually-hidden) while every

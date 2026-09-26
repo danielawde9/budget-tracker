@@ -25,7 +25,7 @@ const seededBudgetRows: Record<string, unknown>[] = [
     target_minor: '30000',
     budget_minor: '30000',
     actual_spent_minor: '34500',
-    actual_net_minor: '-34500',
+    actual_net_minor: '34500',
     remaining_minor: '-4500',
     overspent_minor: '4500',
     target_revision_id: '7',
@@ -43,7 +43,7 @@ const seededBudgetRows: Record<string, unknown>[] = [
     target_minor: '40000',
     budget_minor: '40000',
     actual_spent_minor: '18000',
-    actual_net_minor: '-18000',
+    actual_net_minor: '18000',
     remaining_minor: '22000',
     overspent_minor: '0',
     target_revision_id: '8',
@@ -103,7 +103,8 @@ async function openSeededHome(page: Page) {
     activityRows: seededActivityRows,
   });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Personal space' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible();
+  await expect(page.locator('.cr-header-text').getByText('Personal space', { exact: true })).toBeVisible();
 }
 
 test('a quick-add link opens the Record keypad on Expense and leaves a clean address', async ({ page }, testInfo) => {
@@ -149,10 +150,11 @@ test('the installed app manifest is served with its shortcuts', async ({ page })
   expect(manifest.shortcuts.map((shortcut) => shortcut.url)).toEqual(['/?add=expense', '/?add=income']);
 });
 
-test('Home shows budgets, recent activity, and loans within the viewport', async ({ page }, testInfo) => {
+test('Home shows budgets, recent activity, and a loan summary', async ({ page }, testInfo) => {
   await openSeededHome(page);
   const budgets = page.getByRole('region', { name: 'Budget vs actual' });
   await expect(budgets.getByText('Groceries')).toBeVisible();
+  await expect(budgets.getByText('115%')).toBeVisible();
   await expect(page.getByRole('region', { name: 'Recent activity' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Loans' })).toContainText('Maya');
   await expect(page.getByText('No budget targets this month.')).toHaveCount(0);
@@ -173,11 +175,19 @@ test('Journal feed and entry detail sheet stay contained', async ({ page }, test
   await search.fill('');
   await expect(page.getByRole('button', { name: /Archived travel/ })).toBeVisible();
 
-  const exportBox = await page.getByRole('button', { name: 'Export CSV' }).boundingBox();
+  const exportButton = page.getByRole('button', { name: 'Export CSV' });
+  const header = page.locator('.cr-header');
+  const exportActions = header.locator('.cr-header-actions');
+  await expect(exportActions).toContainText('Export CSV');
+  const exportBox = await exportButton.boundingBox();
+  const headerBox = await header.boundingBox();
   const chipsBox = await page.locator('.cr-chips').first().boundingBox();
-  const cardBox = await page.locator('.cr-card').first().boundingBox();
+  const cardBox = await page.getByRole('region', { name: 'Journal entries' }).boundingBox();
   const searchBox = await page.getByLabel('Search').boundingBox();
-  expect(Math.abs(exportBox!.y + exportBox!.height / 2 - (chipsBox!.y + chipsBox!.height / 2))).toBeLessThanOrEqual(8);
+  expect(exportBox).not.toBeNull();
+  expect(headerBox).not.toBeNull();
+  expect(exportBox!.y).toBeGreaterThanOrEqual(headerBox!.y);
+  expect(exportBox!.y + exportBox!.height).toBeLessThanOrEqual(headerBox!.y + headerBox!.height);
   expect(chipsBox!.y - (searchBox!.y + searchBox!.height)).toBeGreaterThanOrEqual(12);
   expect(cardBox!.y - (chipsBox!.y + chipsBox!.height)).toBeGreaterThanOrEqual(12);
 
@@ -221,7 +231,7 @@ test('Record sheet walks type, amount, and confirm steps', async ({ page }, test
   await expect(sheet).toContainText('Expense · $42.50 · Daily USD · Groceries');
   await expectContainedControls(page, sheet);
   await page.screenshot({ path: screenshotPath(testInfo, `record-confirm-${testInfo.project.name}.png`) });
-  await page.mouse.click(10, 10);
+  await sheet.getByRole('button', { name: 'Close' }).click();
   await expect(sheet).toHaveCount(0);
 });
 
@@ -234,6 +244,7 @@ test('Plan screen flags the over-budget category', async ({ page }, testInfo) =>
   await expect(targets).toContainText('Groceries');
   const groceries = targets.locator('li').filter({ hasText: 'Groceries' });
   await expect(groceries.locator('.cr-progress--over')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Loan commitments' })).toContainText('Monthly total');
   await expectContainedControls(page);
   await page.screenshot({ path: screenshotPath(testInfo, `plan-${testInfo.project.name}.png`), fullPage: true });
 });
@@ -245,7 +256,7 @@ test('Manage menu lists sections, language, and account', async ({ page }, testI
   const menu = page.getByRole('navigation', { name: 'Manage sections' });
   await expect(menu.getByRole('button', { name: 'Wallets' })).toBeVisible();
   await expect(menu.getByRole('button', { name: 'Categories' })).toBeVisible();
-  await expect(menu.getByRole('button', { name: 'Loans' })).toBeVisible();
+  await expect(menu.getByRole('button', { name: 'Loans' })).toHaveCount(0);
   await expect(menu.getByRole('button', { name: 'Household' })).toHaveCount(0);
   await expect(menu.getByRole('button', { name: 'Language' })).toBeVisible();
   await expectContainedControls(page);
@@ -291,7 +302,8 @@ test('Arabic RTL mirrors Home and the Record type grid', async ({ page }, testIn
   await openSeededHome(page);
   await switchWorkspaceLanguage(page);
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-  await expect(page.getByRole('heading', { name: 'مساحة شخصية' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'الرئيسية' })).toBeVisible();
+  await expect(page.locator('.cr-header-text').getByText('مساحة شخصية', { exact: true })).toBeVisible();
   await expectContainedControls(page);
   await page.screenshot({ path: screenshotPath(testInfo, `home-ar-${testInfo.project.name}.png`), fullPage: true });
 
@@ -301,6 +313,6 @@ test('Arabic RTL mirrors Home and the Record type grid', async ({ page }, testIn
   await expect(sheet.getByRole('button', { name: 'مصروف' })).toBeVisible();
   await expectContainedControls(page, sheet);
   await page.screenshot({ path: screenshotPath(testInfo, `record-type-ar-${testInfo.project.name}.png`) });
-  await page.mouse.click(10, 10);
+  await sheet.getByRole('button', { name: 'إغلاق' }).click();
   await expect(sheet).toHaveCount(0);
 });

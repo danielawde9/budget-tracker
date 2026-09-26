@@ -1,0 +1,270 @@
+/* Home and Journal placement only. Surface, type, color and controls use cr-* patterns. */
+
+.daily-home-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--cr-space-4);
+}
+
+.daily-home-grid > .cr-card {
+  min-inline-size: 0;
+  margin-block-start: 0;
+}
+
+.daily-section-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--cr-space-3);
+}
+
+.daily-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: var(--cr-space-4);
+  margin-block-start: var(--cr-space-3);
+}
+
+.daily-currency-metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-2);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.daily-budget-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-2);
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.daily-budget-body .cr-row {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.daily-budget-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--cr-space-2);
+}
+
+.daily-trend-legend,
+.daily-trend-currencies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cr-space-3);
+}
+
+.daily-trend-currencies {
+  flex-direction: column;
+}
+
+.daily-trend-currency {
+  min-inline-size: 0;
+}
+
+.cr-bars.daily-trend-bars {
+  align-items: stretch;
+  block-size: auto;
+  min-block-size: 126px;
+  gap: var(--cr-space-2);
+}
+
+.daily-trend-period {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--cr-space-2);
+  min-inline-size: 0;
+}
+
+.daily-trend-pair {
+  display: flex;
+  align-items: flex-end;
+  inline-size: 100%;
+  block-size: 100px;
+  gap: var(--cr-space-1);
+}
+
+.daily-trend-period > .cr-label {
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.daily-trend-values {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--cr-space-1) var(--cr-space-2);
+  text-align: center;
+}
+
+.daily-trend-values > span { white-space: nowrap; }
+
+.daily-empty-activity,
+.daily-activity-label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--cr-space-2);
+}
+
+.daily-activity-label {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.daily-activity-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.daily-activity-row > .cr-label {
+  grid-column: 1 / -1;
+}
+
+.daily-activity-row .cr-journal-amounts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+@media (min-width: 1024px) {
+  .daily-home-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .daily-activity-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .daily-activity-row > .cr-label {
+    grid-column: auto;
+  }
+}
+
+.daily-journal-total-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--cr-space-4);
+}
+
+.daily-journal-total-grid > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--cr-space-1);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.daily-journal-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--cr-space-3);
+  margin-block-start: var(--cr-space-4);
+}
+
+.daily-search-control {
+  display: flex;
+  align-items: center;
+  gap: var(--cr-space-2);
+  inline-size: 100%;
+}
+
+.daily-search-control input {
+  min-inline-size: 0;
+}
+
+.daily-journal-register {
+  gap: 0;
+}
+
+.daily-journal-columns {
+  display: none;
+}
+
+.daily-journal-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--cr-space-2) var(--cr-space-3);
+  min-inline-size: 0;
+}
+
+.daily-journal-date {
+  grid-column: 1 / -1;
+}
+
+.daily-journal-description {
+  display: flex;
+  align-items: center;
+  gap: var(--cr-space-3);
+  grid-column: 1;
+  min-inline-size: 0;
+}
+
+.daily-journal-description > span,
+.daily-journal-wallet,
+.daily-journal-amount {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.daily-journal-description bdi,
+.daily-journal-wallet bdi {
+  overflow-wrap: anywhere;
+}
+
+.daily-journal-wallet,
+.daily-journal-kind {
+  grid-column: 1;
+}
+
+.daily-journal-amount {
+  grid-column: 2;
+  grid-row: 2 / 5;
+  align-self: center;
+  align-items: flex-end;
+}
+
+.daily-journal-row > .daily-journal-amount {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 1024px) {
+  .daily-journal-filters {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+
+  .daily-journal-filters .cr-journal-dates {
+    margin-block-end: var(--cr-space-3);
+  }
+
+  .daily-journal-columns,
+  .daily-journal-row {
+    display: grid;
+    grid-template-columns: minmax(90px, 0.8fr) minmax(0, 2fr) minmax(90px, 1fr) minmax(80px, 0.8fr) minmax(110px, 1fr);
+    align-items: center;
+    gap: var(--cr-space-3);
+  }
+
+  .daily-journal-date,
+  .daily-journal-description,
+  .daily-journal-wallet,
+  .daily-journal-kind,
+  .daily-journal-amount {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}

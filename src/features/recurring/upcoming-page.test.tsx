@@ -33,6 +33,7 @@ function fakeRecurringState(overrides: Partial<RecurringState> = {}): RecurringS
 
 function editorProps() {
   return {
+    currency: 'USD' as const,
     referenceOptions: { categories: [], loans: [], goals: [], wallets: [] },
     plannedIncomeByCurrency: { USD: null, LBP: null } as const,
     walletOptions: [],
@@ -47,8 +48,28 @@ describe('UpcomingPage', () => {
 
   it('U16-01: an occurrence expecting 50000 with 20000 settled shows 30000 remaining', () => {
     render(<UpcomingPage locale="en" {...editorProps()} recurring={fakeRecurringState()} fromDate="2026-09-01" toDate="2026-11-30" />);
-    expect(screen.getByText('$500.00')).toBeInTheDocument(); // expected
-    expect(screen.getByText('$300.00')).toBeInTheDocument(); // remaining
+    const table = screen.getByRole('table');
+    expect(within(table).getByText('$500.00')).toBeInTheDocument(); // expected
+    expect(within(table).getByText('$200.00')).toBeInTheDocument(); // settled
+    expect(within(table).getByText('$300.00')).toBeInTheDocument(); // remaining
+    expect(within(table).getByText('40%').closest('.rec-label-muted')).toHaveTextContent('40% settled');
+  });
+
+  it('shows only the selected currency and summarizes unsettled inflows and outflows in the current window', () => {
+    const recurring = fakeRecurringState({ page: page([
+      row({ id: 'rent', nameEn: 'Rent', kind: 'expense', remainingMinor: '30000' }),
+      row({ id: 'salary', nameEn: 'Salary', kind: 'income', expectedMinor: '100000', settledMinor: '0', remainingMinor: '100000', state: 'pending' }),
+      row({ id: 'other-currency', nameEn: 'LBP bill', currency: 'LBP', expectedMinor: '5000000', settledMinor: '0', remainingMinor: '5000000', state: 'pending' }),
+      row({ id: 'paid', nameEn: 'Paid bill', expectedMinor: '10000', settledMinor: '10000', remainingMinor: '0', state: 'settled' }),
+    ]) });
+    render(<UpcomingPage locale="en" {...editorProps()} recurring={recurring} fromDate="2026-09-01" toDate="2026-11-30" />);
+    expect(screen.queryByText('LBP bill')).not.toBeInTheDocument();
+    const summary = screen.getByRole('complementary', { name: 'Window summary' });
+    expect(summary).toHaveTextContent('1 outflow');
+    expect(summary).toHaveTextContent('$300.00');
+    expect(summary).toHaveTextContent('1 inflow');
+    expect(summary).toHaveTextContent('$1,000.00');
+    expect(summary).toHaveTextContent('Net$700.00');
   });
 
   it('U16-02: renders a February month-end due date verbatim, never shifted by client-side date math', () => {
@@ -59,8 +80,9 @@ describe('UpcomingPage', () => {
     render(<UpcomingPage locale="en" {...editorProps()}
       recurring={fakeRecurringState({ page: page([row({ dueDate: '2026-02-28', asOf: '2026-02-14' })]) })}
       fromDate="2026-02-01" toDate="2026-03-31" />);
-    expect(screen.getByText('2026-02-28')).toBeInTheDocument();
-    expect(screen.queryByText(/2026-03-/)).not.toBeInTheDocument();
+    const table = screen.getByRole('table');
+    expect(within(table).getByText('2026-02-28')).toBeInTheDocument();
+    expect(within(table).queryByText(/2026-03-/)).not.toBeInTheDocument();
   });
 
   it('shows an empty state distinct from loading when there are no occurrences', () => {

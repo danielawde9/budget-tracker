@@ -1,7 +1,7 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 
 import { installApplicationFixture } from './fixtures/application.js';
-import { chooseWorkspaceDestination, openWorkspaceAccount, switchWorkspaceLanguage } from './workspace-navigation.js';
+import { chooseWorkspaceDestination, openPlanSection, openWorkspaceAccount, switchWorkspaceLanguage } from './workspace-navigation.js';
 
 const requiredProtectedMutations = [
   'archive_category',
@@ -126,7 +126,8 @@ test('desktop English rehearsal exercises every protected financial mutation and
   await expect(dialog.getByRole('status')).toContainText('Category archived');
   await dialog.getByRole('button', { name: 'Done' }).click();
 
-  await chooseWorkspaceDestination(page, 'Loans');
+  await chooseWorkspaceDestination(page, 'Plan');
+  await openPlanSection(page, 'Loans');
   await page.getByRole('button', { name: 'Add loan' }).click();
   dialog = page.getByRole('dialog', { name: 'Add a loan' });
   await dialog.getByLabel('Person').fill('Synthetic opening');
@@ -143,7 +144,8 @@ test('desktop English rehearsal exercises every protected financial mutation and
   await expect(dialog).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Open Maya loan' }).click();
-  await page.getByRole('button', { name: 'Receive repayment' }).click();
+  const loanDetails = page.getByRole('dialog', { name: 'Maya loan details' });
+  await loanDetails.getByRole('button', { name: 'Receive repayment', exact: true }).click();
   dialog = page.getByRole('dialog', { name: 'Receive repayment from Maya' });
   await dialog.getByLabel('Repayment amount').fill('5');
   await dialog.getByRole('button', { name: 'Receive $5.00' }).click();
@@ -173,7 +175,7 @@ test('desktop English rehearsal exercises every protected financial mutation and
 
   await page.reload();
   await expect(page.getByRole('navigation').getByRole('button', { name: 'Home', exact: true })).toHaveAttribute('aria-current', 'page');
-  await expect(page.getByRole('region', { name: 'Net position' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Wallet balances' })).toBeVisible();
   await chooseWorkspaceDestination(page, 'Wallets');
   await expect(activeWalletName(page, 'Synthetic UAT wallet')).toBeVisible();
   const archivedSyntheticEvent = page.locator('.journal-row').filter({ hasText: 'Synthetic transport' });

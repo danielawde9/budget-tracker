@@ -46,12 +46,14 @@ function renderManage(extra: Partial<Parameters<typeof ControlRoomRoutes>[0]> = 
 }
 
 describe('ManageScreen section menu', () => {
-  it('lists Wallets, Categories, Loans, Language, and Account for a personal space', () => {
+  it('lists Wallets, Categories, Language, and Account without a Loans entry for a personal space', () => {
     renderManage();
     const menu = screen.getByRole('navigation', { name: 'Manage sections' });
-    for (const name of ['Wallets', 'Categories', 'Loans', 'Language']) {
+    expect(within(menu).getByRole('heading', { name: 'Your money' })).toBeInTheDocument();
+    for (const name of ['Wallets', 'Categories', 'Language']) {
       expect(within(menu).getByRole('button', { name: new RegExp(name) })).toBeInTheDocument();
     }
+    expect(within(menu).queryByRole('button', { name: /Loans/ })).not.toBeInTheDocument();
     expect(within(menu).getByText('Account')).toBeInTheDocument();
     expect(within(menu).getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
     expect(within(menu).queryByRole('button', { name: /Household/ })).not.toBeInTheDocument();
@@ -60,9 +62,10 @@ describe('ManageScreen section menu', () => {
   it('shows the Household section only for household spaces', () => {
     renderManage({ spaceKind: 'household' });
     const menu = screen.getByRole('navigation', { name: 'Manage sections' });
-    for (const name of ['Wallets', 'Categories', 'Loans', 'Household']) {
+    for (const name of ['Wallets', 'Categories', 'Household']) {
       expect(within(menu).getByRole('button', { name: new RegExp(name) })).toBeInTheDocument();
     }
+    expect(within(menu).queryByRole('button', { name: /Loans/ })).not.toBeInTheDocument();
   });
 
   it('shows the current locale on the Language row and the email on the Account row', () => {
@@ -117,18 +120,11 @@ describe('ManageScreen section panels', () => {
     expect(await screen.findByRole('heading', { name: 'Categories' })).toBeInTheDocument();
   });
 
-  it('swaps to the loans page', async () => {
-    const user = userEvent.setup();
-    renderManage();
-    await user.click(screen.getByRole('button', { name: /^Loans/ }));
-    expect(await screen.findByRole('heading', { name: 'Loans' })).toBeInTheDocument();
-  });
-
   it('swaps to the household page for household spaces', async () => {
     const user = userEvent.setup();
     renderManage({ spaceKind: 'household' });
     await user.click(screen.getByRole('button', { name: /^Household/ }));
-    expect(await screen.findByRole('heading', { name: 'Household access' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Household' })).toBeInTheDocument();
   });
 
   it('resets to the section menu when the space switches away from a household space', async () => {
@@ -148,20 +144,21 @@ describe('ManageScreen section panels', () => {
     };
     const view = render(<ControlRoomRoutes {...props} spaceId="household-space" spaceKind="household" />);
     await user.click(screen.getByRole('button', { name: /^Household/ }));
-    expect(await screen.findByRole('heading', { name: 'Household access' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Household' })).toBeInTheDocument();
 
     view.rerender(<ControlRoomRoutes {...props} spaceId="personal-space" spaceKind="personal" />);
     expect(await screen.findByRole('navigation', { name: 'Manage sections' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Household access' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Household' })).not.toBeInTheDocument();
   });
 
   it('renders the section menu in Arabic without leaking English labels', () => {
     renderManage({ locale: 'ar' });
     expect(screen.getByRole('heading', { name: 'الإدارة' })).toBeInTheDocument();
     const menu = screen.getByRole('navigation', { name: 'أقسام الإدارة' });
-    for (const name of ['المحافظ', 'الفئات', 'القروض', 'اللغة']) {
+    for (const name of ['المحافظ', 'الفئات', 'اللغة']) {
       expect(within(menu).getByRole('button', { name: new RegExp(name) })).toBeInTheDocument();
     }
+    expect(within(menu).queryByRole('button', { name: /القروض/ })).not.toBeInTheDocument();
     expect(within(menu).getByText('الحساب')).toBeInTheDocument();
     expect(within(menu).getByRole('button', { name: 'تسجيل الخروج' })).toBeInTheDocument();
     expect(within(menu).getByText('dana@example.com')).toBeInTheDocument();

@@ -50,9 +50,37 @@ describe('JournalScreen', () => {
       }),
     ]} />);
     expect(screen.getByText('Employer')).toBeInTheDocument();
-    expect(screen.getByText('$250.00')).toHaveClass('cr-positive');
-    expect(screen.getByText(formatMinorAmount('-12500', 'USD', 'en'))).toBeInTheDocument();
+    const entries = within(screen.getByRole('region', { name: 'Journal entries' }));
+    expect(entries.getByText('$250.00')).toHaveClass('cr-positive');
+    expect(entries.getByText(formatMinorAmount('-12500', 'USD', 'en'))).toBeInTheDocument();
     expect(screen.getByText('Groceries store')).toBeInTheDocument();
+  });
+
+  it('shows totals only for the loaded visible income and expense entries, per currency', async () => {
+    const user = userEvent.setup();
+    render(<JournalScreen {...baseProps} nextCursor="next" events={[
+      event({ id: 'in-usd', kind: 'income', payeeName: 'Employer' }),
+      event({ id: 'out-usd', kind: 'expense', payeeName: 'Market', movements: [
+        { walletId: 'wallet-1', walletName: 'Cash', currency: 'USD', amountMinor: '-5000', walletArchived: false },
+      ] }),
+      event({ id: 'in-lbp', kind: 'income', payeeName: 'Gift', movements: [
+        { walletId: 'wallet-2', walletName: 'Wallet', currency: 'LBP', amountMinor: '100000', walletArchived: false },
+      ] }),
+      event({ id: 'transfer', kind: 'transfer', payeeName: 'Move cash', movements: [
+        { walletId: 'wallet-1', walletName: 'Cash', currency: 'USD', amountMinor: '-20000', walletArchived: false },
+        { walletId: 'wallet-3', walletName: 'Bank', currency: 'USD', amountMinor: '20000', walletArchived: false },
+      ] }),
+    ]} />);
+    const summary = screen.getByRole('region', { name: 'Shown entry totals' });
+    expect(summary).toHaveTextContent('Shown entries');
+    expect(summary).toHaveTextContent('$250.00');
+    expect(summary).toHaveTextContent('$50.00');
+    expect(summary).toHaveTextContent(/LBP\s+100,000/);
+    expect(summary).not.toHaveTextContent('$200.00');
+
+    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    expect(summary).not.toHaveTextContent('$250.00');
+    expect(summary).toHaveTextContent('$50.00');
   });
 
   it('prefers the category name when no payee exists', () => {
@@ -84,7 +112,7 @@ describe('JournalScreen', () => {
     expect(screen.getByText('بقالة')).toBeInTheDocument();
     const entries = within(screen.getByRole('region', { name: 'قيود اليومية' }));
     expect(entries.getByText('بقالة')).toBeInTheDocument();
-    expect(entries.getByText('تحويل')).toBeInTheDocument();
+    expect(entries.getAllByText('تحويل').length).toBeGreaterThan(0);
   });
 
   it('filters the list client-side with the kind chips', async () => {
@@ -236,7 +264,7 @@ describe('JournalScreen', () => {
         movements: [{ walletId: 'wallet-1', walletName: 'Cash', currency: 'USD', amountMinor: '-25000', walletArchived: false }],
       }),
     ]} />);
-    expect(screen.getByText(/عكس قيد/)).toBeInTheDocument();
+    expect(screen.getAllByText(/عكس قيد/).length).toBeGreaterThan(0);
     expect(document.querySelector('.cr-reversal-text')).not.toBeNull();
   });
 
@@ -386,7 +414,7 @@ describe('JournalScreen', () => {
 
   it('localizes amounts and labels for Arabic', () => {
     render(<JournalScreen {...baseProps} locale="ar" events={[event({ payeeName: 'Employer' })]} />);
-    expect(screen.getByText(byExactText(formatMinorAmount('25000', 'USD', 'ar')))).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'قيود اليومية' })).getByText(byExactText(formatMinorAmount('25000', 'USD', 'ar')))).toBeInTheDocument();
   });
 
   it('renders Arabic chrome without leaking English labels', () => {

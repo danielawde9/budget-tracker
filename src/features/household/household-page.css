@@ -1,0 +1,71 @@
+/* Household page layout. Card, type, control, and status chrome use cr-* patterns. */
+
+.cr-main .hh-sections {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--cr-space-4);
+}
+
+.hh-list {
+  display: grid;
+  gap: 0;
+}
+
+.hh-member-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.hh-invitation-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.hh-member-row .household-actions {
+  justify-content: end;
+}
+
+.hh-invitation-row .mg-meta {
+  justify-content: center;
+}
+
+.hh-access {
+  display: flex;
+  max-inline-size: none;
+}
+
+.hh-leave {
+  margin-block-start: auto;
+}
+
+@media (max-width: 900px) {
+  .hh-member-row,
+  .hh-invitation-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .hh-member-row .mg-meta,
+  .hh-invitation-row .mg-meta {
+    grid-column: 1 / -1;
+    justify-content: start;
+  }
+
+  .hh-member-row .household-actions {
+    display: flex;
+    flex-wrap: wrap;
+    grid-column: 1 / -1;
+    justify-content: start;
+  }
+
+  .hh-member-row .household-actions .cr-button {
+    flex: 1 1 8rem;
+    inline-size: auto;
+  }
+
+  .hh-invitation-row > .cr-button {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}

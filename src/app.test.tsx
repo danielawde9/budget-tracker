@@ -85,7 +85,8 @@ describe('App', () => {
 
   it('mounts the control room shell only for an authenticated session', async () => {
     renderApp();
-    expect(await screen.findByRole('heading', { name: 'Personal space' })).toBeInTheDocument();
+    const home = await screen.findByRole('heading', { name: 'Home' });
+    expect(within(home.parentElement as HTMLElement).getByText('Personal space')).toBeInTheDocument();
     for (const name of ['Home', 'Journal', 'Plan', 'Manage', 'Record']) {
       expect(screen.getAllByRole('button', { name }).length).toBeGreaterThan(0);
     }
@@ -95,7 +96,7 @@ describe('App', () => {
   it('switches destinations inside one authenticated shell', async () => {
     const user = userEvent.setup();
     renderApp();
-    expect(await screen.findByRole('heading', { name: 'Personal space' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Home' })).toBeInTheDocument();
 
     await user.click(screen.getAllByRole('button', { name: 'Journal' })[0]!);
     expect(await screen.findByRole('heading', { name: 'Journal' })).toBeInTheDocument();
@@ -112,11 +113,11 @@ describe('App', () => {
   it('record action does not navigate away from the active destination', async () => {
     const user = userEvent.setup();
     renderApp();
-    expect(await screen.findByRole('heading', { name: 'Personal space' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Home' })).toBeInTheDocument();
 
     await user.click(screen.getAllByRole('button', { name: 'Record' })[0]!);
 
-    expect(screen.getByRole('heading', { name: 'Personal space' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Home' })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Home' })[0]).toHaveAttribute('aria-current', 'page');
   });
 
@@ -133,7 +134,7 @@ describe('App', () => {
       createWallet: vi.fn(async () => ({ id: 'new-wallet' })),
     };
     renderApp({ workspaceGateway: gateway });
-    expect(await screen.findByRole('heading', { name: 'Personal space' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Home' })).toBeInTheDocument();
 
     const nav = rail();
     await user.click(nav.getByRole('button', { name: 'Current space: My money' }));
@@ -166,7 +167,8 @@ describe('App', () => {
       walletsGateway={new InMemoryWalletsGateway()}
       categoriesGateway={new InMemoryCategoriesGateway()}
     />);
-    expect(await screen.findByRole('heading', { name: 'Household space' })).toBeInTheDocument();
+    const householdHome = await screen.findByRole('heading', { name: 'Home' });
+    expect(within(householdHome.parentElement as HTMLElement).getByText('Household space')).toBeInTheDocument();
 
     await user.click(screen.getAllByRole('button', { name: 'Manage' })[0]!);
     expect(await screen.findByRole('navigation', { name: 'Manage sections' })).toBeInTheDocument();
@@ -274,7 +276,7 @@ describe('App quick-add link', () => {
     visit('/?add=transfer');
     try {
       renderApp();
-      expect(await screen.findByRole('heading', { name: 'Personal space' })).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { name: 'Home' })).toBeInTheDocument();
       expect(screen.queryByRole('dialog', { name: 'Record' })).not.toBeInTheDocument();
     } finally {
       visit('/');

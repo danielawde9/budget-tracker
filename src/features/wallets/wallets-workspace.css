@@ -27,6 +27,27 @@
 
 /* ---- Balances hero -------------------------------------------------------- */
 
+.wallets-workspace .wl-totals {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--cr-space-2);
+  margin-block-start: var(--cr-space-4);
+}
+
+.wallets-workspace .wl-total-card {
+  min-inline-size: 0;
+  display: grid;
+  gap: var(--cr-space-2);
+}
+
+.wallets-workspace .wl-total-card + .wl-total-card {
+  margin-block-start: 0;
+}
+
+.wallets-workspace .wl-total-card .cr-amount {
+  overflow-wrap: anywhere;
+}
+
 .wallets-workspace .wallet-context {
   margin-block-start: var(--cr-space-4);
 }
@@ -108,6 +129,39 @@
 .wl-balance-actions .text-button {
   min-height: 44px;
   padding-inline: var(--cr-space-2);
+}
+
+.wl-card-recent {
+  display: grid;
+  gap: var(--cr-space-2);
+  padding-block-start: var(--cr-space-2);
+  border-block-start: 1px solid var(--cr-hairline);
+}
+
+.wl-card-recent ul {
+  list-style: none;
+  display: grid;
+  gap: var(--cr-space-2);
+  margin: 0;
+  padding: 0;
+}
+
+.wl-card-recent li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--cr-space-2);
+  align-items: baseline;
+  min-inline-size: 0;
+}
+
+.wl-card-recent li span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.wl-card-recent li bdi {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---- Empty states ---------------------------------------------------------- */
@@ -410,6 +464,11 @@
 /* ---- Wider screens ----------------------------------------------------------- */
 
 @media (min-width: 700px) {
+  .wallets-workspace .wl-totals,
+  .wallets-workspace .wl-card-recent {
+    display: none;
+  }
+
   .wallets-workspace .journal-filters.wl-filters {
     grid-template-columns: minmax(0, 1fr) auto auto;
   }

@@ -13,11 +13,15 @@ describe('OnboardingDialog', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Create your first space' });
     expect(dialog).toHaveClass('onboarding-dialog', 'dialog-setup');
+    expect(within(dialog).getByRole('list', { name: 'Setup progress' })).toBeInTheDocument();
+    expect(within(dialog).getByText('Space')).toHaveAttribute('aria-current', 'step');
+    expect(within(dialog).getByText('A personal space is private. Only you can see its wallets, loans and data.')).toBeInTheDocument();
     await user.type(within(dialog).getByLabelText('Space name'), 'My money');
     await user.click(within(dialog).getByRole('button', { name: 'Create personal space' }));
     expect(createSpace).toHaveBeenCalledWith({ name: 'My money', kind: 'personal' });
 
     expect(screen.getByRole('heading', { name: 'Add your first wallet' })).toBeInTheDocument();
+    expect(screen.getByText('First wallet')).toHaveAttribute('aria-current', 'step');
     await user.type(screen.getByLabelText('Wallet name'), 'Daily USD');
     await user.click(screen.getByRole('button', { name: 'Create USD wallet' }));
     expect(createWallet).toHaveBeenCalledWith({ spaceId: 'space-new', name: 'Daily USD', currency: 'USD' });
@@ -30,14 +34,14 @@ describe('OnboardingDialog', () => {
     expect(screen.getByRole('dialog', { name: 'Add another space' })).toBeInTheDocument();
   });
 
-  it('supports household and LBP choices and explains the unavailable member flow', async () => {
+  it('supports household and LBP choices and points to member management after setup', async () => {
     const user = userEvent.setup();
     render(<OnboardingDialog locale="en" createSpace={async () => ({ id: 'home' })} createWallet={async () => ({ id: 'wallet' })} onComplete={vi.fn()} />);
     const dialog = screen.getByRole('dialog', { name: 'Create your first space' });
     await user.click(within(dialog).getByRole('radio', { name: 'Household space' }));
     await user.type(within(dialog).getByLabelText('Space name'), 'Our home');
     await user.click(within(dialog).getByRole('button', { name: 'Create household space' }));
-    expect(screen.getByText('Household invitations and member management are coming in a separate milestone.')).toBeInTheDocument();
+    expect(screen.getByText('After setup, invite members from Manage > Household.')).toBeInTheDocument();
     await user.click(screen.getByRole('radio', { name: 'LBP' }));
     await user.type(screen.getByLabelText('Wallet name'), 'Home cash');
     expect(screen.getByRole('button', { name: 'Create LBP wallet' })).toBeInTheDocument();

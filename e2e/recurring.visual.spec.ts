@@ -38,7 +38,7 @@ const internetOccurrence: Record<string, unknown> = {
 async function openPlan(page: import('@playwright/test').Page, options: Parameters<typeof installApplicationFixture>[1] = {}) {
   await installApplicationFixture(page, options);
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Personal space' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible();
   await chooseWorkspaceDestination(page, 'Plan');
   await expect(page.getByRole('heading', { name: 'Plan', exact: true })).toBeVisible();
   await openPlanSection(page, 'Upcoming bills');
