@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { postgrestRejection } from '../../test/postgrest-rejection.js';
 import type { Currency } from '../loans/types.js';
-import type { LinkExistingInput, LinkExistingResult, RecurringGateway, ScheduledOccurrenceRow } from './types.js';
+import type {
+  LinkExistingInput, LinkExistingResult, RecurringGateway, ScheduledOccurrencePage, ScheduledOccurrenceRow,
+} from './types.js';
 import { settleLoanRepayment, type RecordedRepayment } from './settle-loan-repayment.js';
 
 function occurrence(overrides: Partial<ScheduledOccurrenceRow> = {}): ScheduledOccurrenceRow {
@@ -24,9 +26,18 @@ function repayment(overrides: Partial<RecordedRepayment> = {}): RecordedRepaymen
   };
 }
 
-function fakeGateway(rows: ScheduledOccurrenceRow[], link = vi.fn(async (_input: LinkExistingInput) => ({ occurrenceId: 'occ-1', occurrenceEventId: 'oe-1', financialEventId: 'event-9' }))) {
-  const gateway: Pick<RecurringGateway, 'loadOccurrences' | 'linkExisting'> = {
-    loadOccurrences: vi.fn(async () => ({ rows, hasMore: false, nextCursor: null, asOf: '2026-09-20' })),
+function page(rows: readonly ScheduledOccurrenceRow[], nextCursor: ScheduledOccurrencePage['nextCursor'] = null): ScheduledOccurrencePage {
+  return { rows, hasMore: nextCursor !== null, nextCursor, asOf: '2026-09-20' };
+}
+
+function fakeGateway(
+  rows: ScheduledOccurrenceRow[],
+  link = vi.fn(async (_input: LinkExistingInput) => ({ occurrenceId: 'occ-1', occurrenceEventId: 'oe-1', financialEventId: 'event-9' })),
+  overdueRows: ScheduledOccurrenceRow[] = [],
+) {
+  const gateway: Pick<RecurringGateway, 'loadOccurrences' | 'loadOverdue' | 'linkExisting'> = {
+    loadOccurrences: vi.fn(async () => page(rows)),
+    loadOverdue: vi.fn(async () => page(overdueRows)),
     linkExisting: link,
   };
   return { gateway: gateway as RecurringGateway, link };
@@ -98,10 +109,7 @@ describe('settleLoanRepayment', () => {
   // Rejections use the plain `{ code, message }` object the real gateway
   // rethrows (postgrest-js 2.116.0), never `new Error(...)` -- final review I1.
   it('reports a link failure instead of swallowing it, classified', async () => {
-    const gateway = {
-      loadOccurrences: vi.fn(async () => ({ rows: [occurrence()], hasMore: false, nextCursor: null, asOf: '2026-09-20' })),
-      linkExisting: vi.fn(async (_input: LinkExistingInput) => { throw LINK_REFUSED; }),
-    } as unknown as RecurringGateway;
+    const { gateway } = fakeGateway([occurrence()], vi.fn(async (_input: LinkExistingInput): Promise<LinkExistingResult> => { throw LINK_REFUSED; }));
     await expect(settleLoanRepayment(gateway, 'space-1', repayment()))
       .resolves.toEqual({ status: 'failed', error: expect.objectContaining({ code: 'effective_date_not_occurred' }) });
   });
@@ -121,5 +129,40 @@ describe('settleLoanRepayment', () => {
       linkedCount: 1, error: expect.objectContaining({ code: 'effective_date_not_occurred' }),
     });
     expect(link).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('settleLoanRepayment reads the overdue list too (final review I4, M2)', () => {
+  it('settles the oldest overdue instalment first, even one older than its own 59-day look-back', async () => {
+    // Repayment dated 2026-09-26: the window starts 2026-07-29, so the June
+    // instalment is only on the overdue list.
+    const june = occurrence({ id: 'occ-jun', dueDate: '2026-06-01', overdue: true });
+    const sep = occurrence({ id: 'occ-sep', dueDate: '2026-09-01', overdue: true });
+    const { gateway, link } = fakeGateway([sep], undefined, [june, sep]);
+    const outcome = await settleLoanRepayment(gateway, 'space-1', repayment({ effectiveDate: '2026-09-26' }));
+    expect(outcome).toEqual({ status: 'settled', occurrenceId: 'occ-jun', nameEn: 'Karim', nameAr: null });
+    expect(link).toHaveBeenCalledOnce();
+    expect(link).toHaveBeenCalledWith(expect.objectContaining({ occurrenceId: 'occ-jun', amountMinor: '50000' }));
+    expect(gateway.loadOccurrences).toHaveBeenCalledWith(expect.objectContaining({ fromDate: '2026-07-29', toDate: '2026-10-26', limit: 100 }));
+    expect(gateway.loadOverdue).toHaveBeenCalledWith(expect.objectContaining({ limit: 100 }));
+  });
+
+  it('links an instalment served by both lists once', async () => {
+    const sep = occurrence({ id: 'occ-sep', dueDate: '2026-09-01', overdue: true });
+    const { gateway, link } = fakeGateway([sep], undefined, [sep]);
+    await settleLoanRepayment(gateway, 'space-1', repayment({ amountMinor: '100000', effectiveDate: '2026-09-26' }));
+    expect(link).toHaveBeenCalledOnce();
+  });
+
+  it('returns ambiguous (truncated) without linking when a candidate list is cut off', async () => {
+    let calls = 0;
+    const { gateway, link } = fakeGateway([]);
+    gateway.loadOccurrences = vi.fn(async () => {
+      calls += 1;
+      return page(calls === 1 ? [occurrence()] : [], { dueDate: '2026-09-01', id: `cursor-${calls}` });
+    });
+    expect(await settleLoanRepayment(gateway, 'space-1', repayment())).toEqual({ status: 'ambiguous', reason: 'truncated' });
+    expect(gateway.loadOccurrences).toHaveBeenCalledTimes(10);
+    expect(link).not.toHaveBeenCalled();
   });
 });

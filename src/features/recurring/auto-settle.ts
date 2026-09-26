@@ -1,5 +1,6 @@
 import type { Currency } from '../loans/types.js';
 import { classifyRecurringError, type RecurringErrorView } from './errors.js';
+import { loadAllPages, mergeOverdueFirst, PAGE_LIMIT } from './load-all-pages.js';
 import { shiftDateIso } from './occurrence-window.js';
 import type { RecurringGateway, ScheduledOccurrenceRow } from './types.js';
 
@@ -20,7 +21,11 @@ export type SettleCandidate =
 export type AutoSettleOutcome =
   | { readonly status: 'settled'; readonly occurrenceId: string; readonly nameEn: string | null; readonly nameAr: string | null }
   | { readonly status: 'none' }
-  | { readonly status: 'ambiguous'; readonly scheduleCount: number }
+  // Two or more schedules look like this entry; none is guessed (review focus #4).
+  | { readonly status: 'ambiguous'; readonly reason: 'look_alike'; readonly scheduleCount: number }
+  // A candidate list hit the shared pager's page cap, so it is incomplete and
+  // nothing is decided on it (final review M2).
+  | { readonly status: 'ambiguous'; readonly reason: 'truncated' }
   // `error` is the CLASSIFIED failure, never a stringified cause: the real
   // gateway rejects with PostgREST's plain `{ code, message }` object, which
   // `String(cause)` turns into "[object Object]" (final review I1). The
@@ -42,44 +47,86 @@ export type AutoSettleOutcome =
 
 const MATCH_WINDOW_DAYS = 31;
 
-function daysBetween(left: string, right: string): number {
-  return Math.round((Date.parse(right) - Date.parse(left)) / 86_400_000);
-}
-
 function categoriesMatch(bill: string | null, entry: string | null, parentOf: (id: string) => string | null): boolean {
   if (bill === null || entry === null) return bill === entry;
   return bill === entry || parentOf(entry) === bill || parentOf(bill) === entry;
 }
 
+function isOlder(row: ScheduledOccurrenceRow, than: ScheduledOccurrenceRow): boolean {
+  return row.dueDate < than.dueDate || (row.dueDate === than.dueDate && row.id < than.id);
+}
+
+export interface SettleCandidates {
+  readonly rows: readonly ScheduledOccurrenceRow[];
+  /** Either list hit the pager's cap: the caller must not decide on it. */
+  readonly truncated: boolean;
+}
+
+/** Every occurrence a recorded entry could settle: the overdue list (unpaid,
+ * due before the server's today, no lower date bound) and the window around
+ * the entry's date, each read in full through the shared bounded pager
+ * (`loadAllPages`), deduped by id -- the window's look-back overlaps the
+ * overdue list. Shared by `autoSettleRecordedEvent` and `settleLoanRepayment`
+ * (final review I4, M2). */
+export async function loadSettleCandidates(
+  gateway: RecurringGateway,
+  spaceId: string,
+  window: { readonly fromDate: string; readonly toDate: string },
+): Promise<SettleCandidates> {
+  const [overdue, windowed] = await Promise.all([
+    loadAllPages((cursor) => gateway.loadOverdue({
+      spaceId, afterDueDate: cursor?.dueDate ?? null, afterId: cursor?.id ?? null, limit: PAGE_LIMIT,
+    })),
+    loadAllPages((cursor) => gateway.loadOccurrences({
+      spaceId, fromDate: window.fromDate, toDate: window.toDate,
+      afterDueDate: cursor?.dueDate ?? null, afterId: cursor?.id ?? null, limit: PAGE_LIMIT,
+    })),
+  ]);
+  return { rows: mergeOverdueFirst(overdue.rows, windowed.rows), truncated: overdue.truncated || windowed.truncated };
+}
+
+/** Per schedule, the occurrence a payment settles is its OLDEST unpaid one --
+ * never a newer (or future) one while an older one is still unpaid (final
+ * review I4). A schedule is a look-alike when ANY of its unpaid occurrences
+ * has a remaining amount equal to the entry, so a schedule whose matching
+ * occurrence sits behind an older unpaid one still counts toward
+ * `ambiguous` and can't turn a look-alike pair into a guess. The only date
+ * bound is the ceiling for future-dated candidates (entry date + 31 days);
+ * overdue occurrences of any age are candidates. */
 export function findSettleableOccurrence(
   recorded: RecordedEventForMatching,
   occurrences: readonly ScheduledOccurrenceRow[],
   parentOf: (categoryId: string) => string | null,
 ): SettleCandidate {
-  const oldestPerSchedule = new Map<string, ScheduledOccurrenceRow>();
+  const latestDueDate = shiftDateIso(recorded.effectiveDate, MATCH_WINDOW_DAYS);
+  const bySchedule = new Map<string, { oldest: ScheduledOccurrenceRow; lookAlike: boolean }>();
   for (const row of occurrences) {
     if (row.kind !== recorded.eventKind) continue;
     if (row.state !== 'pending' && row.state !== 'partial') continue;
-    if (row.currency !== recorded.currency || row.remainingMinor !== recorded.amountMinor) continue;
+    if (row.currency !== recorded.currency) continue;
     if (!categoriesMatch(row.categoryId, recorded.categoryId, parentOf)) continue;
-    if (Math.abs(daysBetween(row.dueDate, recorded.effectiveDate)) > MATCH_WINDOW_DAYS) continue;
-    const current = oldestPerSchedule.get(row.scheduleId);
-    if (!current || row.dueDate < current.dueDate || (row.dueDate === current.dueDate && row.id < current.id)) {
-      oldestPerSchedule.set(row.scheduleId, row);
-    }
+    if (row.dueDate > latestDueDate) continue;
+    const current = bySchedule.get(row.scheduleId);
+    bySchedule.set(row.scheduleId, {
+      oldest: current && !isOlder(row, current.oldest) ? current.oldest : row,
+      lookAlike: (current?.lookAlike ?? false) || row.remainingMinor === recorded.amountMinor,
+    });
   }
-  if (oldestPerSchedule.size === 0) return { kind: 'none' };
-  if (oldestPerSchedule.size > 1) return { kind: 'ambiguous', scheduleCount: oldestPerSchedule.size };
-  const [only] = oldestPerSchedule.values();
-  return only ? { kind: 'match', occurrence: only } : { kind: 'none' };
+  const lookAlikes = [...bySchedule.values()].filter((schedule) => schedule.lookAlike);
+  if (lookAlikes.length > 1) return { kind: 'ambiguous', scheduleCount: lookAlikes.length };
+  const [only] = lookAlikes;
+  if (!only || only.oldest.remainingMinor !== recorded.amountMinor) return { kind: 'none' };
+  return { kind: 'match', occurrence: only.oldest };
 }
 
 /**
  * After an entry is recorded, link it to the one bill (or income) it clearly
  * pays: same kind, currency and remaining amount, category equal or
- * parent/child, due within 31 days, and exactly one schedule -- whose oldest
- * unpaid occurrence is settled. Never blocks recording; the outcome is
- * returned so the caller can tell the person what happened.
+ * parent/child, due no later than 31 days after the entry, and exactly one
+ * schedule -- whose OLDEST unpaid occurrence, across the overdue list and the
+ * window, is settled. An incomplete candidate list refuses to decide. Never
+ * blocks recording; the outcome is returned so the caller can tell the
+ * person what happened.
  */
 export async function autoSettleRecordedEvent(
   gateway: RecurringGateway,
@@ -88,17 +135,14 @@ export async function autoSettleRecordedEvent(
   parentOf: (categoryId: string) => string | null,
 ): Promise<AutoSettleOutcome> {
   try {
-    const page = await gateway.loadOccurrences({
-      spaceId,
+    const candidates = await loadSettleCandidates(gateway, spaceId, {
       fromDate: shiftDateIso(recorded.effectiveDate, -MATCH_WINDOW_DAYS),
       toDate: shiftDateIso(recorded.effectiveDate, MATCH_WINDOW_DAYS),
-      afterDueDate: null,
-      afterId: null,
-      limit: 100,
     });
-    const candidate = findSettleableOccurrence(recorded, page.rows, parentOf);
+    if (candidates.truncated) return { status: 'ambiguous', reason: 'truncated' };
+    const candidate = findSettleableOccurrence(recorded, candidates.rows, parentOf);
     if (candidate.kind === 'none') return { status: 'none' };
-    if (candidate.kind === 'ambiguous') return { status: 'ambiguous', scheduleCount: candidate.scheduleCount };
+    if (candidate.kind === 'ambiguous') return { status: 'ambiguous', reason: 'look_alike', scheduleCount: candidate.scheduleCount };
     const match = candidate.occurrence;
     await gateway.linkExisting({
       spaceId,

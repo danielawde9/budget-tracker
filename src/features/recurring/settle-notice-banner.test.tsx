@@ -53,4 +53,18 @@ describe('SettleNoticeBanner', () => {
     expect(status).toHaveTextContent('تعذر تعليم الفاتورة كمدفوعة: لا يمكن تسجيل دفعة قبل حلول تاريخها الفعلي.');
     expect(status.textContent).not.toMatch(/[A-Za-z]/);
   });
+
+  // Final review M2: an incomplete candidate list refuses to decide, and the
+  // notice says so instead of implying a look-alike count it never computed.
+  it('says a truncated candidate list refused to decide, in both locales', () => {
+    const { unmount } = render(<SettleNoticeBanner locale="en" outcome={{ status: 'ambiguous', reason: 'truncated' }} onDismiss={vi.fn()} />);
+    expect(screen.getByRole('status')).toHaveTextContent(
+      "There are too many bills to check them all, so this payment wasn't linked to any of them.",
+    );
+    unmount();
+    render(<SettleNoticeBanner locale="ar" outcome={{ status: 'ambiguous', reason: 'truncated' }} onDismiss={vi.fn()} />);
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'عدد الفواتير كبير جدًا بحيث يتعذر التحقق منها كلها، لذا لم تُربط هذه الدفعة بأي منها.',
+    );
+  });
 });

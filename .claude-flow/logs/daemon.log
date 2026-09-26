@@ -6232,3 +6232,5 @@
 [2026-09-26T09:39:19.841Z] [INFO] Worker optimize completed in 9ms
 [2026-09-26T09:40:56.579Z] [INFO] Starting worker: audit (1/2 concurrent)
 [2026-09-26T09:40:56.579Z] [INFO] Worker audit completed in 11ms
+[2026-09-26T09:43:34.642Z] [INFO] Starting worker: map (1/2 concurrent)
+[2026-09-26T09:43:34.643Z] [INFO] Worker map completed in 12ms

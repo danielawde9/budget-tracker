@@ -19,6 +19,13 @@ function noticeBody(outcome: Exclude<AutoSettleOutcome, { status: 'none' }>, loc
         : <>Marked "<bdi>{name}</bdi>" as paid.</>;
     }
     case 'ambiguous':
+      if (outcome.reason === 'truncated') {
+        // The candidate list was cut off at the pager's cap, so no count of
+        // look-alikes exists to report (final review M2).
+        return t(locale,
+          "There are too many bills to check them all, so this payment wasn't linked to any of them.",
+          'عدد الفواتير كبير جدًا بحيث يتعذر التحقق منها كلها، لذا لم تُربط هذه الدفعة بأي منها.');
+      }
       return t(locale,
         `This payment matches ${outcome.scheduleCount} bills — open Upcoming bills to choose.`,
         `تطابق هذه الدفعة ${outcome.scheduleCount} فواتير — افتح الفواتير القادمة للاختيار.`);

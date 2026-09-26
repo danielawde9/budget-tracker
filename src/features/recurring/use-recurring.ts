@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { classifyRecurringError, isAmbiguousTransportFailure, type RecurringErrorView } from './errors.js';
+import { loadAllPages, mergeOverdueFirst, PAGE_LIMIT } from './load-all-pages.js';
 import type {
   ConfirmInput,
   ConfirmResult,
@@ -11,8 +12,6 @@ import type {
   SaveScheduleInput,
   SaveScheduleResult,
   ScheduledOccurrencePage,
-  ScheduledOccurrencePageCursor,
-  ScheduledOccurrenceRow,
   SetOccurrenceStateInput,
   SetOccurrenceStateResult,
 } from './types.js';
@@ -29,43 +28,6 @@ export interface CommandOutcome {
 }
 
 export const defaultOccurrencePage: ScheduledOccurrencePage = { rows: [], hasMore: false, nextCursor: null, asOf: '' };
-
-/** Each of the overdue and upcoming-window lists is paged in full, up to this
- * many 100-row pages (1,000 rows), rather than the single 25-row page that
- * silently dropped every bill past the 25th (audit D10). Every loop needs a
- * provable bound (global engineering rule #2); beyond this bound the list is
- * genuinely incomplete, so `UpcomingPage` shows an alert rather than staying
- * silent about it -- see docs/decisions.md, 2026-09-26. */
-const MAX_PAGES = 10;
-const PAGE_LIMIT = 100;
-
-/** Pages one keyset-cursor RPC to completion (or to `MAX_PAGES`, whichever
- * comes first). Shared by the overdue and upcoming-window loads below --
- * they differ only in which gateway method `fetchPage` calls.
- *
- * Fails loudly rather than looping: if a page's `nextCursor` is the exact
- * cursor that was just sent to fetch it, the RPC isn't advancing (a server
- * regression, most likely) and re-fetching would silently re-append the same
- * page up to `MAX_PAGES` times -- duplicate ids (duplicate React keys) and a
- * truncation banner that misreports a stall as "more data exists". The check
- * runs before the page's rows are folded into the accumulator, so a stalled
- * page's rows are never added even once. */
-async function loadAll(
-  fetchPage: (cursor: ScheduledOccurrencePageCursor | null) => Promise<ScheduledOccurrencePage>,
-): Promise<{ rows: ScheduledOccurrenceRow[]; truncated: boolean }> {
-  const rows: ScheduledOccurrenceRow[] = [];
-  let cursor: ScheduledOccurrencePageCursor | null = null;
-  for (let index = 0; index < MAX_PAGES; index += 1) {
-    const page = await fetchPage(cursor);
-    if (cursor && page.nextCursor && page.nextCursor.dueDate === cursor.dueDate && page.nextCursor.id === cursor.id) {
-      throw new Error('recurring page cursor did not advance');
-    }
-    rows.push(...page.rows);
-    if (!page.nextCursor) return { rows, truncated: false };
-    cursor = page.nextCursor;
-  }
-  return { rows, truncated: true };
-}
 
 type SaveScheduleDraft = Omit<SaveScheduleInput, 'spaceId' | 'requestId'>;
 type MaterializeDraft = Omit<MaterializeInput, 'spaceId' | 'requestId'>;
@@ -147,14 +109,17 @@ export function useRecurring(
     try {
       // Overdue bills (before "today", no lower bound) and the forward
       // window are two independent keyset-paged lists -- loaded concurrently,
-      // each capped at MAX_PAGES so one huge list can't starve the other.
+      // each read in full through the shared bounded pager (`loadAllPages`:
+      // MAX_PAGES pages of PAGE_LIMIT rows, stalled-cursor guard), so one
+      // huge list can't starve the other and a list past the bound shows the
+      // truncation alert rather than silently dropping bills (audit D10).
       let windowAsOf = defaultOccurrencePage.asOf;
       const [overdueResult, windowResult] = await Promise.all([
-        loadAll((cursor) => gateway.loadOverdue(
+        loadAllPages((cursor) => gateway.loadOverdue(
           { spaceId, afterDueDate: cursor?.dueDate ?? null, afterId: cursor?.id ?? null, limit: PAGE_LIMIT },
           controller.signal,
         )),
-        loadAll(async (cursor) => {
+        loadAllPages(async (cursor) => {
           const page = await gateway.loadOccurrences(
             { spaceId, fromDate, toDate, afterDueDate: cursor?.dueDate ?? null, afterId: cursor?.id ?? null, limit: PAGE_LIMIT },
             controller.signal,
@@ -167,8 +132,7 @@ export function useRecurring(
       // Overdue first; a window row already served by the overdue load is
       // dropped rather than shown twice -- a device clock a day off from the
       // server's UTC "today" would otherwise straddle both lists.
-      const overdueIds = new Set(overdueResult.rows.map((row) => row.id));
-      const rows = [...overdueResult.rows, ...windowResult.rows.filter((row) => !overdueIds.has(row.id))];
+      const rows = mergeOverdueFirst(overdueResult.rows, windowResult.rows);
       const data: ScheduledOccurrencePage = { rows, hasMore: false, nextCursor: null, asOf: windowAsOf };
       const truncated = overdueResult.truncated || windowResult.truncated;
       setView({ loadedKey: targetKey, status: 'ready', page: data, truncated, error: null });
