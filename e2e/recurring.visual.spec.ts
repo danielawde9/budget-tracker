@@ -65,6 +65,24 @@ test('an empty occurrence list shows New schedule, not a crash', async ({ page }
   await expect(section.getByRole('button', { name: 'New schedule' })).toBeVisible();
 });
 
+// D1: an overdue bill still reduces Available even though it's due before the
+// window `useRecurring` otherwise loads from -- it must not disappear from
+// the list, and the "Overdue" filter tab must be able to match it.
+const overdueOccurrence: Record<string, unknown> = {
+  id: 'e0000000-0000-4000-8000-000000000003', scheduleId: 'e0000000-0000-4000-8000-000000000103', sourceRevisionId: '1', currentEventId: null,
+  currency: 'USD', kind: 'expense', nameEn: 'Water', nameAr: null, dueDate: '2026-09-10',
+  expectedMinor: '3000', settledMinor: '0', remainingMinor: '3000', state: 'pending', overdue: true,
+  categoryId: null, loanId: null, fundingGoalId: null, preferredWalletId: null, fundingShortfallMinor: null,
+  asOf: '2026-09-14',
+};
+
+test('D1: an overdue bill shows up under the Overdue filter', async ({ page }) => {
+  await openPlan(page, { seedOccurrences: [overdueOccurrence] });
+  const section = page.getByRole('region', { name: 'Upcoming bills' });
+  await section.getByRole('tab', { name: 'Overdue' }).click();
+  await expect(section.getByText('Water')).toBeVisible();
+});
+
 test('U16-03: creating a schedule never posts an occurrence by itself -- only the explicit Refresh occurrences click does', async ({ page }, testInfo) => {
   await openPlan(page);
   const section = page.getByRole('region', { name: 'Upcoming bills' });

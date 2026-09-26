@@ -104,6 +104,7 @@ const unavailableCashControlGateway: CashControlGateway = {
 
 const unavailableRecurringGateway: RecurringGateway = {
   async loadOccurrences() { throw new Error('Recurring bills are unavailable until this browser is connected to its data service.'); },
+  async loadOverdue() { throw new Error('Recurring bills are unavailable until this browser is connected to its data service.'); },
   async saveSchedule() { throw new Error('Recurring bills are unavailable until this browser is connected to its data service.'); },
   async materialize() { throw new Error('Recurring bills are unavailable until this browser is connected to its data service.'); },
   async setOccurrenceState() { throw new Error('Recurring bills are unavailable until this browser is connected to its data service.'); },

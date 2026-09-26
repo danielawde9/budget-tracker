@@ -49,12 +49,16 @@ export interface ApplicationFixtureOptions {
   /** `goal_history_page` JSON object for a goal's detail view. */
   goalHistoryPage?: Record<string, unknown>;
   /** Upcoming bills: seeds `scheduled_occurrence_page`'s initial rows
-   *  (camelCase, matching the SQL contract exactly). `save_schedule` records
-   *  a schedule definition but creates no occurrence on its own (materialize
-   *  is explicit-only, matching the product rule); `materialize_schedule_
-   *  occurrences` then creates one occurrence per active schedule whose
-   *  `startsOn` falls at or before the requested range's end, the same
-   *  read/write split already used for allocation/goals above. */
+   *  (camelCase, matching the SQL contract exactly). A row with `overdue:
+   *  true` is served only by `scheduled_overdue_page` instead -- the two
+   *  routes partition this same seed array by that flag, mirroring how the
+   *  real RPCs never serve the same occurrence twice (task 12). `save_
+   *  schedule` records a schedule definition but creates no occurrence on
+   *  its own (materialize is explicit-only, matching the product rule);
+   *  `materialize_schedule_occurrences` then creates one occurrence per
+   *  active schedule whose `startsOn` falls at or before the requested
+   *  range's end, the same read/write split already used for allocation/
+   *  goals above. */
   seedOccurrences?: readonly Record<string, unknown>[];
   /** Cash-control summary: the `available_cash_summary` JSON object
    *  (camelCase keys matching the SQL contract exactly). Defaults to an
@@ -703,7 +707,15 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       return json(route, { ...seed, currency: body.p_currency, startDate: body.p_start_date, scenario: body.p_scenario, assumption });
     }
     if (path.endsWith('/rpc/scheduled_occurrence_page')) {
-      return json(route, { rows: cloneRows(occurrences), hasMore: false, nextCursor: null, asOf: '2026-09-14' });
+      // The overdue route below serves every seeded row with `overdue: true`
+      // -- excluded here so no id is ever returned by both lists (task 12).
+      return json(route, { rows: cloneRows(occurrences.filter((row) => row['overdue'] !== true)), hasMore: false, nextCursor: null, asOf: '2026-09-14' });
+    }
+    if (path.endsWith('/rpc/scheduled_overdue_page')) {
+      const body = request.postDataJSON() as { p_limit?: number };
+      const limit = body.p_limit ?? 50;
+      const overdueRows = cloneRows(occurrences.filter((row) => row['overdue'] === true)).slice(0, limit);
+      return json(route, { rows: overdueRows, hasMore: false, nextCursor: null, asOf: '2026-09-14' });
     }
     if (path.endsWith('/rpc/save_schedule')) {
       const body = request.postDataJSON() as { p_request_id: string; p_schedule_id: string; p_definition: Record<string, unknown> };

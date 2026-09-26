@@ -166,6 +166,46 @@ describe('createSupabaseRecurringGateway: loadOccurrences', () => {
   });
 });
 
+describe('createSupabaseRecurringGateway: loadOverdue', () => {
+  it('maps camelCase input to p_snake_case args (no date range) and parses with the occurrence-page parser', async () => {
+    const overdueFixture = { ...occurrencePageFixture, rows: [{ ...occurrenceFixture, overdue: true, dueDate: '2026-09-10' }] };
+    const { client, calls } = fakeClient(() => ({ data: overdueFixture, error: null }));
+    const gateway = createSupabaseRecurringGateway(client);
+    const result = await gateway.loadOverdue({ spaceId: 'space-1', afterDueDate: null, afterId: null, limit: 50 });
+    expect(calls[0]).toMatchObject({
+      name: 'scheduled_overdue_page',
+      args: { p_space_id: 'space-1', p_after_due_date: null, p_after_id: null, p_limit: 50 },
+    });
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]!.overdue).toBe(true);
+    expect(result.rows[0]!.dueDate).toBe('2026-09-10');
+  });
+
+  it('forwards a complete cursor and the caller AbortSignal', async () => {
+    const { client, calls } = fakeClient(() => ({ data: occurrencePageFixture, error: null }));
+    const gateway = createSupabaseRecurringGateway(client);
+    const controller = new AbortController();
+    await gateway.loadOverdue({ spaceId: 'space-1', afterDueDate: '2026-09-10', afterId: OCCURRENCE_ID, limit: 25 }, controller.signal);
+    expect(calls[0]!.args).toMatchObject({ p_after_due_date: '2026-09-10', p_after_id: OCCURRENCE_ID, p_limit: 25 });
+    expect(calls[0]!.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('rejects a partial page cursor before calling the transport', async () => {
+    const { client, calls } = fakeClient(() => ({ data: occurrencePageFixture, error: null }));
+    const gateway = createSupabaseRecurringGateway(client);
+    await expect(gateway.loadOverdue({ spaceId: 'space-1', afterDueDate: '2026-09-10', afterId: null, limit: 25 })).rejects.toThrow();
+    expect(calls).toHaveLength(0);
+  });
+
+  it('rejects a response row the shared occurrence parser would reject (e.g. an unknown state enum)', async () => {
+    const { client } = fakeClient(() => ({
+      data: { ...occurrencePageFixture, rows: [{ ...occurrenceFixture, state: 'overdue' }] }, error: null,
+    }));
+    const gateway = createSupabaseRecurringGateway(client);
+    await expect(gateway.loadOverdue({ spaceId: 'space-1', afterDueDate: null, afterId: null, limit: 25 })).rejects.toThrow();
+  });
+});
+
 describe('createSupabaseRecurringGateway: another space\'s stale response', () => {
   it('rejects a response whose row carries a currency the DTO does not recognize', async () => {
     const { client } = fakeClient(() => ({

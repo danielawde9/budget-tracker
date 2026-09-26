@@ -84,6 +84,10 @@ export function UpcomingPage(props: UpcomingPageProps) {
         className="cr-button" onClick={() => setFilter(value)}>{filterLabel(props.locale, value)}</button>)}
     </div>
 
+    {recurring.truncated && <p className="cr-banner" role="alert">
+      {t(props.locale, 'Showing the first 1,000 bills.', 'تُعرض أول 1,000 فاتورة.')}
+    </p>}
+
     {recurring.status === 'loading' && <>
       <SkeletonStatus locale={props.locale} />
       <div className="rec-skeleton-rows" aria-hidden="true">

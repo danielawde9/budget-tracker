@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { coreOccurrencePageFixture, emptyOccurrencePage, InMemoryRecurringGateway } from '../../test/in-memory-recurring-gateway.js';
-import type { RecurringGateway, ScheduledOccurrencePage } from './types.js';
+import { coreOccurrencePageFixture, coreOccurrenceRowFixture, emptyOccurrencePage, InMemoryRecurringGateway } from '../../test/in-memory-recurring-gateway.js';
+import type { RecurringGateway, ScheduledOccurrencePage, ScheduledOccurrenceRow } from './types.js';
 import { useRecurring } from './use-recurring.js';
 
 function deferred<T>() {
@@ -41,6 +41,7 @@ describe('useRecurring', () => {
     const gateway: RecurringGateway = {
       ...new InMemoryRecurringGateway(),
       loadOccurrences: vi.fn((input) => input.spaceId === 'space-1' ? first.promise : second.promise),
+      loadOverdue: vi.fn(async () => emptyOccurrencePage),
     } as unknown as RecurringGateway;
     const { result, rerender } = renderHook(
       ({ spaceId }) => useRecurring(gateway, spaceId, '2026-09-01', '2026-09-30'),
@@ -99,6 +100,7 @@ describe('useRecurring', () => {
       ...new InMemoryRecurringGateway(),
       setOccurrenceState: vi.fn(() => first.promise),
       loadOccurrences: vi.fn(async () => coreOccurrencePageFixture),
+      loadOverdue: vi.fn(async () => emptyOccurrencePage),
     } as unknown as RecurringGateway;
     const { result } = renderHook(() => useRecurring(gateway, 'space-1', '2026-09-01', '2026-09-30'));
     await waitFor(() => expect(result.current.status).toBe('ready'));
@@ -227,16 +229,76 @@ describe('useRecurring', () => {
       expect(names).toContain(expected);
     }
     const requestIds = new Set(gateway.calls.map((call) => (call.input as { requestId?: string }).requestId).filter(Boolean));
-    expect(requestIds.size).toBe(names.filter((name) => name !== 'loadOccurrences').length);
+    expect(requestIds.size).toBe(names.filter((name) => name !== 'loadOccurrences' && name !== 'loadOverdue').length);
   });
+});
 
-  it('loadMore fills in the current space/date-range', async () => {
+describe('useRecurring: overdue bills (D1, D10)', () => {
+  function overdueRow(overrides: Partial<ScheduledOccurrenceRow> = {}): ScheduledOccurrenceRow {
+    return { ...coreOccurrenceRowFixture, overdue: true, state: 'pending', ...overrides };
+  }
+
+  function makeRows(count: number, prefix: string, dueDate = '2026-09-20'): ScheduledOccurrenceRow[] {
+    return Array.from({ length: count }, (_, index) => (
+      { ...coreOccurrenceRowFixture, id: `${prefix}-${index}`, dueDate, overdue: false }
+    ));
+  }
+
+  it('lists overdue occurrences before the upcoming window', async () => {
     const gateway = new InMemoryRecurringGateway();
+    const overdue = overdueRow({ id: 'aaaa0000-0000-4000-8000-000000000001', dueDate: '2026-09-13', nameEn: 'Overdue bill' });
+    const upcoming = { ...coreOccurrenceRowFixture, id: 'bbbb0000-0000-4000-8000-000000000002', overdue: false, nameEn: 'Upcoming bill' };
+    gateway.overdueRows = [overdue];
+    gateway.page = { rows: [upcoming], hasMore: false, nextCursor: null, asOf: '2026-09-14' };
     const { result } = renderHook(() => useRecurring(gateway, 'space-1', '2026-09-01', '2026-09-30'));
     await waitFor(() => expect(result.current.status).toBe('ready'));
-    await result.current.loadMore({ afterDueDate: '2026-09-14', afterId: OCCURRENCE_ID });
-    const moreCall = gateway.calls.filter((entry) => entry.name === 'loadOccurrences').at(-1)!;
-    expect(moreCall.input).toMatchObject({ spaceId: 'space-1', fromDate: '2026-09-01', toDate: '2026-09-30', afterDueDate: '2026-09-14' });
+    expect(result.current.page.rows.map((row) => row.id)).toEqual([overdue.id, upcoming.id]);
+  });
+
+  it('dedupes an occurrence returned by both the overdue and window loads, keeping the overdue copy first', async () => {
+    const gateway = new InMemoryRecurringGateway();
+    const sharedId = coreOccurrenceRowFixture.id;
+    const overdueCopy = overdueRow({ dueDate: '2026-09-13' });
+    // A window row sharing the overdue row's id -- e.g. a device clock a day
+    // off from the server's UTC "today" -- must not be shown a second time.
+    const windowDuplicate = { ...coreOccurrenceRowFixture, overdue: false, dueDate: '2026-09-13' };
+    const otherUpcoming = { ...coreOccurrenceRowFixture, id: 'cccc0000-0000-4000-8000-000000000003', overdue: false };
+    gateway.overdueRows = [overdueCopy];
+    gateway.page = { rows: [windowDuplicate, otherUpcoming], hasMore: false, nextCursor: null, asOf: '2026-09-14' };
+    const { result } = renderHook(() => useRecurring(gateway, 'space-1', '2026-09-01', '2026-09-30'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(result.current.page.rows.map((row) => row.id)).toEqual([sharedId, otherUpcoming.id]);
+    expect(result.current.page.rows[0]).toMatchObject({ id: sharedId, overdue: true });
+  });
+
+  it('pages through the window beyond the first page and shows every row', async () => {
+    const gateway = new InMemoryRecurringGateway();
+    let call = 0;
+    gateway.loadOccurrences = vi.fn(async () => {
+      call += 1;
+      return call === 1
+        ? { rows: makeRows(100, 'w1'), hasMore: true, nextCursor: { dueDate: '2026-09-20', id: 'w1-99' }, asOf: '2026-09-14' }
+        : { rows: makeRows(5, 'w2'), hasMore: false, nextCursor: null, asOf: '2026-09-14' };
+    });
+    const { result } = renderHook(() => useRecurring(gateway, 'space-1', '2026-09-01', '2026-09-30'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(gateway.loadOccurrences).toHaveBeenCalledTimes(2);
+    expect(result.current.page.rows).toHaveLength(105);
+    expect(result.current.truncated).toBe(false);
+  });
+
+  it('stops paging a list after 10 pages and flags the result as truncated', async () => {
+    const gateway = new InMemoryRecurringGateway();
+    let call = 0;
+    gateway.loadOccurrences = vi.fn(async () => {
+      call += 1;
+      return { rows: makeRows(100, `w-${call}`), hasMore: true, nextCursor: { dueDate: '2026-09-20', id: `w-${call}-99` }, asOf: '2026-09-14' };
+    });
+    const { result } = renderHook(() => useRecurring(gateway, 'space-1', '2026-09-01', '2026-09-30'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(gateway.loadOccurrences).toHaveBeenCalledTimes(10);
+    expect(result.current.page.rows).toHaveLength(1000);
+    expect(result.current.truncated).toBe(true);
   });
 });
 

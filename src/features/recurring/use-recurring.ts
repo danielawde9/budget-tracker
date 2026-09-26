@@ -11,6 +11,8 @@ import type {
   SaveScheduleInput,
   SaveScheduleResult,
   ScheduledOccurrencePage,
+  ScheduledOccurrencePageCursor,
+  ScheduledOccurrenceRow,
   SetOccurrenceStateInput,
   SetOccurrenceStateResult,
 } from './types.js';
@@ -27,6 +29,32 @@ export interface CommandOutcome {
 }
 
 export const defaultOccurrencePage: ScheduledOccurrencePage = { rows: [], hasMore: false, nextCursor: null, asOf: '' };
+
+/** Each of the overdue and upcoming-window lists is paged in full, up to this
+ * many 100-row pages (1,000 rows), rather than the single 25-row page that
+ * silently dropped every bill past the 25th (audit D10). Every loop needs a
+ * provable bound (global engineering rule #2); beyond this bound the list is
+ * genuinely incomplete, so `UpcomingPage` shows an alert rather than staying
+ * silent about it -- see docs/decisions.md, 2026-09-26. */
+const MAX_PAGES = 10;
+const PAGE_LIMIT = 100;
+
+/** Pages one keyset-cursor RPC to completion (or to `MAX_PAGES`, whichever
+ * comes first). Shared by the overdue and upcoming-window loads below --
+ * they differ only in which gateway method `fetchPage` calls. */
+async function loadAll(
+  fetchPage: (cursor: ScheduledOccurrencePageCursor | null) => Promise<ScheduledOccurrencePage>,
+): Promise<{ rows: ScheduledOccurrenceRow[]; truncated: boolean }> {
+  const rows: ScheduledOccurrenceRow[] = [];
+  let cursor: ScheduledOccurrencePageCursor | null = null;
+  for (let index = 0; index < MAX_PAGES; index += 1) {
+    const page = await fetchPage(cursor);
+    rows.push(...page.rows);
+    if (!page.nextCursor) return { rows, truncated: false };
+    cursor = page.nextCursor;
+  }
+  return { rows, truncated: true };
+}
 
 type SaveScheduleDraft = Omit<SaveScheduleInput, 'spaceId' | 'requestId'>;
 type MaterializeDraft = Omit<MaterializeInput, 'spaceId' | 'requestId'>;
@@ -53,6 +81,9 @@ interface RecurringView {
   loadedKey: string;
   status: RecurringStatus;
   page: ScheduledOccurrencePage;
+  /** True once either the overdue or the upcoming-window load hit `MAX_PAGES`
+   * without exhausting its cursor -- the list is real but incomplete. */
+  truncated: boolean;
   error: RecurringErrorView | null;
 }
 
@@ -63,7 +94,10 @@ function viewKey(spaceId: string, fromDate: string, toDate: string): string {
 }
 
 function initialView(spaceId: string, fromDate: string, toDate: string): RecurringView {
-  return { loadedKey: viewKey(spaceId, fromDate, toDate), status: 'loading', page: defaultOccurrencePage, error: null };
+  return {
+    loadedKey: viewKey(spaceId, fromDate, toDate), status: 'loading',
+    page: defaultOccurrencePage, truncated: false, error: null,
+  };
 }
 
 function runCommandByKind(gateway: RecurringGateway, command: RetryCommand): Promise<CommandResult> {
@@ -100,11 +134,33 @@ export function useRecurring(
     const myGeneration = ++generation.current;
     if (!preserveCurrent) setView(initialView(spaceId, fromDate, toDate));
     try {
-      const data = await gateway.loadOccurrences(
-        { spaceId, fromDate, toDate, afterDueDate: null, afterId: null, limit: 25 }, controller.signal,
-      );
+      // Overdue bills (before "today", no lower bound) and the forward
+      // window are two independent keyset-paged lists -- loaded concurrently,
+      // each capped at MAX_PAGES so one huge list can't starve the other.
+      let windowAsOf = defaultOccurrencePage.asOf;
+      const [overdueResult, windowResult] = await Promise.all([
+        loadAll((cursor) => gateway.loadOverdue(
+          { spaceId, afterDueDate: cursor?.dueDate ?? null, afterId: cursor?.id ?? null, limit: PAGE_LIMIT },
+          controller.signal,
+        )),
+        loadAll(async (cursor) => {
+          const page = await gateway.loadOccurrences(
+            { spaceId, fromDate, toDate, afterDueDate: cursor?.dueDate ?? null, afterId: cursor?.id ?? null, limit: PAGE_LIMIT },
+            controller.signal,
+          );
+          windowAsOf = page.asOf;
+          return page;
+        }),
+      ]);
       if (generation.current !== myGeneration || currentKey.current !== targetKey) return false;
-      setView({ loadedKey: targetKey, status: 'ready', page: data, error: null });
+      // Overdue first; a window row already served by the overdue load is
+      // dropped rather than shown twice -- a device clock a day off from the
+      // server's UTC "today" would otherwise straddle both lists.
+      const overdueIds = new Set(overdueResult.rows.map((row) => row.id));
+      const rows = [...overdueResult.rows, ...windowResult.rows.filter((row) => !overdueIds.has(row.id))];
+      const data: ScheduledOccurrencePage = { rows, hasMore: false, nextCursor: null, asOf: windowAsOf };
+      const truncated = overdueResult.truncated || windowResult.truncated;
+      setView({ loadedKey: targetKey, status: 'ready', page: data, truncated, error: null });
       return true;
     } catch (cause) {
       if (controller.signal.aborted) return false;
@@ -242,14 +298,11 @@ export function useRecurring(
     setView((current) => (current.status === 'ambiguous' ? { ...current, status: 'ready' } : current));
   }, []);
 
-  const loadMore = useCallback((cursor: { afterDueDate: string; afterId: string }, limit = 25, signal?: AbortSignal): Promise<ScheduledOccurrencePage> =>
-    gateway.loadOccurrences({ spaceId, fromDate, toDate, afterDueDate: cursor.afterDueDate, afterId: cursor.afterId, limit }, signal),
-  [gateway, spaceId, fromDate, toDate]);
-
   const visible = view.loadedKey === currentKey.current;
   return {
     status: visible ? view.status : ('loading' as const),
     page: visible ? view.page : defaultOccurrencePage,
+    truncated: visible ? view.truncated : false,
     error: visible ? view.error : null,
     pending: view.status === 'saving',
     ambiguous: retry ? { kind: retry.kind, requestId: retry.requestId } : null,
@@ -261,7 +314,6 @@ export function useRecurring(
     linkExisting,
     retryAmbiguous,
     clearAmbiguous,
-    loadMore,
   };
 }
 
