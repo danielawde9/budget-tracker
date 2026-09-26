@@ -3880,3 +3880,11 @@ The natural "merge and push" order would ship that frontend against a database t
 **Why:** After the phase-0 local merge, a targeted migration-gate run from `main` also collected `.worktrees/site-revamp/tests/ops`. Three of that older checkout's assertions failed because they pin a 49-migration release while `main` has 55 migrations. `vitest list ... --filesOnly` then showed only the two requested `main` files after the exclusion, and those files passed 33/33 tests. The first broad ops run also encountered an SSH bridge timeout while discovering nested worktrees, so it was interrupted rather than used as evidence about the merged release.
 
 **If changed:** Removing the exclusion would make local verification depend on whichever worktrees happen to be present under the repository. Keep the default Vitest exclusions when changing the scope rule so dependency and generated folders remain out of discovery.
+
+## 2026-09-26 — Put Loans under Plan in the design concepts
+
+**Decision:** The revised desktop and mobile concepts place Loans as a Plan section, after Upcoming bills. Manage remains the home for wallets, categories, household, phone setup, and account settings. This is a navigation proposal only; the React routes and product behavior have not changed.
+
+**Why:** Plan already summarizes loan commitments alongside budgets, goals, bills, and available cash. Opening loan balances and recording repayments from that context gives a direct path from the summary to the underlying commitments. The client asked whether Loans should move to Plan while reviewing the page concepts.
+
+**If changed:** If the client prefers Loans in Manage, revert the concept navigation before implementation. If the client approves this placement for the product, update the route and tab structure in a separate UI implementation session, with EN/AR and RTL review.
