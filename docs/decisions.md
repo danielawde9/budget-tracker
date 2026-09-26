@@ -3853,3 +3853,22 @@ select count(*) from financial_events r join financial_events o on o.id = r.reve
 **Why:** Final review M6. The two SHAs were pinned by independent literals in two test files, so a half-updated release passed every test and failed closed only at `verify-manifest` time, the O1 class of failure. The trigger check also passed for a disabled trigger. The Playwright guard was deferred from Task 8, where one misplaced test file made `playwright test --list` report 0 tests; it was proven here by adding a temporary stray Vitest file under `e2e/` (0 tests in 0 files without the guard, 210 with it) and removing it.
 
 **If changed:** a release whose manifest comes from a different commit than the script's pin must update both in the same commit, or the new test fails. If a replica-mode trigger ever becomes intended, the verify SQL must change with it.
+
+## 2026-09-26 — Release order for the phase-0 branch: migrate live from local `main` before pushing (final review I5)
+
+**Decision:** This branch, and any release whose frontend calls an RPC the live database does not have yet, ships in this order:
+1. Merge `fix/linking-phase-0` into `main` locally. Do not push.
+2. From local `main`, the owner runs `pnpm migrate:live`. The script applies only from a `main` that already contains the release (`scripts/ops/apply-live-migrations.sh` requires `LIVE_MANIFEST_SOURCE_SHA` to be an ancestor of `HEAD`). The read-only pre-apply count query recorded in "Reversals may not be dated before the entry they reverse (schema trigger)" belongs just before this step.
+3. Confirm the run printed `budget_schema_ready` (the post-apply `LIVE_VERIFY_SQL`, which checks the three RPCs below among the 55-row journal).
+4. Push `main`. Cloudflare Workers Builds deploys the frontend on that push.
+
+The app does not tolerate a missing RPC at runtime. A missing function fails loudly (the Plan tab, the Upcoming list and allocation Confirm show their error states), because this order prevents the skew rather than hiding it.
+
+**Why:** Final review I5. Workers Builds auto-deploys every push to `main` ("Cloudflare Workers Builds retargets to the frontend-only command", 2026-09-11), and the new frontend hard-depends on three new RPCs:
+- `monthly_budget_category_page_v3`: `usePlan` loads it in the same `Promise.all` as the summary, so without it the whole Plan tab errors.
+- `scheduled_overdue_page`: `useRecurring` loads it in the same `Promise.all` as the window, so without it the whole Upcoming list errors. Auto-settle and loan settle now read it too, so every settle would report a failure.
+- `allocation_template_head`: allocation Confirm fails without it.
+
+The natural "merge and push" order would ship that frontend against a database that has none of the three. The precedent is "Add a read-only live-migration drift check, not an auto-deploy" (2026-09-14): task 02's fix migration "sat undeployed for a day and broke the Home page in production". The reverse skew is safe: the old frontend on the new schema loses only Undo for entries dated after UTC today, because the reversal-date trigger refuses the old UI's UTC-today reversal date — a transitional edge.
+
+**If changed:** if deploys stop being push-triggered (a manual promote, or migrations applied in CI before the frontend deploys), this order can relax; until then, pushing `main` before `budget_schema_ready` breaks production. A runtime fallback, such as treating PGRST202 on `scheduled_overdue_page` as an empty list, was considered and rejected: it would hide the skew instead of preventing it.
