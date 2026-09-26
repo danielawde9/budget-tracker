@@ -3872,3 +3872,11 @@ The app does not tolerate a missing RPC at runtime. A missing function fails lou
 The natural "merge and push" order would ship that frontend against a database that has none of the three. The precedent is "Add a read-only live-migration drift check, not an auto-deploy" (2026-09-14): task 02's fix migration "sat undeployed for a day and broke the Home page in production". The reverse skew is safe: the old frontend on the new schema loses only Undo for entries dated after UTC today, because the reversal-date trigger refuses the old UI's UTC-today reversal date — a transitional edge.
 
 **If changed:** if deploys stop being push-triggered (a manual promote, or migrations applied in CI before the frontend deploys), this order can relax; until then, pushing `main` before `budget_schema_ready` breaks production. A runtime fallback, such as treating PGRST202 on `scheduled_overdue_page` as an empty list, was considered and rejected: it would hide the skew instead of preventing it.
+
+## 2026-09-26 — Main's Vitest run excludes nested Git worktrees
+
+**Decision:** The Node Vitest config extends `configDefaults.exclude` with `**/.worktrees/**`. Tests in an isolated checkout run from that checkout; a test run from `main` collects only `main`'s tests.
+
+**Why:** After the phase-0 local merge, a targeted migration-gate run from `main` also collected `.worktrees/site-revamp/tests/ops`. Three of that older checkout's assertions failed because they pin a 49-migration release while `main` has 55 migrations. `vitest list ... --filesOnly` then showed only the two requested `main` files after the exclusion, and those files passed 33/33 tests. The first broad ops run also encountered an SSH bridge timeout while discovering nested worktrees, so it was interrupted rather than used as evidence about the merged release.
+
+**If changed:** Removing the exclusion would make local verification depend on whichever worktrees happen to be present under the repository. Keep the default Vitest exclusions when changing the scope rule so dependency and generated folders remain out of discovery.

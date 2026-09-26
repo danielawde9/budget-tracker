@@ -57,3 +57,13 @@ The decided order in `docs/decisions.md` is: merge this branch into local `main`
 ## Remaining product work outside phase 0
 
 The audit still lists the one-space-clock/payday-period design, goal monthly targets in Plan, month copy/close/rollover UI, onboarding recovery, and a transaction picker for manual bill and goal links. D3 still needs partial, overpayment and cross-currency settlement design; D7 still needs an automatic retry/unlink path. Those are not hidden by the phase 0 status labels.
+
+## Post-merge integration — 2026-09-26
+
+The local `main` merge is `f8dbb64` (parents `666dba5` and `df74718`). It has not been pushed. Existing modified RuFlo files and the untracked `artifacts/desktop-concepts-v2/` folder were preserved. This addendum supersedes only the earlier branch-handoff statement that the merge had not happened.
+
+From merged `main`, `pnpm typecheck` passed, `pnpm test:ui` passed 1,309/1,309, `pnpm test:worker` passed 294/294, and `pnpm build` passed with the existing chunk-size advisory. The ops suite passed 246/246 across 14 files after `vitest.config.ts` excluded nested `.worktrees` from test discovery. A first, unscoped ops attempt was interrupted after a Docker SSH bridge timeout; it had also collected tests from an older nested worktree whose release pins expected 49 rather than 55 migrations. The two `main` migration gate files passed 33/33 after correcting discovery. This does not replace the full DB result above.
+
+The authenticated development preview at `http://127.0.0.1:5175/` was checked in the browser. It is served from the phase-0 worktree, whose implementation head is a parent of the merge. Home, Journal, Plan, Allocation, Goals, Available cash, Upcoming bills, Wallets and Loans loaded. New schedule, goal and loan forms opened and closed; blank loan submission focused its required Person field. No financial records were created. This account has no goals, schedules or transactions, so the populated linking, settlement, reversal and retry paths were not exercised manually. The 159 passing Playwright cases above remain the automated flow evidence.
+
+The remaining release sequence is the read-only early-reversal count query, the owner's guarded live migration, `budget_schema_ready` verification, then a push that triggers frontend deployment. None of those production steps occurred here.
