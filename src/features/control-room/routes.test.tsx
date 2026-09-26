@@ -379,6 +379,56 @@ describe('ControlRoomRoutes auto-settle notice', () => {
     expect(linkCall).toBeDefined();
     expect((linkCall?.input as LinkExistingInput).eventId).toEqual(expect.any(String));
   });
+
+  // Final review I2: Task 9's parent/child rule must hold through the real
+  // wiring. `useWallets`' memoized reconcileCommand used to keep the FIRST
+  // render's `onExpenseRecorded`, whose `parentOf` was built before
+  // `useCategories` had loaded anything -- so a child-category expense never
+  // matched a parent-category bill in the running app.
+  async function recordAgainstUtilitiesBill(pick: 'Utilities' | 'Internet') {
+    const user = userEvent.setup();
+    window.localStorage.removeItem('budget:last-wallet:personal-space');
+    const today = new Date();
+    const dueDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const categories = new InMemoryCategoriesGateway();
+    categories.categories = [
+      { id: 'category-utilities', spaceId: 'personal-space', kind: 'expense', nameEn: 'Utilities', nameAr: 'مرافق',
+        parentCategoryId: null, createdAt: '2026-09-08T10:00:00Z', archivedAt: null },
+      { id: 'category-internet', spaceId: 'personal-space', kind: 'expense', nameEn: 'Internet', nameAr: 'إنترنت',
+        parentCategoryId: 'category-utilities', createdAt: '2026-09-08T10:01:00Z', archivedAt: null },
+    ];
+    const recurring = new InMemoryRecurringGateway();
+    recurring.page = {
+      rows: [{
+        ...coreOccurrenceRowFixture, nameEn: 'Utilities bill', dueDate, asOf: dueDate, categoryId: 'category-utilities',
+        expectedMinor: '1000', settledMinor: '0', remainingMinor: '1000', state: 'pending',
+      }],
+      hasMore: false, nextCursor: null, asOf: dueDate,
+    };
+    renderHome(gateways({ categories, recurring }), { recordOpen: true });
+
+    await user.click(await screen.findByRole('button', { name: 'Expense' }));
+    for (const key of ['1', '0']) await user.click(screen.getByRole('button', { name: key }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: /Daily USD/ }));
+    if (pick === 'Internet') await user.click(await screen.findByRole('button', { name: 'Expand Utilities' }));
+    await user.click(await screen.findByRole('button', { name: pick }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    return recurring;
+  }
+
+  it('links a same-category expense to its bill (control)', async () => {
+    const recurring = await recordAgainstUtilitiesBill('Utilities');
+    expect((await screen.findByText(/Marked/)).closest('p')).toHaveTextContent('Marked "Utilities bill" as paid.');
+    expect(recurring.calls.filter((call) => call.name === 'linkExisting')).toHaveLength(1);
+  });
+
+  it('links an expense on the child "Internet" to the bill on its parent "Utilities"', async () => {
+    const recurring = await recordAgainstUtilitiesBill('Internet');
+    expect((await screen.findByText(/Marked/)).closest('p')).toHaveTextContent('Marked "Utilities bill" as paid.');
+    expect(recurring.calls.filter((call) => call.name === 'linkExisting')).toHaveLength(1);
+  });
 });
 
 describe('ControlRoomRoutes plan destination', () => {
