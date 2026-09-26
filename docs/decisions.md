@@ -3842,3 +3842,14 @@ select count(*) from financial_events r join financial_events o on o.id = r.reve
 **Why:** Final review M8, a regression introduced by Task 3's reversal-date trigger. For a repayment recorded between 00:00 and 03:00 in Beirut, UTC today is a day before the entry's local date, so the default correction was refused. The refusal then showed the generic "The change was not recorded" plus the raw database text, in both locales. The entry "Reversals may not be dated before the entry they reverse (schema trigger)" names the loan path as covered by the trigger; this makes that path usable under it.
 
 **If changed:** a correction meant for a later date is still one edit of the date field away; the default only keeps the common case from being refused.
+
+## 2026-09-26 — Release pins are cross-checked, the verify SQL requires the reversal-date trigger enabled, and Playwright collects only *.spec.ts (final review M6, recommendation 4)
+
+**Decision:**
+- **Cross-file pin.** `tests/ops/live-migrations.test.ts` asserts that `ops/budget-migrations.sha256`'s `source_sha` equals `LIVE_MANIFEST_SOURCE_SHA` in `scripts/ops/apply-live-migrations.sh`. This is the second assertion of the plan's Task 3 detector, which that task's ruling dropped along with the manifest-vs-folder check that `tests/ops/migration-manifest.test.ts` already covers.
+- **Trigger enabled.** `LIVE_VERIFY_SQL` now requires `financial_events_reversal_date_guard` to exist and be enabled, with `tgenabled in ('O', 'A')`. This is stricter than the brief's `tgenabled <> 'D'`, on purpose: a trigger switched to `ENABLE REPLICA` (`'R'`) is not disabled, but it never fires in the app's ordinary (origin) sessions.
+- **Playwright scope.** `playwright.config.ts` sets `testMatch: '**/*.spec.ts'`. A stray Vitest `*.test.ts` under `e2e/` can no longer empty the collection; `playwright test --list` stays at 210 tests in 12 files.
+
+**Why:** Final review M6. The two SHAs were pinned by independent literals in two test files, so a half-updated release passed every test and failed closed only at `verify-manifest` time, the O1 class of failure. The trigger check also passed for a disabled trigger. The Playwright guard was deferred from Task 8, where one misplaced test file made `playwright test --list` report 0 tests; it was proven here by adding a temporary stray Vitest file under `e2e/` (0 tests in 0 files without the guard, 210 with it) and removing it.
+
+**If changed:** a release whose manifest comes from a different commit than the script's pin must update both in the same commit, or the new test fails. If a replica-mode trigger ever becomes intended, the verify SQL must change with it.

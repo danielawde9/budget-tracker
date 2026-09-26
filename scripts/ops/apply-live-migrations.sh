@@ -53,7 +53,7 @@ readonly LIVE_VERIFY_SQL="select case when
   and to_regprocedure('public.copy_allocation_month(uuid,uuid,public.currency_code,bigint,date,bigint,text)') is not null
   and to_regprocedure('public.set_rollover_policy(uuid,uuid,public.currency_code,uuid,boolean,bigint)') is not null
   and to_regprocedure('public.journal_search_page(uuid,date,date,uuid,uuid,uuid,bigint,bigint,text,text,integer)') is not null
-  and exists (select 1 from pg_trigger where tgname = 'financial_events_reversal_date_guard')
+  and exists (select 1 from pg_trigger where tgname = 'financial_events_reversal_date_guard' and tgenabled in ('O', 'A'))
   and to_regprocedure('public.allocation_template_head(uuid,public.currency_code)') is not null
   and to_regprocedure('public.monthly_budget_category_page_v3(uuid,date,public.currency_code,text,uuid,integer)') is not null
   and to_regprocedure('public.scheduled_overdue_page(uuid,date,uuid,integer)') is not null

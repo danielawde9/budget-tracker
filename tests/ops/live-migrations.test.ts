@@ -187,6 +187,18 @@ describe('one-time live Supabase migration runner', () => {
     expect(source).not.toContain('SERVICE_ROLE_KEY:?');
   });
 
+  // Final review M6: the two release pins are separate literals in separate
+  // files; a half-updated release passed every test and failed closed only
+  // at verify-manifest time. One cross-file assertion ties them together.
+  it("ships a manifest whose source_sha is the live script's LIVE_MANIFEST_SOURCE_SHA", () => {
+    const manifestSha = /^source_sha=([a-f0-9]{40})$/m
+      .exec(readFileSync(join(process.cwd(), 'ops/budget-migrations.sha256'), 'utf8'))?.[1];
+    const scriptSha = /^readonly LIVE_MANIFEST_SOURCE_SHA='([a-f0-9]{40})'$/m.exec(readFileSync(script, 'utf8'))?.[1];
+
+    expect(manifestSha).toMatch(/^[a-f0-9]{40}$/);
+    expect(scriptSha).toBe(manifestSha);
+  });
+
   it('verifies the exact 55-row journal and merged schema after application', () => {
     const source = readFileSync(script, 'utf8');
     const verificationSql = source.slice(
@@ -276,8 +288,10 @@ describe('one-time live Supabase migration runner', () => {
       "to_regprocedure('public.journal_search_page(uuid,date,date,uuid,uuid,uuid,bigint,bigint,text,text,integer)')",
     );
     expect(verificationSql).toContain("'20260925100000'");
+    // Final review M6: the trigger must exist AND be enabled for normal
+    // (origin) sessions -- 'D' is disabled, and 'R' fires only for replicas.
     expect(verificationSql).toContain(
-      "exists (select 1 from pg_trigger where tgname = 'financial_events_reversal_date_guard')",
+      "exists (select 1 from pg_trigger where tgname = 'financial_events_reversal_date_guard' and tgenabled in ('O', 'A'))",
     );
     expect(verificationSql).toContain("'20260925101000'");
     expect(verificationSql).toContain(
