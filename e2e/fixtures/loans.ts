@@ -1,5 +1,6 @@
 import type { Page, Route } from '@playwright/test';
 import { allocateIncome, residualId as allocationResidualId } from '../../src/features/allocation/money-allocation.js';
+import { orderedV3Roots, pageV3Roots } from '../../src/test/plan-v3-paging.js';
 
 export interface ApplicationFixtureOptions {
   authenticated?: boolean;
@@ -274,48 +275,6 @@ function authSession(email = 'manager@example.test', id = 'visual-user') {
 
 function cloneRows<T extends object>(rows: readonly T[]): T[] {
   return rows.map((row) => ({ ...row }));
-}
-
-// `monthly_budget_category_page_v3`'s mock needs a real keyset cursor, not just
-// a static list, so a Plan that pages past the fixture's first response (e.g. a
-// future e2e test seeding more root categories than one page holds) doesn't get
-// handed the same page forever. Exported so the ordering/paging logic can be
-// unit-tested directly (e2e/fixtures/loans-v3-page.test.ts) without a browser.
-export interface V3Root {
-  categoryId: string;
-  createdAt: string;
-  source: Record<string, unknown>;
-}
-
-/** Root (parent) categories for one currency, in a stable order, each given a
- *  synthetic but stable `createdAt` (the seed data carries no real category
- *  timestamp; the real RPC's cursor only needs a value that round-trips). */
-export function orderedV3Roots(budgetRows: readonly Record<string, unknown>[], currency: 'USD' | 'LBP'): V3Root[] {
-  return budgetRows
-    .filter((row) => row['currency'] === currency && row['parent_category_id'] === undefined)
-    .map((row, index) => ({
-      categoryId: row['category_id'] as string,
-      createdAt: `seed-${String(index).padStart(4, '0')}`,
-      source: row,
-    }));
-}
-
-/** Mirrors the real v3 SQL's keyset page: rows are ordered by
- *  `(createdAt, categoryId)`, `after` (when given) excludes everything at or
- *  before that pair, and `hasMore` reports whether more rows remain beyond
- *  the returned page -- never whether more rows exist overall. */
-export function pageV3Roots(
-  roots: readonly V3Root[],
-  after: { createdAt: string; categoryId: string } | null,
-  limit: number,
-): { page: V3Root[]; hasMore: boolean } {
-  const ordered = [...roots].sort((a, b) =>
-    a.createdAt === b.createdAt ? a.categoryId.localeCompare(b.categoryId) : a.createdAt.localeCompare(b.createdAt));
-  const remaining = after === null
-    ? ordered
-    : ordered.filter((root) =>
-        root.createdAt > after.createdAt || (root.createdAt === after.createdAt && root.categoryId > after.categoryId));
-  return { page: remaining.slice(0, limit), hasMore: remaining.length > limit };
 }
 
 export async function installLoansApiFixture(page: Page, options: ApplicationFixtureOptions = {}) {

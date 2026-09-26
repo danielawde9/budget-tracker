@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { orderedV3Roots, pageV3Roots } from './loans.js';
+import { orderedV3Roots, pageV3Roots } from './plan-v3-paging.js';
 
 function seedRow(categoryId: string, currency: 'USD' | 'LBP', overrides: Record<string, unknown> = {}) {
   return { category_id: categoryId, currency, name_en: categoryId, ...overrides };
