@@ -348,6 +348,9 @@ interface PlanRoutesProps {
   month: string;
   expenseRootCategories: readonly CategoryOption[];
   referenceOptions: Omit<ScheduleReferenceOptions, 'goals'>;
+  /** Bumped by `ControlRoomRoutes` whenever a settle outcome linked
+   * something; mounted Upcoming bills and cash sections reload on it (M7). */
+  settledVersion: number;
   onSpaceUnavailable?: (() => void) | undefined;
 }
 
@@ -400,6 +403,23 @@ function GoalsCurrencySection(props: {
   );
 }
 
+/** Reloads a mounted section when `settledVersion` changes after it mounted:
+ * a recorded entry that settled a bill (or a loan instalment) makes that
+ * section's list or figures stale, and the settle notice above it must not
+ * contradict what is still on screen (final review M7). A section mounted
+ * after the settle already loads fresh, so the version seen at mount is
+ * skipped. */
+function useReloadAfterSettle(settledVersion: number, reload: () => void): void {
+  const reloadRef = useRef(reload);
+  reloadRef.current = reload;
+  const seenVersion = useRef(settledVersion);
+  useEffect(() => {
+    if (seenVersion.current === settledVersion) return;
+    seenVersion.current = settledVersion;
+    reloadRef.current();
+  }, [settledVersion]);
+}
+
 function UpcomingBillsSection(props: {
   locale: Locale;
   spaceId: string;
@@ -408,6 +428,7 @@ function UpcomingBillsSection(props: {
   goalsGateway: GoalsGateway;
   referenceOptions: Omit<ScheduleReferenceOptions, 'goals'>;
   plannedIncomeByCurrency: Readonly<Record<Currency, string | null>>;
+  settledVersion: number;
   onSpaceUnavailable?: (() => void) | undefined;
 }) {
   // A fixed window, re-derived every render off "today" rather than stored
@@ -419,6 +440,7 @@ function UpcomingBillsSection(props: {
   const fromDate = todayIso();
   const { toDate } = occurrenceWindow(fromDate);
   const recurring = useRecurring(props.gateway, props.spaceId, fromDate, toDate, props.onSpaceUnavailable);
+  useReloadAfterSettle(props.settledVersion, () => { void recurring.refresh(); });
   // The schedule editor's "Funding goal" dropdown lists goals from both
   // currencies, suffixed with the currency, since a schedule's own currency
   // choice is independent of which goal it funds.
@@ -454,11 +476,16 @@ function CashControlSection(props: {
   currency: 'USD' | 'LBP';
   gateway: CashControlGateway;
   recurringGateway: RecurringGateway | null;
+  settledVersion: number;
   onSpaceUnavailable?: (() => void) | undefined;
 }) {
   const [scenario, setScenario] = useState<CashOutlookScenario>('expected');
   const today = todayIso();
   const cashControl = useCashControl(props.gateway, props.spaceId, props.currency, today, 60, scenario, props.onSpaceUnavailable);
+  useReloadAfterSettle(props.settledVersion, () => {
+    cashControl.available.refresh();
+    cashControl.outlook.refresh();
+  });
   const availableData = cashControl.available.data;
   const autoMaterialize = useAutoMaterialize({
     gateway: props.recurringGateway,
@@ -639,6 +666,7 @@ function PlanRoutes(props: PlanRoutesProps) {
           currency={currency}
           gateway={gateways.cashControl ?? unavailableCashControlGateway}
           recurringGateway={gateways.recurring}
+          settledVersion={props.settledVersion}
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
       )) : null}
@@ -651,6 +679,7 @@ function PlanRoutes(props: PlanRoutesProps) {
           goalsGateway={gateways.goals ?? unavailableGoalsGateway}
           referenceOptions={props.referenceOptions}
           plannedIncomeByCurrency={plannedIncomeByCurrency}
+          settledVersion={props.settledVersion}
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
       ) : null}
@@ -674,6 +703,13 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
     return (categoryId: string) => byId.get(categoryId) ?? null;
   }, [categories.incomeCategories, categories.expenseCategories]);
   const [settleNotice, setSettleNotice] = useState<AutoSettleOutcome | null>(null);
+  // Bumped when an outcome actually linked something, so mounted Plan
+  // sections reload instead of contradicting the notice (final review M7).
+  const [settledVersion, setSettledVersion] = useState(0);
+  const showSettleOutcome = useCallback((outcome: AutoSettleOutcome) => {
+    setSettleNotice(outcome);
+    if (outcome.status === 'settled' || outcome.status === 'partial') setSettledVersion((version) => version + 1);
+  }, []);
   const settleRecordedEvent = useCallback(async (info: { eventId: string; kind: string; effectiveDate: string; movements: readonly { walletId: string; amountMinor: string }[]; categoryId: string | null }) => {
     if (!gateways.recurring) return;
     const eventKind = info.kind === 'expense' ? 'expense' as const : info.kind === 'income' ? 'income' as const : null;
@@ -690,15 +726,15 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
       currency: wallet.currency,
       effectiveDate: info.effectiveDate,
     }, parentOf);
-    setSettleNotice(outcome);
-  }, [gateways.recurring, spaceId, parentOf]);
+    showSettleOutcome(outcome);
+  }, [gateways.recurring, spaceId, parentOf, showSettleOutcome]);
   const wallets = useWallets(gateways.wallets, spaceId, props.onSpaceUnavailable, undefined, gateways.categories, { onExpenseRecorded: settleRecordedEvent });
   walletListRef.current = wallets.wallets;
   const onRepaymentRecorded = useCallback(async (repayment: RecordedRepayment) => {
     if (!gateways.recurring) return;
     const outcome = await settleLoanRepayment(gateways.recurring, spaceId, repayment);
-    setSettleNotice(outcome);
-  }, [gateways.recurring, spaceId]);
+    showSettleOutcome(outcome);
+  }, [gateways.recurring, spaceId, showSettleOutcome]);
   const loans = useLoans(gateways.loans, {
     spaceId,
     ...(props.onSpaceUnavailable ? { onSpaceUnavailable: props.onSpaceUnavailable } : {}),
@@ -794,6 +830,7 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
           month={month}
           expenseRootCategories={expenseRootCategoryOptions}
           referenceOptions={scheduleReferenceOptions}
+          settledVersion={settledVersion}
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
       );

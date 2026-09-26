@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { OccurrenceDetail } from './occurrence-detail.js';
@@ -37,6 +37,30 @@ describe('OccurrenceDetail', () => {
   it('shows a fallback with a way back when the occurrence is no longer in the visible page', () => {
     const onBack = vi.fn();
     render(<OccurrenceDetail locale="en" recurring={fakeRecurringState({ page: page([row({ id: OTHER_ID })]) })} occurrenceId={OCCURRENCE_ID} walletOptions={WALLET_OPTIONS} onBack={onBack} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('This occurrence is no longer in the visible range.');
+  });
+
+  // Final review I3: holding an acted-on row must not mask a row that leaves
+  // the list for any other reason.
+  it('still shows the missing-row alert when the row leaves the list without an action here', () => {
+    const props = { locale: 'en' as const, occurrenceId: OCCURRENCE_ID, walletOptions: WALLET_OPTIONS, onBack: vi.fn() };
+    const { rerender } = render(<OccurrenceDetail {...props} recurring={fakeRecurringState()} />);
+    expect(screen.queryByRole('alert')).toBeNull();
+    rerender(<OccurrenceDetail {...props} recurring={fakeRecurringState({ page: page([]) })} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('This occurrence is no longer in the visible range.');
+  });
+
+  it('releases a finished action once its row is listed, so a later disappearance still shows the alert', async () => {
+    const props = { locale: 'en' as const, occurrenceId: OCCURRENCE_ID, walletOptions: WALLET_OPTIONS, onBack: vi.fn() };
+    const recurring = fakeRecurringState({
+      page: page([row({ state: 'pending', settledMinor: '0', remainingMinor: '50000', currentEventId: '7' })]),
+      setOccurrenceState: vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { occurrenceId: OCCURRENCE_ID, eventId: '8' } }),
+    });
+    const { rerender } = render(<OccurrenceDetail {...props} recurring={recurring} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Skip' }));
+    await waitFor(() => expect(recurring.setOccurrenceState).toHaveBeenCalledTimes(1));
+    await act(async () => { await Promise.resolve(); });
+    rerender(<OccurrenceDetail {...props} recurring={fakeRecurringState({ page: page([]) })} />);
     expect(screen.getByRole('alert')).toHaveTextContent('This occurrence is no longer in the visible range.');
   });
 

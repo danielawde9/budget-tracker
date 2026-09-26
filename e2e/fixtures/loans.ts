@@ -49,10 +49,13 @@ export interface ApplicationFixtureOptions {
   /** `goal_history_page` JSON object for a goal's detail view. */
   goalHistoryPage?: Record<string, unknown>;
   /** Upcoming bills: seeds `scheduled_occurrence_page`'s initial rows
-   *  (camelCase, matching the SQL contract exactly). A row with `overdue:
-   *  true` is served only by `scheduled_overdue_page` instead -- the two
-   *  routes partition this same seed array by that flag, mirroring how the
-   *  real RPCs never serve the same occurrence twice (task 12). `save_
+   *  (camelCase, matching the SQL contract exactly). A row seeded with
+   *  `overdue: true` is due before the fixture's "today": the window route
+   *  never serves it, and `scheduled_overdue_page` serves it only while it
+   *  is unpaid and not skipped -- so once linked, confirmed in full or
+   *  skipped it is in neither list, as on the server (final review M1).
+   *  The two routes partition by that seeded flag, never by date, so no
+   *  spec has to seed against the real clock (task 12). `save_
    *  schedule` records a schedule definition but creates no occurrence on
    *  its own (materialize is explicit-only, matching the product rule);
    *  `materialize_schedule_occurrences` then creates one occurrence per
@@ -319,6 +322,27 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
   const milestoneStates = new Map<string, 'complete' | 'incomplete'>();
   const goalReceipts = new Map<string, { command: string; sequenceId: string; result: unknown }>();
   const occurrences: Record<string, unknown>[] = cloneRows(options.seedOccurrences ?? []);
+  // Seeded overdue = due before the fixture's "today" (see `seedOccurrences`).
+  const pastDueOccurrenceIds = new Set(
+    occurrences.filter((row) => row['overdue'] === true).map((row) => row['id'] as string),
+  );
+  const isUnpaid = (row: Record<string, unknown>) => row['state'] === 'pending' || row['state'] === 'partial';
+  /** What the server recomputes after every command: a past-due occurrence
+   *  is overdue while it is unpaid and not skipped. */
+  function refreshOverdueFlag(record: Record<string, unknown>) {
+    record['overdue'] = pastDueOccurrenceIds.has(record['id'] as string) && isUnpaid(record);
+  }
+  /** `(dueDate, id)` keyset order, as `scheduled_overdue_page` sorts:
+   *  negative, zero or positive as `row` sorts before, with or after the key.
+   *  Plain string comparison -- ISO dates and lowercase UUIDs order the same
+   *  way as bytes. */
+  function compareKey(row: Record<string, unknown>, dueDate: string, id: string): number {
+    const rowDueDate = row['dueDate'] as string;
+    const rowId = row['id'] as string;
+    if (rowDueDate !== dueDate) return rowDueDate < dueDate ? -1 : 1;
+    if (rowId !== id) return rowId < id ? -1 : 1;
+    return 0;
+  }
   const schedules: { id: string; revisionId: string; definition: Record<string, unknown> }[] = [];
   let nextScheduleRevisionId = 100;
   let nextOccurrenceEventId = 100;
@@ -707,15 +731,33 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       return json(route, { ...seed, currency: body.p_currency, startDate: body.p_start_date, scenario: body.p_scenario, assumption });
     }
     if (path.endsWith('/rpc/scheduled_occurrence_page')) {
-      // The overdue route below serves every seeded row with `overdue: true`
-      // -- excluded here so no id is ever returned by both lists (task 12).
-      return json(route, { rows: cloneRows(occurrences.filter((row) => row['overdue'] !== true)), hasMore: false, nextCursor: null, asOf: '2026-09-14' });
+      // The window starts at "today", so a past-due row is never in it,
+      // whatever its state -- no id is ever returned by both lists (task 12).
+      const windowRows = occurrences.filter((row) => !pastDueOccurrenceIds.has(row['id'] as string));
+      return json(route, { rows: cloneRows(windowRows), hasMore: false, nextCursor: null, asOf: '2026-09-14' });
     }
     if (path.endsWith('/rpc/scheduled_overdue_page')) {
-      const body = request.postDataJSON() as { p_limit?: number };
+      // Mirrors `scheduled_overdue_page`: unpaid, unskipped past-due rows in
+      // (dueDate, id) order after the keyset cursor, `p_limit` per page
+      // (default 50), with a real hasMore/nextCursor (final review M1).
+      const body = request.postDataJSON() as { p_limit?: number | null; p_after_due_date?: string | null; p_after_id?: string | null };
       const limit = body.p_limit ?? 50;
-      const overdueRows = cloneRows(occurrences.filter((row) => row['overdue'] === true)).slice(0, limit);
-      return json(route, { rows: overdueRows, hasMore: false, nextCursor: null, asOf: '2026-09-14' });
+      const cursor = body.p_after_due_date != null && body.p_after_id != null
+        ? { dueDate: body.p_after_due_date, id: body.p_after_id }
+        : null;
+      const ordered = occurrences
+        .filter((row) => pastDueOccurrenceIds.has(row['id'] as string) && isUnpaid(row))
+        .filter((row) => cursor === null || compareKey(row, cursor.dueDate, cursor.id) > 0)
+        .sort((left, right) => compareKey(left, right['dueDate'] as string, right['id'] as string));
+      const pageRows = ordered.slice(0, limit);
+      const hasMore = ordered.length > limit;
+      const last = pageRows[pageRows.length - 1];
+      return json(route, {
+        rows: cloneRows(pageRows),
+        hasMore,
+        nextCursor: hasMore && last ? { dueDate: last['dueDate'], id: last['id'] } : null,
+        asOf: '2026-09-14',
+      });
     }
     if (path.endsWith('/rpc/save_schedule')) {
       const body = request.postDataJSON() as { p_request_id: string; p_schedule_id: string; p_definition: Record<string, unknown> };
@@ -764,7 +806,11 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       if (existing) return json(route, existing.result);
       const eventId = String(nextOccurrenceEventId++);
       const record = occurrences.find((occurrence) => occurrence['id'] === body.p_occurrence_id);
-      if (record) { record['state'] = body.p_action === 'skip' ? 'skipped' : 'pending'; record['currentEventId'] = eventId; }
+      if (record) {
+        record['state'] = body.p_action === 'skip' ? 'skipped' : 'pending';
+        record['currentEventId'] = eventId;
+        refreshOverdueFlag(record);
+      }
       const result = { occurrenceId: body.p_occurrence_id, eventId };
       recurringReceipts.set(body.p_request_id, { command: 'set_occurrence_state', sequenceId: eventId, result });
       return json(route, result);
@@ -784,6 +830,7 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
         record['remainingMinor'] = (remaining > 0n ? remaining : 0n).toString();
         record['state'] = remaining > 0n ? 'partial' : 'settled';
         record['currentEventId'] = eventId;
+        refreshOverdueFlag(record);
       }
       const result = { occurrenceId: body.p_occurrence_id, occurrenceEventId: eventId, financialEventId };
       recurringReceipts.set(body.p_request_id, { command: 'confirm_scheduled_occurrence', sequenceId: eventId, result });
@@ -803,6 +850,7 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
         record['remainingMinor'] = (remaining > 0n ? remaining : 0n).toString();
         record['state'] = remaining > 0n ? 'partial' : 'settled';
         record['currentEventId'] = eventId;
+        refreshOverdueFlag(record);
       }
       const result = { occurrenceId: body.p_occurrence_id, occurrenceEventId: eventId, financialEventId: body.p_event_id };
       recurringReceipts.set(body.p_request_id, { command: 'link_scheduled_payment', sequenceId: eventId, result });

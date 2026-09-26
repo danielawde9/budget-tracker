@@ -5,6 +5,7 @@ import type { InsightsClient, CategoryBudgetRow } from '../insights/types.js';
 import type { Currency } from '../loans/types.js';
 import type { LinkExistingInput } from '../recurring/types.js';
 import type { MonthlyCashSummary, ReportsGateway } from '../reports/types.js';
+import { InMemoryCashControlGateway } from '../../test/in-memory-cash-control-gateway.js';
 import { InMemoryCategoriesGateway } from '../../test/in-memory-categories-gateway.js';
 import { InMemoryHouseholdGateway } from '../../test/in-memory-household-gateway.js';
 import { InMemoryLoansGateway } from '../../test/in-memory-loans-gateway.js';
@@ -428,6 +429,91 @@ describe('ControlRoomRoutes auto-settle notice', () => {
     const recurring = await recordAgainstUtilitiesBill('Internet');
     expect((await screen.findByText(/Marked/)).closest('p')).toHaveTextContent('Marked "Utilities bill" as paid.');
     expect(recurring.calls.filter((call) => call.name === 'linkExisting')).toHaveLength(1);
+  });
+});
+
+/** Settles the linked row, the way the server's next read would show it. */
+class SettlingRecurringGateway extends InMemoryRecurringGateway {
+  override async linkExisting(input: LinkExistingInput) {
+    const result = await super.linkExisting(input);
+    this.page = {
+      ...this.page,
+      rows: this.page.rows.map((row) => (row.id === input.occurrenceId
+        ? { ...row, state: 'settled' as const, settledMinor: row.expectedMinor, remainingMinor: '0' }
+        : row)),
+    };
+    return result;
+  }
+}
+
+// Final review M7: a settle notice must not sit above a mounted list or cash
+// section that still shows the bill as unpaid.
+describe('ControlRoomRoutes refreshes mounted Plan sections after a settle', () => {
+  function groceriesSetup() {
+    window.localStorage.removeItem('budget:last-wallet:personal-space');
+    const today = new Date();
+    const dueDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const categories = new InMemoryCategoriesGateway();
+    categories.categories = [{
+      id: 'category-groceries', spaceId: 'personal-space', kind: 'expense',
+      nameEn: 'Groceries', nameAr: 'بقالة', parentCategoryId: null,
+      createdAt: '2026-09-08T10:00:00Z', archivedAt: null,
+    }];
+    const recurring = new SettlingRecurringGateway();
+    recurring.page = {
+      rows: [{
+        ...coreOccurrenceRowFixture, nameEn: 'Groceries bill', dueDate, asOf: dueDate, categoryId: 'category-groceries',
+        expectedMinor: '1000', settledMinor: '0', remainingMinor: '1000', state: 'pending',
+      }],
+      hasMore: false, nextCursor: null, asOf: dueDate,
+    };
+    const cashControl = new InMemoryCashControlGateway();
+    const gatewaysBag = gateways({ categories, recurring });
+    gatewaysBag.cashControl = cashControl;
+    const props = {
+      locale: 'en' as const, spaceId: 'personal-space', spaceKind: 'personal' as const, destination: 'plan' as const,
+      gateways: gatewaysBag, onCloseRecord: () => undefined,
+    };
+    return { recurring, cashControl, props };
+  }
+
+  async function recordTenDollarGroceries(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByRole('button', { name: 'Expense' }));
+    for (const key of ['1', '0']) await user.click(screen.getByRole('button', { name: key }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: /Daily USD/ }));
+    await user.click(screen.getByRole('button', { name: 'Groceries' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    await screen.findByText(/Marked/);
+  }
+
+  it('reloads a mounted Upcoming bills list, so the settled bill reads Paid under the notice', async () => {
+    const user = userEvent.setup();
+    const { props } = groceriesSetup();
+    const { rerender } = render(<ControlRoomRoutes {...props} recordOpen={false} />);
+    await user.click(await screen.findByRole('button', { name: 'Upcoming bills' }));
+    const bills = await screen.findByRole('region', { name: 'Upcoming bills' });
+    expect(await within(bills).findByText('Due', { selector: '.rec-badge' })).toBeInTheDocument();
+
+    rerender(<ControlRoomRoutes {...props} recordOpen />);
+    await recordTenDollarGroceries(user);
+
+    expect(await within(bills).findByText('Paid', { selector: '.rec-badge' })).toBeInTheDocument();
+  });
+
+  it('reloads a mounted Available cash section after a settle', async () => {
+    const user = userEvent.setup();
+    const { props, cashControl } = groceriesSetup();
+    const { rerender } = render(<ControlRoomRoutes {...props} recordOpen={false} />);
+    await user.click(await screen.findByRole('button', { name: 'Available cash' }));
+    await waitFor(() => expect(cashControl.calls.filter((call) => call.name === 'loadAvailable')).toHaveLength(1));
+
+    rerender(<ControlRoomRoutes {...props} recordOpen />);
+    await recordTenDollarGroceries(user);
+
+    await waitFor(() => expect(cashControl.calls.filter((call) => call.name === 'loadAvailable')).toHaveLength(2));
+    expect(cashControl.calls.filter((call) => call.name === 'loadOutlook')).toHaveLength(2);
   });
 });
 
