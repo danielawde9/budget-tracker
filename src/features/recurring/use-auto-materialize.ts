@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
+import { classifyRecurringError, type RecurringErrorView } from './errors.js';
 import { occurrenceWindow } from './occurrence-window.js';
 import type { RecurringGateway } from './types.js';
 
-export type AutoMaterializeState = { status: 'idle' } | { status: 'running' } | { status: 'failed'; message: string };
+/** `error` is the classified failure (`AutoMaterializeBanner` localizes it),
+ * never a stringified cause -- the gateway rejects with PostgREST's plain
+ * `{ code, message }` object, which `String(cause)` shows as
+ * "[object Object]" (final review I1). */
+export type AutoMaterializeState =
+  | { status: 'idle' }
+  | { status: 'running' }
+  | { status: 'failed'; error: RecurringErrorView };
 
 /** Generates bill occurrences once per space and day when Available reports
  * a generation gap. Occurrence ids are deterministic, so a repeat never
@@ -25,7 +33,7 @@ export function useAutoMaterialize(options: {
     void gateway.materialize({ spaceId, requestId: globalThis.crypto.randomUUID(), ...occurrenceWindow(today) })
       .then(() => onGenerated())
       .then(() => setState({ status: 'idle' }))
-      .catch((cause: unknown) => setState({ status: 'failed', message: cause instanceof Error ? cause.message : String(cause) }));
+      .catch((cause: unknown) => setState({ status: 'failed', error: classifyRecurringError(cause) }));
   }, [gateway, spaceId, today, needed, onGenerated]);
   return state;
 }

@@ -1,4 +1,5 @@
 import type { Currency } from '../loans/types.js';
+import { classifyRecurringError, type RecurringErrorView } from './errors.js';
 import { shiftDateIso } from './occurrence-window.js';
 import type { RecurringGateway, ScheduledOccurrenceRow } from './types.js';
 
@@ -20,7 +21,12 @@ export type AutoSettleOutcome =
   | { readonly status: 'settled'; readonly occurrenceId: string; readonly nameEn: string | null; readonly nameAr: string | null }
   | { readonly status: 'none' }
   | { readonly status: 'ambiguous'; readonly scheduleCount: number }
-  | { readonly status: 'failed'; readonly message: string }
+  // `error` is the CLASSIFIED failure, never a stringified cause: the real
+  // gateway rejects with PostgREST's plain `{ code, message }` object, which
+  // `String(cause)` turns into "[object Object]" (final review I1). The
+  // notice localizes it with `localizeRecurringError`, so no raw English
+  // server text lands inside an Arabic sentence.
+  | { readonly status: 'failed'; readonly error: RecurringErrorView }
   // Only a multi-link settlement (settleLoanRepayment) produces this: at
   // least one instalment was linked before a later link failed, so the
   // caller must not discard the links that already succeeded by reporting a
@@ -31,7 +37,7 @@ export type AutoSettleOutcome =
       readonly nameEn: string | null;
       readonly nameAr: string | null;
       readonly linkedCount: number;
-      readonly message: string;
+      readonly error: RecurringErrorView;
     };
 
 const MATCH_WINDOW_DAYS = 31;
@@ -104,6 +110,6 @@ export async function autoSettleRecordedEvent(
     });
     return { status: 'settled', occurrenceId: match.id, nameEn: match.nameEn, nameAr: match.nameAr };
   } catch (cause) {
-    return { status: 'failed', message: cause instanceof Error ? cause.message : String(cause) };
+    return { status: 'failed', error: classifyRecurringError(cause) };
   }
 }

@@ -1,5 +1,6 @@
 import type { Locale } from '../loans/types.js';
 import type { AutoSettleOutcome } from './auto-settle.js';
+import { localizeRecurringError } from './errors.js';
 
 const t = (locale: Locale, en: string, ar: string) => (locale === 'ar' ? ar : en);
 
@@ -21,15 +22,20 @@ function noticeBody(outcome: Exclude<AutoSettleOutcome, { status: 'none' }>, loc
       return t(locale,
         `This payment matches ${outcome.scheduleCount} bills — open Upcoming bills to choose.`,
         `تطابق هذه الدفعة ${outcome.scheduleCount} فواتير — افتح الفواتير القادمة للاختيار.`);
-    case 'failed':
+    case 'failed': {
+      // The classified error's own copy in the person's language -- never
+      // the raw server text (final review I1, M4).
+      const reason = localizeRecurringError(outcome.error, locale).message;
       return t(locale,
-        `Couldn't mark the bill as paid: ${outcome.message}`,
-        `تعذر تعليم الفاتورة كمدفوعة: ${outcome.message}`);
+        `Couldn't mark the bill as paid: ${reason}`,
+        `تعذر تعليم الفاتورة كمدفوعة: ${reason}`);
+    }
     case 'partial': {
       const name = locale === 'ar' ? (outcome.nameAr ?? outcome.nameEn) : (outcome.nameEn ?? outcome.nameAr);
+      const reason = localizeRecurringError(outcome.error, locale).message;
       return locale === 'ar'
-        ? <>تم تعليم «<bdi>{name}</bdi>» كمدفوعة، لكن تعذّر ربط باقي هذه الدفعة: {outcome.message}</>
-        : <>Marked "<bdi>{name}</bdi>" as paid, but the rest of this repayment couldn't be linked: {outcome.message}</>;
+        ? <>تم تعليم «<bdi>{name}</bdi>» كمدفوعة، لكن تعذّر ربط باقي هذه الدفعة: {reason}</>
+        : <>Marked "<bdi>{name}</bdi>" as paid, but the rest of this repayment couldn't be linked: {reason}</>;
     }
   }
 }

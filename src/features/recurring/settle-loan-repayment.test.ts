@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { postgrestRejection } from '../../test/postgrest-rejection.js';
 import type { Currency } from '../loans/types.js';
 import type { LinkExistingInput, LinkExistingResult, RecurringGateway, ScheduledOccurrenceRow } from './types.js';
 import { settleLoanRepayment, type RecordedRepayment } from './settle-loan-repayment.js';
@@ -30,6 +31,8 @@ function fakeGateway(rows: ScheduledOccurrenceRow[], link = vi.fn(async (_input:
   };
   return { gateway: gateway as RecurringGateway, link };
 }
+
+const LINK_REFUSED = postgrestRejection('P0001', 'a payment cannot be linked before its effective date has occurred');
 
 function dueDateForIndex(index: number): string {
   return `2026-01-${String(index + 1).padStart(2, '0')}`;
@@ -92,13 +95,15 @@ describe('settleLoanRepayment', () => {
     expect(link.mock.calls[11]?.[0]).toEqual(expect.objectContaining({ occurrenceId: 'occ-11' }));
   });
 
-  it('reports a link failure instead of swallowing it', async () => {
+  // Rejections use the plain `{ code, message }` object the real gateway
+  // rethrows (postgrest-js 2.116.0), never `new Error(...)` -- final review I1.
+  it('reports a link failure instead of swallowing it, classified', async () => {
     const gateway = {
       loadOccurrences: vi.fn(async () => ({ rows: [occurrence()], hasMore: false, nextCursor: null, asOf: '2026-09-20' })),
-      linkExisting: vi.fn(async (_input: LinkExistingInput) => { throw new Error('a payment cannot be linked before its effective date has occurred'); }),
+      linkExisting: vi.fn(async (_input: LinkExistingInput) => { throw LINK_REFUSED; }),
     } as unknown as RecurringGateway;
     await expect(settleLoanRepayment(gateway, 'space-1', repayment()))
-      .resolves.toEqual({ status: 'failed', message: 'a payment cannot be linked before its effective date has occurred' });
+      .resolves.toEqual({ status: 'failed', error: expect.objectContaining({ code: 'effective_date_not_occurred' }) });
   });
 
   it('reports a partial settlement when a later link fails after an earlier one already succeeded', async () => {
@@ -108,12 +113,12 @@ describe('settleLoanRepayment', () => {
       occurrenceId: 'occ-1', occurrenceEventId: 'oe-1', financialEventId: 'event-9',
     }));
     link.mockResolvedValueOnce({ occurrenceId: 'occ-sep', occurrenceEventId: 'oe-1', financialEventId: 'event-9' });
-    link.mockRejectedValueOnce(new Error('a payment cannot be linked before its effective date has occurred'));
+    link.mockRejectedValueOnce(LINK_REFUSED);
     const { gateway } = fakeGateway([oct, sep], link);
     const outcome = await settleLoanRepayment(gateway, 'space-1', repayment({ amountMinor: '100000', effectiveDate: '2026-10-05' }));
     expect(outcome).toEqual({
       status: 'partial', occurrenceId: 'occ-sep', nameEn: 'Karim', nameAr: null,
-      linkedCount: 1, message: 'a payment cannot be linked before its effective date has occurred',
+      linkedCount: 1, error: expect.objectContaining({ code: 'effective_date_not_occurred' }),
     });
     expect(link).toHaveBeenCalledTimes(2);
   });

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { postgrestRejection } from '../../test/postgrest-rejection.js';
 import type { Currency } from '../loans/types.js';
 import type { LinkExistingInput, RecurringGateway, ScheduledOccurrenceRow } from './types.js';
 import { autoSettleRecordedEvent, findSettleableOccurrence, type RecordedEventForMatching } from './auto-settle.js';
@@ -136,21 +137,33 @@ describe('autoSettleRecordedEvent', () => {
     expect(link).not.toHaveBeenCalled();
   });
 
-  it('reports a read failure instead of swallowing it', async () => {
+  // Both reject with the plain `{ code, message }` object the real gateway
+  // rethrows (postgrest-js 2.116.0), never `new Error(...)` -- final review I1.
+  it('reports a read failure instead of swallowing it, classified', async () => {
     const failing: Pick<RecurringGateway, 'loadOccurrences' | 'linkExisting'> = {
-      loadOccurrences: vi.fn(async () => { throw new Error('network down'); }),
+      loadOccurrences: vi.fn(async () => { throw postgrestRejection('57014', 'canceling statement due to statement timeout'); }),
       linkExisting: vi.fn(async () => ({ occurrenceId: 'occ-1', occurrenceEventId: 'oe-1', financialEventId: 'event-9' })),
     };
-    await expect(autoSettleRecordedEvent(failing as RecurringGateway, 'space-1', expense(), flat))
-      .resolves.toEqual({ status: 'failed', message: 'network down' });
+    const outcome = await autoSettleRecordedEvent(failing as RecurringGateway, 'space-1', expense(), flat);
+    expect(outcome).toEqual({ status: 'failed', error: expect.objectContaining({ code: 'timeout' }) });
+    expect(JSON.stringify(outcome)).not.toContain('[object Object]');
   });
 
-  it('reports a link failure instead of swallowing it', async () => {
+  it('reports a link failure instead of swallowing it, classified', async () => {
     const gateway = {
       loadOccurrences: vi.fn(async () => ({ rows: [occurrence()], nextCursor: null })),
-      linkExisting: vi.fn(async (_input: LinkExistingInput) => { throw new Error('a payment cannot be linked before its effective date has occurred'); }),
+      linkExisting: vi.fn(async (_input: LinkExistingInput) => {
+        throw postgrestRejection('P0001', 'a payment cannot be linked before its effective date has occurred');
+      }),
     } as unknown as RecurringGateway;
-    await expect(autoSettleRecordedEvent(gateway, 'space-1', expense(), flat))
-      .resolves.toEqual({ status: 'failed', message: 'a payment cannot be linked before its effective date has occurred' });
+    const outcome = await autoSettleRecordedEvent(gateway, 'space-1', expense(), flat);
+    expect(outcome).toEqual({
+      status: 'failed',
+      error: {
+        code: 'effective_date_not_occurred',
+        message: 'A payment can’t be recorded before its effective date has occurred.',
+        recovery: 'Choose today or an earlier date.',
+      },
+    });
   });
 });

@@ -1,6 +1,7 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { InMemoryRecurringGateway } from '../../test/in-memory-recurring-gateway.js';
+import { postgrestRejection } from '../../test/postgrest-rejection.js';
 import { useAutoMaterialize } from './use-auto-materialize.js';
 
 describe('useAutoMaterialize', () => {
@@ -23,11 +24,15 @@ describe('useAutoMaterialize', () => {
     expect(gateway.calls).toHaveLength(0);
   });
 
-  it('reports a failure without retrying in a loop', async () => {
+  it('reports a classified failure without retrying in a loop', async () => {
     const gateway = new InMemoryRecurringGateway();
-    vi.spyOn(gateway, 'materialize').mockRejectedValue(new Error('materialize_cap_exceeded'));
+    // The plain `{ code, message }` object the real gateway rethrows, never
+    // `new Error(...)` -- final review I1.
+    vi.spyOn(gateway, 'materialize').mockRejectedValue(
+      postgrestRejection('P0001', 'materializing this range would create more than 500 new occurrences'),
+    );
     const { result } = renderHook(() => useAutoMaterialize({ gateway, spaceId: 'space-1', today: '2026-09-25', needed: true, onGenerated: vi.fn() }));
-    await waitFor(() => expect(result.current).toEqual({ status: 'failed', message: 'materialize_cap_exceeded' }));
+    await waitFor(() => expect(result.current).toEqual({ status: 'failed', error: expect.objectContaining({ code: 'materialize_cap_exceeded' }) }));
     expect(gateway.materialize).toHaveBeenCalledTimes(1);
   });
 });

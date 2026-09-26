@@ -1,5 +1,6 @@
 import type { Currency } from '../loans/types.js';
 import type { AutoSettleOutcome } from './auto-settle.js';
+import { classifyRecurringError } from './errors.js';
 import { shiftDateIso } from './occurrence-window.js';
 import type { RecurringGateway, ScheduledOccurrenceRow } from './types.js';
 
@@ -61,10 +62,12 @@ export async function settleLoanRepayment(
     }
     return first ? { status: 'settled', occurrenceId: first.id, nameEn: first.nameEn, nameAr: first.nameAr } : { status: 'none' };
   } catch (cause) {
-    const message = cause instanceof Error ? cause.message : String(cause);
+    // Classified, never stringified: the gateway rejects with PostgREST's
+    // plain `{ code, message }` object (final review I1).
+    const error = classifyRecurringError(cause);
     if (first && linkedCount > 0) {
-      return { status: 'partial', occurrenceId: first.id, nameEn: first.nameEn, nameAr: first.nameAr, linkedCount, message };
+      return { status: 'partial', occurrenceId: first.id, nameEn: first.nameEn, nameAr: first.nameAr, linkedCount, error };
     }
-    return { status: 'failed', message };
+    return { status: 'failed', error };
   }
 }
