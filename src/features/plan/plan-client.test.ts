@@ -5,6 +5,16 @@ function rpcClient(impl: (name: string, args: Record<string, unknown>) => { data
   return { rpc: vi.fn((name: string, args: Record<string, unknown>) => Promise.resolve(impl(name, args))) };
 }
 
+function v3Row(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    category_id: 'cat-1', category_created_at: 'seed-0000',
+    name_en: 'Groceries', name_ar: 'بقالة', archived_at: null,
+    target_minor: 30000, actual_spent_minor: 21000, remaining_minor: 9000,
+    overspent_minor: 0, target_revision_id: 11, has_more: false,
+    ...overrides,
+  };
+}
+
 describe('createPlanClient', () => {
   it('maps monthly_budget_currency_summary rows to minor-unit strings', async () => {
     const client = createPlanClient(rpcClient(() => ({
@@ -66,81 +76,80 @@ describe('createPlanClient', () => {
     });
   });
 
-  it('maps monthly_budget_category_page rows and passes keyset cursor args', async () => {
-    const rpc = rpcClient(() => ({
-      data: [{
-        category_id: 'cat-1', name_en: 'Groceries', name_ar: 'بقالة', archived_at: null,
-        currency: 'USD', target_minor: 30000, actual_spent_minor: 21000,
-        remaining_minor: 9000, overspent_minor: 0, target_revision_id: 11,
-      }],
-      error: null,
-    }));
-    const client = createPlanClient(rpc);
-    const page = await client.loadCategoryPage('space-1', '2026-09-01', {
-      afterCreatedAt: '2026-09-01T00:00:00Z', afterCategoryId: 'cat-0', afterCurrency: 'USD',
-    });
-    expect(rpc.rpc).toHaveBeenCalledWith('monthly_budget_category_page', {
-      p_space_id: 'space-1', p_month: '2026-09-01',
-      p_after_created_at: '2026-09-01T00:00:00Z', p_after_category_id: 'cat-0',
-      p_after_currency: 'USD', p_limit: 50,
-    });
-    expect(page.rows[0]).toMatchObject({
-      categoryId: 'cat-1', nameEn: 'Groceries', nameAr: 'بقالة',
-      targetMinor: '30000', actualSpentMinor: '21000', targetRevisionId: '11',
-    });
-  });
-
-  it('maps a category row with no Arabic name to a null nameAr instead of throwing', async () => {
-    const rpc = rpcClient(() => ({
-      data: [{
-        category_id: 'cat-1', name_en: 'Cleaning', name_ar: null, archived_at: null,
-        currency: 'USD', target_minor: null, actual_spent_minor: 3000,
-        remaining_minor: null, overspent_minor: 0, target_revision_id: null,
-      }],
-      error: null,
-    }));
-    const client = createPlanClient(rpc);
-    const page = await client.loadCategoryPage('space-1', '2026-09-01', {
-      afterCreatedAt: '2026-09-01T00:00:00Z', afterCategoryId: 'cat-0', afterCurrency: 'USD',
-    });
-    expect(page.rows[0]).toMatchObject({ categoryId: 'cat-1', nameEn: 'Cleaning', nameAr: null });
-  });
-
-  it('maps a category row with no English name to a null nameEn instead of throwing', async () => {
-    const rpc = rpcClient(() => ({
-      data: [{
-        category_id: 'cat-2', name_en: null, name_ar: 'تنظيف', archived_at: null,
-        currency: 'USD', target_minor: null, actual_spent_minor: 3000,
-        remaining_minor: null, overspent_minor: 0, target_revision_id: null,
-      }],
-      error: null,
-    }));
-    const client = createPlanClient(rpc);
-    const page = await client.loadCategoryPage('space-1', '2026-09-01', {
-      afterCreatedAt: '2026-09-01T00:00:00Z', afterCategoryId: 'cat-0', afterCurrency: 'USD',
-    });
-    expect(page.rows[0]).toMatchObject({ categoryId: 'cat-2', nameEn: null, nameAr: 'تنظيف' });
-  });
-
-  it('throws when a category row has neither an English nor an Arabic name', async () => {
-    const rpc = rpcClient(() => ({
-      data: [{
-        category_id: 'cat-3', name_en: null, name_ar: null, archived_at: null,
-        currency: 'USD', target_minor: null, actual_spent_minor: 0,
-        remaining_minor: null, overspent_minor: 0, target_revision_id: null,
-      }],
-      error: null,
-    }));
-    const client = createPlanClient(rpc);
-    await expect(client.loadCategoryPage('space-1', '2026-09-01', {
-      afterCreatedAt: '2026-09-01T00:00:00Z', afterCategoryId: 'cat-0', afterCurrency: 'USD',
-    })).rejects.toThrow('The database row has no display name.');
-  });
-
   it('throws on rpc error and on malformed rows', async () => {
     const failing = createPlanClient(rpcClient(() => ({ data: null, error: { message: 'an active space membership is required' } })));
     await expect(failing.loadCurrencySummary('space-1', '2026-09-01')).rejects.toThrow('an active space membership is required');
     const malformed = createPlanClient(rpcClient(() => ({ data: [{ currency: 'EUR' }], error: null })));
     await expect(malformed.loadCurrencySummary('space-1', '2026-09-01')).rejects.toThrow();
+  });
+
+  it('pages monthly_budget_category_page_v3 until has_more is false', async () => {
+    const pages = [
+      Array.from({ length: 100 }, (_, i) => v3Row({
+        category_id: `cat-${i}`, category_created_at: `seed-${String(i).padStart(4, '0')}`, has_more: true,
+      })),
+      [v3Row({ category_id: 'cat-100', category_created_at: 'seed-0100', has_more: false })],
+    ];
+    let callIndex = 0;
+    const rpc = rpcClient(() => ({ data: pages[callIndex++], error: null }));
+    const client = createPlanClient(rpc);
+    const rows = await client.loadCategoryRows('space-1', '2026-09-01', 'USD');
+    expect(rows).toHaveLength(101);
+    expect(rpc.rpc).toHaveBeenCalledTimes(2);
+    expect(rpc.rpc).toHaveBeenNthCalledWith(1, 'monthly_budget_category_page_v3', {
+      p_space_id: 'space-1', p_month: '2026-09-01', p_currency: 'USD',
+      p_after_created_at: null, p_after_category_id: null, p_limit: 100,
+    });
+    expect(rpc.rpc).toHaveBeenNthCalledWith(2, 'monthly_budget_category_page_v3', {
+      p_space_id: 'space-1', p_month: '2026-09-01', p_currency: 'USD',
+      p_after_created_at: 'seed-0099', p_after_category_id: 'cat-99', p_limit: 100,
+    });
+  });
+
+  it('rejects once the category page cap is exceeded', async () => {
+    let callCount = 0;
+    const rpc = rpcClient(() => {
+      callCount += 1;
+      return { data: [v3Row({ category_id: `cat-${callCount}`, category_created_at: `seed-${callCount}`, has_more: true })], error: null };
+    });
+    const client = createPlanClient(rpc);
+    await expect(client.loadCategoryRows('space-1', '2026-09-01', 'USD'))
+      .rejects.toThrow('Too many categories to plan at once.');
+    expect(callCount).toBe(20);
+  });
+
+  it('maps monthly_budget_category_page_v3 rows to BudgetCategoryRow with the requested currency', async () => {
+    const rpc = rpcClient(() => ({ data: [v3Row()], error: null }));
+    const client = createPlanClient(rpc);
+    const rows = await client.loadCategoryRows('space-1', '2026-09-01', 'USD');
+    expect(rows).toEqual([{
+      categoryId: 'cat-1', nameEn: 'Groceries', nameAr: 'بقالة', archivedAt: null,
+      currency: 'USD', targetMinor: '30000', actualSpentMinor: '21000',
+      remainingMinor: '9000', overspentMinor: '0', targetRevisionId: '11',
+    }]);
+    expect(rpc.rpc).toHaveBeenCalledWith('monthly_budget_category_page_v3', {
+      p_space_id: 'space-1', p_month: '2026-09-01', p_currency: 'USD',
+      p_after_created_at: null, p_after_category_id: null, p_limit: 100,
+    });
+  });
+
+  it('maps a v3 category row with no Arabic name to a null nameAr instead of throwing', async () => {
+    const rpc = rpcClient(() => ({ data: [v3Row({ name_ar: null })], error: null }));
+    const client = createPlanClient(rpc);
+    const rows = await client.loadCategoryRows('space-1', '2026-09-01', 'USD');
+    expect(rows[0]).toMatchObject({ categoryId: 'cat-1', nameEn: 'Groceries', nameAr: null });
+  });
+
+  it('maps a v3 category row with no English name to a null nameEn instead of throwing', async () => {
+    const rpc = rpcClient(() => ({ data: [v3Row({ name_en: null, name_ar: 'تنظيف' })], error: null }));
+    const client = createPlanClient(rpc);
+    const rows = await client.loadCategoryRows('space-1', '2026-09-01', 'USD');
+    expect(rows[0]).toMatchObject({ categoryId: 'cat-1', nameEn: null, nameAr: 'تنظيف' });
+  });
+
+  it('throws when a v3 category row has neither an English nor an Arabic name', async () => {
+    const rpc = rpcClient(() => ({ data: [v3Row({ name_en: null, name_ar: null })], error: null }));
+    const client = createPlanClient(rpc);
+    await expect(client.loadCategoryRows('space-1', '2026-09-01', 'USD')).rejects.toThrow('The database row has no display name.');
   });
 });

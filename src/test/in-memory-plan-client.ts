@@ -1,8 +1,9 @@
-import type { BudgetCategoryPage, BudgetCurrencySummary, PlanClient, SetCategoryTargetInput, SetIncomePlanInput } from '../features/plan/types.js';
+import type { BudgetCategoryRow, BudgetCurrencySummary, PlanClient, SetCategoryTargetInput, SetIncomePlanInput } from '../features/plan/types.js';
+import type { Currency } from '../features/loans/types.js';
 
 export class InMemoryPlanClient implements PlanClient {
   summaries: BudgetCurrencySummary[] = [];
-  categoryPage: BudgetCategoryPage = { rows: [], nextCursor: null };
+  categoryRows: BudgetCategoryRow[] = [];
   calls: Array<{ name: string; input: unknown }> = [];
   error: Error | null = null;
   private revision = 0;
@@ -11,9 +12,9 @@ export class InMemoryPlanClient implements PlanClient {
     if (this.error) throw this.error;
     return this.summaries;
   }
-  async loadCategoryPage(): Promise<BudgetCategoryPage> {
+  async loadCategoryRows(_spaceId: string, _month: string, currency: Currency): Promise<readonly BudgetCategoryRow[]> {
     if (this.error) throw this.error;
-    return this.categoryPage;
+    return this.categoryRows.filter((row) => row.currency === currency);
   }
   async setIncomePlan(input: SetIncomePlanInput): Promise<{ revisionId: string }> {
     if (this.error) throw this.error;

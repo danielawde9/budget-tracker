@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { InsightsClient, CategoryBudgetRow } from '../insights/types.js';
+import type { Currency } from '../loans/types.js';
 import type { LinkExistingInput } from '../recurring/types.js';
 import type { MonthlyCashSummary, ReportsGateway } from '../reports/types.js';
 import { InMemoryCategoriesGateway } from '../../test/in-memory-categories-gateway.js';
@@ -175,8 +176,9 @@ describe('ControlRoomRoutes skeleton loading states', () => {
         if (prop === 'loadCurrencySummary') {
           return () => gate.promise.then(() => target.loadCurrencySummary());
         }
-        if (prop === 'loadCategoryPage') {
-          return () => gate.promise.then(() => target.loadCategoryPage());
+        if (prop === 'loadCategoryRows') {
+          return (spaceId: string, month: string, currency: Currency) =>
+            gate.promise.then(() => target.loadCategoryRows(spaceId, month, currency));
         }
         return Reflect.get(target, prop, receiver);
       },

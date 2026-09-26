@@ -1,8 +1,6 @@
 import type {
-  BudgetCategoryPage,
   BudgetCategoryRow,
   BudgetCurrencySummary,
-  CategoryPageCursor,
   PlanClient,
   SetCategoryTargetInput,
   SetIncomePlanInput,
@@ -14,7 +12,8 @@ interface PlanDataClient {
 }
 
 const currencies = new Set<Currency>(['USD', 'LBP']);
-const PAGE_LIMIT = 50;
+const V3_PAGE_LIMIT = 100;
+const MAX_CATEGORY_PAGES = 20;
 
 type Row = Record<string, unknown>;
 
@@ -82,7 +81,7 @@ function summaryRow(row: unknown): BudgetCurrencySummary {
   };
 }
 
-function categoryRow(row: unknown): BudgetCategoryRow {
+function categoryRowV3(row: unknown, currency: Currency): BudgetCategoryRow {
   const r = asRow(row);
   const nameEn = nullableText(r, 'name_en');
   const nameAr = nullableText(r, 'name_ar');
@@ -92,7 +91,7 @@ function categoryRow(row: unknown): BudgetCategoryRow {
     nameEn,
     nameAr,
     archivedAt: nullableText(r, 'archived_at'),
-    currency: currencyValue(r, 'currency'),
+    currency,
     targetMinor: nullableMinorValue(r, 'target_minor'),
     actualSpentMinor: minorValue(r, 'actual_spent_minor'),
     remainingMinor: nullableMinorValue(r, 'remaining_minor'),
@@ -138,18 +137,27 @@ export function createPlanClient(client: PlanDataClient): PlanClient {
       if (!Array.isArray(data)) throw new Error('Unexpected currency summary shape.');
       return (data as unknown[]).map(summaryRow);
     },
-    async loadCategoryPage(spaceId, month, cursor = null) {
-      const data = await call(client, 'monthly_budget_category_page', {
-        p_space_id: spaceId,
-        p_month: month,
-        p_after_created_at: cursor?.afterCreatedAt ?? null,
-        p_after_category_id: cursor?.afterCategoryId ?? null,
-        p_after_currency: cursor?.afterCurrency ?? null,
-        p_limit: PAGE_LIMIT,
-      });
-      if (!Array.isArray(data)) throw new Error('Unexpected category page shape.');
-      const rows = (data as unknown[]).map(categoryRow);
-      return { rows, nextCursor: null } satisfies BudgetCategoryPage;
+    async loadCategoryRows(spaceId, month, currency) {
+      const rows: BudgetCategoryRow[] = [];
+      let after: { createdAt: string; categoryId: string } | null = null;
+      for (let pageIndex = 0; pageIndex < MAX_CATEGORY_PAGES; pageIndex += 1) {
+        const data = await call(client, 'monthly_budget_category_page_v3', {
+          p_space_id: spaceId,
+          p_month: month,
+          p_currency: currency,
+          p_after_created_at: after?.createdAt ?? null,
+          p_after_category_id: after?.categoryId ?? null,
+          p_limit: V3_PAGE_LIMIT,
+        });
+        if (!Array.isArray(data)) throw new Error('Unexpected category page shape.');
+        const page = (data as unknown[]).map((value) => categoryRowV3(value, currency));
+        rows.push(...page);
+        const last = (data as unknown[]).at(-1);
+        const hasMore = last !== undefined && asRow(last)['has_more'] === true;
+        if (!hasMore) return rows;
+        after = { createdAt: textValue(asRow(last), 'category_created_at'), categoryId: textValue(asRow(last), 'category_id') };
+      }
+      throw new Error('Too many categories to plan at once.');
     },
     setIncomePlan(input) {
       return postPlan(client, 'set_monthly_income_plan', input);

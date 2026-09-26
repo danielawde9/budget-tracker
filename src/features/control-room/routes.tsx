@@ -65,7 +65,7 @@ const unavailableExchangeClient: ExchangeClient = {
 
 const unavailablePlanClient: PlanClient = {
   async loadCurrencySummary() { throw new Error('Planning is unavailable until this browser is connected to its data service.'); },
-  async loadCategoryPage() { throw new Error('Planning is unavailable until this browser is connected to its data service.'); },
+  async loadCategoryRows() { throw new Error('Planning is unavailable until this browser is connected to its data service.'); },
   async setIncomePlan() { throw new Error('Planning is unavailable until this browser is connected to its data service.'); },
   async setCategoryTarget() { throw new Error('Planning is unavailable until this browser is connected to its data service.'); },
 };

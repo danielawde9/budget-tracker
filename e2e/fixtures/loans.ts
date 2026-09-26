@@ -16,8 +16,10 @@ export interface ApplicationFixtureOptions {
   rejectCategoryCreateOnce?: boolean;
   /** Control Room plan screen: rows for `monthly_budget_currency_summary`. */
   planSummary?: readonly Record<string, unknown>[];
-  /** Control Room plan/home screens: rows for `monthly_budget_category_page` and
-   *  `report_category_actual_vs_budget` (a merged key set satisfies both parsers). */
+  /** Control Room plan/home screens: rows for `monthly_budget_category_page_v3`
+   *  (Plan, root categories only, per currency), the legacy `monthly_budget_category_page`
+   *  (kept for any caller still on v1), and `report_category_actual_vs_budget`
+   *  (Home/insights) -- a merged key set satisfies all three parsers. */
   budgetRows?: readonly Record<string, unknown>[];
   /** Control Room insights: rows for `report_wallet_activity`. */
   activityRows?: readonly Record<string, unknown>[];
@@ -567,6 +569,30 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
     }
     if (path.endsWith('/rpc/monthly_budget_category_page')) {
       return json(route, cloneRows(options.budgetRows ?? []));
+    }
+    if (path.endsWith('/rpc/monthly_budget_category_page_v3')) {
+      const body = request.postDataJSON() as { p_currency: 'USD' | 'LBP'; p_limit?: number | null };
+      const limit = body.p_limit ?? 100;
+      // Plan v3 lists parent (root) categories only -- spending recorded on a
+      // subcategory is rolled into its parent's actual_spent_minor before this
+      // fixture ever sees it. Nothing seeded here models a subcategory yet, so
+      // this filter is a no-op today and stays correct if one is added.
+      const roots = (options.budgetRows ?? []).filter((row) =>
+        row['currency'] === body.p_currency && row['parent_category_id'] === undefined);
+      const page = roots.slice(0, limit).map((row, index) => ({
+        category_id: row['category_id'],
+        category_created_at: `seed-${String(index).padStart(4, '0')}`,
+        name_en: row['name_en'] ?? null,
+        name_ar: row['name_ar'] ?? null,
+        archived_at: row['archived_at'] ?? null,
+        target_minor: row['target_minor'] ?? '0',
+        actual_spent_minor: row['actual_spent_minor'] ?? '0',
+        remaining_minor: row['remaining_minor'] ?? null,
+        overspent_minor: row['overspent_minor'] ?? '0',
+        target_revision_id: row['target_revision_id'] ?? null,
+        has_more: roots.length > limit,
+      }));
+      return json(route, page);
     }
     if (path.endsWith('/rpc/report_wallet_activity')) {
       return json(route, cloneRows(options.activityRows ?? []));
