@@ -12,6 +12,7 @@ describe('wallet errors', () => {
     [{ code: 'P0001', message: 'the wallet is archived' }, 'wallet_archived'],
     [{ code: 'P0001', message: 'the wallet balance must be zero to archive' }, 'non_zero_balance'],
     [{ code: 'P0001', message: 'request ID was already used with different data' }, 'request_collision'],
+    [{ code: '23514', message: 'a reversal cannot be dated before the entry it reverses' }, 'reversal_before_original'],
   ] as const)('maps %s to %s without exposing database internals', (cause, code) => {
     const result = classifyWalletError(cause);
     expect(result.code).toBe(code);
@@ -36,6 +37,7 @@ describe('wallet errors', () => {
     'not_archived',
     'non_zero_balance',
     'request_collision',
+    'reversal_before_original',
     'unknown',
   ] as const)('localizes %s without reusing English fallback copy', (code) => {
     const result = localizeWalletError({ code, message: 'English message', recovery: 'English recovery' }, 'ar');

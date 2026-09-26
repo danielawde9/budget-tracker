@@ -27,6 +27,7 @@ in the repository.
 | **Traced** | An audit agent traced it end to end in source. The lead did not re-read it. |
 | **Suspected** | Plausible, but needs a reproducer. |
 | **Decision** | Matches an entry in `docs/decisions.md`. Treat it as a product question, not a defect. |
+| **Fixed** | Resolved by a later commit on this branch; the row names the commit and what it changed. Added 2026-09-26 (Task 3), the first fix to land after this audit. |
 
 Paths: `M/` = `supabase/migrations/<timestamp>_`; `F/` = `src/features/`.
 
@@ -82,7 +83,7 @@ the payday and onboarding work decides. Each is a separate bug packet.
 | ID | Sev | Status | Finding | Evidence |
 | --- | --- | --- | --- | --- |
 | A1 | HIGH | Verified | = B5, see §1 rank 5. v2 drops subcategory spend entirely. | `M/20260914090000_planning_projection_contracts.sql:269-293` |
-| A2 | HIGH | Verified | = §1 rank 2. `reverse_financial_event` doesn't check that a reversal date is on or after the original. | `M/20260908103000_harden_reverse_financial_event.sql:27-29` |
+| A2 | HIGH | **Fixed** | = §1 rank 2. `reverse_financial_event` doesn't check that a reversal date is on or after the original. **Fixed 2026-09-26** (Task 3, `fix(journal): refuse reversals dated before their entry; catch up the release manifest`): a `before insert` trigger on `financial_events` (`financial_events_reversal_date_guard`, `M/20260925100000_reversal_date_guard.sql`) refuses the insert for every caller, not just `reverse_financial_event`. See `docs/decisions.md` 2026-09-26 "Reversals may not be dated before the entry they reverse". | `M/20260908103000_harden_reverse_financial_event.sql:27-29` |
 | A3 | HIGH | Traced | = B4, see §1 rank 6. | `F/plan/plan-client.ts:17,152` |
 | A4 | HIGH | Verified | = B1, see §1 rank 3. | |
 | A5 | MEDIUM | Traced (MISSING) | Copy, close and rollover have no UI (tasks 21 and 22 pending), so every month starts from zero. | `docs/decisions.md:3563` |
@@ -195,10 +196,11 @@ Commit `9dbf6f0`'s matching rules have no `docs/decisions.md` entry.
 
 ### 3.7 Release operations (O)
 
-- **O1 MEDIUM (verified):** the release manifest is out of date.
-  - `ops/budget-migrations.sha256` (49 rows, `source_sha=87e5af7`) and `LIVE_VERIFY_SQL` in `scripts/ops/apply-live-migrations.sh` (49 versions) omit `20260919100000_journal_search_page.sql`. It was added by commit `3318f00`, which did not regenerate the manifest, and no ledger entry explains why.
-  - `migrate-budget.sh verify-manifest` fails closed with `unmanifested migration file` (exit 79), so the next `pnpm migrate:live` would refuse to run. That is safe, but it blocks every release until the manifest is regenerated.
-  - `tests/ops/live-migrations.test.ts` passes (9/9 on `e149057`) because it checks only the script's constants and never compares the manifest with the migrations folder. That missing check is the detector the fix must add.
+- **O1 MEDIUM — Fixed 2026-09-26:** the release manifest was out of date.
+  - `ops/budget-migrations.sha256` (49 rows, `source_sha=87e5af7`) and `LIVE_VERIFY_SQL` in `scripts/ops/apply-live-migrations.sh` (49 versions) omitted `20260919100000_journal_search_page.sql`. It was added by commit `3318f00` (2026-09-20), which did not regenerate the manifest, and no ledger entry explained why.
+  - `migrate-budget.sh verify-manifest` fails closed with `unmanifested migration file` (exit 79), so the next `pnpm migrate:live` would have refused to run. That is safe, but it blocks every release until the manifest is regenerated.
+  - **Correction to this audit's original claim:** this bullet originally read "`tests/ops/live-migrations.test.ts` passes (9/9 on `e149057`) because it checks only the script's constants and never compares the manifest with the migrations folder. That missing check is the detector the fix must add." That is false as a description of the repository: the detector already existed. `tests/ops/migration-manifest.test.ts` compares the manifest's migration rows against `supabase/migrations` on disk by name, order and sha256, and it started failing on `3318f00` the same day — it was simply never run. `tests/ops/live-migrations.test.ts` was the only ops file the original audit ran (hence "9/9 on `e149057`"); the full `pnpm exec vitest run tests/ops` was not, so the six-day-old failure went unnoticed until the 2026-09-25 baseline (`docs/verification/2026-09-25-phase-0-baseline.md`) surfaced it.
+  - **Fixed 2026-09-26** (Task 3, `fix(journal): refuse reversals dated before their entry; catch up the release manifest`): the manifest, `LIVE_MANIFEST_SOURCE_SHA`, `LIVE_VERIFY_SQL` and `releaseHead` were regenerated/updated to include both `20260919100000_journal_search_page.sql` and this task's own `20260925100000_reversal_date_guard.sql` (49 → 51). `tests/ops/migration-manifest.test.ts` is the RED→GREEN evidence. See `docs/decisions.md` 2026-09-26 "Release manifest must list every migration (ops test)".
 
 ## 4. Missing features users would expect
 

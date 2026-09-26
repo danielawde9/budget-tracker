@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest';
 const script = join(process.cwd(), 'scripts/ops/apply-live-migrations.sh');
 const projectRef = 'hqblhzqitrbvpyoxtmew';
 const fixtureProjectRef = projectRef;
-const releaseHead = '87e5af748961df75c780fd024b00cf7f6644438d';
+const releaseHead = 'db769d90e803f1b967070775097eeb2a191c032f';
 const liveRunnerCommit = 'b9537efa69216a42189cbb878c4bfa849a5b52f5';
 const subprocessTimeoutMillis = 10_000;
 const defaultProjects = JSON.stringify([{ id: fixtureProjectRef, name: 'Budget' }]);
@@ -187,14 +187,14 @@ describe('one-time live Supabase migration runner', () => {
     expect(source).not.toContain('SERVICE_ROLE_KEY:?');
   });
 
-  it('verifies the exact 49-row journal and merged schema after application', () => {
+  it('verifies the exact 51-row journal and merged schema after application', () => {
     const source = readFileSync(script, 'utf8');
     const verificationSql = source.slice(
       source.indexOf('readonly LIVE_VERIFY_SQL='),
       source.indexOf('\n\nlive_fail()'),
     );
 
-    expect(verificationSql.match(/'20[0-9]{12}'/g)).toHaveLength(49);
+    expect(verificationSql.match(/'20[0-9]{12}'/g)).toHaveLength(51);
     expect(verificationSql).toContain("'20260908170000'");
     expect(verificationSql).toContain("'20260910100000'");
     expect(verificationSql).toContain("'20260911100000'");
@@ -270,6 +270,14 @@ describe('one-time live Supabase migration runner', () => {
     );
     expect(verificationSql).toContain(
       "to_regprocedure('public.set_rollover_policy(uuid,uuid,public.currency_code,uuid,boolean,bigint)')",
+    );
+    expect(verificationSql).toContain("'20260919100000'");
+    expect(verificationSql).toContain(
+      "to_regprocedure('public.journal_search_page(uuid,date,date,uuid,uuid,uuid,bigint,bigint,text,text,integer)')",
+    );
+    expect(verificationSql).toContain("'20260925100000'");
+    expect(verificationSql).toContain(
+      "exists (select 1 from pg_trigger where tgname = 'financial_events_reversal_date_guard')",
     );
     expect(verificationSql).not.toContain("to_regclass('public.subcategories')");
   });

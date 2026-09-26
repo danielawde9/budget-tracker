@@ -9,7 +9,7 @@ readonly LIVE_REPO_ROOT="$(cd "${LIVE_SCRIPT_DIR}/../.." && pwd -P)"
 source "${LIVE_SCRIPT_DIR}/budget-common.sh"
 
 readonly LIVE_PROJECT_REF='hqblhzqitrbvpyoxtmew'
-readonly LIVE_MANIFEST_SOURCE_SHA='87e5af748961df75c780fd024b00cf7f6644438d'
+readonly LIVE_MANIFEST_SOURCE_SHA='db769d90e803f1b967070775097eeb2a191c032f'
 readonly LIVE_CONFIRMATION="APPLY LIVE MIGRATIONS TO ${LIVE_PROJECT_REF}"
 readonly LIVE_MAX_PROJECT_LIST_BYTES=1048576
 readonly LIVE_SUPABASE_BIN="${BUDGET_SUPABASE_BIN:-$(command -v supabase || true)}"
@@ -52,6 +52,8 @@ readonly LIVE_VERIFY_SQL="select case when
   and to_regprocedure('public.close_budget_month(uuid,uuid,public.currency_code,date,bigint,text)') is not null
   and to_regprocedure('public.copy_allocation_month(uuid,uuid,public.currency_code,bigint,date,bigint,text)') is not null
   and to_regprocedure('public.set_rollover_policy(uuid,uuid,public.currency_code,uuid,boolean,bigint)') is not null
+  and to_regprocedure('public.journal_search_page(uuid,date,date,uuid,uuid,uuid,bigint,bigint,text,text,integer)') is not null
+  and exists (select 1 from pg_trigger where tgname = 'financial_events_reversal_date_guard')
   and (select array_agg(version order by version) from supabase_migrations.schema_migrations)
     = array[
       '20260907100000','20260907110000','20260907120000','20260907130000',
@@ -66,7 +68,7 @@ readonly LIVE_VERIFY_SQL="select case when
       '20260912101500','20260912102000','20260914090000','20260914100000',
       '20260914110000','20260914120000','20260914130000','20260914140000',
       '20260914150000','20260914160000','20260914170000','20260914180000',
-      '20260916100000'
+      '20260916100000','20260919100000','20260925100000'
     ]::text[]
   then 'budget_schema_ready'
   else 'budget_schema_incomplete'

@@ -425,8 +425,18 @@ describe('additional funding edge cases', () => {
     await linkPurchase(spaceId, expenseId, [{ goalId: goal.goalId, amountMinor: '50000' }]);
     // The reversal's own business date precedes the expense it reverses --
     // goal_financing_state must still net both flags true by today rather
-    // than assuming reversal date >= original date.
-    await reverseEvent(spaceId, expenseId, '2026-08-01');
+    // than assuming reversal date >= original date. The schema now refuses a
+    // back-dated reversal by default (task 3's financial_events_reversal_date_guard
+    // trigger, audit A2), so this defensive-projection scenario is exercised by
+    // disabling that guard for the one back-dated reverse call -- as the test's
+    // owner connection, never through the RLS-scoped authenticated role -- and
+    // re-enabling it immediately after, guard failure or not.
+    await db().client.query('alter table public.financial_events disable trigger financial_events_reversal_date_guard');
+    try {
+      await reverseEvent(spaceId, expenseId, '2026-08-01');
+    } finally {
+      await db().client.query('alter table public.financial_events enable trigger financial_events_reversal_date_guard');
+    }
 
     const state = await financingState(goal.goalId, TODAY);
     expect(state).toMatchObject({ earmarkedMinor: '50000', fulfilledMinor: '0' });
