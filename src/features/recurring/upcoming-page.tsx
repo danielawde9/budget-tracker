@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Currency, Locale } from '../loans/types.js';
 import { formatMinorAmount } from '../wallets/money.js';
 import { billCount } from './bill-count.js';
+import type { LinkableEventOption, LinkableEventsQuery } from './linkable-events.js';
 import { MAX_PAGES, PAGE_LIMIT } from './load-all-pages.js';
 import { OccurrenceDetail, occurrenceBucket, occurrenceBucketLabel, type OccurrenceBucket } from './occurrence-detail.js';
 import { ScheduleEditor, type ScheduleReferenceOptions } from './schedule-editor.js';
@@ -25,6 +26,11 @@ interface UpcomingPageProps {
   plannedIncomeByCurrency: Readonly<Record<Currency, string | null>>;
   /** Wallets offered by the payment dialog's 'Paying wallet' dropdown. */
   walletOptions: ReadonlyArray<{ readonly id: string; readonly name: string; readonly currency: string }>;
+  /** Loads the existing wallet events the payment dialog offers for linking
+   * (D4), read-only through the wallets gateway. */
+  loadLinkableEvents?: (query: LinkableEventsQuery) => Promise<readonly LinkableEventOption[]>;
+  /** Reverses the transaction a settlement just linked (D7). */
+  onUnlink?: (eventId: string) => Promise<unknown>;
 }
 
 type FilterValue = 'all' | OccurrenceBucket;
@@ -78,7 +84,9 @@ export function UpcomingPage(props: UpcomingPageProps) {
   const recurring = props.recurring;
 
   if (selectedId) {
-    return <OccurrenceDetail locale={props.locale} recurring={recurring} occurrenceId={selectedId} onBack={() => setSelectedId(null)} walletOptions={props.walletOptions} />;
+    return <OccurrenceDetail locale={props.locale} recurring={recurring} occurrenceId={selectedId} onBack={() => setSelectedId(null)} walletOptions={props.walletOptions}
+      {...(props.loadLinkableEvents ? { loadLinkableEvents: props.loadLinkableEvents } : {})}
+      {...(props.onUnlink ? { onUnlink: props.onUnlink } : {})} />;
   }
 
   const rows = recurring.page.rows.filter((row) => row.currency === props.currency);

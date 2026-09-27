@@ -35,15 +35,42 @@ describe('findSettleableOccurrence', () => {
   });
 
   it.each([
-    ['amount mismatch', { remainingMinor: '6500' }],
     ['currency mismatch', { currency: 'LBP' }],
     ['category mismatch', { categoryId: 'cat-rent' }],
     ['already settled', { state: 'settled', settledMinor: '6000', remainingMinor: '0' }],
     ['skipped', { state: 'skipped' }],
-    ['partially settled', { state: 'partial', settledMinor: '2000', remainingMinor: '4000' }],
     ['due more than 31 days after the entry (the ceiling for future-dated candidates)', { dueDate: '2026-11-05' }],
   ] as const)('rejects %s', (_label, overrides) => {
     expect(findSettleableOccurrence(expense(), [occurrence(overrides)], flat)).toEqual({ kind: 'none' });
+  });
+
+  it('settles a partial payment against the single bill it partly covers (D3)', () => {
+    // A $40.00 payment against a $60.00 bill: the amount is smaller than what
+    // remains, and there is exactly one unpaid candidate, so it settles it.
+    const bill = occurrence({ remainingMinor: '6000' });
+    expect(findSettleableOccurrence(expense({ amountMinor: '4000' }), [bill], flat))
+      .toEqual({ kind: 'match', occurrence: expect.objectContaining({ id: 'occ-1' }) });
+  });
+
+  it('settles a single bill with an overpayment amount, to be reported honestly (D3)', () => {
+    // A $60.00 payment against a bill whose $40.00 remains.
+    const partly = occurrence({ state: 'partial', settledMinor: '2000', remainingMinor: '4000' });
+    expect(findSettleableOccurrence(expense({ amountMinor: '6000' }), [partly], flat))
+      .toEqual({ kind: 'match', occurrence: expect.objectContaining({ id: 'occ-1' }) });
+  });
+
+  it('refuses to guess a partial payment between two bills that both still owe at least that much (D3)', () => {
+    const rows = [occurrence({ id: 'a', scheduleId: 'sch-music', remainingMinor: '6000' }),
+      occurrence({ id: 'b', scheduleId: 'sch-video', remainingMinor: '9000' })];
+    expect(findSettleableOccurrence(expense({ amountMinor: '4000' }), rows, flat))
+      .toEqual({ kind: 'ambiguous', scheduleCount: 2 });
+  });
+
+  it('prefers the exact-remaining bill over another that only could take a partial payment (D3)', () => {
+    const rows = [occurrence({ id: 'exact', scheduleId: 'sch-a', remainingMinor: '6000' }),
+      occurrence({ id: 'larger', scheduleId: 'sch-b', remainingMinor: '9000' })];
+    expect(findSettleableOccurrence(expense({ amountMinor: '6000' }), rows, flat))
+      .toEqual({ kind: 'match', occurrence: expect.objectContaining({ id: 'exact' }) });
   });
 
   it('picks the oldest unpaid occurrence of a single schedule', () => {
@@ -162,6 +189,25 @@ describe('autoSettleRecordedEvent', () => {
     const { gateway, link } = fakeGateway([]);
     expect(await autoSettleRecordedEvent(gateway, 'space-1', expense(), flat)).toEqual({ status: 'none' });
     expect(link).not.toHaveBeenCalled();
+  });
+
+  it('links a partial payment for the amount paid and reports that part is still due (D3)', async () => {
+    const { gateway, link } = fakeGateway([occurrence({ remainingMinor: '6000' })]);
+    const outcome = await autoSettleRecordedEvent(gateway, 'space-1', expense({ amountMinor: '4000' }), flat);
+    expect(outcome).toEqual({ status: 'settled', occurrenceId: 'occ-1', nameEn: 'Internet', nameAr: null, remainsDue: true });
+    expect(link).toHaveBeenCalledWith(expect.objectContaining({ occurrenceId: 'occ-1', amountMinor: '4000' }));
+  });
+
+  it('settles the bill in full on an overpayment and reports the unallocated surplus (D3)', async () => {
+    const partly = occurrence({ state: 'partial', settledMinor: '2000', remainingMinor: '4000' });
+    const { gateway, link } = fakeGateway([partly]);
+    const outcome = await autoSettleRecordedEvent(gateway, 'space-1', expense({ amountMinor: '6000' }), flat);
+    expect(outcome).toEqual({
+      status: 'settled', occurrenceId: 'occ-1', nameEn: 'Internet', nameAr: null,
+      remainsDue: false, unallocatedMinor: '2000', currency: 'USD',
+    });
+    // Never credits the bill with more than it still owed.
+    expect(link).toHaveBeenCalledWith(expect.objectContaining({ occurrenceId: 'occ-1', amountMinor: '4000' }));
   });
 
   it('reports ambiguity instead of guessing between look-alike schedules', async () => {

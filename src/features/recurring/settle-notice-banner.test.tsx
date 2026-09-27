@@ -68,19 +68,38 @@ describe('SettleNoticeBanner', () => {
     );
   });
 
-  // Final review M3: a repayment that leaves its instalment partly unpaid is
-  // never announced as "paid".
-  it('words a repayment that leaves part of the instalment due without saying "paid"', () => {
+  // Final review M3 / D3: a payment that leaves part of the bill (or its
+  // instalment) unpaid is never announced as "paid".
+  it('words a payment that leaves part of the amount due without saying "paid"', () => {
     const outcome = { status: 'settled', occurrenceId: 'occ-1', nameEn: 'Karim', nameAr: 'كريم', remainsDue: true } as const;
     const { unmount } = render(<SettleNoticeBanner locale="en" outcome={outcome} onDismiss={vi.fn()} />);
     const english = screen.getByRole('status');
-    expect(english).toHaveTextContent('Linked this repayment to "Karim" — part of it is still due.');
+    expect(english).toHaveTextContent('Linked this payment to "Karim" — part of it is still due.');
     expect(english).not.toHaveTextContent('as paid');
     unmount();
     render(<SettleNoticeBanner locale="ar" outcome={outcome} onDismiss={vi.fn()} />);
     const arabic = screen.getByRole('status');
-    expect(arabic).toHaveTextContent('تم ربط هذه الدفعة بـ«كريم»، ولا يزال جزء من القسط مستحقًا.');
+    expect(arabic).toHaveTextContent('تم ربط هذه الدفعة بـ«كريم»، ولا يزال جزء من المبلغ مستحقًا.');
     expect(arabic).not.toHaveTextContent('كمدفوعة');
+  });
+
+  // D3: an over-payment settles the bill and states the surplus honestly.
+  it('states the unallocated surplus of an over-payment in both locales', () => {
+    const outcome = {
+      status: 'settled', occurrenceId: 'occ-1', nameEn: 'Rent', nameAr: 'إيجار',
+      remainsDue: false, unallocatedMinor: '4000', currency: 'USD',
+    } as const;
+    const { unmount } = render(<SettleNoticeBanner locale="en" outcome={outcome} onDismiss={vi.fn()} />);
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Marked "Rent" as paid. This payment was $40.00 more than the amount still due.',
+    );
+    unmount();
+    render(<SettleNoticeBanner locale="ar" outcome={outcome} onDismiss={vi.fn()} />);
+    const arabic = screen.getByRole('status');
+    expect(arabic).toHaveTextContent('تم تعليم «إيجار» كمدفوعة. كانت هذه الدفعة أكبر من المبلغ المتبقي بمقدار ٤٠٫٠٠');
+    // The sentence itself is Arabic; the only Latin text is the currency code
+    // `formatMinorAmount` appends everywhere (as in every other amount cell).
+    expect(arabic.textContent?.replace('USD', '').replace('تجاهل', '')).not.toMatch(/[A-Za-z]/);
   });
 
   it('says "paid" when the link paid the bill in full', () => {

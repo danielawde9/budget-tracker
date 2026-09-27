@@ -1,16 +1,17 @@
-import { useId, useState, type FormEvent } from 'react';
+import { useEffect, useId, useState, type FormEvent } from 'react';
 import type { Currency, Locale } from '../loans/types.js';
 import { formatMinorAmount, parsePositiveMinorAmount } from '../wallets/money.js';
 import { DialogShell } from '../wallets/dialog-shell.js';
 import { classifyRecurringError, localizeRecurringError } from './errors.js';
+import type { LinkableEventOption, LinkableEventsQuery } from './linkable-events.js';
+import type { ScheduleKind } from './types.js';
 import type { CommandOutcome } from './use-recurring.js';
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 type PaymentMode = 'confirm' | 'link';
 
 interface ConfirmPaymentOccurrence {
   readonly id: string;
+  readonly kind: ScheduleKind;
   readonly nameEn: string | null;
   readonly nameAr: string | null;
   readonly currentEventId: string | null;
@@ -24,11 +25,11 @@ interface ConfirmPaymentDialogProps {
   /** Wallets offered by the 'Paying wallet' dropdown; the select submits the
    * chosen wallet's own id. */
   walletOptions: ReadonlyArray<{ readonly id: string; readonly name: string; readonly currency: string }>;
-  /** False for a `debt_payment` occurrence -- loan occurrences use the
-   * existing loan repayment flow, never this dialog's generic wallet/amount
-   * fields ("do not invent a new loan-posting path here"). Record the
-   * repayment from Loans first, then link it here. */
-  allowConfirm: boolean;
+  /** Loads the existing wallet events a person can pick to settle this
+   * occurrence (read-only, through the wallets gateway, D4). When it is
+   * absent, the 'Link an existing transaction' mode cannot list candidates and
+   * says so rather than falling back to a pasted id. */
+  loadLinkableEvents?: (query: LinkableEventsQuery) => Promise<readonly LinkableEventOption[]>;
   pending: boolean;
   ambiguous: boolean;
   onClose(): void;
@@ -47,16 +48,42 @@ function validDate(value: string): boolean {
   return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
 }
 
+/** The transaction amount as the amount field's own text (`45.00` for USD,
+ * `4500` for LBP), so choosing a candidate pre-fills a valid, editable amount. */
+function minorToInput(amountMinor: string, currency: Currency): string {
+  const value = BigInt(amountMinor);
+  if (currency === 'LBP') return value.toString();
+  return `${value / 100n}.${(value % 100n).toString().padStart(2, '0')}`;
+}
+
 export function ConfirmPaymentDialog(props: ConfirmPaymentDialogProps) {
   const descriptionId = useId();
-  const referenceHintId = useId();
-  const [mode, setMode] = useState<PaymentMode>(props.allowConfirm ? 'confirm' : 'link');
+  const [mode, setMode] = useState<PaymentMode>('confirm');
   const [amountMajor, setAmountMajor] = useState('');
   const [effectiveDate, setEffectiveDate] = useState(todayIso());
   const [walletId, setWalletId] = useState('');
-  const [eventIdText, setEventIdText] = useState('');
+  const [selectedEventId, setSelectedEventId] = useState('');
+  const [candidates, setCandidates] = useState<readonly LinkableEventOption[] | null>(null);
+  const [loadingCandidates, setLoadingCandidates] = useState(false);
+  const [candidatesError, setCandidatesError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  const { loadLinkableEvents } = props;
+  const { kind } = props.occurrence;
+  const { currency, locale } = props;
+  // Load the candidates once, the first time link mode is shown. The guard
+  // (not a cleanup flag) is what keeps a still-pending load from being
+  // cancelled by this effect's own `setLoadingCandidates` re-render.
+  useEffect(() => {
+    if (mode !== 'link' || !loadLinkableEvents || candidates !== null || loadingCandidates) return;
+    setLoadingCandidates(true);
+    setCandidatesError(null);
+    loadLinkableEvents({ kind, currency })
+      .then((options) => setCandidates(options))
+      .catch(() => setCandidatesError(t(locale, 'Your wallet transactions could not be loaded. Try again.', 'تعذر تحميل معاملات محفظتك. حاول مرة أخرى.')))
+      .finally(() => setLoadingCandidates(false));
+  }, [mode, candidates, loadingCandidates, loadLinkableEvents, kind, currency, locale]);
 
   async function run(action: () => Promise<CommandOutcome>) {
     setError(null);
@@ -94,12 +121,11 @@ export function ConfirmPaymentDialog(props: ConfirmPaymentDialogProps) {
       return;
     }
 
-    const eventId = eventIdText.trim();
-    if (!UUID_PATTERN.test(eventId)) {
-      setError(t(props.locale, 'Enter the transaction’s exact reference id.', 'أدخل المعرّف المرجعي الدقيق للمعاملة.'));
+    if (!selectedEventId) {
+      setError(t(props.locale, 'Choose the wallet transaction this bill paid.', 'اختر معاملة المحفظة التي دفعت هذه الفاتورة.'));
       return;
     }
-    void run(() => props.onLinkExisting({ occurrenceId: props.occurrence.id, eventId, amountMinor, expectedEventId }));
+    void run(() => props.onLinkExisting({ occurrenceId: props.occurrence.id, eventId: selectedEventId, amountMinor, expectedEventId }));
   }
 
   const name = props.locale === 'ar' ? (props.occurrence.nameAr ?? props.occurrence.nameEn) : (props.occurrence.nameEn ?? props.occurrence.nameAr);
@@ -119,15 +145,11 @@ export function ConfirmPaymentDialog(props: ConfirmPaymentDialogProps) {
         <bdi>{name}</bdi> — {t(props.locale, 'remaining', 'المتبقي')}: <bdi>{formatMinorAmount(props.occurrence.remainingMinor, props.currency, props.locale)}</bdi>
       </p>
 
-      {!props.allowConfirm && <div className="error-notice" role="status">
-        {t(props.locale, 'This is a debt payment occurrence. Record the repayment itself from the loan’s own repayment flow, then link it here.', 'هذه دفعة مستحقة لسداد دين. سجّل السداد نفسه من مسار سداد القرض الخاص به، ثم اربطه هنا.')}
-      </div>}
-
-      {props.allowConfirm && <fieldset className="cr-choice">
+      <fieldset className="cr-choice">
         <legend>{t(props.locale, 'Action', 'الإجراء')}</legend>
         <label><input type="radio" name="rec-payment-mode" checked={mode === 'confirm'} onChange={() => { setMode('confirm'); setError(null); }} />{t(props.locale, 'Record payment', 'تسجيل الدفعة')}</label>
         <label><input type="radio" name="rec-payment-mode" checked={mode === 'link'} onChange={() => { setMode('link'); setError(null); }} />{t(props.locale, 'Link an existing transaction', 'ربط معاملة موجودة')}</label>
-      </fieldset>}
+      </fieldset>
 
       {mode === 'confirm' && <>
         <label className="full-field">{t(props.locale, 'Actual amount', 'المبلغ الفعلي')}
@@ -142,14 +164,23 @@ export function ConfirmPaymentDialog(props: ConfirmPaymentDialogProps) {
       </>}
 
       {mode === 'link' && <>
-        <label className="full-field">{t(props.locale, 'Transaction reference id', 'المعرّف المرجعي للمعاملة')}
-          <input data-autofocus type="text" placeholder={t(props.locale, 'e.g. 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d', 'مثال: 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d')} value={eventIdText} aria-describedby={referenceHintId} onChange={(event) => { setEventIdText(event.target.value); setError(null); }} /></label>
-        {/* No list of candidate events exists in this dialog's data scope --
-           `useRecurring` loads only the occurrence page, and link mode must
-           stay reachable for debt-payment occurrences recorded from Loans --
-           so the reference stays a pasted id, with the hint pointing at where
-           that id is shown. */}
-        <p id={referenceHintId} className="rec-label-muted">{t(props.locale, 'Find the reference id on the transaction’s entry in the Wallets section.', 'اعثر على المعرّف المرجعي في قيد المعاملة ضمن قسم المحافظ.')}</p>
+        <label className="full-field">{t(props.locale, 'Wallet transaction', 'معاملة المحفظة')}
+          <select data-autofocus value={selectedEventId} disabled={!loadLinkableEvents || loadingCandidates || candidatesError !== null}
+            onChange={(event) => {
+              const option = (candidates ?? []).find((candidate) => candidate.id === event.target.value);
+              setSelectedEventId(event.target.value);
+              setAmountMajor(option ? minorToInput(option.amountMinor, option.currency) : '');
+              setError(null);
+            }}>
+            <option value="">{t(props.locale, 'Choose a transaction', 'اختر معاملة')}</option>
+            {(candidates ?? []).map((option) => <option key={option.id} value={option.id}>
+              {option.effectiveDate} · {option.label} · {formatMinorAmount(option.amountMinor, option.currency, props.locale)}
+            </option>)}
+          </select></label>
+        {loadingCandidates && <p className="rec-label-muted">{t(props.locale, 'Loading your wallet transactions…', 'جارٍ تحميل معاملات محفظتك…')}</p>}
+        {candidatesError && <div className="error-notice" role="alert">{candidatesError}</div>}
+        {!loadLinkableEvents && <p className="rec-label-muted">{t(props.locale, 'Linking a transaction is unavailable right now.', 'ربط معاملة غير متاح الآن.')}</p>}
+        {candidates !== null && candidates.length === 0 && <p className="rec-label-muted">{t(props.locale, 'No matching wallet transaction yet. Record it in Wallets, then link it here.', 'لا توجد معاملة مطابقة بعد. سجّلها في المحافظ ثم اربطها هنا.')}</p>}
         <label className="full-field">{t(props.locale, 'Amount to link', 'المبلغ المراد ربطه')}
           <input type="text" inputMode="decimal" placeholder={props.currency === 'USD' ? '0.00' : '0'} value={amountMajor} onChange={(event) => { setAmountMajor(event.target.value); setError(null); }} /></label>
       </>}

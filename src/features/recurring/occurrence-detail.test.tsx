@@ -143,14 +143,53 @@ describe('OccurrenceDetail', () => {
     expect(screen.getByRole('radio', { name: 'Record payment' })).toBeChecked();
   });
 
-  it('never offers Record payment for a debt_payment occurrence -- only Link an existing transaction, directing to the loan flow', async () => {
+  it('offers Record payment and Link for a debt_payment occurrence, so it can be settled (D4)', async () => {
     render(<OccurrenceDetail locale="en"
       recurring={fakeRecurringState({ page: page([row({ kind: 'debt_payment', loanId: '00000000-0000-4000-8000-000000000901' })]) })}
       occurrenceId={OCCURRENCE_ID} walletOptions={WALLET_OPTIONS} onBack={vi.fn()} />);
     await userEvent.click(screen.getByRole('button', { name: 'Review payment' }));
-    expect(screen.queryByRole('radio', { name: 'Record payment' })).not.toBeInTheDocument();
-    expect(screen.getByText(/record the repayment itself from the loan.s own repayment flow/i)).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: 'Transaction reference id' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Record payment' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Link an existing transaction' })).toBeInTheDocument();
+    expect(screen.queryByText(/record the repayment itself from the loan.s own repayment flow/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Transaction reference id' })).not.toBeInTheDocument();
+  });
+
+  it('offers the wallet-event picker for linking, never a pasted id (D4)', async () => {
+    const loadLinkableEvents = vi.fn(async () => [{
+      id: '00000000-0000-4000-8000-000000000501', kind: 'expense' as const, effectiveDate: '2026-09-20',
+      amountMinor: '15000', currency: 'USD' as const, label: 'Rent',
+    }]);
+    render(<OccurrenceDetail locale="en" recurring={fakeRecurringState()} occurrenceId={OCCURRENCE_ID}
+      walletOptions={WALLET_OPTIONS} loadLinkableEvents={loadLinkableEvents} onBack={vi.fn()} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Review payment' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Link an existing transaction' }));
+    expect(await screen.findByRole('combobox', { name: 'Wallet transaction' })).toBeInTheDocument();
+    expect(loadLinkableEvents).toHaveBeenCalledWith({ kind: 'expense', currency: 'USD' });
+  });
+
+  // D7: a link made here can be reversed (unlinked) before it stands.
+  it('unlinks a match this view just linked, through onUnlink (D7)', async () => {
+    const eventId = '00000000-0000-4000-8000-000000000501';
+    const linkExisting = vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { occurrenceId: OCCURRENCE_ID, occurrenceEventId: '4', financialEventId: eventId } });
+    const refresh = vi.fn().mockResolvedValue(true);
+    const onUnlink = vi.fn().mockResolvedValue(undefined);
+    const recurring = fakeRecurringState({
+      page: page([row({ state: 'pending', settledMinor: '0', remainingMinor: '50000' })]),
+      linkExisting, refresh,
+    });
+    render(<OccurrenceDetail locale="en" recurring={recurring} occurrenceId={OCCURRENCE_ID}
+      walletOptions={WALLET_OPTIONS}
+      loadLinkableEvents={vi.fn(async () => [{ id: eventId, kind: 'expense' as const, effectiveDate: '2026-09-20', amountMinor: '50000', currency: 'USD' as const, label: 'Rent' }])}
+      onUnlink={onUnlink} onBack={vi.fn()} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Review payment' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Link an existing transaction' }));
+    const picker = await screen.findByRole('combobox', { name: 'Wallet transaction' });
+    await screen.findByRole('option', { name: /Rent/ });
+    await userEvent.selectOptions(picker, eventId);
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Unlink payment' }));
+    await waitFor(() => expect(onUnlink).toHaveBeenCalledWith(eventId));
+    expect(refresh).toHaveBeenCalled();
   });
 
   it('U16-04: a confirm timeout offers an unchanged retry, never a second differently-shaped save', async () => {

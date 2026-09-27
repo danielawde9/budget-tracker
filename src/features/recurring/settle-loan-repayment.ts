@@ -1,6 +1,7 @@
 import type { Currency } from '../loans/types.js';
 import { loadSettleCandidates, type AutoSettleOutcome } from './auto-settle.js';
 import { classifyRecurringError } from './errors.js';
+import { linkScheduledPaymentWithRetry } from './link-with-retry.js';
 import { shiftDateIso } from './occurrence-window.js';
 import type { RecurringGateway, ScheduledOccurrenceRow } from './types.js';
 
@@ -55,7 +56,7 @@ export async function settleLoanRepayment(
       const remaining = BigInt(row.remainingMinor);
       const amount = remaining < left ? remaining : left;
       if (amount <= 0n) continue;
-      await gateway.linkExisting({
+      await linkScheduledPaymentWithRetry(gateway, {
         spaceId,
         requestId: globalThis.crypto.randomUUID(),
         occurrenceId: row.id,

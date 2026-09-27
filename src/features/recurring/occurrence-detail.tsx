@@ -3,6 +3,7 @@ import type { Currency, Locale } from '../loans/types.js';
 import { formatMinorAmount } from '../wallets/money.js';
 import { ConfirmPaymentDialog } from './confirm-payment-dialog.js';
 import { classifyRecurringError, localizeRecurringError, type RecurringErrorView } from './errors.js';
+import type { LinkableEventOption, LinkableEventsQuery } from './linkable-events.js';
 import { settlementProgress } from './settlement-progress.js';
 import type { ScheduledOccurrenceRow } from './types.js';
 import type { AmbiguousCommand, CommandOutcome, RecurringState } from './use-recurring.js';
@@ -15,6 +16,14 @@ interface OccurrenceDetailProps {
   occurrenceId: string;
   /** Wallets offered by the payment dialog's 'Paying wallet' dropdown. */
   walletOptions: ReadonlyArray<{ readonly id: string; readonly name: string; readonly currency: string }>;
+  /** Loads the existing wallet events the payment dialog offers for linking
+   * (D4). Read-only, through the wallets gateway. */
+  loadLinkableEvents?: (query: LinkableEventsQuery) => Promise<readonly LinkableEventOption[]>;
+  /** Reverses the wallet transaction a settlement in this session linked (D7).
+   * Only reached for a link this view itself made: the occurrence row never
+   * carries the linked financial event id, so a match made earlier (for
+   * example by auto-settle) cannot be unlinked from here yet. */
+  onUnlink?: (eventId: string) => Promise<unknown>;
   onBack(): void;
 }
 
@@ -131,7 +140,20 @@ export function OccurrenceDetail(props: OccurrenceDetailProps) {
   const [dialog, setDialog] = useState<'payment' | null>(null);
   const [actionError, setActionError] = useState<RecurringErrorView | null>(null);
   const [held, setHeld] = useState<HeldOccurrence | null>(null);
+  // The wallet event THIS view linked (D7): the command's own result carries
+  // `financialEventId`, so a mistaken link made here can be reversed. A row
+  // settled elsewhere (e.g. auto-settle) has no id here yet -- see the file's
+  // own note on the missing occurrence-event read.
+  const [linkedEventId, setLinkedEventId] = useState<string | null>(null);
+  const [unlinking, setUnlinking] = useState(false);
+  const [unlinkError, setUnlinkError] = useState<RecurringErrorView | null>(null);
   const listed = props.recurring.page.rows.find((candidate) => candidate.id === props.occurrenceId);
+
+  // A different occurrence is a different settlement: drop the tracked link.
+  useEffect(() => {
+    setLinkedEventId(null);
+    setUnlinkError(null);
+  }, [props.occurrenceId]);
 
   // The last row this view actually saw listed, kept only to bridge a
   // reload's own empty page: an M7-triggered `recurring.refresh()`
@@ -179,10 +201,31 @@ export function OccurrenceDetail(props: OccurrenceDetailProps) {
       // An ambiguous outcome stays held (in flight): the command may yet
       // have gone through, and the retry must stay reachable.
       if (outcome.status !== 'ambiguous') setHeld({ row: afterAction(snapshot, action, outcome), action, done: true });
+      // A confirm or link result carries the wallet event it settled against,
+      // so this view can offer to reverse a mistaken one (D7).
+      const result = outcome.result;
+      setLinkedEventId(result && 'financialEventId' in result && typeof result.financialEventId === 'string'
+        ? result.financialEventId
+        : null);
       return outcome;
     } catch (cause) {
       setHeld(null);
       throw cause;
+    }
+  };
+
+  const unlink = async () => {
+    if (!linkedEventId || !props.onUnlink) return;
+    setUnlinking(true);
+    setUnlinkError(null);
+    try {
+      await props.onUnlink(linkedEventId);
+      setLinkedEventId(null);
+      await props.recurring.refresh();
+    } catch (cause) {
+      setUnlinkError(localizeRecurringError(classifyRecurringError(cause), props.locale));
+    } finally {
+      setUnlinking(false);
     }
   };
 
@@ -197,9 +240,9 @@ export function OccurrenceDetail(props: OccurrenceDetailProps) {
 
   const paymentDialog = dialog === 'payment' && <ConfirmPaymentDialog
     locale={props.locale} currency={row.currency}
-    occurrence={{ id: row.id, nameEn: row.nameEn, nameAr: row.nameAr, currentEventId: row.currentEventId, remainingMinor: row.remainingMinor }}
+    occurrence={{ id: row.id, kind: row.kind, nameEn: row.nameEn, nameAr: row.nameAr, currentEventId: row.currentEventId, remainingMinor: row.remainingMinor }}
     walletOptions={props.walletOptions}
-    allowConfirm={row.kind !== 'debt_payment'}
+    {...(props.loadLinkableEvents ? { loadLinkableEvents: props.loadLinkableEvents } : {})}
     pending={props.recurring.pending} ambiguous={props.recurring.ambiguous !== null}
     onClose={() => setDialog(null)} onClearAmbiguous={props.recurring.clearAmbiguous}
     onRetry={() => track(retryHeldAction(props.recurring.ambiguous), props.recurring.retryAmbiguous)}
@@ -224,6 +267,16 @@ export function OccurrenceDetail(props: OccurrenceDetailProps) {
     {leftList === 'skip' && <p role="status">
       {t(props.locale, 'Skipped. This bill has left the list; Reopen brings it back.', 'تم تخطي هذه الفاتورة وخرجت من القائمة. استخدم «إعادة فتح» لإرجاعها.')}
     </p>}
+
+    {/* D7: reverse a link this view just made against the wrong bill. It stays
+        reachable while the paid confirmation is up, so a mistaken match can be
+        undone without a duplicate. */}
+    {linkedEventId && props.onUnlink && <div className="rec-row">
+      {unlinkError && <div className="error-notice" role="alert">{unlinkError.message} {unlinkError.recovery}</div>}
+      <button type="button" className="cr-button" disabled={props.recurring.pending || unlinking} onClick={() => void unlink()}>
+        {unlinking ? t(props.locale, 'Unlinking…', 'جارٍ إلغاء الربط…') : t(props.locale, 'Unlink payment', 'إلغاء ربط الدفعة')}
+      </button>
+    </div>}
 
     {/* Paid and gone from the list: the snapshot's figures are pre-payment,
         so only the confirmation shows -- never a second "Review payment"

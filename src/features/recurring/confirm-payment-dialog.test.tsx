@@ -1,18 +1,24 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ConfirmPaymentDialog } from './confirm-payment-dialog.js';
+import type { LinkableEventOption } from './linkable-events.js';
 
 const OCCURRENCE_ID = '00000000-0000-4000-8000-000000000401';
 const WALLET_ID = '00000000-0000-4000-8000-000000000601';
 const EVENT_ID = '00000000-0000-4000-8000-000000000501';
 
+const CANDIDATE: LinkableEventOption = {
+  id: EVENT_ID, kind: 'expense', effectiveDate: '2026-09-20', amountMinor: '15000', currency: 'USD', label: 'Rent',
+};
+
 function baseProps() {
   return {
     locale: 'en' as const, currency: 'USD' as const,
-    occurrence: { id: OCCURRENCE_ID, nameEn: 'Rent', nameAr: null, currentEventId: '3', remainingMinor: '30000' },
+    occurrence: { id: OCCURRENCE_ID, kind: 'expense' as const, nameEn: 'Rent', nameAr: null, currentEventId: '3', remainingMinor: '30000' },
     walletOptions: [{ id: WALLET_ID, name: 'Daily USD', currency: 'USD' }],
-    allowConfirm: true, pending: false, ambiguous: false,
+    loadLinkableEvents: vi.fn(async () => [CANDIDATE]),
+    pending: false, ambiguous: false,
     onClose: vi.fn(), onClearAmbiguous: vi.fn(), onRetry: vi.fn(),
     onConfirm: vi.fn(), onLinkExisting: vi.fn(),
   };
@@ -35,25 +41,44 @@ describe('ConfirmPaymentDialog', () => {
     }));
   });
 
-  it('switches to link mode and submits with a transaction reference id', async () => {
+  it('links a picked wallet transaction and pre-fills its amount (D4)', async () => {
     const onLinkExisting = vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { occurrenceId: OCCURRENCE_ID, occurrenceEventId: '4', financialEventId: EVENT_ID } });
-    render(<ConfirmPaymentDialog {...baseProps()} onLinkExisting={onLinkExisting} />);
+    const loadLinkableEvents = vi.fn(async () => [CANDIDATE]);
+    render(<ConfirmPaymentDialog {...baseProps()} loadLinkableEvents={loadLinkableEvents} onLinkExisting={onLinkExisting} />);
     await userEvent.click(screen.getByRole('radio', { name: 'Link an existing transaction' }));
-    await userEvent.type(screen.getByRole('textbox', { name: 'Transaction reference id' }), EVENT_ID);
-    // No candidate-event list exists in this dialog's data scope, so the
-    // reference stays a pasted id -- the hint points at where it is shown.
-    expect(screen.getByText('Find the reference id on the transaction’s entry in the Wallets section.')).toBeInTheDocument();
-    await userEvent.type(screen.getByRole('textbox', { name: 'Amount to link' }), '150');
+    const picker = await screen.findByRole('combobox', { name: 'Wallet transaction' });
+    await waitFor(() => expect(loadLinkableEvents).toHaveBeenCalledWith({ kind: 'expense', currency: 'USD' }));
+    await screen.findByRole('option', { name: /Rent/ });
+    await userEvent.selectOptions(picker, EVENT_ID);
+    // No pasted id: the amount comes from the picked transaction.
+    expect(screen.getByRole('textbox', { name: 'Amount to link' })).toHaveValue('150.00');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(onLinkExisting).toHaveBeenCalledWith({ occurrenceId: OCCURRENCE_ID, eventId: EVENT_ID, amountMinor: '15000', expectedEventId: '3' });
   });
 
-  it('locks a debt-payment occurrence to link mode, with no Record payment option', () => {
-    render(<ConfirmPaymentDialog {...baseProps()} allowConfirm={false} />);
-    expect(screen.queryByRole('radio', { name: 'Record payment' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('radio', { name: 'Link an existing transaction' })).not.toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: 'Transaction reference id' })).toBeInTheDocument();
-    expect(screen.getByText(/loan.s own repayment flow/i)).toBeInTheDocument();
+  it('requires a picked transaction before linking', async () => {
+    const onLinkExisting = vi.fn();
+    render(<ConfirmPaymentDialog {...baseProps()} onLinkExisting={onLinkExisting} />);
+    await userEvent.click(screen.getByRole('radio', { name: 'Link an existing transaction' }));
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Amount to link' }), '150');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Choose the wallet transaction this bill paid.');
+    expect(onLinkExisting).not.toHaveBeenCalled();
+  });
+
+  it('says linking is unavailable when no candidate loader is wired', async () => {
+    const props = baseProps();
+    delete (props as { loadLinkableEvents?: unknown }).loadLinkableEvents;
+    render(<ConfirmPaymentDialog {...props} />);
+    await userEvent.click(screen.getByRole('radio', { name: 'Link an existing transaction' }));
+    expect(screen.getByText('Linking a transaction is unavailable right now.')).toBeInTheDocument();
+  });
+
+  it('offers both Record payment and Link for a debt-payment occurrence, so it can be settled (D4)', () => {
+    render(<ConfirmPaymentDialog {...baseProps()} occurrence={{ ...baseProps().occurrence, kind: 'debt_payment' }} />);
+    expect(screen.getByRole('radio', { name: 'Record payment' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Link an existing transaction' })).toBeInTheDocument();
+    expect(screen.queryByText(/record the repayment itself from the loan.s own repayment flow/i)).not.toBeInTheDocument();
   });
 
   it('rejects a blank amount before calling the gateway', async () => {
