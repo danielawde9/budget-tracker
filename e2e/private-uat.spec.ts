@@ -201,7 +201,7 @@ test('mobile Arabic rehearsal keeps the empty state, RTL, recovery notice, and s
   await dialog.getByRole('button', { name: 'تم' }).click();
 
   await page.reload();
-  await switchWorkspaceLanguage(page);
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await chooseWorkspaceDestination(page, 'المحافظ');
   await expect(activeWalletName(page, 'محفظة تجريبية')).toBeVisible();
   const account = await openWorkspaceAccount(page, 'الحساب');
