@@ -9,6 +9,7 @@ import {
   ShoppingCart,
 } from 'lucide-react';
 import type { ExchangeDraft } from '../exchange/use-exchange.js';
+import { classifyCategoryError, localizeCategoryError } from '../categories/errors.js';
 import type { Currency, Locale, LoanDirection } from '../loans/types.js';
 import { formatMinorAmount, parsePositiveMinorAmount } from '../wallets/money.js';
 import type { WalletProjection } from '../wallets/types.js';
@@ -270,6 +271,7 @@ export function RecordSheet(props: RecordSheetProps) {
   const [createNameEn, setCreateNameEn] = useState('');
   const [createNameAr, setCreateNameAr] = useState('');
   const [createPending, setCreatePending] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [payeeName, setPayeeName] = useState('');
   const [note, setNote] = useState('');
   const [personName, setPersonName] = useState('');
@@ -306,6 +308,7 @@ export function RecordSheet(props: RecordSheetProps) {
     setCreateNameEn('');
     setCreateNameAr('');
     setCreatePending(false);
+    setCreateError(null);
     setPayeeName('');
     setNote('');
     setPersonName('');
@@ -566,6 +569,12 @@ export function RecordSheet(props: RecordSheetProps) {
         return;
       }
     }
+    // E3: a future-dated entry lands in Net position but not in cash or
+    // Available, so refuse a date the model cannot represent consistently.
+    if (effectiveDate > todayLocal()) {
+      setSubmitError(t(locale, 'Choose a date today or earlier.', 'اختر تاريخًا اليوم أو في تاريخ أقدم.'));
+      return;
+    }
     if (!flowReady()) return;
     setSubmitting(true);
     setSubmitError(null);
@@ -685,6 +694,7 @@ export function RecordSheet(props: RecordSheetProps) {
     if (!targetRoot && categoryNameExists(nameEn, nameAr)) return;
 
     setCreatePending(true);
+    setCreateError(null);
     try {
       const result = targetRoot
         ? await props.onCreateCategory({ parentCategoryId: targetRoot.id, nameEn, nameAr })
@@ -694,6 +704,11 @@ export function RecordSheet(props: RecordSheetProps) {
       setCreateFormOpen(false);
       setCreateNameEn('');
       setCreateNameAr('');
+    } catch (cause) {
+      // F11: a rejected create previously vanished into an unhandled
+      // rejection; surface it with the shared category error/i18n pattern.
+      const view = localizeCategoryError(classifyCategoryError(cause), locale);
+      setCreateError(`${view.message} ${view.recovery}`);
     } finally {
       setCreatePending(false);
     }
@@ -739,7 +754,7 @@ export function RecordSheet(props: RecordSheetProps) {
                 type="text"
                 placeholder={t(locale, 'e.g. Transport', 'مثال: مواصلات')}
                 value={createNameEn}
-                onChange={(event) => setCreateNameEn(event.target.value)}
+                onChange={(event) => { setCreateNameEn(event.target.value); setCreateError(null); }}
               />
             </label>
             <label className="cr-label">
@@ -748,13 +763,16 @@ export function RecordSheet(props: RecordSheetProps) {
                 type="text"
                 placeholder={t(locale, 'مثال: مواصلات', 'مثال: مواصلات')}
                 value={createNameAr}
-                onChange={(event) => setCreateNameAr(event.target.value)}
+                onChange={(event) => { setCreateNameAr(event.target.value); setCreateError(null); }}
               />
             </label>
             {createNameExists ? (
               <p className="cr-record-create-error" role="alert">
                 {t(locale, 'A category with this name already exists.', 'توجد فئة بهذا الاسم بالفعل.')}
               </p>
+            ) : null}
+            {createError ? (
+              <p className="cr-record-create-error" role="alert">{createError}</p>
             ) : null}
             <div className="cr-record-create-actions">
               <button
@@ -848,6 +866,7 @@ export function RecordSheet(props: RecordSheetProps) {
         {t(locale, 'Date', 'التاريخ')}
         <input
           type="date"
+          max={todayLocal()}
           value={effectiveDate}
           onChange={(event) => setEffectiveDate(event.target.value)}
         />
@@ -968,7 +987,7 @@ export function RecordSheet(props: RecordSheetProps) {
         </label>
         <label className="cr-label">
           {t(locale, 'Date', 'التاريخ')}
-          <input type="date" value={effectiveDate} onChange={(event) => setEffectiveDate(event.target.value)} />
+          <input type="date" max={todayLocal()} value={effectiveDate} onChange={(event) => setEffectiveDate(event.target.value)} />
         </label>
         <label className="cr-label">
           {t(locale, 'Note (optional)', 'ملاحظة (اختيارية)')}

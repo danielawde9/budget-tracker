@@ -102,7 +102,8 @@ describe('CashControlSummary: ready state data assertions', () => {
     const primary = document.querySelector('.cc-reservation-list');
     expect(primary?.children).toHaveLength(4);
     expect(primary).toHaveTextContent('Wallet balance');
-    expect(primary).toHaveTextContent('Unpaid bills');
+    expect(primary).toHaveTextContent('Budgets and bills (net of goal cover)');
+    expect(primary).not.toHaveTextContent('Unpaid bills');
     expect(primary).toHaveTextContent('Reserved goal claims');
     expect(primary).toHaveTextContent('Debt commitments');
     const details = screen.getByText('More cash details').closest('details');

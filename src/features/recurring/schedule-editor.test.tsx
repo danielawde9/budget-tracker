@@ -167,10 +167,13 @@ describe('ScheduleEditor', () => {
     await clickNext(form); // → Details
     await fillDetails(form);
     const interval = within(form).getByRole('spinbutton', { name: 'Repeat every' });
+    // SQL's recurring_schedules.interval_count CHECK allows 1-12, so the input
+    // and its gate must not invite 13+.
+    expect(interval).toHaveAttribute('max', '12');
     await userEvent.clear(interval);
-    await userEvent.type(interval, '0');
+    await userEvent.type(interval, '13');
     await clickNext(form); // blocked by the interval gate
-    expect(screen.getByRole('alert')).toHaveTextContent('The repeat interval must be a whole number from 1 to 99.');
+    expect(screen.getByRole('alert')).toHaveTextContent('The repeat interval must be a whole number from 1 to 12.');
     expect(onSave).not.toHaveBeenCalled();
     expect(within(form).getByRole('spinbutton', { name: 'Repeat every' })).toBeInTheDocument();
     await userEvent.clear(interval);

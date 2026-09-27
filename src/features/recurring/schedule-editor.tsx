@@ -203,8 +203,8 @@ export function ScheduleEditor(props: ScheduleEditorProps) {
         return false;
       }
       const intervalCount = Number(intervalCountText);
-      if (!Number.isInteger(intervalCount) || intervalCount < 1 || intervalCount > 99) {
-        setError(t(props.locale, 'The repeat interval must be a whole number from 1 to 99.', 'يجب أن يكون فاصل التكرار رقمًا صحيحًا من 1 إلى 99.'));
+      if (!Number.isInteger(intervalCount) || intervalCount < 1 || intervalCount > 12) {
+        setError(t(props.locale, 'The repeat interval must be a whole number from 1 to 12.', 'يجب أن يكون فاصل التكرار رقمًا صحيحًا من 1 إلى 12.'));
         return false;
       }
       return true;
@@ -334,7 +334,7 @@ export function ScheduleEditor(props: ScheduleEditorProps) {
           </fieldset>
           <div className="cr-affix">
             <label>{t(props.locale, 'Repeat every', 'كرر كل')}
-              <input type="number" min={1} max={99} placeholder={t(props.locale, 'e.g. 2', 'مثال: 2')} value={intervalCountText} onChange={(event) => { setIntervalCountText(event.target.value); setError(null); }} /></label>
+              <input type="number" min={1} max={12} placeholder={t(props.locale, 'e.g. 2', 'مثال: 2')} value={intervalCountText} onChange={(event) => { setIntervalCountText(event.target.value); setError(null); }} /></label>
             <span className="cr-affix-suffix" aria-hidden="true">{cadenceUnit(props.locale, cadence)}</span>
           </div>
 

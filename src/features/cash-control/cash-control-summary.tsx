@@ -35,7 +35,7 @@ interface ReservationLine {
 function reservationLines(data: AvailableCashSummary): readonly ReservationLine[] {
   return [
     { label: { en: 'Wallet balance', ar: 'رصيد المحفظة' }, amountMinor: data.cashMinor },
-    { label: { en: 'Unpaid bills (net of goal cover)', ar: 'الفواتير غير المدفوعة (بعد تغطية الهدف)' }, amountMinor: data.expenseCommitmentsMinor },
+    { label: { en: 'Budgets and bills (net of goal cover)', ar: 'الميزانيات والفواتير (بعد تغطية الهدف)' }, amountMinor: data.expenseCommitmentsMinor },
     { label: { en: 'Reserved goal claims', ar: 'حجوزات الأهداف' }, amountMinor: data.goalClaimsMinor },
     { label: { en: 'Debt commitments', ar: 'التزامات الديون' }, amountMinor: data.debtCommitmentsMinor },
     { label: { en: 'Goal monthly top-ups', ar: 'إضافات الأهداف الشهرية' }, amountMinor: data.goalTopupsMinor },

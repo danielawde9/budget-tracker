@@ -51,6 +51,27 @@ describe('useLoans controlled space loading', () => {
     await waitFor(() => expect(result.current.dashboard?.space.id).toBe(householdSpace.id));
   });
 
+  it('loads the caller-selected month instead of its own UTC month', async () => {
+    const gateway = new InMemoryLoansGateway();
+    const loadDashboard = vi.spyOn(gateway, 'loadDashboard');
+    const { result } = renderHook(() => useLoans(gateway, { spaceId: personalSpace.id, month: '2026-08-01' }));
+    await waitFor(() => expect(result.current.dashboard?.space.id).toBe(personalSpace.id));
+    expect(loadDashboard).toHaveBeenCalledWith(personalSpace.id, '2026-08-01');
+    expect(result.current.month).toBe('2026-08-01');
+  });
+
+  it('reloads when the caller-selected month changes', async () => {
+    const gateway = new InMemoryLoansGateway();
+    const loadDashboard = vi.spyOn(gateway, 'loadDashboard');
+    const { rerender } = renderHook(
+      ({ month }: { month: string }) => useLoans(gateway, { spaceId: personalSpace.id, month }),
+      { initialProps: { month: '2026-08-01' } },
+    );
+    await waitFor(() => expect(loadDashboard).toHaveBeenCalledWith(personalSpace.id, '2026-08-01'));
+    rerender({ month: '2026-07-01' });
+    await waitFor(() => expect(loadDashboard).toHaveBeenCalledWith(personalSpace.id, '2026-07-01'));
+  });
+
   describe('onRepaymentRecorded option', () => {
     it('fires once with the real event id and the loan\'s own currency after a successful repayment', async () => {
       const gateway = new InMemoryLoansGateway();

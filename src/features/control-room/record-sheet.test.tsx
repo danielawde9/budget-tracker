@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { Currency, LoanDirection } from '../loans/types.js';
@@ -756,6 +756,64 @@ describe('RecordSheet', () => {
     expect(screen.getByText('A category with this name already exists.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create & select' })).toBeDisabled();
     expect(props.onCreateCategory).not.toHaveBeenCalled();
+  });
+
+  // E3: a future-dated entry lands in Net position but not in cash/Available,
+  // so the effective-date input must not invite a date the model cannot
+  // represent consistently.
+  it('caps the desktop details-step date at today', async () => {
+    const user = userEvent.setup();
+    render(<RecordSheet {...makeProps()} />);
+    await chooseType(user, 'Expense');
+    await enterAmount(user, '1 0');
+    await user.click(screen.getByRole('button', { name: 'Cash USD' }));
+    await user.click(screen.getByRole('button', { name: 'Groceries' }));
+    expect(screen.getByLabelText('Date')).toHaveAttribute('max', todayLocal());
+  });
+
+  it('refuses to save a future-dated entry', async () => {
+    const user = userEvent.setup();
+    const props = makeProps();
+    render(<RecordSheet {...props} />);
+    await chooseType(user, 'Expense');
+    await enterAmount(user, '1 0');
+    await user.click(screen.getByRole('button', { name: 'Cash USD' }));
+    await user.click(screen.getByRole('button', { name: 'Groceries' }));
+    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2999-01-01' } });
+    await user.click(screen.getByRole('button', { name: 'Continue' })); // details → confirm
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('today or earlier');
+    expect(props.onSubmitRecord).not.toHaveBeenCalled();
+  });
+
+  it('caps the mobile effective-date input at today too', async () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    try {
+      const user = userEvent.setup();
+      render(<RecordSheet {...makeProps()} />);
+      await user.type(screen.getByLabelText('Amount'), '10');
+      await user.selectOptions(screen.getByLabelText('Wallet'), 'w-cash');
+      expect(screen.getByLabelText('Date')).toHaveAttribute('max', todayLocal());
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
+  // F11: creating a category from the Record sheet must report a rejected
+  // create instead of failing silently.
+  it('surfaces a failed category creation instead of failing silently', async () => {
+    const user = userEvent.setup();
+    const onCreateCategory = vi.fn().mockRejectedValue(new Error('active category already uses one of these names'));
+    render(<RecordSheet {...makeProps({ onCreateCategory })} />);
+    await chooseType(user, 'Expense');
+    await enterAmount(user, '1 0');
+    await user.click(screen.getByRole('button', { name: 'Cash USD' }));
+    await user.type(screen.getByPlaceholderText('Type to filter or create'), 'Transport');
+    await user.type(screen.getByLabelText('Name (English)'), 'Transport');
+    await user.click(screen.getByRole('button', { name: 'Create & select' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('An active category already uses one of these names.');
+    expect(screen.getByRole('button', { name: 'Create & select' })).toBeInTheDocument();
   });
 
   it('shows a step indicator highlighting the current step', async () => {

@@ -22,12 +22,21 @@ function currentMonth(): string {
   return `${new Date().toISOString().slice(0, 7)}-01`;
 }
 
+function normalizeMonth(value: string): string {
+  return `${value.slice(0, 7)}-01`;
+}
+
 function requestId(): string {
   return globalThis.crypto.randomUUID();
 }
 
 export interface UseLoansOptions {
   spaceId?: string;
+  /** The month the dashboard must load. When supplied (the Plan page's
+   * "Loan commitments" card passes its selected month), the hook follows it
+   * instead of its own UTC month, so loans no longer contradict "Left to
+   * allocate" for any month other than the current one. */
+  month?: string;
   onSpaceUnavailable?(): void;
   onRepaymentRecorded?(repayment: RecordedRepayment): Promise<void>;
 }
@@ -35,7 +44,7 @@ export interface UseLoansOptions {
 export function useLoans(gateway: LoansGateway, options?: UseLoansOptions) {
   const [spaces, setSpaces] = useState<readonly Space[]>([]);
   const [internalSpaceId, setSpaceIdState] = useState('');
-  const [month, setMonthState] = useState(currentMonth());
+  const [internalMonth, setMonthState] = useState(currentMonth());
   const [dashboard, setDashboard] = useState<LoansDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<LoanErrorView | null>(null);
@@ -43,6 +52,8 @@ export function useLoans(gateway: LoansGateway, options?: UseLoansOptions) {
   const loadSequence = useRef(0);
   const controlled = options?.spaceId !== undefined;
   const spaceId = controlled ? options.spaceId ?? '' : internalSpaceId;
+  const monthOption = options?.month;
+  const month = monthOption !== undefined ? normalizeMonth(monthOption) : internalMonth;
   const onSpaceUnavailable = options?.onSpaceUnavailable;
   const onRepaymentRecorded = options?.onRepaymentRecorded;
 
@@ -108,7 +119,8 @@ export function useLoans(gateway: LoansGateway, options?: UseLoansOptions) {
   };
 
   const setMonth = (nextMonth: string) => {
-    const normalized = `${nextMonth.slice(0, 7)}-01`;
+    if (monthOption !== undefined) return; // the caller owns the month
+    const normalized = normalizeMonth(nextMonth);
     setMonthState(normalized);
     if (!controlled && spaceId) void loadDashboard(spaceId, normalized);
   };
