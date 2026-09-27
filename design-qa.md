@@ -55,12 +55,12 @@ Focused side-by-side regions were inspected for the [Plan registers](artifacts/v
 - The concept's 60-day curve and breakdown rows illustrate more forecast data than the fixture has. The app displays its supported cash projection and detailed accessible table with actual data rather than interpolating invented days.
 - The local quick-add URL naturally shows `127.0.0.1`, rather than the image's example domain.
 
-## Live account blocker
+## Live account migration and browser check
 
-The in-app browser on `http://127.0.0.1:5175/` loads Loans under Plan, but the Plan overview reports: `Could not find the function public.monthly_budget_category_page_v3(...) in the schema cache`. The preview's `.env.local` points to hosted Supabase project `hqblhzqitrbvpyoxtmew`. Its migration journal contains 50 of the 55 committed migrations; the five dated 2026-09-25, including `supabase/migrations/20260925102000_monthly_budget_category_page_v3.sql`, are absent. A read-only `to_regprocedure` check also confirms the RPC is absent. This prevents a complete browser check of Plan against the real account. The offline browser fixture renders and tests the Plan UI, but does not prove that the hosted account's Plan works. No migration was applied or pushed in this UI session.
+The in-app browser on `http://127.0.0.1:5175/` originally reported: `Could not find the function public.monthly_budget_category_page_v3(...) in the schema cache`. The preview's `.env.local` points to hosted Supabase project `hqblhzqitrbvpyoxtmew`. A read-only audit found 50 of 55 committed migrations in its journal and confirmed the five dated 2026-09-25 were absent. After Daniel authorized the hosted update, the guarded `pnpm migrate:live` workflow ran from `main`: it verified the 55-file manifest, saved a private schema and data backup, dry-ran exactly those five missing files, applied them, then reported no pending migrations and `budget_schema_ready`. In the signed-in 5175 browser, Plan now loads September 2026 USD planned income, category targets, and loan commitments; LBP also loads, and Loans opens under Plan. No account records were changed by UI QA.
 
 ## Verification and final result
 
-The final 32 matched viewport pairs and four focused regions above were captured and inspected after the visual corrections. `pnpm check:ui` passed: TypeScript checks, 104 UI test files with 1,348 passing tests, and a production Vite build. The complete Playwright desktop/mobile suite passed with 163 tests and 53 expected project-specific skips. `git diff --check` passed. The hosted Plan overview remains blocked by the five unapplied migrations described above; the fixture-backed Plan pairs are frontend visual evidence only.
+The final 32 matched viewport pairs and four focused regions above were captured and inspected after the visual corrections. `pnpm check:ui` passed: TypeScript checks, 104 UI test files with 1,348 passing tests, and a production Vite build. The complete Playwright desktop/mobile suite passed with 163 tests and 53 expected project-specific skips. `git diff --check` passed. The hosted Plan browser check passed after the migrations; the image pairs remain fixture-backed visual evidence with the data limits above.
 
-final result: blocked
+final result: passed
