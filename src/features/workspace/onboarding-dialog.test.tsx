@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { OnboardingDialog } from './onboarding-dialog.js';
+import type { OpeningBalanceInput } from './types.js';
 
 describe('OnboardingDialog', () => {
   it('creates a mobile first space and wallet through one guided action', async () => {
@@ -140,5 +141,89 @@ describe('OnboardingDialog', () => {
     expect(dialog).toContainElement(document.activeElement as HTMLElement);
     await user.keyboard('{Escape}');
     expect(dialog).toBeInTheDocument();
+  });
+
+  it('cancels an additional space from the close control and from Escape', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<OnboardingDialog locale="en" mode="additional" createSpace={vi.fn()} createWallet={vi.fn()} onComplete={vi.fn()} onClose={onClose} />);
+    const dialog = screen.getByRole('dialog', { name: 'Add another space' });
+
+    await user.click(within(dialog).getByRole('button', { name: 'Close' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it('records the setup progress after creating the first space', async () => {
+    const user = userEvent.setup();
+    const onProgress = vi.fn();
+    render(<OnboardingDialog locale="en" createSpace={async () => ({ id: 'space-1' })} createWallet={vi.fn()} onComplete={vi.fn()} onProgress={onProgress} />);
+    await user.type(screen.getByLabelText('Space name'), 'My money');
+    await user.click(screen.getByRole('button', { name: 'Create personal space' }));
+
+    expect(onProgress).toHaveBeenCalledWith({ spaceId: 'space-1', balanceRequestId: expect.any(String) });
+  });
+
+  it('resumes an unfinished first run at the wallet step', () => {
+    render(<OnboardingDialog locale="en" setup={{ spaceId: 'space-1', balanceRequestId: 'req-1' }} createSpace={vi.fn()} createWallet={vi.fn()} onComplete={vi.fn()} />);
+    expect(screen.getByRole('heading', { name: 'Add your first wallet' })).toBeInTheDocument();
+  });
+
+  it('adds a starting-balance step that reuses one request id across retries', async () => {
+    const user = userEvent.setup();
+    const recordOpeningBalance = vi.fn<(input: OpeningBalanceInput) => Promise<void>>()
+      .mockRejectedValueOnce(new Error('Network request failed'))
+      .mockResolvedValue(undefined);
+    const onComplete = vi.fn();
+    render(<OnboardingDialog locale="en" createSpace={async () => ({ id: 'space-1' })} createWallet={async () => ({ id: 'wallet-1' })} onComplete={onComplete} recordOpeningBalance={recordOpeningBalance} />);
+
+    await user.type(screen.getByLabelText('Space name'), 'My money');
+    await user.click(screen.getByRole('button', { name: 'Create personal space' }));
+    await user.type(screen.getByLabelText('Wallet name'), 'Cash');
+    await user.click(screen.getByRole('button', { name: 'Create USD wallet' }));
+
+    expect(screen.getByRole('heading', { name: 'Opening balance' })).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Amount'), '120.50');
+    await user.click(screen.getByRole('button', { name: 'Record opening balance' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Network request failed');
+
+    await user.click(screen.getByRole('button', { name: 'Record opening balance' }));
+    expect(recordOpeningBalance).toHaveBeenCalledTimes(2);
+    const first = recordOpeningBalance.mock.calls[0]![0];
+    const second = recordOpeningBalance.mock.calls[1]![0];
+    expect(second.requestId).toBe(first.requestId);
+    expect(second).toMatchObject({ spaceId: 'space-1', walletId: 'wallet-1', amountMinor: '12050' });
+    expect(onComplete).toHaveBeenCalledWith('space-1');
+  });
+
+  it('resumes at the starting-balance step with the persisted request id', async () => {
+    const user = userEvent.setup();
+    const recordOpeningBalance = vi.fn(async () => undefined);
+    const onComplete = vi.fn();
+    render(<OnboardingDialog locale="en" setup={{ spaceId: 'space-1', balanceRequestId: 'req-9', wallet: { id: 'wallet-1', currency: 'LBP' } }} createSpace={vi.fn()} createWallet={vi.fn()} onComplete={onComplete} recordOpeningBalance={recordOpeningBalance} />);
+
+    expect(screen.getByRole('heading', { name: 'Opening balance' })).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Amount'), '5000');
+    await user.click(screen.getByRole('button', { name: 'Record opening balance' }));
+
+    expect(recordOpeningBalance).toHaveBeenCalledWith({ spaceId: 'space-1', walletId: 'wallet-1', amountMinor: '5000', requestId: 'req-9' });
+    expect(onComplete).toHaveBeenCalledWith('space-1');
+  });
+
+  it('lets a person finish setup without a starting balance', async () => {
+    const user = userEvent.setup();
+    const recordOpeningBalance = vi.fn(async () => undefined);
+    const onComplete = vi.fn();
+    render(<OnboardingDialog locale="en" createSpace={async () => ({ id: 'space-1' })} createWallet={async () => ({ id: 'wallet-1' })} onComplete={onComplete} recordOpeningBalance={recordOpeningBalance} />);
+
+    await user.type(screen.getByLabelText('Space name'), 'My money');
+    await user.click(screen.getByRole('button', { name: 'Create personal space' }));
+    await user.type(screen.getByLabelText('Wallet name'), 'Cash');
+    await user.click(screen.getByRole('button', { name: 'Create USD wallet' }));
+    await user.click(screen.getByRole('button', { name: 'Skip' }));
+
+    expect(recordOpeningBalance).not.toHaveBeenCalled();
+    expect(onComplete).toHaveBeenCalledWith('space-1');
   });
 });
