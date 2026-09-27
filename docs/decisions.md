@@ -3939,3 +3939,11 @@ This supersedes the "remaining-amount match only" reading of "Auto-settle pays t
 **Why:** D4 and D7. The manual fallback was a dead end: "Link" needed an id only the database showed, and a debt occurrence was link-only, so it could never be settled; the picker removes both. The unlink path reuses the existing reversal command rather than adding a settlement `unlink` RPC.
 
 **If changed:** a durable unlink of a match made earlier (auto-settle on Record) needs the occurrence's linked financial event id exposed — the occurrence page returns only `currentEventId` (the occurrence-event head), not `linkedEventId` — which is a new read/field and was left to the coordinator. Guarding the picker behind a loader prop means an app that never supplies `loadLinkableEvents` shows "Linking a transaction is unavailable right now." until `routes.tsx` wires the wallets gateway.
+
+## 2026-09-27 — Auto-settle refuses an amount larger than the bill still owes (correction to the D3 entry above)
+
+**Decision:** The partial fallback in `findSettleableOccurrence` links only a STRICTLY SMALLER entry (a partial payment). An entry larger than the candidate bill's oldest unpaid remainder is refused (`kind: 'none'`) and left for the manual linking path. The `unallocatedMinor`/`currency` surplus fields on the settled outcome and the "This payment was $Y more than the amount still due." notice copy were removed.
+
+**Why:** The first D3 implementation auto-linked any amount to a single candidate bill, so a $61 expense settled a $60 bill and broke the long-standing release contract "a non-matching expense leaves the bill pending" (`e2e/auto-settle.spec.ts:89`). Partial payment (entry < remaining) is unconstrained by that contract and is the case the audit asked for; auto-linking an over-payment is not, so it is deferred rather than silently changing the gate.
+
+**If changed:** Re-enabling over-payment auto-linking changes that e2e contract (a deliberate product decision) and must restore the surplus reporting; it is not a silent behavior change. Partial-payment auto-linking keeps the audit's look-alike guarding: two or more candidates stay `ambiguous`.
