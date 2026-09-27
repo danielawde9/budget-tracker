@@ -20,6 +20,8 @@ import { useGoalMonthlyTargetLines } from '../goals/use-goal-monthly-targets.js'
 import type { HouseholdGateway } from '../household/types.js';
 import type { RecurringGateway } from '../recurring/types.js';
 import { AutoMaterializeBanner } from '../recurring/auto-materialize-banner.js';
+import { loadLinkableEvents } from '../recurring/linkable-events.js';
+import { unlinkSettlementPayment } from '../recurring/unlink-settlement.js';
 import { autoSettleRecordedEvent } from '../recurring/auto-settle.js';
 import type { AutoSettleOutcome } from '../recurring/auto-settle.js';
 import { occurrenceWindow } from '../recurring/occurrence-window.js';
@@ -434,6 +436,7 @@ function UpcomingBillsSection(props: {
   currency: Currency;
   gateway: RecurringGateway;
   goalsGateway: GoalsGateway;
+  walletsGateway: WalletsGateway;
   referenceOptions: Omit<ScheduleReferenceOptions, 'goals'>;
   plannedIncomeByCurrency: Readonly<Record<Currency, string | null>>;
   settledVersion: number;
@@ -467,7 +470,9 @@ function UpcomingBillsSection(props: {
       <UpcomingPage locale={props.locale} currency={props.currency} recurring={recurring} fromDate={fromDate} toDate={toDate}
         referenceOptions={referenceOptions}
         plannedIncomeByCurrency={props.plannedIncomeByCurrency}
-        walletOptions={props.referenceOptions.wallets} />
+        walletOptions={props.referenceOptions.wallets}
+        loadLinkableEvents={(query) => loadLinkableEvents(props.walletsGateway, props.spaceId, query)}
+        onUnlink={(eventId) => unlinkSettlementPayment(props.walletsGateway, props.spaceId, eventId, todayIso())} />
     </section>
   );
 }
@@ -707,6 +712,7 @@ function PlanRoutes(props: PlanRoutesProps) {
           currency={planCurrency}
           gateway={gateways.recurring ?? unavailableRecurringGateway}
           goalsGateway={gateways.goals ?? unavailableGoalsGateway}
+          walletsGateway={gateways.wallets}
           referenceOptions={props.referenceOptions}
           plannedIncomeByCurrency={plannedIncomeByCurrency}
           settledVersion={props.settledVersion}
