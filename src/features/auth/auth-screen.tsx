@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import ledgerIllustration from '../../assets/auth-ledger-illustration.png';
 import type { Locale } from '../loans/types.js';
 import type { AuthStatus } from './use-auth-session.js';
 
@@ -24,8 +25,7 @@ const text = {
     haveAccount: 'I already have an account', check: 'Check your email',
     checkBody: 'Use the confirmation link sent to', checkTail: 'Then return here and sign in.', language: 'العربية',
     resend: 'Resend confirmation email', resendSent: 'Confirmation email sent.', backToSignIn: 'Back to sign in',
-    outlook: 'A clearer picture of your money.',
-    outlookBody: 'Keep your everyday spending and future plans together.',
+    outlook: 'A clearer tomorrow.',
     noAccount: 'New to Budget ledger?',
   },
   ar: {
@@ -36,8 +36,7 @@ const text = {
     haveAccount: 'لديّ حساب بالفعل', check: 'تحقق من بريدك الإلكتروني',
     checkBody: 'استخدم رابط التأكيد المرسل إلى', checkTail: 'ثم عد إلى هنا وسجّل الدخول.', language: 'English',
     resend: 'إعادة إرسال رسالة التأكيد', resendSent: 'تم إرسال رسالة التأكيد.', backToSignIn: 'العودة إلى تسجيل الدخول',
-    outlook: 'صورة أوضح لأموالك.',
-    outlookBody: 'اجمع مصروفاتك اليومية وخططك القادمة في مكان واحد.',
+    outlook: 'غد أوضح.',
     noAccount: 'هل هذه زيارتك الأولى لدفتر الميزانية؟',
   },
 } as const;
@@ -88,6 +87,7 @@ export function AuthScreen(props: AuthScreenProps) {
     <section className="auth-boundary">
       <div className="auth-content">
         <div className="auth-intro">
+          <span className="auth-brand auth-card-brand"><span className="auth-brand-mark" aria-hidden="true" />{copy.product}</span>
           <h1>{signingUp ? copy.createTitle : props.state === 'expired' ? copy.expiredTitle : copy.signInTitle}</h1>
           <p>{signingUp ? copy.createIntro : copy.intro}</p>
         </div>
@@ -100,9 +100,8 @@ export function AuthScreen(props: AuthScreenProps) {
         </form>
       </div>
       <div className="auth-art">
-        <div className="auth-ledger-art" aria-hidden="true"><span /><span /><span /><span /></div>
+        <img className="auth-ledger-art" src={ledgerIllustration} alt="" />
         <p>{copy.outlook}</p>
-        <small>{copy.outlookBody}</small>
       </div>
     </section>
   </main>;

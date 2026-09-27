@@ -86,6 +86,19 @@ function setup(overrides: Partial<Parameters<typeof PlanPage>[0]> = {}) {
 }
 
 describe('PlanPage', () => {
+  it('uses the Plan header currency when controlled by its route', () => {
+    setup({
+      currency: 'LBP',
+      summaries: [summary(), summary({ currency: 'LBP', plannedIncomeMinor: '5000000' })],
+      categoryRows: [categoryRow(), categoryRow({ categoryId: 'cat-fuel', nameEn: 'Fuel', currency: 'LBP' })],
+    });
+
+    expect(screen.queryByRole('tablist', { name: 'Currency' })).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Planned income LBP' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Planned income USD' })).not.toBeInTheDocument();
+    expect(screen.getByText('Fuel')).toBeInTheDocument();
+  });
+
   it('separates the whole plan by currency tabs, defaulting to USD', async () => {
     const user = userEvent.setup();
     setup({

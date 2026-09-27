@@ -192,14 +192,17 @@ export function UpcomingPage(props: UpcomingPageProps) {
     </div>
     {(recurring.status === 'ready' || recurring.status === 'saving') && <aside className="cr-card rec-window-summary" aria-label={t(props.locale, 'Window summary', 'ملخص الفترة')}>
       <h3>{t(props.locale, 'In this window', 'خلال هذه الفترة')}</h3>
-      <p className="cr-helper"><bdi>{props.fromDate}</bdi> – <bdi>{props.toDate}</bdi> · {props.currency}</p>
       <dl>
         <div><dt><bdi>{new Intl.NumberFormat(props.locale === 'ar' ? 'ar-LB' : 'en-US').format(totals.outflowCount)}</bdi> {t(props.locale, totals.outflowCount === 1 ? 'outflow' : 'outflows', 'مدفوعات خارجة')}</dt><dd><bdi>{formatMinorAmount(totals.outflowMinor.toString(), props.currency, props.locale)}</bdi></dd></div>
         <div><dt><bdi>{new Intl.NumberFormat(props.locale === 'ar' ? 'ar-LB' : 'en-US').format(totals.inflowCount)}</bdi> {t(props.locale, totals.inflowCount === 1 ? 'inflow' : 'inflows', 'مدفوعات واردة')}</dt><dd><bdi>{formatMinorAmount(totals.inflowMinor.toString(), props.currency, props.locale)}</bdi></dd></div>
-        <div><dt>{t(props.locale, 'Net', 'الصافي')}</dt><dd><bdi>{formatMinorAmount(totals.netMinor.toString(), props.currency, props.locale)}</bdi></dd></div>
       </dl>
-      <p className="cr-helper">{t(props.locale, 'Unsettled scheduled amounts; these are not cash already received or paid.', 'مبالغ مجدولة لم تُسوَّ بعد؛ وليست سيولة مستلمة أو مدفوعة بالفعل.')}</p>
-      {recurring.truncated && <p className="cr-helper">{t(props.locale, 'Totals include listed occurrences only.', 'تشمل المجاميع الدفعات المعروضة فقط.')}</p>}
+      <details className="rec-window-details">
+        <summary>{t(props.locale, 'Net and notes', 'الصافي وملاحظات')}</summary>
+        <p className="cr-helper"><bdi>{props.fromDate}</bdi> – <bdi>{props.toDate}</bdi> · {props.currency}</p>
+        <p><span>{t(props.locale, 'Net', 'الصافي')}</span> <bdi>{formatMinorAmount(totals.netMinor.toString(), props.currency, props.locale)}</bdi></p>
+        <p className="cr-helper">{t(props.locale, 'Unsettled scheduled amounts; these are not cash already received or paid.', 'مبالغ مجدولة لم تُسوَّ بعد؛ وليست سيولة مستلمة أو مدفوعة بالفعل.')}</p>
+        {recurring.truncated && <p className="cr-helper">{t(props.locale, 'Totals include listed occurrences only.', 'تشمل المجاميع الدفعات المعروضة فقط.')}</p>}
+      </details>
     </aside>}
     </div>
 

@@ -55,7 +55,7 @@ describe('UpcomingPage', () => {
     expect(within(table).getByText('40%').closest('.rec-label-muted')).toHaveTextContent('40% settled');
   });
 
-  it('shows only the selected currency and summarizes unsettled inflows and outflows in the current window', () => {
+  it('shows only the selected currency and summarizes unsettled inflows and outflows in the current window', async () => {
     const recurring = fakeRecurringState({ page: page([
       row({ id: 'rent', nameEn: 'Rent', kind: 'expense', remainingMinor: '30000' }),
       row({ id: 'salary', nameEn: 'Salary', kind: 'income', expectedMinor: '100000', settledMinor: '0', remainingMinor: '100000', state: 'pending' }),
@@ -69,7 +69,11 @@ describe('UpcomingPage', () => {
     expect(summary).toHaveTextContent('$300.00');
     expect(summary).toHaveTextContent('1 inflow');
     expect(summary).toHaveTextContent('$1,000.00');
-    expect(summary).toHaveTextContent('Net$700.00');
+    const details = within(summary).getByText('Net and notes').closest('details');
+    expect(details).not.toHaveAttribute('open');
+    await userEvent.click(within(summary).getByText('Net and notes'));
+    expect(details).toHaveAttribute('open');
+    expect(details).toHaveTextContent('Net $700.00');
   });
 
   it('U16-02: renders a February month-end due date verbatim, never shifted by client-side date math', () => {

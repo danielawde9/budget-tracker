@@ -10,7 +10,7 @@ Loans moves from Manage to the last Plan section. The loan page keeps creation, 
 
 - **Color:** forest rail `#123f34`, deep forest `#0d5d48`, emerald action `#177f63`, warm canvas `#f6f7f3`, white surface `#ffffff`, charcoal ink `#121614`. All values live in `src/control-room.css` tokens; other stylesheets reference tokens.
 - **Type:** the existing bilingual sans stack, with tabular numerals for amounts. Page titles, section titles, labels, and amounts each have one clear level. No decorative lettering.
-- **Desktop:** persistent 244px dark rail with space switcher, Record action, and four destinations. Content has wider dashboard grids where data benefits from comparison; long registers retain readable row density.
+- **Desktop:** persistent 282px dark rail with space switcher, Record action, and four destinations. The width matches the shared rail in the approved 1586px concepts. Content has wider dashboard grids where data benefits from comparison; long registers retain readable row density.
 - **Mobile:** compact space switcher at the top, a fixed Home / Journal / Record / Plan / Manage bar, stacked cards, horizontally scrollable Plan sections, and large/full-screen creation flows. Keep the main viewport free of horizontal overflow at 390px.
 - **Interaction:** one primary action per screen or dialog, visible active destination/section, keyboard focus and reduced-motion support, logical properties for RTL, and `<bdi>` for user-sourced names.
 

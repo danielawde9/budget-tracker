@@ -1,3 +1,4 @@
+import { ChevronRight } from 'lucide-react';
 import type { Currency, Locale } from '../loans/types.js';
 import { formatMinorAmount } from '../wallets/money.js';
 import { chartPercent } from './chart-ratio.js';
@@ -115,7 +116,8 @@ export function AllocationBars(props: AllocationBarsProps) {
                       aria-label={t(locale, `View ${label} categories`, `عرض فئات ${label}`)}
                       onClick={() => props.onDrilldown?.(row)}
                     >
-                      {t(locale, 'View', 'عرض')}
+                      <span className="alloc-drilldown-label">{t(locale, 'View', 'عرض')}</span>
+                      <ChevronRight className="alloc-drilldown-icon" aria-hidden size={18} />
                     </button>
                   ) : null}
                 </td>

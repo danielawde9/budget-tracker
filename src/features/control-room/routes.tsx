@@ -31,7 +31,7 @@ import { SettleNoticeBanner } from '../recurring/settle-notice-banner.js';
 import { UpcomingPage } from '../recurring/upcoming-page.js';
 import type { ScheduleReferenceOptions } from '../recurring/schedule-editor.js';
 import type { InsightsClient, CategoryBudgetRow } from '../insights/types.js';
-import type { Currency, Locale, SpaceKind } from '../loans/types.js';
+import type { Currency, Locale, LoanDirection, SpaceKind } from '../loans/types.js';
 import type { LoansGateway } from '../loans/types.js';
 import { LoansPage } from '../loans/loans-page.js';
 import { useLoans } from '../loans/use-loans.js';
@@ -179,7 +179,7 @@ interface HomeRoutesProps {
   spaceKind: SpaceKind;
   gateways: ControlRoomGateways;
   wallets: WalletsState;
-  loansOutstanding: readonly { loanId: string; personName: string; currency: Currency; outstandingMinor: string }[];
+  loansOutstanding: readonly { loanId: string; personName: string; currency: Currency; direction: LoanDirection; outstandingMinor: string }[];
   month: string;
   onMonthChange(month: string): void;
   onSpaceUnavailable?: (() => void) | undefined;
@@ -605,6 +605,7 @@ function PlanRoutes(props: PlanRoutesProps) {
       <PlanPage
         locale={locale}
         month={props.month}
+        currency={planCurrency}
         summaries={plan.summaries}
         categoryRows={plan.categoryRows}
         pending={plan.pending}
@@ -619,7 +620,26 @@ function PlanRoutes(props: PlanRoutesProps) {
 
   return (
     <>
-      <PageHeader title={locale === 'ar' ? 'الخطة' : 'Plan'} subtitle={monthLabel(props.month, locale)} />
+      <PageHeader
+        title={locale === 'ar' ? 'الخطة' : 'Plan'}
+        subtitle={monthLabel(props.month, locale)}
+        actions={(
+          <div className="cr-tabs cr-plan-currency" role="tablist" aria-label={locale === 'ar' ? 'العملة' : 'Currency'}>
+            {PLAN_CURRENCY_OPTIONS.map((option) => (
+              <button
+                key={option}
+                type="button"
+                role="tab"
+                aria-selected={planCurrency === option}
+                className={planCurrency === option ? 'cr-tab cr-tab--active' : 'cr-tab'}
+                onClick={() => setPlanCurrency(option)}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        )}
+      />
       <nav className="cr-plan-nav" aria-label={locale === 'ar' ? 'أقسام الخطة' : 'Plan sections'}>
         {PLAN_SECTIONS.map((item) => (
           <button
@@ -633,22 +653,6 @@ function PlanRoutes(props: PlanRoutesProps) {
           </button>
         ))}
       </nav>
-      {section === 'allocation' || section === 'goals' || section === 'cash' || section === 'bills' ? (
-        <div className="cr-tabs" role="tablist" aria-label={locale === 'ar' ? 'العملة' : 'Currency'}>
-          {PLAN_CURRENCY_OPTIONS.map((option) => (
-            <button
-              key={option}
-              type="button"
-              role="tab"
-              aria-selected={planCurrency === option}
-              className={planCurrency === option ? 'cr-tab cr-tab--active' : 'cr-tab'}
-              onClick={() => setPlanCurrency(option)}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
-      ) : null}
       {section === 'plan' ? planSection : null}
       {section === 'allocation' ? [planCurrency].map((currency) => (
         <AllocationCurrencySection
@@ -709,6 +713,7 @@ function PlanRoutes(props: PlanRoutesProps) {
           gateway={gateways.loans}
           spaceId={spaceId}
           locale={locale}
+          currency={planCurrency}
           onSpaceUnavailable={() => props.onSpaceUnavailable?.()}
           embedded
         />
@@ -789,6 +794,7 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
       loanId: loan.id,
       personName: loan.personName,
       currency: loan.currency,
+      direction: loan.direction,
       outstandingMinor: loan.outstandingMinor,
     }));
   }, [loans.dashboard]);

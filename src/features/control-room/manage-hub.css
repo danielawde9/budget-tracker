@@ -14,8 +14,8 @@
   box-shadow: none;
 }
 
-.mg-hub-group {
-  padding: var(--cr-space-2);
+.cr-shell .mg-hub .mg-hub-group {
+  padding: var(--cr-space-3);
   gap: 0;
 }
 
@@ -25,18 +25,18 @@
 
 .mg-hub-heading {
   margin: 0;
-  padding-block: var(--cr-space-2);
-  padding-inline: var(--cr-space-3);
+  padding-block: var(--cr-space-1) var(--cr-space-2);
+  padding-inline: var(--cr-space-2);
 }
 
 /* Section rows reuse the cr-manage-row base (full-width, 52px, hover) and
    restyle it into an icon + label + description + chevron row. */
 .cr-shell .mg-hub .cr-manage-row.mg-hub-row {
   justify-content: flex-start;
-  gap: var(--cr-space-3);
-  min-height: 64px;
-  padding-block: var(--cr-space-3);
-  padding-inline: var(--cr-space-3);
+  gap: var(--cr-space-2);
+  min-height: 60px;
+  padding-block: var(--cr-space-2);
+  padding-inline: var(--cr-space-2);
   text-align: start;
 }
 
@@ -83,8 +83,9 @@
 
 .cr-shell .mg-hub .mg-hub-account {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0;
-  padding-inline: var(--cr-space-3);
+  padding-inline: var(--cr-space-2);
 }
 
 .mg-hub-account-email {
@@ -106,7 +107,7 @@
   overflow-wrap: anywhere;
 }
 
-.cr-shell .cr-button.mg-hub-signout {
+.cr-shell .mg-hub-signout {
   display: inline-flex;
   align-items: center;
   gap: var(--cr-space-2);
@@ -114,9 +115,90 @@
   justify-self: start;
   margin-block-start: var(--cr-space-2);
   min-block-size: 44px;
+  color: var(--cr-accent-strong);
+}
+
+.cr-shell .mg-subpage > .cr-manage-back {
+  min-block-size: 44px;
+  padding-inline: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  color: var(--cr-accent-strong);
+}
+
+.cr-shell .mg-subpage > .cr-manage-back:hover {
+  background: transparent;
+}
+
+.mg-back-short {
+  display: none;
+}
+
+@media (max-width: 699px) {
+  .mg-back-long {
+    display: none;
+  }
+
+  .mg-back-short {
+    display: inline;
+  }
+  .cr-shell .mg-page {
+    padding-block-start: 22px;
+  }
+
+  .cr-shell .mg-hub .cr-manage-row.mg-hub-row {
+    min-block-size: 78px;
+  }
+
+  .cr-shell .mg-hub-account-group {
+    padding-block: var(--cr-space-2);
+  }
+
+  .cr-shell .mg-hub-account-email {
+    padding-block: var(--cr-space-2);
+  }
+
+  .cr-shell .mg-hub-signout {
+    margin-block-start: var(--cr-space-1);
+  }
+
+  .cr-shell .mg-subpage--wallets {
+    position: relative;
+  }
+
+  .cr-shell .mg-subpage--wallets > .cr-manage-back {
+    position: absolute;
+    inset-block-start: -42px;
+    inset-inline-end: 0;
+    margin: 0;
+  }
 }
 
 @media (min-width: 1100px) {
+  .cr-shell .mg-subpage {
+    padding-inline: var(--cr-space-6) calc(var(--cr-space-6) + var(--cr-space-3));
+    padding-block-start: var(--cr-space-2);
+  }
+
+  .cr-shell .mg-subpage .wallets-workspace,
+  .cr-shell .mg-subpage .categories-workspace,
+  .cr-shell .mg-subpage .household-workspace {
+    inline-size: 100%;
+    max-inline-size: none;
+    margin-inline: 0;
+  }
+
+  .cr-shell .mg-page {
+    max-inline-size: calc(71.5rem + var(--cr-space-6) + var(--cr-space-6) + var(--cr-space-2));
+    padding-inline-start: calc(var(--cr-space-6) + var(--cr-space-6) + var(--cr-space-2));
+    padding-block-start: calc(var(--cr-space-6) + var(--cr-space-4));
+  }
+
+  .cr-shell .mg-page .cr-header {
+    margin-block-end: calc(var(--cr-space-6) + var(--cr-space-5));
+  }
+
   .cr-shell .cr-manage-menu.mg-hub {
     grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
     grid-template-areas: 'money preferences' 'money account';
@@ -125,6 +207,52 @@
   .mg-hub-money { grid-area: money; align-self: stretch; }
   .mg-hub-preferences { grid-area: preferences; }
   .mg-hub-account-group { grid-area: account; }
+
+  .cr-shell .mg-hub .mg-hub-group {
+    padding: var(--cr-space-5);
+  }
+
+  .cr-shell .mg-hub .mg-hub-heading {
+    font-size: 26px;
+    line-height: 1.2;
+    padding-block: var(--cr-space-1) var(--cr-space-2);
+  }
+
+  .cr-shell .mg-hub .cr-manage-row.mg-hub-row {
+    min-block-size: 104px;
+    gap: var(--cr-space-5);
+    padding-block: var(--cr-space-4);
+  }
+
+  .cr-shell .mg-hub .mg-hub-icon {
+    inline-size: calc(var(--cr-space-6) + var(--cr-space-5));
+    block-size: calc(var(--cr-space-6) + var(--cr-space-5));
+  }
+
+  .cr-shell .mg-hub .mg-hub-icon svg {
+    inline-size: 27px;
+    block-size: 27px;
+  }
+
+  .cr-shell .mg-hub .mg-hub-label {
+    font-size: 20px;
+  }
+
+  .cr-shell .mg-hub .mg-hub-desc,
+  .cr-shell .mg-hub .mg-hub-identity {
+    font-size: 16px;
+  }
+
+  .cr-shell .mg-hub .mg-hub-account-email {
+    gap: var(--cr-space-5);
+    padding-block: var(--cr-space-5);
+  }
+
+  .cr-shell .mg-hub .mg-hub-signout {
+    margin-block-start: var(--cr-space-4);
+    min-block-size: 52px;
+    font-size: 16px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

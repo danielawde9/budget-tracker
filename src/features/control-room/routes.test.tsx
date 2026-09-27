@@ -71,6 +71,13 @@ function renderHome(gatewaysBag: ControlRoomGateways, extra: Partial<Parameters<
 }
 
 describe('ControlRoomRoutes home data loading', () => {
+  it('includes receivables and debts in Home net position by direction', async () => {
+    renderHome(gateways({}));
+
+    const netPosition = await screen.findByRole('region', { name: 'Net position' });
+    expect(await within(netPosition).findByText('$1,300.50')).toBeInTheDocument();
+  });
+
   it('shows an error note with retry when insights fails, and retry recovers', async () => {
     const user = userEvent.setup();
     let fail = true;
@@ -125,10 +132,10 @@ describe('ControlRoomRoutes skeleton loading states', () => {
     const skeletons = document.querySelectorAll('.cr-skeleton');
     expect(skeletons.length).toBeGreaterThan(0);
     for (const block of skeletons) expect(block).toHaveAttribute('aria-hidden', 'true');
-    expect(screen.queryByRole('region', { name: 'Wallet balances' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Net position' })).not.toBeInTheDocument();
 
     gate.resolve([BUDGET_ROW]);
-    expect(await screen.findByRole('region', { name: 'Wallet balances' })).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Net position' })).toBeInTheDocument();
     expect(screen.getByText('Groceries')).toBeInTheDocument();
     expect(document.querySelector('.cr-skeleton')).toBeNull();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
@@ -279,6 +286,7 @@ describe('ControlRoomRoutes record sheet', () => {
     renderHome(gateways({ wallets, categories }), { recordOpen: true, onCloseRecord });
 
     await user.click(await screen.findByRole('button', { name: 'Expense' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
     for (const key of ['1', '0']) await user.click(screen.getByRole('button', { name: key }));
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.click(screen.getByRole('button', { name: /Daily USD/ }));
@@ -326,6 +334,7 @@ describe('ControlRoomRoutes auto-settle notice', () => {
     renderHome(gateways({ categories, recurring }), { recordOpen: true });
 
     await user.click(await screen.findByRole('button', { name: 'Expense' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
     for (const key of ['1', '0']) await user.click(screen.getByRole('button', { name: key }));
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.click(screen.getByRole('button', { name: /Daily USD/ }));
@@ -374,6 +383,7 @@ describe('ControlRoomRoutes auto-settle notice', () => {
     renderHome(gateways({ categories, recurring }), { recordOpen: true });
 
     await user.click(await screen.findByRole('button', { name: 'Income' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
     for (const key of ['1', '0']) await user.click(screen.getByRole('button', { name: key }));
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.click(screen.getByRole('button', { name: /Daily USD/ }));
@@ -415,6 +425,7 @@ describe('ControlRoomRoutes auto-settle notice', () => {
     renderHome(gateways({ categories, recurring }), { recordOpen: true });
 
     await user.click(await screen.findByRole('button', { name: 'Expense' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
     for (const key of ['1', '0']) await user.click(screen.getByRole('button', { name: key }));
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.click(screen.getByRole('button', { name: /Daily USD/ }));
@@ -485,6 +496,7 @@ describe('ControlRoomRoutes refreshes mounted Plan sections after a settle', () 
 
   async function recordTenDollarGroceries(user: ReturnType<typeof userEvent.setup>) {
     await user.click(await screen.findByRole('button', { name: 'Expense' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
     for (const key of ['1', '0']) await user.click(screen.getByRole('button', { name: key }));
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.click(screen.getByRole('button', { name: /Daily USD/ }));
@@ -639,7 +651,7 @@ describe('ControlRoomRoutes plan destination', () => {
     expect(await screen.findByRole('heading', { name: 'Loans' })).toBeInTheDocument();
   });
 
-  it('opens the loan register from Plan without a currency filter', async () => {
+  it('switches the Plan loan register between USD and LBP', async () => {
     const user = userEvent.setup();
     renderHome(gateways({}), { destination: 'plan' });
 
@@ -648,8 +660,40 @@ describe('ControlRoomRoutes plan destination', () => {
 
     expect(await screen.findByRole('heading', { name: 'Loans' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open Maya loan' })).toBeInTheDocument();
-    expect(screen.queryByRole('tablist', { name: 'Currency' })).not.toBeInTheDocument();
+    const currencies = screen.getByRole('tablist', { name: 'Currency' });
+    expect(screen.getByTestId('summary-USD')).toBeInTheDocument();
+    await user.click(within(currencies).getByRole('tab', { name: 'LBP' }));
+    expect(await screen.findByTestId('summary-LBP')).toBeInTheDocument();
+    expect(screen.queryByTestId('summary-USD')).not.toBeInTheDocument();
     expect(within(sections).getByRole('button', { name: 'Loans' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('uses one header currency control across Plan overview and Loans', async () => {
+    const user = userEvent.setup();
+    const plan = new InMemoryPlanClient();
+    plan.summaries = (['USD', 'LBP'] as const).map((currency) => ({
+      currency, plannedIncomeMinor: '300000', actualIncomeMinor: '0',
+      categoryTargetTotalMinor: '0', categoryActualSpentMinor: '0', uncategorizedSpentMinor: '0',
+      categoryOverspentMinor: '0', actualLoanRepaymentMinor: '0', remainingLoanReservationMinor: '0',
+      loanCommitmentMinor: '0', unallocatedMinor: '300000', overallocatedMinor: '0',
+      incomePlanRevisionId: `rev-income-${currency}`,
+    }));
+    const gatewaysBag = gateways({});
+    gatewaysBag.plan = plan;
+    renderHome(gatewaysBag, { destination: 'plan' });
+
+    const currencyTabs = within(screen.getByRole('banner')).getByRole('tablist', { name: 'Currency' });
+    expect(screen.getAllByRole('tablist', { name: 'Currency' })).toHaveLength(1);
+    await user.click(within(currencyTabs).getByRole('tab', { name: 'LBP' }));
+    expect(await screen.findByRole('region', { name: 'Planned income LBP' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Planned income USD' })).not.toBeInTheDocument();
+
+    const sections = screen.getByRole('navigation', { name: 'Plan sections' });
+    await user.click(within(sections).getByRole('button', { name: 'Loans' }));
+    expect(screen.getAllByRole('tablist', { name: 'Currency' })).toHaveLength(1);
+    expect(within(currencyTabs).getByRole('tab', { name: 'LBP' })).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByTestId('summary-LBP')).toBeInTheDocument();
+    expect(screen.queryByTestId('summary-USD')).not.toBeInTheDocument();
   });
 
   it('renders the plan screen from the plan client and saves income through usePlan', async () => {

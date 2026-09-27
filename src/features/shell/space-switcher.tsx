@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ChevronDown, House } from 'lucide-react';
 
 import type { Locale, Space } from '../loans/types.js';
 
@@ -30,7 +31,7 @@ export function SpaceSwitcher({ locale, spaces, selectedSpace, onAddSpace, onSpa
   }
 
   return <div className="space-switcher">
-    <button type="button" className="space-switcher-trigger" aria-expanded={open} aria-haspopup="menu" aria-label={`${currentSpace}: ${selectedSpace.name}`} onClick={() => setOpen((current) => !current)}><span>{currentSpace}</span><bdi>{selectedSpace.name}</bdi><small>{kind}</small></button>
+    <button type="button" className="space-switcher-trigger" aria-expanded={open} aria-haspopup="menu" aria-label={`${currentSpace}: ${selectedSpace.name}`} onClick={() => setOpen((current) => !current)}><House className="space-switcher-icon" aria-hidden size={20} /><span>{currentSpace}</span><bdi>{selectedSpace.name}</bdi><small>{kind}</small><ChevronDown className="space-switcher-chevron" aria-hidden size={18} /></button>
     {open ? <div className="space-switcher-menu" role="menu">
       {spaces.map((space) => <button key={space.id} type="button" role="menuitem" aria-current={space.id === selectedSpace.id ? 'true' : undefined} aria-label={`${t(locale, 'Switch to', 'التبديل إلى')} ${space.name}`} onClick={() => selectSpace(space.id)}>
         <span>{t(locale, 'Switch to', 'التبديل إلى')}</span><bdi>{space.name}</bdi>

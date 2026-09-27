@@ -204,11 +204,11 @@ export function JournalScreen(props: JournalScreenProps) {
 
   return (
     <>
-      <PageHeader
+      <div className="daily-journal-header"><PageHeader
         title={t(locale, 'Journal', 'القيود')}
         subtitle={t(locale, 'Everything that has happened with your money.', 'كل ما حدث بأموالك.')}
         actions={<button type="button" className="cr-button cr-button--sm" disabled={exportPending} onClick={() => void runExport()}><Download aria-hidden="true" size={18} />{exportPending ? t(locale, 'Exporting…', 'جارٍ التصدير…') : t(locale, 'Export CSV', 'تصدير CSV')}</button>}
-      />
+      /></div>
       {exportFailed ? (
         <div role="alert">
           <span className="cr-danger-text">
@@ -232,7 +232,7 @@ export function JournalScreen(props: JournalScreenProps) {
       </section>
       <div className="daily-journal-filters">
       <label className="cr-field cr-journal-search">
-        <span className="cr-label">{t(locale, 'Search', 'بحث')}</span>
+        <span className="cr-label daily-journal-search-label">{t(locale, 'Search', 'بحث')}</span>
         <span className="daily-search-control"><Search aria-hidden="true" size={18} /><input
           type="search"
           placeholder={t(locale, 'Notes, labels, wallets…', 'ملاحظات، أسماء، محافظ…')}
@@ -242,17 +242,19 @@ export function JournalScreen(props: JournalScreenProps) {
       </label>
       <div className="cr-journal-dates">
         <label className="cr-field cr-journal-date">
-          <span className="cr-label">{t(locale, 'From date', 'من تاريخ')}</span>
+          <span className="cr-label">{t(locale, 'From', 'من')}</span>
           <input
             type="date"
+            aria-label={t(locale, 'From date', 'من تاريخ')}
             value={fromDate}
             onChange={(event) => setFromDate(event.target.value)}
           />
         </label>
         <label className="cr-field cr-journal-date">
-          <span className="cr-label">{t(locale, 'To date', 'إلى تاريخ')}</span>
+          <span className="cr-label">{t(locale, 'To', 'إلى')}</span>
           <input
             type="date"
+            aria-label={t(locale, 'To date', 'إلى تاريخ')}
             value={toDate}
             onChange={(event) => setToDate(event.target.value)}
           />
@@ -279,7 +281,7 @@ export function JournalScreen(props: JournalScreenProps) {
           ))}
         </div>
       </div>
-      <section className="cr-card daily-journal-register" aria-label={t(locale, 'Journal entries', 'قيود اليومية')}>
+      <section className={visibleEvents.length > 0 ? 'cr-card daily-journal-register daily-journal-register--filled' : 'cr-card daily-journal-register'} aria-label={t(locale, 'Journal entries', 'قيود اليومية')}>
         {visibleEvents.length > 0 ? <div className="daily-journal-columns cr-label" aria-hidden="true"><span>{t(locale, 'Date', 'التاريخ')}</span><span>{t(locale, 'Description', 'الوصف')}</span><span>{t(locale, 'Wallet', 'المحفظة')}</span><span>{t(locale, 'Type', 'النوع')}</span><span>{t(locale, 'Amount', 'المبلغ')}</span></div> : null}
         {searchActive && searchView?.pending === true && sourceEvents.length === 0 ? (
           <p role="status">{t(locale, 'Searching…', 'جارٍ البحث…')}</p>
@@ -313,8 +315,7 @@ export function JournalScreen(props: JournalScreenProps) {
             >
               <span className="daily-journal-date cr-helper">{displayDate(event.effectiveDate, locale)}</span>
               <span className="daily-journal-description"><Icon aria-hidden="true" size={18} /><span><bdi>{label}</bdi>{event.note?.trim() ? <small className="cr-helper"><bdi>{event.note.trim()}</bdi></small> : categoryName && categoryName !== label ? <small className="cr-helper"><bdi>{categoryName}</bdi></small> : null}</span></span>
-              <span className="daily-journal-wallet cr-helper">{event.movements.map((movement) => <bdi key={`${movement.walletId}-${movement.currency}`}>{movement.walletName}</bdi>)}</span>
-              <span className="daily-journal-kind cr-chip">{entryType(event, locale)}</span>
+              <span className="daily-journal-meta"><span className="daily-journal-wallet cr-helper">{event.movements.map((movement) => <bdi key={`${movement.walletId}-${movement.currency}`}>{movement.walletName}</bdi>)}</span><span className="daily-journal-kind cr-chip">{entryType(event, locale)}</span></span>
               <span className="daily-journal-amount">
                 {event.movements.map((movement) => {
                   const positive = event.kind === 'income' && BigInt(movement.amountMinor) > 0n;

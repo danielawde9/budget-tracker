@@ -175,7 +175,9 @@ test('desktop English rehearsal exercises every protected financial mutation and
 
   await page.reload();
   await expect(page.getByRole('navigation').getByRole('button', { name: 'Home', exact: true })).toHaveAttribute('aria-current', 'page');
-  await expect(page.getByRole('region', { name: 'Wallet balances' })).toBeVisible();
+  const netPosition = page.getByRole('region', { name: 'Net position' });
+  await expect(netPosition).toBeVisible();
+  await expect(netPosition).toContainText('$1,763.25');
   await chooseWorkspaceDestination(page, 'Wallets');
   await expect(activeWalletName(page, 'Synthetic UAT wallet')).toBeVisible();
   const archivedSyntheticEvent = page.locator('.journal-row').filter({ hasText: 'Synthetic transport' });

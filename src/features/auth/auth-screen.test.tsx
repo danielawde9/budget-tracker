@@ -12,7 +12,8 @@ describe('AuthScreen', () => {
     expect(screen.getByRole('main')).toHaveClass('workspace-state-page');
     expect(document.querySelector('.auth-panel')).toBeNull();
     expect(screen.getByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
-    expect(screen.getByText('A clearer picture of your money.')).toBeInTheDocument();
+    expect(screen.getByText('A clearer tomorrow.')).toBeInTheDocument();
+    expect(document.querySelector('.auth-ledger-art')).toHaveAttribute('alt', '');
 
     const email = screen.getByLabelText('Email');
     const password = screen.getByLabelText('Password');

@@ -1,6 +1,9 @@
 import { useId, useState } from 'react';
+import { Copy, MonitorSmartphone, Smartphone } from 'lucide-react';
+import phonePreview from '../../assets/phone-shortcut-preview.png';
 import { PageHeader } from '../control-room/page-header.js';
 import type { Locale } from '../loans/types.js';
+import './phone-shortcut-page.css';
 
 const t = (locale: Locale, en: string, ar: string) => (locale === 'ar' ? ar : en);
 
@@ -21,12 +24,13 @@ function writeWithClipboardApi(text: string): Promise<void> {
 
 function CopyField(props: { label: string; value: string; copyLabel: string; buttonText: string; onCopy(): void }) {
   return (
-    <div className="cr-copy-field">
+    <div className="cr-copy-field ps-copy-field">
       <label className="cr-field">
         {props.label}
         <input type="text" readOnly dir="ltr" value={props.value} onFocus={(event) => event.currentTarget.select()} />
       </label>
       <button type="button" className="cr-button" aria-label={props.copyLabel} onClick={props.onCopy}>
+        <Copy aria-hidden size={17} />
         {props.buttonText}
       </button>
     </div>
@@ -51,6 +55,7 @@ export function PhoneShortcutPage(props: PhoneShortcutPageProps) {
   const linksId = useId();
   const iphoneId = useId();
   const androidId = useId();
+  const previewId = useId();
   const links: Record<LinkKind, string> = { expense: `${origin}/?add=expense`, income: `${origin}/?add=income` };
 
   const copy = (kind: LinkKind) => {
@@ -70,7 +75,7 @@ export function PhoneShortcutPage(props: PhoneShortcutPageProps) {
         title={t(locale, 'Add from your phone', 'الإضافة من هاتفك')}
         subtitle={t(locale, 'Open Add expense in one tap, without going through the menu.', 'افتح «إضافة مصروف» بلمسة واحدة دون المرور بالقائمة.')}
       />
-      <section className="cr-card" aria-labelledby={linksId}>
+      <section className="cr-card ps-links" aria-labelledby={linksId}>
         <div className="cr-section-header"><h2 id={linksId}>{t(locale, 'Quick-add links', 'روابط الإضافة السريعة')}</h2></div>
         <p className="cr-helper">{t(locale, 'Use these links to open an expense or income form directly from your phone.', 'استخدم هذه الروابط لفتح نموذج مصروف أو دخل مباشرةً من هاتفك.')}</p>
         <CopyField
@@ -88,11 +93,11 @@ export function PhoneShortcutPage(props: PhoneShortcutPageProps) {
           onCopy={() => copy('income')}
         />
         <p className="cr-helper">{t(locale, 'The link only opens the form. Nothing is saved until you tap Save.', 'الرابط يفتح النموذج فقط. لا يُحفظ شيء حتى تضغط «حفظ».')}</p>
-        <p className="cr-helper" role="status">{notice}</p>
+        {notice ? <p className="cr-helper" role="status">{notice}</p> : null}
       </section>
-      <div className="cr-phone-setup">
-        <section className="cr-card" aria-labelledby={iphoneId}>
-          <div className="cr-section-header"><h2 id={iphoneId}>{t(locale, 'iPhone', 'آيفون')}</h2></div>
+      <div className="cr-phone-setup ps-setup">
+        <section className="cr-card ps-setup-card" aria-labelledby={iphoneId}>
+          <div className="ps-setup-heading"><Smartphone aria-hidden size={24} /><div><h2 id={iphoneId}>{t(locale, 'iPhone', 'آيفون')}</h2><p className="cr-helper">{t(locale, 'Add a home screen shortcut.', 'أضف اختصارًا إلى الشاشة الرئيسية.')}</p></div></div>
           <ol className="cr-steps">
             <li>{t(locale, 'Open the Shortcuts app and tap +.', 'افتح تطبيق «الاختصارات» واضغط +.')}</li>
             <li>{ar ? <>أضف إجراء فتح الروابط (<bdi>Open{'\u00a0'}URLs</bdi>) والصق رابط المصروف.</> : 'Add the “Open URLs” action and paste the expense link.'}</li>
@@ -100,13 +105,20 @@ export function PhoneShortcutPage(props: PhoneShortcutPageProps) {
           </ol>
           <p className="cr-helper">{ar ? <>يمكنك أيضًا تشغيله عبر <bdi>Siri</bdi> بقول اسمه، أو من زر الإجراء.</> : 'You can also run it with Siri by saying its name, or from the Action Button.'}</p>
         </section>
-        <section className="cr-card" aria-labelledby={androidId}>
-          <div className="cr-section-header"><h2 id={androidId}>{t(locale, 'Android', 'أندرويد')}</h2></div>
+        <section className="cr-card ps-setup-card" aria-labelledby={androidId}>
+          <div className="ps-setup-heading"><MonitorSmartphone aria-hidden size={24} /><div><h2 id={androidId}>{t(locale, 'Android', 'أندرويد')}</h2><p className="cr-helper">{t(locale, 'Add a home screen shortcut.', 'أضف اختصارًا إلى الشاشة الرئيسية.')}</p></div></div>
           <ol className="cr-steps">
             <li>{ar ? <>افتح هذا الموقع في <bdi>Chrome</bdi>، ثم القائمة ⋮ واختر «تثبيت التطبيق» (أو «إضافة إلى الشاشة الرئيسية»).</> : 'Open this site in Chrome, open the ⋮ menu and choose Install app (or Add to Home screen).'}</li>
             <li>{ar ? <>اضغط مطولًا على أيقونة <bdi>Budget</bdi> واختر «<bdi>Add{'\u00a0'}expense</bdi>».</> : 'Press and hold the Budget icon and choose Add expense.'}</li>
           </ol>
           <p className="cr-helper">{ar ? <>اسحب «<bdi>Add{'\u00a0'}expense</bdi>» من تلك القائمة لتبقى على شاشتك الرئيسية.</> : 'Drag Add expense out of that menu to keep it on your home screen.'}</p>
+        </section>
+        <section className="cr-card ps-preview-card" aria-labelledby={previewId}>
+          <div>
+            <h2 id={previewId}>{t(locale, 'Shortcut preview', 'معاينة الاختصار')}</h2>
+            <p className="cr-helper">{t(locale, 'This is how it can look on your phone.', 'هكذا قد يبدو الاختصار على هاتفك.')}</p>
+          </div>
+          <img src={phonePreview} alt="" aria-hidden="true" loading="lazy" />
         </section>
       </div>
     </>

@@ -42,23 +42,68 @@ test('desktop Wallets overview separates balances and immutable history', async 
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-wallets-overview.png'), fullPage: true });
 });
 
-test('wallet create, transaction, rename, archive and undo dialogs return focus', async ({ page }) => {
+test('desktop transaction history keeps five compact readable columns', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop');
+  await page.setViewportSize({ width: 1586, height: 992 });
   await openWallets(page);
+  const table = page.getByRole('table', { name: 'Transaction history entries' });
+  await expect(table.getByRole('columnheader')).toHaveText(['Date', 'Event', 'Wallet', 'Category', 'Amount']);
+  const movement = table.locator('.journal-movement').first();
+  const box = await movement.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.height).toBeLessThanOrEqual(72);
+  await expect(table).not.toContainText('11111111-1111-4111-8111-111111111111');
+});
+
+test('mobile Wallets shows totals, Add wallet, and three compact wallet cards in source order', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile');
+  await page.setViewportSize({ width: 426, height: 922 });
+  await openWallets(page);
+  const totals = page.getByRole('region', { name: 'Wallet totals by currency' });
+  await expect(totals.getByText('2,500,000', { exact: true })).toBeVisible();
+  const addWallet = page.getByRole('button', { name: 'Add wallet', exact: true });
+  const cards = page.locator('.wl-balance-grid > .wl-balance-card');
+  await expect(cards).toHaveCount(3);
+  const totalBox = await totals.boundingBox();
+  const actionBox = await addWallet.boundingBox();
+  const firstBox = await cards.first().boundingBox();
+  const lastBox = await cards.last().boundingBox();
+  expect(totalBox && actionBox && firstBox && lastBox).toBeTruthy();
+  expect(totalBox!.y).toBeLessThan(actionBox!.y);
+  expect(actionBox!.y).toBeLessThan(firstBox!.y);
+  expect(firstBox!.height).toBeLessThanOrEqual(220);
+  expect(lastBox!.y + lastBox!.height).toBeLessThan(850);
+  await expect(cards.first().locator('.wl-card-recent li')).toHaveCount(2);
+  await addWallet.click();
+  await expect(page.getByRole('dialog', { name: 'Create a wallet' })).toBeVisible();
+  await page.getByRole('dialog', { name: 'Create a wallet' }).getByRole('button', { name: 'Cancel' }).click();
+  await cards.first().getByRole('button', { name: 'Wallet actions for Daily USD' }).click();
+  await expect(cards.first().getByRole('button', { name: 'Rename Daily USD' })).toBeVisible();
+});
+
+test('wallet create, transaction, rename, archive and undo dialogs return focus', async ({ page }, testInfo) => {
+  await openWallets(page);
+  const mobile = testInfo.project.name === 'mobile';
   for (const [action, title] of [
-    ['New wallet', 'Create a wallet'],
-    ['Add transaction', 'Add a transaction'],
+    [mobile ? 'Add wallet' : 'New wallet', 'Create a wallet'],
+    [mobile ? 'Record transaction' : 'Add transaction', 'Add a transaction'],
     ['Rename Daily USD', 'Rename wallet'],
     ['Archive Daily USD', 'Archive wallet'],
     ['Undo income', 'Undo this transaction'],
   ] as const) {
+    if (mobile && (action === 'Rename Daily USD' || action === 'Archive Daily USD')) {
+      const menu = page.getByRole('button', { name: 'Wallet actions for Daily USD' });
+      if (await menu.getAttribute('aria-expanded') === 'false') await menu.click();
+    }
     await expectDialogReturnsFocus(page, page.getByRole('button', { name: action, exact: true }), title);
   }
-  await page.getByRole('button', { name: 'New wallet', exact: true }).click();
+  await page.getByRole('button', { name: mobile ? 'Add wallet' : 'New wallet', exact: true }).click();
   let dialog = page.getByRole('dialog', { name: 'Create a wallet' });
   await dialog.getByLabel('Wallet name').fill('Focus reserve');
   await dialog.getByRole('button', { name: 'Create wallet', exact: true }).click();
   await expect(dialog.getByRole('status')).toContainText('Wallet created');
   await dialog.getByRole('button', { name: 'Done' }).click();
+  if (mobile) await page.getByRole('button', { name: 'Wallet actions for Focus reserve' }).click();
   await page.getByRole('button', { name: 'Archive Focus reserve', exact: true }).click();
   dialog = page.getByRole('dialog', { name: 'Archive wallet' });
   await dialog.getByRole('checkbox').check();
@@ -139,7 +184,7 @@ test('space switching clears the prior wallet projection before the next read', 
 test('mobile transaction dialog is full-screen and rejects cross-currency transfer', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile');
   await openWallets(page);
-  await page.getByRole('button', { name: 'Add transaction' }).click();
+  await page.getByRole('button', { name: 'Record transaction' }).click();
   const dialog = page.getByRole('dialog', { name: 'Add a transaction' });
   await expect(dialog).toHaveCSS('min-height', '844px');
   await dialog.getByRole('radio', { name: /^(?:Transfer|تحويل)$/ }).check();
@@ -249,6 +294,7 @@ test('Arabic mobile archived wallets disclosure and restore render right-to-left
   await openWallets(page);
   await switchWorkspaceLanguage(page);
   await chooseWorkspaceDestination(page, 'المحافظ');
+  await page.getByRole('button', { name: 'إجراءات محفظة Home LBP' }).click();
   await page.getByRole('button', { name: 'أرشفة Home LBP' }).click();
   const archiveDialog = page.getByRole('dialog', { name: 'أرشفة المحفظة' });
   await expect(archiveDialog.getByRole('button', { name: 'أرشفة المحفظة' })).toHaveCount(0);

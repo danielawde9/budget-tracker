@@ -77,6 +77,22 @@ describe('CategoriesPage', () => {
     expect(screen.getByText('Archive subcategories first')).toBeInTheDocument();
   });
 
+  it('expands and collapses a root while keeping its subcategory actions available when expanded', async () => {
+    const gateway = new InMemoryCategoriesGateway();
+    gateway.categories.push({
+      id: 'category-food', spaceId: 'space-1', kind: 'expense', nameEn: 'Food', nameAr: 'طعام',
+      parentCategoryId: 'category-groceries', createdAt: '2026-09-08T12:00:00Z', archivedAt: null,
+    });
+    const { user } = await renderPage(gateway);
+
+    const toggle = screen.getByRole('button', { name: 'Collapse Groceries subcategories' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await user.click(toggle);
+    expect(screen.queryByRole('list', { name: 'Subcategories of Groceries' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Expand Groceries subcategories' }));
+    expect(screen.getByRole('list', { name: 'Subcategories of Groceries' })).toHaveTextContent('Food');
+  });
+
   it('creates a child for the immutable selected root and restores opener focus', async () => {
     const { gateway, user } = await renderPage();
     const opener = screen.getByRole('button', { name: 'New subcategory for Groceries' });

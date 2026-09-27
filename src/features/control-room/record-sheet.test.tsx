@@ -60,12 +60,84 @@ async function pressKeys(user: ReturnType<typeof userEvent.setup>, keys: string)
   }
 }
 
+async function chooseType(user: ReturnType<typeof userEvent.setup>, name: string) {
+  await user.click(screen.getByRole('button', { name }));
+  const continueLabel = /[\u0600-\u06FF]/.test(name) ? 'متابعة' : 'Continue';
+  await user.click(screen.getByRole('button', { name: continueLabel }));
+}
+
 async function enterAmount(user: ReturnType<typeof userEvent.setup>, keys: string) {
   await pressKeys(user, keys);
   await user.click(screen.getByRole('button', { name: 'Continue' }));
 }
 
 describe('RecordSheet', () => {
+  it('shows the mobile expense form with selected type and saves through the existing record handler', async () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    try {
+      const user = userEvent.setup();
+      const props = makeProps();
+      render(<RecordSheet {...props} />);
+      expect(screen.getByRole('button', { name: 'Expense' })).toHaveAttribute('aria-pressed', 'true');
+      const save = screen.getByRole('button', { name: 'Save expense' });
+      expect(save).toBeEnabled();
+      await user.type(screen.getByLabelText('Amount'), '12.50');
+      await user.selectOptions(screen.getByLabelText('Wallet'), 'w-cash');
+      await user.selectOptions(screen.getByLabelText('Category'), 'cat-groceries');
+      await user.type(screen.getByLabelText('Note (optional)'), 'weekly shop');
+      await user.click(save);
+
+      expect(props.onSubmitRecord).toHaveBeenCalledWith({
+        kind: 'expense', effectiveDate: todayLocal(),
+        movements: [{ walletId: 'w-cash', amountMinor: '-1250' }],
+        categoryId: 'cat-groceries', payeeName: null, note: 'weekly shop',
+      });
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
+  it('guides mobile validation and retries a rejected save without losing the draft', async () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    try {
+      const user = userEvent.setup();
+      const onSubmitRecord = vi.fn().mockRejectedValueOnce(new Error('Please retry the save')).mockResolvedValue(undefined);
+      render(<RecordSheet {...makeProps({ onSubmitRecord })} />);
+      const save = screen.getByRole('button', { name: 'Save expense' });
+      await user.click(save);
+      expect(screen.getByRole('alert')).toHaveTextContent('Enter a valid positive amount');
+      await user.type(screen.getByLabelText('Amount'), '10');
+      await user.click(save);
+      expect(screen.getByRole('alert')).toHaveTextContent('Choose a wallet');
+      await user.selectOptions(screen.getByLabelText('Wallet'), 'w-cash');
+      await user.click(save);
+      expect(await screen.findByRole('alert')).toHaveTextContent('Please retry the save');
+      expect(screen.getByLabelText('Amount')).toHaveValue('10');
+      await user.click(save);
+      expect(onSubmitRecord).toHaveBeenCalledTimes(2);
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
+  it('keeps the compact expense form available in Arabic', () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    try {
+      render(<RecordSheet {...makeProps({ locale: 'ar' })} />);
+      expect(screen.getByRole('button', { name: 'مصروف' })).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByLabelText('المبلغ')).toBeInTheDocument();
+      expect(screen.getByLabelText('المحفظة')).toBeInTheDocument();
+      expect(screen.getByLabelText('الفئة')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'حفظ المصروف' })).toBeInTheDocument();
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
   it('renders nothing when closed', () => {
     render(<RecordSheet {...makeProps({ open: false })} />);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -73,9 +145,33 @@ describe('RecordSheet', () => {
 
   it('opens on the type grid with all seven tiles in English and Arabic', () => {
     render(<RecordSheet {...makeProps()} />);
+    expect(screen.getByRole('heading', { name: 'What happened?' })).toBeInTheDocument();
+    expect(screen.getByText('Choose what happened to your money.')).toBeInTheDocument();
+    expect(screen.getByText('You spent money')).toBeInTheDocument();
     for (const label of ['Expense', 'Income', 'Transfer', 'Exchange', 'Lend', 'Borrow', 'Repay']) {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
     }
+  });
+
+  it('offers a desktop-style Cancel action before choosing a type', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<RecordSheet {...makeProps({ onClose })} />);
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the desktop type chooser open until Continue confirms the selection', async () => {
+    const user = userEvent.setup();
+    render(<RecordSheet {...makeProps()} />);
+    const continueButton = screen.getByRole('button', { name: 'Continue' });
+    expect(continueButton).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    expect(screen.getByRole('button', { name: 'Expense' })).toHaveAttribute('aria-pressed', 'true');
+    expect(continueButton).toBeEnabled();
+    expect(screen.getByRole('heading', { name: 'What happened?' })).toBeInTheDocument();
+    await user.click(continueButton);
+    expect(screen.getByRole('heading', { name: 'Amount' })).toBeInTheDocument();
   });
 
   it('opens on the type grid with Arabic tile labels', () => {
@@ -97,7 +193,7 @@ describe('RecordSheet', () => {
     const props = makeProps();
     render(<RecordSheet {...props} />);
 
-    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    await chooseType(user, 'Expense');
 
     // Keypad: digits append, at most one decimal separator.
     await pressKeys(user, '1 2 . . 5 .');
@@ -139,7 +235,7 @@ describe('RecordSheet', () => {
     const props = makeProps();
     render(<RecordSheet {...props} />);
 
-    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    await chooseType(user, 'Expense');
     await enterAmount(user, '1 0');
     await user.click(screen.getByRole('button', { name: 'Cash USD' }));
     await user.click(screen.getByRole('button', { name: 'Skip' }));
@@ -154,7 +250,7 @@ describe('RecordSheet', () => {
     const props = makeProps();
     render(<RecordSheet {...props} />);
 
-    await user.click(screen.getByRole('button', { name: 'Income' }));
+    await chooseType(user, 'Income');
     await enterAmount(user, '1 0 0 0');
     await user.click(screen.getByRole('button', { name: 'Cash USD' }));
     await user.click(screen.getByRole('button', { name: 'Salary' }));
@@ -173,7 +269,7 @@ describe('RecordSheet', () => {
     const props = makeProps();
     render(<RecordSheet {...props} />);
 
-    await user.click(screen.getByRole('button', { name: 'Transfer' }));
+    await chooseType(user, 'Transfer');
     await enterAmount(user, '1 0');
 
     await user.click(screen.getByRole('button', { name: 'Cash USD' }));
@@ -202,7 +298,7 @@ describe('RecordSheet', () => {
     const props = makeProps();
     render(<RecordSheet {...props} />);
 
-    await user.click(screen.getByRole('button', { name: 'Exchange' }));
+    await chooseType(user, 'Exchange');
     await user.type(screen.getByLabelText('USD out'), '50');
     await user.type(screen.getByLabelText('LBP in'), '900000');
     await user.click(screen.getByRole('button', { name: 'Continue' }));
@@ -229,7 +325,7 @@ describe('RecordSheet', () => {
     const props = makeProps();
     render(<RecordSheet {...props} />);
 
-    await user.click(screen.getByRole('button', { name: tile }));
+    await chooseType(user, tile);
     await enterAmount(user, '2 0');
     await user.click(screen.getByRole('button', { name: 'Cash USD' }));
     await user.type(screen.getByLabelText('Person'), 'Sara');
@@ -259,7 +355,7 @@ describe('RecordSheet', () => {
     });
     render(<RecordSheet {...props} />);
 
-    await user.click(screen.getByRole('button', { name: 'Lend' }));
+    await chooseType(user, 'Lend');
     await enterAmount(user, '2 0');
     await user.click(screen.getByRole('button', { name: 'Cash USD' }));
 
@@ -280,7 +376,7 @@ describe('RecordSheet', () => {
     const props = makeProps();
     render(<RecordSheet {...props} />);
 
-    await user.click(screen.getByRole('button', { name: 'Repay' }));
+    await chooseType(user, 'Repay');
     await user.click(screen.getByRole('button', { name: 'Sara $50.00' }));
     await pressKeys(user, '2 5');
     await user.click(screen.getByRole('button', { name: 'Continue' }));
@@ -306,7 +402,7 @@ describe('RecordSheet', () => {
     });
     render(<RecordSheet {...props} />);
 
-    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    await chooseType(user, 'Expense');
     await enterAmount(user, '1 0');
     await user.click(screen.getByRole('button', { name: 'Cash USD' }));
     await user.click(screen.getByRole('button', { name: 'Skip' }));
@@ -327,7 +423,7 @@ describe('RecordSheet', () => {
     });
     render(<RecordSheet {...props} />);
 
-    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    await chooseType(user, 'Expense');
     await enterAmount(user, '1 0');
     await user.click(screen.getByRole('button', { name: 'Cash USD' }));
     await user.click(screen.getByRole('button', { name: 'Skip' }));
@@ -351,7 +447,7 @@ describe('RecordSheet', () => {
     const props = makeProps();
     const { rerender } = render(<RecordSheet {...props} />);
 
-    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    await chooseType(user, 'Expense');
     expect(screen.getByLabelText('Amount')).toBeInTheDocument();
 
     rerender(<RecordSheet {...makeProps({ open: false, onClose: props.onClose })} />);
@@ -368,7 +464,7 @@ describe('RecordSheet', () => {
     const props = makeProps();
     render(<RecordSheet {...props} />);
 
-    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    await chooseType(user, 'Expense');
     await pressKeys(user, '1 2 . 5');
     expect(screen.getByLabelText('Amount')).toHaveTextContent('12.5');
 
@@ -378,7 +474,7 @@ describe('RecordSheet', () => {
     expect(screen.queryByLabelText('Amount')).not.toBeInTheDocument();
 
     // Forward again works end to end.
-    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    await chooseType(user, 'Expense');
     expect(screen.getByLabelText('Amount')).toHaveTextContent('');
     await enterAmount(user, '3 0');
     await user.click(screen.getByRole('button', { name: 'Cash USD' }));
@@ -395,7 +491,7 @@ describe('RecordSheet', () => {
     const user = userEvent.setup();
     render(<RecordSheet {...makeProps()} />);
 
-    await user.click(screen.getByRole('button', { name: 'Repay' }));
+    await chooseType(user, 'Repay');
     await user.click(screen.getByRole('button', { name: 'Sara $50.00' }));
     await pressKeys(user, '2 5');
     await user.click(screen.getByRole('button', { name: 'Back' }));
@@ -409,7 +505,7 @@ describe('RecordSheet', () => {
     const user = userEvent.setup();
     render(<RecordSheet {...makeProps()} />);
 
-    await user.click(screen.getByRole('button', { name: 'Transfer' }));
+    await chooseType(user, 'Transfer');
     await enterAmount(user, '1 0');
     await user.click(screen.getByRole('button', { name: 'Cash USD' }));
 
@@ -426,7 +522,7 @@ describe('RecordSheet', () => {
     render(<RecordSheet {...makeProps()} />);
 
     // Walk forward to confirm.
-    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    await chooseType(user, 'Expense');
     await enterAmount(user, '1 2 . 5');
     await user.click(screen.getByRole('button', { name: 'Cash USD' }));
     await user.click(screen.getByRole('button', { name: 'Groceries' }));
@@ -456,7 +552,7 @@ describe('RecordSheet', () => {
     const user = userEvent.setup();
     render(<RecordSheet {...makeProps()} />);
 
-    await user.click(screen.getByRole('button', { name: 'Transfer' }));
+    await chooseType(user, 'Transfer');
     await enterAmount(user, '1 0');
     await user.click(screen.getByRole('button', { name: 'Cash USD' }));
     await user.click(screen.getByRole('button', { name: 'Bank USD' }));
@@ -477,7 +573,7 @@ describe('RecordSheet', () => {
     const user = userEvent.setup();
     render(<RecordSheet {...makeProps()} />);
 
-    await user.click(screen.getByRole('button', { name: 'Lend' }));
+    await chooseType(user, 'Lend');
     await enterAmount(user, '2 0');
     await user.click(screen.getByRole('button', { name: 'Cash USD' }));
     await user.type(screen.getByLabelText('Person'), 'Sara');
@@ -499,7 +595,7 @@ describe('RecordSheet', () => {
     const user = userEvent.setup();
     render(<RecordSheet {...makeProps()} />);
 
-    await user.click(screen.getByRole('button', { name: 'Repay' }));
+    await chooseType(user, 'Repay');
     expect(screen.getByRole('button', { name: 'Sara $50.00' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
@@ -510,7 +606,7 @@ describe('RecordSheet', () => {
     const user = userEvent.setup();
     render(<RecordSheet {...makeProps()} />);
 
-    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    await chooseType(user, 'Expense');
     await user.click(screen.getByRole('button', { name: '.' }));
     expect(screen.getByLabelText('Amount')).toHaveTextContent('');
     expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
@@ -523,7 +619,7 @@ describe('RecordSheet', () => {
     render(<RecordSheet {...makeProps()} />);
 
     // Partially fill an expense, then back out to the type grid and switch to a loan.
-    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    await chooseType(user, 'Expense');
     await enterAmount(user, '1 0');
     await user.click(screen.getByRole('button', { name: 'Cash USD' }));
     await user.click(screen.getByRole('button', { name: 'Skip' }));
@@ -535,7 +631,7 @@ describe('RecordSheet', () => {
     expect(screen.getByRole('button', { name: 'Lend' })).toBeInTheDocument();
 
     // Lend details must not inherit the expense payee/note.
-    await user.click(screen.getByRole('button', { name: 'Lend' }));
+    await chooseType(user, 'Lend');
     await enterAmount(user, '3 0');
     await user.click(screen.getByRole('button', { name: 'Cash USD' }));
     expect(screen.getByLabelText('Person')).toHaveValue('');
@@ -573,7 +669,7 @@ describe('RecordSheet', () => {
     expect(screen.queryByRole('button', { name: 'Expense' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Continue' })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'مصروف' }));
+    await chooseType(user, 'مصروف');
     expect(screen.getByLabelText('المبلغ')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'حذف' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'متابعة' }));
@@ -587,7 +683,7 @@ describe('RecordSheet', () => {
     });
     render(<RecordSheet {...props} />);
 
-    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    await chooseType(user, 'Expense');
     await enterAmount(user, '1 0');
 
     // Should land directly on category step, skipping wallet picker.
@@ -600,7 +696,7 @@ describe('RecordSheet', () => {
     const props = makeProps();
     render(<RecordSheet {...props} />);
 
-    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    await chooseType(user, 'Expense');
     await enterAmount(user, '1 0');
     await user.click(screen.getByRole('button', { name: 'Cash USD' }));
 
@@ -623,7 +719,7 @@ describe('RecordSheet', () => {
     const props = makeProps();
     render(<RecordSheet {...props} />);
 
-    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    await chooseType(user, 'Expense');
     await enterAmount(user, '1 0');
     await user.click(screen.getByRole('button', { name: 'Cash USD' }));
 
@@ -645,7 +741,7 @@ describe('RecordSheet', () => {
     const props = makeProps();
     render(<RecordSheet {...props} />);
 
-    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    await chooseType(user, 'Expense');
     await enterAmount(user, '1 0');
     await user.click(screen.getByRole('button', { name: 'Cash USD' }));
 
@@ -670,7 +766,7 @@ describe('RecordSheet', () => {
     expect(progress).toBeInTheDocument();
     expect(progress.querySelector('.cr-record-step--current')).toHaveTextContent('Type');
 
-    await user.click(screen.getByRole('button', { name: 'Expense' }));
+    await chooseType(user, 'Expense');
     expect(progress.querySelector('.cr-record-step--current')).toHaveTextContent('Amount');
   });
 });

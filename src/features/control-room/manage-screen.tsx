@@ -74,7 +74,7 @@ export function ManageScreen(props: ManageScreenProps) {
   if (section === null) {
     const sections = SECTIONS.filter((item) => item.id !== 'household' || spaceKind === 'household');
     return (
-      <>
+      <div className="mg-page">
         <PageHeader title={t(locale, 'Manage', 'الإدارة')} />
         <nav className="cr-manage-menu mg-hub" aria-label={t(locale, 'Manage sections', 'أقسام الإدارة')}>
           <div className="cr-card mg-hub-group mg-hub-money">
@@ -114,22 +114,23 @@ export function ManageScreen(props: ManageScreenProps) {
                 <span className="mg-hub-icon" aria-hidden="true"><Mail size={19} strokeWidth={2} /></span>
                 <span className="cr-manage-identity mg-hub-identity"><bdi>{props.userEmail ?? t(locale, 'No email on file', 'لا يوجد بريد مسجّل')}</bdi></span>
               </div>
-              <button type="button" className="cr-button mg-hub-signout" onClick={props.onSignOut}>
+              <button type="button" className="text-button mg-hub-signout" onClick={props.onSignOut}>
                 <LogOut aria-hidden size={16} />
                 {t(locale, 'Sign out', 'تسجيل الخروج')}
               </button>
             </div>
           </div>
         </nav>
-      </>
+      </div>
     );
   }
 
   return (
-    <>
-      <button type="button" className="cr-button cr-manage-back" onClick={() => setSection(null)}>
+    <div className={`mg-subpage mg-subpage--${section}`}>
+      <button type="button" className="cr-button cr-manage-back" aria-label={t(locale, 'Back to manage sections', 'عودة إلى أقسام الإدارة')} onClick={() => setSection(null)}>
         {locale === 'ar' ? <ChevronRight aria-hidden size={18} /> : <ChevronLeft aria-hidden size={18} />}
-        {t(locale, 'Back to manage sections', 'عودة إلى أقسام الإدارة')}
+        <span className="mg-back-long">{t(locale, 'Back to manage sections', 'عودة إلى أقسام الإدارة')}</span>
+        <span className="mg-back-short">{t(locale, 'Back to Manage', 'العودة إلى الإدارة')}</span>
       </button>
       {section === 'wallets' ? (
         <WalletsPage
@@ -161,6 +162,6 @@ export function ManageScreen(props: ManageScreenProps) {
           onSpaceUnavailable={() => props.onSpaceUnavailable?.()}
         />
       )}
-    </>
+    </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Tag } from 'lucide-react';
 import type { Currency, CurrencySummary, Loan, Locale } from '../loans/types.js';
 import { formatMinorAmount, parsePositiveMinorAmount } from '../wallets/money.js';
 import type { BudgetCategoryRow, BudgetCurrencySummary } from './types.js';
@@ -38,6 +39,7 @@ function percentOf(partMinor: string, totalMinor: string): bigint | null {
 
 export interface PlanPageProps {
   locale: Locale;
+  currency?: Currency;
   month: string;
   summaries: readonly BudgetCurrencySummary[];
   categoryRows: readonly BudgetCategoryRow[];
@@ -142,7 +144,8 @@ function EditDialog(props: EditDialogProps) {
 
 export function PlanPage(props: PlanPageProps) {
   const { locale, summaries } = props;
-  const [currency, setCurrency] = useState<Currency>(() => summaries[0]?.currency ?? props.categoryRows[0]?.currency ?? 'USD');
+  const [localCurrency, setLocalCurrency] = useState<Currency>(() => summaries[0]?.currency ?? props.categoryRows[0]?.currency ?? 'USD');
+  const currency = props.currency ?? localCurrency;
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
 
@@ -171,7 +174,7 @@ export function PlanPage(props: PlanPageProps) {
 
   return (
     <>
-      <div className="cr-tabs" role="tablist" aria-label={t(locale, 'Currency', 'العملة')}>
+      {props.currency === undefined ? <div className="cr-tabs" role="tablist" aria-label={t(locale, 'Currency', 'العملة')}>
         {PLAN_CURRENCIES.map((option) => (
           <button
             key={option}
@@ -179,12 +182,12 @@ export function PlanPage(props: PlanPageProps) {
             role="tab"
             aria-selected={currency === option}
             className={currency === option ? 'cr-tab cr-tab--active' : 'cr-tab'}
-            onClick={() => setCurrency(option)}
+            onClick={() => setLocalCurrency(option)}
           >
             {option}
           </button>
         ))}
-      </div>
+      </div> : null}
       {saveFailed ? (
         <div className="cr-card" role="alert">
           <span className="cr-danger-text">{failureMessage}</span>
@@ -258,7 +261,12 @@ export function PlanPage(props: PlanPageProps) {
         {activeRows.length === 0 ? (
           <p>{t(locale, 'No category targets this month.', 'لا توجد أهداف فئات هذا الشهر.')}</p>
         ) : (
-          <ul aria-label={t(locale, 'Category targets', 'أهداف الفئات')}>
+          <><div className="cr-plan-category-headings" aria-hidden="true">
+            <span>{t(locale, 'Category', 'الفئة')}</span>
+            <span>{t(locale, 'Target amount', 'المبلغ المستهدف')}</span>
+            <span>{t(locale, 'Allocation', 'التخصيص')}</span>
+            <span>{t(locale, 'Actions', 'الإجراءات')}</span>
+          </div><ul aria-label={t(locale, 'Category targets', 'أهداف الفئات')}>
             {activeRows.map((row) => {
               const overspent = row.overspentMinor !== '0';
               const share = row.targetMinor !== null && activeSummary
@@ -274,6 +282,7 @@ export function PlanPage(props: PlanPageProps) {
                 : t(locale, 'No target', 'بدون هدف');
               return (
                 <li key={`${row.categoryId}-${row.currency}`} className="cr-plan-category">
+                  <span className="cr-plan-category-icon" aria-hidden="true"><Tag size={18} /></span>
                   <div className="cr-row">
                     <bdi className="cr-plan-category-name">{categoryName(row, locale)}</bdi>
                     <button
@@ -296,7 +305,7 @@ export function PlanPage(props: PlanPageProps) {
                     <bdi className="cr-amount">{targetText}</bdi>
                     {share !== null ? <span className="cr-helper">{new Intl.NumberFormat(locale === 'ar' ? 'ar-LB' : 'en-US').format(share)}% {t(locale, 'of planned income', 'من الدخل المخطط')}</span> : null}
                   </div>
-                  <p className={overspent ? 'cr-helper cr-warn-text' : 'cr-helper'}>
+                  <p className={overspent ? 'cr-helper cr-warn-text cr-plan-category-spent' : 'cr-helper cr-plan-category-spent'}>
                     <bdi>{formatMinorAmount(row.actualSpentMinor, row.currency, locale)}</bdi> {t(locale, 'spent', 'مصروف')}
                   </p>
                   {width !== null ? (
@@ -307,7 +316,7 @@ export function PlanPage(props: PlanPageProps) {
                 </li>
               );
             })}
-          </ul>
+          </ul></>
         )}
       </section>
       <section className="cr-card" aria-label={t(locale, 'Loan commitments', 'التزامات الديون')}>
@@ -318,6 +327,7 @@ export function PlanPage(props: PlanPageProps) {
         ) : (
           <>
             {activeLoans.length > 0 ? (
+              <><div className="cr-plan-loan-headings" aria-hidden="true"><span>{t(locale, 'Person', 'الشخص')}</span><span>{t(locale, 'Monthly amount', 'المبلغ الشهري')}</span></div>
               <ul aria-label={t(locale, 'Monthly loan payments', 'دفعات القروض الشهرية')}>
                 {activeLoans.map((loan) => (
                   <li key={loan.id} className="cr-journal-row cr-plan-loan-row">
@@ -325,7 +335,7 @@ export function PlanPage(props: PlanPageProps) {
                     <bdi className="cr-amount">{formatMinorAmount(loan.plan.targetMinor, currency, locale)}</bdi>
                   </li>
                 ))}
-              </ul>
+              </ul></>
             ) : null}
             <div className="cr-journal-row cr-plan-loan-row">
               <strong>{t(locale, 'Monthly total', 'إجمالي الشهر')}</strong>

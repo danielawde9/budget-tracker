@@ -48,6 +48,13 @@
   overflow-wrap: anywhere;
 }
 
+.wl-total-icon,
+.wl-mobile-create,
+.wl-mobile-transaction,
+.wl-card-menu-toggle {
+  display: none;
+}
+
 .wallets-workspace .wallet-context {
   margin-block-start: var(--cr-space-4);
 }
@@ -83,14 +90,25 @@
 .wallets-workspace .wl-balance-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--cr-space-2);
   min-inline-size: 0;
+}
+
+.wallets-workspace .wl-wallet-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: calc(var(--cr-space-6) + var(--cr-space-2));
+  block-size: calc(var(--cr-space-6) + var(--cr-space-2));
+  border-radius: var(--cr-radius-full);
+  background: var(--cr-accent);
+  color: var(--cr-accent-ink);
 }
 
 .wallets-workspace .wl-balance-head > bdi {
   font-size: 1rem;
   font-weight: 700;
+  flex: 1 1 auto;
   overflow-wrap: anywhere;
 }
 
@@ -115,11 +133,13 @@
   unicode-bidi: isolate;
   text-align: start;
   overflow-wrap: anywhere;
+  margin-inline-start: calc(var(--cr-space-6) + 2 * var(--cr-space-2));
 }
 
 .wallets-workspace .wallet-list li > footer.wl-balance-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  justify-content: space-between;
   gap: var(--cr-space-1) var(--cr-space-2);
   margin-block-start: 0;
   padding-block-start: var(--cr-space-2);
@@ -127,6 +147,9 @@
 }
 
 .wl-balance-actions .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cr-space-1);
   min-height: 44px;
   padding-inline: var(--cr-space-2);
 }
@@ -136,6 +159,21 @@
   gap: var(--cr-space-2);
   padding-block-start: var(--cr-space-2);
   border-block-start: 1px solid var(--cr-hairline);
+}
+
+.wl-card-recent-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cr-space-2);
+}
+
+.wl-card-recent-heading a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cr-space-1);
+  flex: none;
+  min-block-size: 44px;
 }
 
 .wl-card-recent ul {
@@ -286,6 +324,11 @@
 .wallets-workspace .wl-journal {
   margin-block-start: var(--cr-space-6);
   min-inline-size: 0;
+  gap: 0;
+}
+
+.wallets-workspace .wl-journal .section-heading {
+  margin-block-end: 0;
 }
 
 /* Filter toolbar: search owns a full row, selects share the next row */
@@ -310,6 +353,15 @@
 
 .wallets-workspace .journal-table {
   min-inline-size: 0;
+}
+
+.wallets-workspace .wl-journal-head {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .wallets-workspace .journal-list {
@@ -345,6 +397,11 @@
   padding-block: var(--cr-space-1);
 }
 
+.wallets-workspace .journal-movement > time {
+  grid-column: 1;
+  grid-row: 1;
+}
+
 .wallets-workspace .journal-movement time {
   direction: ltr;
   unicode-bidi: isolate;
@@ -355,12 +412,13 @@
 }
 
 .wallets-workspace .journal-movement-body {
-  display: grid;
-  gap: 3px;
+  display: contents;
   min-inline-size: 0;
 }
 
 .wallets-workspace .journal-movement-line {
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
@@ -373,10 +431,20 @@
 }
 
 .wallets-workspace .journal-movement-meta {
+  grid-column: 2;
+  grid-row: 2;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
+  color: var(--cr-ink-soft);
+  font-size: 0.82rem;
+}
+
+.wallets-workspace .journal-category-cell {
+  grid-column: 2;
+  grid-row: 3;
+  min-inline-size: 0;
   color: var(--cr-ink-soft);
   font-size: 0.82rem;
 }
@@ -388,6 +456,8 @@
 
 /* Amount column: pinned to the inline edge, always LTR digits */
 .wallets-workspace .journal-movement > bdi:last-child {
+  grid-column: 3;
+  grid-row: 1;
   justify-self: end;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -397,12 +467,106 @@
 }
 
 .wallets-workspace .journal-row footer {
+  grid-column: 2 / -1;
+  grid-row: 4;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 6px var(--cr-space-3);
   margin-block-start: var(--cr-space-2);
+}
+
+@media (min-width: 1100px) {
+  .wallets-workspace .wl-journal-head {
+    position: static;
+    inline-size: auto;
+    block-size: auto;
+    overflow: visible;
+    clip-path: none;
+    white-space: normal;
+  }
+
+  .wallets-workspace .wl-journal-head > div,
+  .wallets-workspace .journal-movement {
+    display: grid;
+    grid-template-columns: 105px minmax(290px, 2fr) minmax(145px, 1fr) minmax(130px, 1fr) 130px;
+    gap: var(--cr-space-3);
+    align-items: center;
+  }
+
+  .wallets-workspace .wl-journal-head > div {
+    min-block-size: 44px;
+    padding-inline: var(--cr-space-2);
+    border-block: 1px solid var(--cr-hairline);
+    background: var(--cr-surface-sunken);
+    color: var(--cr-ink-soft);
+    font-size: 0.8rem;
+  }
+
+  .wallets-workspace .wl-journal-head [role='columnheader']:last-child {
+    text-align: end;
+  }
+
+  .wallets-workspace .journal-row {
+    padding-block: 0;
+  }
+
+  .wallets-workspace .journal-movement {
+    min-block-size: 54px;
+    padding-block: var(--cr-space-1);
+    padding-inline: var(--cr-space-2);
+  }
+
+  .wallets-workspace .journal-movement-body {
+    display: flex;
+    grid-column: 2;
+    grid-row: 1;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--cr-space-1) var(--cr-space-2);
+  }
+
+  .wallets-workspace .journal-movement-line,
+  .wallets-workspace .journal-movement-meta,
+  .wallets-workspace .journal-category-cell,
+  .wallets-workspace .journal-movement > bdi:last-child {
+    grid-row: 1;
+  }
+
+  .wallets-workspace .journal-movement-line {
+    flex: 0 1 auto;
+    min-inline-size: 0;
+  }
+
+  .wallets-workspace .journal-movement-line strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .wallets-workspace .journal-movement-meta { grid-column: 3; }
+  .wallets-workspace .journal-category-cell { grid-column: 4; }
+  .wallets-workspace .journal-movement > bdi:last-child { grid-column: 5; }
+
+  .wallets-workspace .journal-row footer {
+    display: inline-flex;
+    flex: 1 0 auto;
+    justify-content: end;
+    gap: var(--cr-space-1);
+    margin: 0;
+    min-inline-size: 0;
+  }
+
+  .wallets-workspace .journal-row footer .text-button,
+  .wallets-workspace .journal-row footer .undo-gated {
+    font-size: 0.74rem;
+  }
+
+  .wallets-workspace .journal-row footer .journal-state span {
+    padding-inline: var(--cr-space-1);
+    font-size: 0.7rem;
+  }
 }
 
 .wallets-workspace .journal-state {
@@ -459,6 +623,206 @@
   background: var(--cr-surface);
   box-shadow: var(--cr-shadow-card);
   padding: var(--cr-space-4);
+}
+
+@media (max-width: 699px) {
+  .wallets-workspace .cr-header {
+    margin-block-end: var(--cr-space-3);
+  }
+
+  .wallets-workspace .cr-header-actions {
+    display: none;
+  }
+
+  .wallets-workspace .wl-totals {
+    margin-block-start: 0;
+    gap: var(--cr-space-2);
+  }
+
+  .wallets-workspace .wl-total-card {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--cr-space-2);
+    min-block-size: 80px;
+    padding: var(--cr-space-2);
+  }
+
+  .wallets-workspace .wl-total-icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    inline-size: 48px;
+    block-size: 48px;
+    border-radius: var(--cr-radius-full);
+    background: var(--cr-accent);
+    color: var(--cr-accent-ink);
+  }
+
+  .wl-total-copy {
+    min-inline-size: 0;
+    display: grid;
+    gap: 2px;
+  }
+
+  .wallets-workspace .wl-total-card .cr-label {
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+
+  .wallets-workspace .wl-total-card .cr-amount {
+    font-size: clamp(1.05rem, 4.8vw, 1.4rem);
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+
+  .wallets-workspace .wl-mobile-create,
+  .wallets-workspace .wl-mobile-transaction {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--cr-space-2);
+    inline-size: 100%;
+    min-block-size: 44px;
+  }
+
+  .wallets-workspace .wl-mobile-create {
+    margin-block: var(--cr-space-3);
+  }
+
+  .wallets-workspace .wl-mobile-transaction {
+    margin-block-start: calc(var(--cr-space-6) + var(--cr-space-3));
+  }
+
+  .wallets-workspace .wallet-context {
+    margin-block-start: 0;
+  }
+
+  .wallets-workspace .wallet-context > .section-heading {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .wallets-workspace .wl-balance-grid {
+    gap: var(--cr-space-3);
+  }
+
+  .wallets-workspace .wallet-context .wallet-list > li.wl-balance-card {
+    position: relative;
+    gap: 0;
+    padding: var(--cr-space-3);
+  }
+
+  .wallets-workspace .wl-balance-head {
+    display: grid;
+    align-content: start;
+    gap: 1px;
+    min-block-size: 48px;
+    padding-inline-start: 60px;
+    padding-inline-end: 44px;
+  }
+
+  .wallets-workspace .wl-wallet-icon {
+    position: absolute;
+    inset-block-start: var(--cr-space-3);
+    inset-inline-start: var(--cr-space-3);
+    inline-size: 48px;
+    block-size: 48px;
+  }
+
+  .wallets-workspace .wl-balance-head > bdi {
+    font-size: 1.05rem;
+    line-height: 1.2;
+  }
+
+  .wallets-workspace .wl-currency-chip {
+    justify-self: start;
+    padding: 0;
+    background: transparent;
+    color: var(--cr-ink-soft);
+    font-size: 0.78rem;
+    letter-spacing: 0;
+  }
+
+  .wallets-workspace .wallet-balance {
+    margin-inline-start: 60px;
+    margin-block: 0 var(--cr-space-2);
+    font-size: 1.45rem;
+  }
+
+  .wallets-workspace .wl-card-menu-toggle {
+    position: absolute;
+    inset-block-start: var(--cr-space-2);
+    inset-inline-end: var(--cr-space-2);
+    display: grid;
+    place-items: center;
+    inline-size: 44px;
+    block-size: 44px;
+  }
+
+  .wallets-workspace .wallet-list li > footer.wl-balance-actions {
+    position: absolute;
+    inset-block-start: 48px;
+    inset-inline-end: var(--cr-space-2);
+    z-index: 2;
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    margin: 0;
+    padding: var(--cr-space-1);
+    border: 1px solid var(--cr-border);
+    border-radius: var(--cr-radius-sm);
+    background: var(--cr-surface);
+    box-shadow: var(--cr-shadow-card);
+  }
+
+  .wallets-workspace .wl-balance-card[data-actions-open='true'] > footer.wl-balance-actions {
+    display: flex;
+  }
+
+  .wallets-workspace .wl-card-recent {
+    gap: 0;
+    padding-block-start: var(--cr-space-1);
+  }
+
+  .wallets-workspace .wl-card-recent-heading,
+  .wallets-workspace .wl-card-recent-heading a {
+    min-block-size: 28px;
+  }
+
+  .wallets-workspace .wl-card-recent ul {
+    gap: 0;
+  }
+
+  .wallets-workspace .wallet-context .wl-card-recent ul > li {
+    display: grid;
+    grid-template-columns: 80px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--cr-space-1);
+    min-block-size: 27px;
+    padding: 0;
+    border: 0;
+    border-block-end: 1px solid var(--cr-hairline);
+    font-size: 0.76rem;
+  }
+
+  .wallets-workspace .wallet-context .wl-card-recent ul > li:last-child {
+    border-block-end: 0;
+  }
+
+  .wallets-workspace .wl-card-recent li time,
+  .wallets-workspace .wl-card-recent li span,
+  .wallets-workspace .wl-card-recent li bdi {
+    font-size: inherit;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 /* ---- Wider screens ----------------------------------------------------------- */

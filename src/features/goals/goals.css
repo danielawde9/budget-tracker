@@ -97,10 +97,15 @@
 }
 
 .goal-card-meta { margin: 0; }
+.goal-card-meta {
+  border-block-start: 1px solid var(--cr-hairline);
+  padding-block-start: var(--cr-space-2);
+}
 .goal-card-meta > div {
   display: flex;
   justify-content: space-between;
   gap: var(--cr-space-2);
+  padding-block: var(--cr-space-1);
 }
 .goal-card-meta dt { flex: 1; }
 .goal-card-meta dd { margin: 0; text-align: end; }
@@ -117,6 +122,16 @@
   display: flex;
   flex-direction: column;
   gap: var(--cr-space-3);
+}
+
+.goal-list-row > .cr-button--block { margin-block-start: auto; }
+
+@media (max-width: 420px) {
+  .goal-page .cr-section-header {
+    align-items: center;
+    flex-wrap: nowrap;
+  }
+  .goal-list-row { gap: var(--cr-space-2); }
 }
 
 /* ---- Detail metrics ------------------------------------------------------ */

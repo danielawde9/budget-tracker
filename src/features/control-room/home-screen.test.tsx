@@ -1,7 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { formatMinorAmount } from '../wallets/money.js';
 import type { JournalEvent } from '../wallets/types.js';
 import type { MonthlyCashSummary } from '../reports/types.js';
 import { HomeScreen } from './home-screen.js';
@@ -25,15 +24,10 @@ const props = {
   dataStatus: 'ready' as const,
   dataError: null,
   onRetryLoad: vi.fn(),
-  loansOutstanding: [] as readonly { loanId: string; personName: string; currency: 'USD' | 'LBP'; outstandingMinor: string }[],
+  loansOutstanding: [] as HomeScreenProps['loansOutstanding'],
   recentEvents: [] as readonly JournalEvent[],
   cashControlByCurrency: [] as HomeScreenProps['cashControlByCurrency'],
 };
-
-function byExactText(expected: string) {
-  return (_content: string, element: Element | null) =>
-    element?.textContent === expected && element.children.length === 0;
-}
 
 function event(overrides: Partial<JournalEvent>): JournalEvent {
   return {
@@ -46,12 +40,11 @@ function event(overrides: Partial<JournalEvent>): JournalEvent {
 }
 
 describe('HomeScreen', () => {
-  it('labels actual wallet balances per currency and keeps the month selector', () => {
+  it('labels net position per currency and keeps the month selector', () => {
     render(<HomeScreen {...props} />);
-    expect(screen.getByRole('region', { name: 'Wallet balances' })).toBeInTheDocument();
-    expect(screen.queryByRole('region', { name: 'Net position' })).not.toBeInTheDocument();
-    expect(screen.getByText('$1,284.50')).toBeInTheDocument();
-    expect(screen.getByText(byExactText(formatMinorAmount('86700000', 'LBP', 'en')))).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Net position' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Net position' }).querySelector('.cr-amount--metric')).toHaveTextContent('$1,284.50');
+    expect(screen.getByRole('region', { name: 'Net position' })).toHaveTextContent('LBP86,700,000');
     expect(screen.getByRole('combobox')).toHaveValue('2026-09-01');
     expect(screen.getByText(/September 2026/)).toBeInTheDocument();
     expect(screen.getByText(/Groceries/)).toBeInTheDocument();
@@ -81,9 +74,9 @@ describe('HomeScreen', () => {
     expect(document.querySelector('.cr-progress')).toBeNull();
   });
 
-  it('renders Arabic LBP amounts via formatMinorAmount', () => {
+  it('renders Arabic LBP amounts with a separate currency label', () => {
     render(<HomeScreen {...props} locale="ar" />);
-    expect(screen.getByText(byExactText(formatMinorAmount('86700000', 'LBP', 'ar')))).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'صافي المركز' })).toHaveTextContent('LBP٨٦٬٧٠٠٬٠٠٠');
     expect(screen.getByText('لا توجد معاملات بعد')).toBeInTheDocument();
   });
 
@@ -97,7 +90,8 @@ describe('HomeScreen', () => {
     expect(document.querySelector('.cr-bars [data-role="previous"]')).not.toBeNull();
   });
 
-  it('compares real income and expense in a named currency without merging currencies', () => {
+  it('compares real income and expense in one selected currency at a time', async () => {
+    const user = userEvent.setup();
     const trend: MonthlyCashSummary[] = [
       { periodMonth: '2026-09-01', periodRole: 'current', currency: 'USD', incomeNetMinor: '70000', expenseNetMinor: '-40000', walletDeltaNetMinor: '30000' },
       { periodMonth: '2026-09-01', periodRole: 'current', currency: 'LBP', incomeNetMinor: '2000000', expenseNetMinor: '-1500000', walletDeltaNetMinor: '500000' },
@@ -108,17 +102,21 @@ describe('HomeScreen', () => {
     expect(chart).toHaveTextContent('LBP');
     expect(chart).toHaveTextContent('Income');
     expect(chart).toHaveTextContent('Expenses');
-    expect(chart).toHaveTextContent('In $700.00');
-    expect(chart).toHaveTextContent('Out $400.00');
-    expect(chart.querySelectorAll('[data-series="income"]')).toHaveLength(2);
-    expect(chart.querySelectorAll('[data-series="expense"]')).toHaveLength(2);
+    expect(screen.getByRole('img', { name: /USD · Income \$700\.00/ })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /USD · Expenses \$400\.00/ })).toBeInTheDocument();
+    expect(chart.querySelectorAll('[data-series="income"]')).toHaveLength(1);
+    expect(chart.querySelectorAll('[data-series="expense"]')).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'LBP', pressed: false }));
+    expect(screen.getByRole('img', { name: /LBP · Income LBP 2,000,000/ })).toBeInTheDocument();
+    expect(chart.querySelectorAll('[data-series="income"]')).toHaveLength(1);
+    expect(chart.querySelectorAll('[data-series="expense"]')).toHaveLength(1);
   });
 
   it('shows recent activity with positive styling for income and hides the loans card when empty', () => {
     render(<HomeScreen {...props} recentEvents={[event({ payeeName: 'Employer' })]} />);
     expect(screen.getByText('Employer')).toBeInTheDocument();
     expect(screen.getByText('$250.00')).toHaveClass('cr-positive');
-    expect(screen.queryByText(/Loans/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Loans' })).not.toBeInTheDocument();
   });
 
   it('opens the full journal from recent activity and keeps Record for the empty state', async () => {
@@ -146,12 +144,30 @@ describe('HomeScreen', () => {
     expect(onRetryLoad).toHaveBeenCalledOnce();
   });
 
-  it('shows outstanding loans grouped per currency', () => {
+  it('keeps loan receivables and debts distinct in the Home summary', () => {
     render(<HomeScreen {...props} loansOutstanding={[
-      { loanId: 'loan-1', personName: 'Maya', currency: 'USD', outstandingMinor: '50000' },
-      { loanId: 'loan-2', personName: 'Sam', currency: 'USD', outstandingMinor: '25000' },
+      { loanId: 'loan-1', personName: 'Maya', currency: 'USD', direction: 'they_owe_me', outstandingMinor: '50000' },
+      { loanId: 'loan-2', personName: 'Sam', currency: 'USD', direction: 'i_owe_them', outstandingMinor: '25000' },
     ]} />);
-    expect(screen.getByText('Maya')).toBeInTheDocument();
-    expect(screen.getByText('$750.00')).toBeInTheDocument();
+    const loans = screen.getByRole('region', { name: 'Loans' });
+    expect(loans).toHaveTextContent('Maya');
+    expect(loans).toHaveTextContent('Owes you');
+    expect(loans).toHaveTextContent('$500.00');
+    expect(loans).toHaveTextContent('Sam');
+    expect(loans).toHaveTextContent('You owe');
+    expect(loans).toHaveTextContent('$250.00');
+    expect(loans).not.toHaveTextContent('Total outstanding');
+  });
+
+  it('adds receivables and subtracts debts from wallet balances per currency', () => {
+    render(<HomeScreen {...props} loansOutstanding={[
+      { loanId: 'loan-1', personName: 'Maya', currency: 'USD', direction: 'they_owe_me', outstandingMinor: '50000' },
+      { loanId: 'loan-2', personName: 'Sam', currency: 'USD', direction: 'i_owe_them', outstandingMinor: '25000' },
+    ]} />);
+    const netPosition = screen.getByRole('region', { name: 'Net position' });
+    expect(netPosition).toHaveTextContent('$1,534.50');
+    expect(netPosition).toHaveTextContent('Wallets $1,284.50');
+    expect(netPosition).toHaveTextContent('Loans net $250.00');
+    expect(netPosition).toHaveTextContent('LBP');
   });
 });

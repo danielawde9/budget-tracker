@@ -107,7 +107,7 @@ async function openSeededHome(page: Page) {
   await expect(page.locator('.cr-header-text').getByText('Personal space', { exact: true })).toBeVisible();
 }
 
-test('a quick-add link opens the Record keypad on Expense and leaves a clean address', async ({ page }, testInfo) => {
+test('a quick-add link opens Expense entry and leaves a clean address', async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await installApplicationFixture(page, {
     budgetRows: seededBudgetRows,
@@ -117,6 +117,17 @@ test('a quick-add link opens the Record keypad on Expense and leaves a clean add
   await page.goto('/?add=expense');
   const sheet = page.getByRole('dialog', { name: 'Record', exact: true });
   await expect(sheet).toBeVisible();
+  if (testInfo.project.name === 'mobile') {
+    await expect(sheet.getByRole('button', { name: 'Expense', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(sheet.getByRole('button', { name: 'Transfer', exact: true })).toBeVisible();
+    await sheet.getByLabel('Amount').fill('12');
+    await expect(sheet.getByLabel('Amount')).toHaveValue('12');
+    await expect(sheet.getByRole('button', { name: 'Save expense' })).toBeVisible();
+    await expect(page).toHaveURL(/\/$/);
+    await expectContainedControls(page, sheet);
+    await page.screenshot({ path: screenshotPath(testInfo, 'quick-add-expense-mobile.png') });
+    return;
+  }
   await expect(sheet.getByRole('button', { name: 'Transfer' })).toHaveCount(0);
   for (const key of ['1', '2']) await sheet.getByRole('button', { name: key, exact: true }).click();
   await expect(page.getByRole('status', { name: 'Amount' })).toHaveText('12');
@@ -209,7 +220,7 @@ test('Journal feed and entry detail sheet stay contained', async ({ page }, test
   await expect(sheet).toHaveCount(0);
 });
 
-test('Record sheet walks type, amount, and confirm steps', async ({ page }, testInfo) => {
+test('Record sheet completes the Expense flow', async ({ page }, testInfo) => {
   await openSeededHome(page);
   await page.getByRole('button', { name: 'Record' }).first().click();
   const sheet = page.getByRole('dialog', { name: 'Record', exact: true });
@@ -217,7 +228,24 @@ test('Record sheet walks type, amount, and confirm steps', async ({ page }, test
   await expectContainedControls(page, sheet);
   await page.screenshot({ path: screenshotPath(testInfo, `record-type-${testInfo.project.name}.png`) });
 
+  if (testInfo.project.name === 'mobile') {
+    await expect(sheet.getByRole('button', { name: 'Expense', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await sheet.getByLabel('Amount').fill('42.5');
+    await expect(sheet.getByLabel('Amount')).toHaveValue('42.5');
+    await page.screenshot({ path: screenshotPath(testInfo, 'record-amount-mobile.png') });
+    await sheet.getByLabel('Wallet').selectOption('usd-wallet');
+    await sheet.getByLabel('Category').selectOption({ label: 'Groceries' });
+    await sheet.getByRole('button', { name: 'Save expense' }).click();
+    await expect(sheet).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Net position' })).toContainText('$1,258.00');
+    return;
+  }
+
   await sheet.getByRole('button', { name: 'Expense' }).click();
+  await expect(sheet.getByRole('button', { name: 'Expense' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(sheet.getByRole('button', { name: 'Continue' })).toBeEnabled();
+  await sheet.getByRole('button', { name: 'Continue' }).click();
+  await expect(sheet.getByRole('heading', { name: 'Amount' })).toBeVisible();
   for (const key of ['4', '2', '.', '5']) await sheet.getByRole('button', { name: key, exact: true }).click();
   await expect(page.getByRole('status', { name: 'Amount' })).toHaveText('42.5');
   await page.screenshot({ path: screenshotPath(testInfo, `record-amount-${testInfo.project.name}.png`) });
@@ -310,7 +338,7 @@ test('Arabic RTL mirrors Home and the Record type grid', async ({ page }, testIn
   await page.getByRole('button', { name: 'سجل' }).first().click();
   const sheet = page.getByRole('dialog', { name: 'تسجيل' });
   await expect(sheet).toBeVisible();
-  await expect(sheet.getByRole('button', { name: 'مصروف' })).toBeVisible();
+  await expect(sheet.getByRole('button', { name: 'مصروف', exact: true })).toBeVisible();
   await expectContainedControls(page, sheet);
   await page.screenshot({ path: screenshotPath(testInfo, `record-type-ar-${testInfo.project.name}.png`) });
   await sheet.getByRole('button', { name: 'إغلاق' }).click();

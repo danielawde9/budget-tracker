@@ -94,6 +94,27 @@ describe('CashControlSummary: unplanned/incomplete states never show an allowanc
 });
 
 describe('CashControlSummary: ready state data assertions', () => {
+  it('keeps the wallet and core commitments visible while disclosing supplemental figures', async () => {
+    render(<CashControlSummary locale="en" currency="USD" variant="full" available={slice({
+      ...coreAvailableCashSummaryFixture,
+      goalTopupsMinor: '500', futureHeadroomMinor: '700',
+    })} />);
+    const primary = document.querySelector('.cc-reservation-list');
+    expect(primary?.children).toHaveLength(4);
+    expect(primary).toHaveTextContent('Wallet balance');
+    expect(primary).toHaveTextContent('Unpaid bills');
+    expect(primary).toHaveTextContent('Reserved goal claims');
+    expect(primary).toHaveTextContent('Debt commitments');
+    const details = screen.getByText('More cash details').closest('details');
+    expect(details).not.toHaveAttribute('open');
+    await userEvent.click(screen.getByText('More cash details'));
+    expect(details).toHaveAttribute('open');
+    expect(details).toHaveTextContent('Goal monthly top-ups');
+    expect(details).toHaveTextContent('Future-purpose headroom');
+    expect(details).toHaveTextContent('Spendable now');
+    expect(details).toHaveTextContent('Shortfall');
+  });
+
   // U19-01: cash 100000 minus commitments 110000 shows shortfall 10000.
   it('U19-01: a negative available amount shows the exact signed figure and the exact shortfall, both distinct from spendable', () => {
     render(<CashControlSummary locale="en" currency="USD" variant="full" available={slice({

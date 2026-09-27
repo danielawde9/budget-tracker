@@ -30,7 +30,7 @@ test('Home is the default destination with bounded, contained content', async ({
   expect(historyUrl.searchParams.get('limit')).toBe('21');
   await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible();
   await expect(page.locator('.cr-header-text').getByText('Personal space', { exact: true })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Wallet balances' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Net position' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Recent activity' })).toBeVisible();
   await expectCurrentDestination(page, 'Home');
   await expectContainedControls(page);
@@ -91,7 +91,7 @@ test('sign-in failure preserves email and a later retry opens Home', async ({ pa
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible();
   await expect(page.locator('.cr-header-text').getByText('Personal space', { exact: true })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Wallet balances' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Net position' })).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'sign-in-recovery-desktop.png'), fullPage: true });
 });
 
@@ -117,7 +117,7 @@ test('existing user switches spaces without retaining old content', async ({ pag
   test.skip(testInfo.project.name !== 'desktop');
   await installApplicationFixture(page);
   await page.goto('/');
-  await expect(page.getByRole('region', { name: 'Wallet balances' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Net position' })).toBeVisible();
   await page.getByRole('button', { name: 'Current space: My money' }).click();
   await page.getByRole('menuitem', { name: 'Switch to Home budget' }).click();
   await expect(page.getByRole('button', { name: 'Current space: Home budget' })).toBeVisible();
@@ -149,21 +149,26 @@ test('Arabic mobile home mirrors labels in RTL', async ({ page }, testInfo) => {
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await expect(page.getByRole('heading', { level: 1, name: 'الرئيسية' })).toBeVisible();
   await expect(page.locator('.cr-header-text').getByText('مساحة شخصية', { exact: true })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'أرصدة المحافظ' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'صافي المركز' })).toBeVisible();
   await expectContainedControls(page);
   await page.screenshot({ path: screenshotPath(testInfo, 'arabic-home-mobile.png'), fullPage: true });
 });
 
-test('ambiguous space creation reconciles before continuing to wallet', async ({ page }, testInfo) => {
+test('ambiguous mobile space creation reconciles and completes first-wallet setup', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile');
   await installApplicationFixture(page, { emptySpaces: true, ambiguousSpaceOnce: true });
   await page.goto('/');
   const setup = page.getByRole('dialog', { name: 'Create your first space' });
   await setup.getByLabel('Space name').fill('Recovered home');
   await setup.getByRole('radio', { name: 'Household space' }).check();
-  await setup.getByRole('button', { name: 'Create household space' }).click();
-  await expect(page.getByRole('heading', { name: 'Add your first wallet' })).toBeVisible();
-  await expect(page.getByRole('alert')).toHaveCount(0);
+  await setup.getByLabel('Wallet name').fill('Recovered USD');
+  await setup.getByRole('button', { name: 'Create space and wallet' }).click();
+  await expect(setup).toHaveCount(0);
+  await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible();
+  await expect(page.locator('.cr-header-text').getByText('Household space', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Current space: Recovered home' })).toBeVisible();
+  await chooseWorkspaceDestination(page, 'Wallets');
+  await expect(page.getByText('Recovered USD', { exact: true })).toBeVisible();
   await page.screenshot({ path: screenshotPath(testInfo, 'ambiguous-space-recovered-mobile.png') });
 });
 

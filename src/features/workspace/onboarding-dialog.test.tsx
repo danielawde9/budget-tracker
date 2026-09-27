@@ -4,6 +4,53 @@ import { describe, expect, it, vi } from 'vitest';
 import { OnboardingDialog } from './onboarding-dialog.js';
 
 describe('OnboardingDialog', () => {
+  it('creates a mobile first space and wallet through one guided action', async () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    try {
+      const user = userEvent.setup();
+      const createSpace = vi.fn(async () => ({ id: 'mobile-space' }));
+      const createWallet = vi.fn(async () => ({ id: 'mobile-wallet' }));
+      const onComplete = vi.fn();
+      render(<OnboardingDialog locale="en" createSpace={createSpace} createWallet={createWallet} onComplete={onComplete} />);
+      const dialog = screen.getByRole('dialog', { name: 'Create your first space' });
+      await user.type(within(dialog).getByLabelText('Space name'), 'My money');
+      await user.type(within(dialog).getByLabelText('Wallet name'), 'Main wallet');
+      await user.click(within(dialog).getByRole('button', { name: 'Create space and wallet' }));
+
+      expect(createSpace).toHaveBeenCalledWith({ name: 'My money', kind: 'personal' });
+      expect(createWallet).toHaveBeenCalledWith({ spaceId: 'mobile-space', name: 'Main wallet', currency: 'USD' });
+      expect(onComplete).toHaveBeenCalledWith('mobile-space');
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
+  it('recovers from mobile wallet rejection without creating the space again', async () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    try {
+      const user = userEvent.setup();
+      const createSpace = vi.fn(async () => ({ id: 'mobile-space' }));
+      const createWallet = vi.fn().mockRejectedValueOnce(new Error('Wallet was not created')).mockResolvedValue({ id: 'mobile-wallet' });
+      const onComplete = vi.fn();
+      render(<OnboardingDialog locale="en" createSpace={createSpace} createWallet={createWallet} onComplete={onComplete} />);
+      await user.type(screen.getByLabelText('Space name'), 'My money');
+      await user.type(screen.getByLabelText('Wallet name'), 'Main wallet');
+      await user.click(screen.getByRole('button', { name: 'Create space and wallet' }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Wallet was not created');
+      expect(screen.getByRole('heading', { name: 'Add your first wallet' })).toBeInTheDocument();
+      expect(screen.getByLabelText('Wallet name')).toHaveValue('Main wallet');
+      await user.click(screen.getByRole('button', { name: 'Create USD wallet' }));
+      expect(createSpace).toHaveBeenCalledOnce();
+      expect(createWallet).toHaveBeenCalledTimes(2);
+      expect(onComplete).toHaveBeenCalledWith('mobile-space');
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
   it('creates a personal space then its first USD wallet without invitations', async () => {
     const user = userEvent.setup();
     const createSpace = vi.fn(async () => ({ id: 'space-new' }));
@@ -16,6 +63,7 @@ describe('OnboardingDialog', () => {
     expect(within(dialog).getByRole('list', { name: 'Setup progress' })).toBeInTheDocument();
     expect(within(dialog).getByText('Space')).toHaveAttribute('aria-current', 'step');
     expect(within(dialog).getByText('A personal space is private. Only you can see its wallets, loans and data.')).toBeInTheDocument();
+    expect(within(dialog).getByText('For example: My money or Our home.')).toBeInTheDocument();
     await user.type(within(dialog).getByLabelText('Space name'), 'My money');
     await user.click(within(dialog).getByRole('button', { name: 'Create personal space' }));
     expect(createSpace).toHaveBeenCalledWith({ name: 'My money', kind: 'personal' });

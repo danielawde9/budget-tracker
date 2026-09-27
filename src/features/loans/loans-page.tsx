@@ -5,7 +5,7 @@ import { LoanSummary } from './loan-summary.js';
 import { formatMinorAmount } from './money.js';
 import { CorrectionDialog, CreateLoanDialog, LoanDetailDialog, RepaymentDialog, TargetDialog } from './loan-dialogs.js';
 import { useLoans } from './use-loans.js';
-import type { Loan, LoanHistoryItem, LoansGateway, Locale, Space } from './types.js';
+import type { Currency, Loan, LoanHistoryItem, LoansGateway, Locale, Space } from './types.js';
 import { LoansSkeleton } from '../control-room/skeletons.js';
 import { PageHeader } from '../control-room/page-header.js';
 import './loans-workspace.css';
@@ -19,6 +19,7 @@ interface LoansPageProps {
   onSpaceChange?(spaceId: string): void;
   onSpaceUnavailable?(): void;
   embedded?: boolean;
+  currency?: Currency;
 }
 
 const activityLabels: Record<LoanHistoryItem['kind'], readonly [string, string]> = {
@@ -42,7 +43,7 @@ function recentLoanActivity(loans: readonly Loan[]): { loan: Loan; item: LoanHis
   return recent;
 }
 
-export function LoansPage({ gateway, locale: controlledLocale, spaces: controlledSpaces, spaceId, onLocaleChange, onSpaceChange, onSpaceUnavailable, embedded = false }: LoansPageProps) {
+export function LoansPage({ gateway, locale: controlledLocale, spaces: controlledSpaces, spaceId, onLocaleChange, onSpaceChange, onSpaceUnavailable, embedded = false, currency }: LoansPageProps) {
   const state = useLoans(gateway, spaceId === undefined ? undefined : {
     spaceId,
     ...(onSpaceUnavailable ? { onSpaceUnavailable } : {}),
@@ -55,9 +56,11 @@ export function LoansPage({ gateway, locale: controlledLocale, spaces: controlle
   const [repaymentLoanId, setRepaymentLoanId] = useState<string | null>(null);
   const [subdialog, setSubdialog] = useState<'target' | null>(null);
   const [correctionEventId, setCorrectionEventId] = useState<string | null>(null);
-  const selectedLoan = state.dashboard?.loans.find((loan) => loan.id === selectedLoanId) ?? null;
-  const repaymentLoan = state.dashboard?.loans.find((loan) => loan.id === repaymentLoanId) ?? null;
-  const activity = state.dashboard ? recentLoanActivity(state.dashboard.loans) : [];
+  const visibleLoans = state.dashboard?.loans.filter((loan) => currency === undefined || loan.currency === currency) ?? [];
+  const visibleSummaries = state.dashboard?.summaries.filter((summary) => currency === undefined || summary.currency === currency) ?? [];
+  const selectedLoan = visibleLoans.find((loan) => loan.id === selectedLoanId) ?? null;
+  const repaymentLoan = visibleLoans.find((loan) => loan.id === repaymentLoanId) ?? null;
+  const activity = recentLoanActivity(visibleLoans);
   const Root = embedded ? 'div' : 'main';
 
   useEffect(() => {
@@ -65,29 +68,35 @@ export function LoansPage({ gateway, locale: controlledLocale, spaces: controlle
     document.documentElement.dir = locale === 'ar' ? 'rtl' : 'ltr';
   }, [locale]);
 
-  return <Root className="ln-root">
+  return <Root className={`ln-root${embedded ? ' ln-root--embedded' : ''}`}>
     <PageHeader
       title={translate(locale, 'loans')}
       subtitle={translate(locale, 'subtitle')}
       actions={<>
         {embedded ? null : <button type="button" className="button-secondary" onClick={() => onLocaleChange ? onLocaleChange() : setInternalLocale(locale === 'en' ? 'ar' : 'en')}>{locale === 'en' ? translate(locale, 'arabic') : translate(locale, 'english')}</button>}
+        {embedded ? <details className="ln-month-menu">
+          <summary aria-label={`${translate(locale, 'month')}: ${state.month.slice(0, 7)}`}>{translate(locale, 'month')}</summary>
+          <div className="ln-month-menu-panel">
+            <label className="ln-field">{translate(locale, 'month')}<input type="month" value={state.month.slice(0, 7)} onChange={(event) => state.setMonth(event.target.value)} /></label>
+          </div>
+        </details> : null}
         <button type="button" className="cr-button cr-button--primary" onClick={() => setCreating(true)} disabled={!state.dashboard}>{translate(locale, 'addLoan')}</button>
       </>}
     />
 
-    <section className="ln-toolbar" aria-label="Loans controls">
-      {embedded ? null : <label className="ln-field">{translate(locale, 'space')}<select value={state.spaceId} onChange={(event) => onSpaceChange ? onSpaceChange(event.target.value) : state.setSpaceId(event.target.value)}>{spaces.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}</select></label>}
+    {!embedded ? <section className="ln-toolbar" aria-label="Loans controls">
+      <label className="ln-field">{translate(locale, 'space')}<select value={state.spaceId} onChange={(event) => onSpaceChange ? onSpaceChange(event.target.value) : state.setSpaceId(event.target.value)}>{spaces.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}</select></label>
       <label className="ln-field">{translate(locale, 'month')}<input type="month" value={state.month.slice(0, 7)} onChange={(event) => state.setMonth(event.target.value)} /></label>
-      {!embedded && state.dashboard ? <span className="ln-space-kind">{translate(locale, state.dashboard.space.kind)}</span> : null}
-    </section>
+      {state.dashboard ? <span className="ln-space-kind">{translate(locale, state.dashboard.space.kind)}</span> : null}
+    </section> : null}
 
     {state.loading && !state.dashboard ? <LoansSkeleton locale={locale} /> : null}
     {state.error ? <div className="error-notice ln-state-error" role="alert"><strong>{state.error.title}</strong><p>{state.error.message}</p><p>{state.error.recovery}</p><button type="button" onClick={() => void state.retry()}>{translate(locale, 'tryAgain')}</button></div> : null}
     {state.dashboard ? <>
-      <LoanSummary summaries={state.dashboard.summaries} loans={state.dashboard.loans} locale={locale} />
+      <LoanSummary summaries={visibleSummaries} loans={visibleLoans} locale={locale} />
       <div className="loan-columns ln-registers">
-        <LoanList loans={state.dashboard.loans} direction="they_owe_me" locale={locale} onOpen={(loan) => setSelectedLoanId(loan.id)} onRepay={(loan) => setRepaymentLoanId(loan.id)} onAddLoan={() => setCreating(true)} />
-        <LoanList loans={state.dashboard.loans} direction="i_owe_them" locale={locale} onOpen={(loan) => setSelectedLoanId(loan.id)} onRepay={(loan) => setRepaymentLoanId(loan.id)} onAddLoan={() => setCreating(true)} />
+        <LoanList loans={visibleLoans} direction="they_owe_me" locale={locale} onOpen={(loan) => setSelectedLoanId(loan.id)} onRepay={(loan) => setRepaymentLoanId(loan.id)} onAddLoan={() => setCreating(true)} />
+        <LoanList loans={visibleLoans} direction="i_owe_them" locale={locale} onOpen={(loan) => setSelectedLoanId(loan.id)} onRepay={(loan) => setRepaymentLoanId(loan.id)} onAddLoan={() => setCreating(true)} />
       </div>
       {activity.length > 0 && <section className="cr-card ln-activity" aria-label={locale === 'ar' ? 'نشاط القروض الأخير' : 'Recent loan activity'}>
         <div className="cr-section-header"><h2>{locale === 'ar' ? 'نشاط القروض الأخير' : 'Recent loan activity'}</h2></div>

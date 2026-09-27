@@ -1,10 +1,11 @@
 import { ChartColumnIncreasing, Clock3, HandCoins, ListChecks, Wallet } from 'lucide-react';
+import { useState } from 'react';
 import { CashControlSummary } from '../cash-control/cash-control-summary.js';
 import type { AvailableCashSummary } from '../cash-control/types.js';
 import type { CashReadSlice } from '../cash-control/use-cash-control.js';
 import type { MonthlyCashSummary } from '../reports/types.js';
 import type { CategoryBudgetRow } from '../insights/types.js';
-import type { Currency, Locale, SpaceKind } from '../loans/types.js';
+import type { Currency, LoanDirection, Locale, SpaceKind } from '../loans/types.js';
 import { formatMinorAmount } from '../wallets/money.js';
 import type { JournalEvent, JournalEventKind } from '../wallets/types.js';
 import { HomeSkeleton } from './skeletons.js';
@@ -49,6 +50,11 @@ function dateLabel(date: string, locale: Locale): string {
   }).format(new Date(year ?? 0, (month ?? 1) - 1, day ?? 1));
 }
 
+function metricAmount(amountMinor: string, currency: Currency, locale: Locale): string {
+  const amount = formatMinorAmount(amountMinor, currency, locale);
+  return currency === 'LBP' ? amount.replace('LBP', '').trim() : amount;
+}
+
 export function eventLabel(event: JournalEvent, locale: Locale): string {
   if (event.payeeName?.trim()) return event.payeeName.trim();
   const categoryName = locale === 'ar' ? event.category?.nameAr : event.category?.nameEn;
@@ -69,7 +75,7 @@ export interface HomeScreenProps {
   dataStatus: 'loading' | 'ready' | 'error';
   dataError: string | null;
   onRetryLoad(): void;
-  loansOutstanding: readonly { loanId: string; personName: string; currency: Currency; outstandingMinor: string }[];
+  loansOutstanding: readonly { loanId: string; personName: string; currency: Currency; direction: LoanDirection; outstandingMinor: string }[];
   recentEvents: readonly JournalEvent[];
   /** One compact "Available after commitments" reading per currency --
    * full drilldown (reservation breakdown, outlook) lives only in Plan. */
@@ -149,7 +155,6 @@ function TrendCurrency({ rows, currency, locale }: { rows: readonly MonthlyCashS
 
   return (
     <div className="daily-trend-currency">
-      <strong className="cr-label">{currency}</strong>
       <div className="cr-bars daily-trend-bars">
         {rows.map((row) => {
           const income = absoluteMinor(row.incomeNetMinor);
@@ -162,10 +167,6 @@ function TrendCurrency({ rows, currency, locale }: { rows: readonly MonthlyCashS
                 <span data-role={row.periodRole} data-series="expense" role="img" aria-label={`${label} · ${currency} · ${t(locale, 'Expenses', 'المصروفات')} ${formatMinorAmount(expense.toString(), currency, locale)}`} style={{ blockSize: `${height(expense)}%` }} />
               </div>
               <span className="cr-label">{label}</span>
-              <span className="cr-helper daily-trend-values">
-                <span>{t(locale, 'In', 'دخل')} <bdi>{formatMinorAmount(income.toString(), currency, locale)}</bdi></span>
-                <span>{t(locale, 'Out', 'خرج')} <bdi>{formatMinorAmount(expense.toString(), currency, locale)}</bdi></span>
-              </span>
             </div>
           );
         })}
@@ -175,51 +176,48 @@ function TrendCurrency({ rows, currency, locale }: { rows: readonly MonthlyCashS
 }
 
 function TrendCard({ trend, locale }: { trend: readonly MonthlyCashSummary[]; locale: Locale }) {
+  const [requestedCurrency, setRequestedCurrency] = useState<Currency | null>(null);
   if (trend.length === 0) return null;
   const currencies = [...new Set(trend.map((row) => row.currency))];
+  const selectedCurrency = requestedCurrency !== null && currencies.includes(requestedCurrency)
+    ? requestedCurrency
+    : currencies[0] ?? 'USD';
   return (
     <section className="cr-card daily-home-card" aria-label={t(locale, 'Monthly trend', 'الاتجاه الشهري')}>
       <div className="daily-section-heading"><ChartColumnIncreasing aria-hidden="true" size={20} /><h2>{t(locale, 'Monthly trend', 'الاتجاه الشهري')}</h2></div>
       <p className="cr-helper">{t(locale, 'Income and expenses by month.', 'الدخل والمصروفات حسب الشهر.')}</p>
-      <div className="daily-trend-legend cr-label"><span className="cr-trend-key cr-trend-key--income">{t(locale, 'Income', 'الدخل')}</span><span className="cr-trend-key cr-trend-key--expense">{t(locale, 'Expenses', 'المصروفات')}</span></div>
-      <div className="daily-trend-currencies">
-        {currencies.map((currency) => <TrendCurrency key={currency} currency={currency} locale={locale} rows={trend.filter((row) => row.currency === currency)} />)}
+      <div className="daily-trend-controls">
+        {currencies.length > 1 ? <div className="daily-trend-currency-tabs" role="group" aria-label={t(locale, 'Trend currency', 'عملة الاتجاه')}>
+          {currencies.map((currency) => <button key={currency} type="button" className={selectedCurrency === currency ? 'cr-chip cr-chip--active' : 'cr-chip'} aria-pressed={selectedCurrency === currency} onClick={() => setRequestedCurrency(currency)}>{currency}</button>)}
+        </div> : <strong className="cr-label">{selectedCurrency}</strong>}
+        <div className="daily-trend-legend cr-label"><span className="cr-trend-key cr-trend-key--income">{t(locale, 'Income', 'الدخل')}</span><span className="cr-trend-key cr-trend-key--expense">{t(locale, 'Expenses', 'المصروفات')}</span></div>
       </div>
+      <TrendCurrency currency={selectedCurrency} locale={locale} rows={trend.filter((row) => row.currency === selectedCurrency)} />
     </section>
   );
 }
 
 function LoansCard({ loans, locale }: { loans: HomeScreenProps['loansOutstanding']; locale: Locale }) {
   if (loans.length === 0) return null;
-  const perCurrency = new Map<Currency, bigint>();
-  for (const loan of loans) {
-    perCurrency.set(loan.currency, (perCurrency.get(loan.currency) ?? 0n) + BigInt(loan.outstandingMinor));
-  }
   return (
     <section className="cr-card daily-home-card" aria-label={t(locale, 'Loans', 'الديون')}>
       <div className="daily-section-heading"><HandCoins aria-hidden="true" size={20} /><h2>{t(locale, 'Loans', 'الديون')}</h2></div>
       <p className="cr-helper">
-        {t(locale, `${loans.length} outstanding loan(s)`, `${loans.length} دين قائم`)}
+        {t(locale, 'People you owe or who owe you.', 'أشخاص تدين لهم أو يدينون لك.')}
       </p>
       {loans.map((loan) => (
         <div key={loan.loanId} className="cr-journal-row">
-          <bdi>{loan.personName}</bdi>
+          <span className="daily-loan-person"><bdi>{loan.personName}</bdi><span className="cr-helper">{loan.direction === 'they_owe_me' ? t(locale, 'Owes you', 'يدين لك') : t(locale, 'You owe', 'تدين له')}</span></span>
           <bdi className="cr-amount">{formatMinorAmount(loan.outstandingMinor, loan.currency, locale)}</bdi>
         </div>
       ))}
-      <div className="cr-row">
-        <span className="cr-label">{t(locale, 'Total outstanding', 'إجمالي المتبقي')}</span>
-        {[...perCurrency.entries()].map(([currency, total]) => (
-          <bdi key={currency} className="cr-amount">{formatMinorAmount(total.toString(), currency, locale)}</bdi>
-        ))}
-      </div>
     </section>
   );
 }
 
 function RecentActivity({ events, locale, onRecord, onSeeAll }: { events: readonly JournalEvent[]; locale: Locale; onRecord(): void; onSeeAll: (() => void) | undefined }) {
   return (
-    <section className="cr-card daily-home-card" aria-label={t(locale, 'Recent activity', 'النشاط الأخير')}>
+    <section className="cr-card daily-home-card daily-recent-card" aria-label={t(locale, 'Recent activity', 'النشاط الأخير')}>
       <div className="cr-section-header">
         <div className="daily-section-heading"><Clock3 aria-hidden="true" size={20} /><h2>{t(locale, 'Recent activity', 'النشاط الأخير')}</h2></div>
         {events.length > 0 && onSeeAll ? <button type="button" className="text-button" onClick={onSeeAll}>{t(locale, 'See all activity', 'عرض كل النشاط')}</button> : null}
@@ -227,6 +225,8 @@ function RecentActivity({ events, locale, onRecord, onSeeAll }: { events: readon
       {events.length === 0 ? (
         <div className="daily-empty-activity"><p>{t(locale, 'No transactions yet', 'لا توجد معاملات بعد')}</p><button type="button" className="cr-button cr-button--primary" onClick={onRecord}>{t(locale, 'Record', 'سجل')}</button></div>
       ) : events.map((event) => {
+        const label = eventLabel(event, locale);
+        const kindLabel = t(locale, KIND_LABELS[event.kind].en, KIND_LABELS[event.kind].ar);
         const amounts = event.movements.map((movement, index) => (
           <bdi
             key={`${event.id}-${movement.walletId}-${movement.currency}-${index}`}
@@ -238,7 +238,7 @@ function RecentActivity({ events, locale, onRecord, onSeeAll }: { events: readon
         return (
           <div key={event.id} className="cr-journal-row daily-activity-row">
             <span className="cr-label">{dateLabel(event.effectiveDate, locale)}</span>
-            <span className="daily-activity-label"><bdi>{eventLabel(event, locale)}</bdi><span className="cr-helper">{t(locale, KIND_LABELS[event.kind].en, KIND_LABELS[event.kind].ar)}</span></span>
+            <span className="daily-activity-label"><bdi>{label}</bdi>{label !== kindLabel ? <span className="cr-helper">{kindLabel}</span> : null}</span>
             {amounts.length > 0 ? <span className="cr-journal-amounts">{amounts}</span> : null}
           </div>
         );
@@ -249,12 +249,23 @@ function RecentActivity({ events, locale, onRecord, onSeeAll }: { events: readon
 
 export function HomeScreen(props: HomeScreenProps) {
   const { locale, spaceKind, month, onMonthChange, onSeeAll } = props;
+  const walletByCurrency = new Map<Currency, bigint>();
+  const loanNetByCurrency = new Map<Currency, bigint>();
+  for (const total of props.totals) walletByCurrency.set(total.currency, BigInt(total.balanceMinor));
+  for (const loan of props.loansOutstanding) {
+    const signedOutstanding = BigInt(loan.outstandingMinor) * (loan.direction === 'they_owe_me' ? 1n : -1n);
+    loanNetByCurrency.set(loan.currency, (loanNetByCurrency.get(loan.currency) ?? 0n) + signedOutstanding);
+  }
+  const netByCurrency = new Map(walletByCurrency);
+  for (const [currency, loanNet] of loanNetByCurrency) {
+    netByCurrency.set(currency, (netByCurrency.get(currency) ?? 0n) + loanNet);
+  }
   const spaceLabel = spaceKind === 'household'
     ? t(locale, 'Household space', 'مساحة عائلية')
     : t(locale, 'Personal space', 'مساحة شخصية');
   return (
     <>
-      <PageHeader
+      <div className="daily-home-header"><PageHeader
         title={t(locale, 'Home', 'الرئيسية')}
         subtitle={spaceLabel}
         actions={(
@@ -267,18 +278,22 @@ export function HomeScreen(props: HomeScreenProps) {
             </select>
           </label>
         )}
-      />
+      /></div>
       {props.dataStatus === 'loading' ? (
         <HomeSkeleton locale={locale} />
       ) : (
         <>
           <div className="daily-home-grid">
-          <section className="cr-card daily-home-card" aria-label={t(locale, 'Wallet balances', 'أرصدة المحافظ')}>
-            <div className="daily-section-heading"><Wallet aria-hidden="true" size={20} /><h2>{t(locale, 'Wallet balances', 'أرصدة المحافظ')}</h2></div>
-            <p className="cr-helper">{t(locale, 'Your current cash across wallets, by currency.', 'أرصدتك الحالية في المحافظ حسب العملة.')}</p>
+          <section className="cr-card daily-home-card daily-net-card" aria-label={t(locale, 'Net position', 'صافي المركز')}>
+            <div className="daily-section-heading"><Wallet aria-hidden="true" size={20} /><h2>{t(locale, 'Net position', 'صافي المركز')}</h2></div>
+            <p className="cr-helper">{t(locale, 'What you own minus what you owe.', 'ما تملكه بعد طرح ما عليك.')}</p>
             <div className="daily-metric-grid">
-              {props.totals.map((total) => (
-                <div key={total.currency} className="daily-currency-metric"><span className="cr-label">{total.currency}</span><bdi className="cr-amount cr-amount--dashboard">{formatMinorAmount(total.balanceMinor, total.currency, locale)}</bdi></div>
+              {[...netByCurrency.entries()].map(([currency, amount]) => (
+                <div key={currency} className="daily-currency-metric">
+                  <span className="cr-label">{currency}</span>
+                  <bdi className="cr-amount cr-amount--metric">{metricAmount(amount.toString(), currency, locale)}</bdi>
+                  <span className="daily-net-breakdown cr-helper"><span>{t(locale, 'Wallets', 'المحافظ')} <bdi>{metricAmount((walletByCurrency.get(currency) ?? 0n).toString(), currency, locale)}</bdi></span><span>{t(locale, 'Loans net', 'صافي الديون')} <bdi>{metricAmount((loanNetByCurrency.get(currency) ?? 0n).toString(), currency, locale)}</bdi></span></span>
+                </div>
               ))}
             </div>
           </section>

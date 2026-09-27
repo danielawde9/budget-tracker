@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { Crown, UserPlus } from 'lucide-react';
 
 import type { Locale } from '../loans/types.js';
 import { localizeHouseholdError } from './errors.js';
@@ -29,7 +30,7 @@ const copy = {
   en: {
     loading: 'Loading household access', title: 'Household', memberTitle: 'Your household access',
     intro: 'Members and invitations for', memberIntro: 'Your access to', members: 'Members', invitations: 'Invitations', access: 'Your access',
-    invite: 'Invite member', role: 'Role', status: 'Status', owner: 'Owner', member: 'Member', active: 'Active', revoked: 'Revoked', left: 'Left', self: 'You',
+    invite: 'Invite member', role: 'Role', status: 'Status', owner: 'Owner', member: 'Member', active: 'Active', revoked: 'Revoked', left: 'Left', self: 'You', shortPromote: 'Promote', shortDemote: 'Demote', shortRemove: 'Remove',
     pending: 'Pending', accepted: 'Accepted', cancelled: 'Cancelled', expired: 'Expired', created: 'Created', expires: 'Expires', ended: 'Ended',
     promote: 'Promote to owner', demote: 'Demote to member', remove: 'Remove access', cancelInvitation: 'Cancel invitation',
     leave: 'Leave household', selfDetails: 'Access details', loadMore: 'Load more', tryAgain: 'Try again', noMembers: 'No membership records are available.', noInvitations: 'No invitation records yet.',
@@ -39,7 +40,7 @@ const copy = {
   ar: {
     loading: 'تحميل المساحة المنزلية', title: 'المنزل', memberTitle: 'صلاحيتك المنزلية',
     intro: 'الأعضاء والدعوات في', memberIntro: 'صلاحيتك في', members: 'الأعضاء', invitations: 'الدعوات', access: 'صلاحيتك',
-    invite: 'دعوة عضو', role: 'الدور', status: 'الحالة', owner: 'مالك', member: 'عضو', active: 'فعّال', revoked: 'ملغى', left: 'غادر', self: 'أنت',
+    invite: 'دعوة عضو', role: 'الدور', status: 'الحالة', owner: 'مالك', member: 'عضو', active: 'فعّال', revoked: 'ملغى', left: 'غادر', self: 'أنت', shortPromote: 'ترقية', shortDemote: 'تخفيض', shortRemove: 'إزالة',
     pending: 'قيد الانتظار', accepted: 'مقبولة', cancelled: 'ملغاة', expired: 'منتهية', created: 'أُنشئت', expires: 'تنتهي', ended: 'انتهت',
     promote: 'ترقية إلى مالك', demote: 'تخفيض إلى عضو', remove: 'إزالة الصلاحية', cancelInvitation: 'إلغاء الدعوة',
     leave: 'مغادرة المنزل', selfDetails: 'تفاصيل الصلاحية', loadMore: 'تحميل المزيد', tryAgain: 'حاول مجددًا', noMembers: 'لا توجد سجلات عضوية متاحة.', noInvitations: 'لا توجد سجلات دعوات بعد.',
@@ -67,7 +68,7 @@ export function HouseholdPage(props: HouseholdPageProps) {
     title={household.status === 'member-ready' ? text.memberTitle : text.title}
     subtitle={<>{isOwner ? text.intro : text.memberIntro} <bdi>{props.spaceName}</bdi></>}
     actions={isOwner
-      ? <button type="button" className="cr-button cr-button--primary" onClick={() => { household.clearActionState(); setInviteOpen(true); }}>{text.invite}</button>
+      ? <button type="button" className="cr-button cr-button--primary" onClick={() => { household.clearActionState(); setInviteOpen(true); }}><UserPlus aria-hidden size={17} />{text.invite}</button>
       : null}
   />;
 
@@ -126,11 +127,11 @@ export function HouseholdPage(props: HouseholdPageProps) {
         {household.members.length === 0 ? <p className="empty">{text.noMembers}</p> : <ul className="household-list hh-list">{household.members.map((membership) => {
           const identity = memberIdentity(membership);
           return <li key={membership.userId} className="household-row hh-member-row">
-          <div className="household-identity">{identity ? <bdi>{identity}</bdi> : <span className="household-member-fallback">{text.member} <bdi>{membership.userId.slice(0, 8)}</bdi></span>}{membership.isSelf ? <span className="household-self mg-self-pill">{text.self}</span> : null}</div>
+          <div className="household-identity hh-identity"><span className="hh-avatar" aria-hidden="true">{(identity ?? text.member).slice(0, 1).toLocaleUpperCase(props.locale)}</span><span className="hh-identity-copy">{identity ? <bdi>{identity}</bdi> : <span className="household-member-fallback">{text.member} <bdi>{membership.userId.slice(0, 8)}</bdi></span>}{membership.isSelf ? <span className="household-self mg-self-pill">{text.self}</span> : null}</span></div>
           <dl className="mg-meta"><div><dt>{text.role}</dt><dd>{text[membership.role]}</dd></div><div><dt>{text.status}</dt><dd>{text[membership.status]}</dd></div>{membership.endedAt ? <div><dt>{text.ended}</dt><dd>{formatDate(membership.endedAt)}</dd></div> : null}</dl>
           {!membership.isSelf && membership.status === 'active' ? <div className="household-actions">
-            <button type="button" className="cr-button" aria-label={props.locale === 'en' ? `${membership.role === 'member' ? 'Promote' : 'Demote'} ${membership.userId} to ${membership.role === 'member' ? 'owner' : 'member'}` : `${membership.role === 'member' ? text.promote : text.demote} ${membership.userId}`} onClick={() => setConfirmation({ kind: 'role', membership, role: membership.role === 'member' ? 'owner' : 'member' })}>{membership.role === 'member' ? text.promote : text.demote}</button>
-            <button type="button" className="cr-button cr-button--danger" aria-label={props.locale === 'en' ? `Remove ${membership.userId}` : `${text.remove} ${membership.userId}`} onClick={() => setConfirmation({ kind: 'remove', membership })}>{text.remove}</button>
+            <button type="button" className="cr-button" aria-label={props.locale === 'en' ? `${membership.role === 'member' ? 'Promote' : 'Demote'} ${membership.userId} to ${membership.role === 'member' ? 'owner' : 'member'}` : `${membership.role === 'member' ? text.promote : text.demote} ${membership.userId}`} onClick={() => setConfirmation({ kind: 'role', membership, role: membership.role === 'member' ? 'owner' : 'member' })}>{membership.role === 'member' ? text.shortPromote : text.shortDemote}</button>
+            <button type="button" className="cr-button cr-button--danger" aria-label={props.locale === 'en' ? `Remove ${membership.userId}` : `${text.remove} ${membership.userId}`} onClick={() => setConfirmation({ kind: 'remove', membership })}>{text.shortRemove}</button>
           </div> : null}
         </li>;
         })}</ul>}
@@ -147,7 +148,7 @@ export function HouseholdPage(props: HouseholdPageProps) {
       </section>
     </div> : null}
     <section className="household-register household-self-access cr-card hh-access" aria-labelledby="household-access-heading">
-      <div className="cr-section-header"><h2 id="household-access-heading">{household.status === 'owner-ready' ? text.access : text.selfDetails}</h2></div>
+      <div className="cr-section-header hh-access-heading"><Crown aria-hidden size={22} /><h2 id="household-access-heading">{household.status === 'owner-ready' ? text.access : text.selfDetails}</h2></div>
       <p className="cr-helper">{household.status === 'owner-ready' ? text.ownerAccess : text.memberAccess}</p>
       <dl className="mg-meta"><div><dt>{text.role}</dt><dd>{text[household.self?.role ?? 'member']}</dd></div><div><dt>{text.status}</dt><dd>{text[household.self?.status ?? 'active']}</dd></div></dl>
       <footer className="household-leave hh-leave"><button type="button" className="cr-button cr-button--danger" onClick={() => setConfirmation({ kind: 'leave' })}>{text.leave}</button></footer>

@@ -33,14 +33,17 @@ export function LoanSummary({ summaries, loans, locale }: { summaries: readonly 
               </div>
             ))}
           </dl>
-          <dl className="ln-summary-metrics ln-summary-details">
-            {metrics.slice(3).map(([label, field]) => (
-              <div className="ln-summary-metric" key={field}>
-                <dt>{translate(locale, label)}</dt>
-                <dd><bdi>{formatMinorAmount(summary[field], summary.currency, locale)}</bdi></dd>
-              </div>
-            ))}
-          </dl>
+          <details className="ln-summary-more">
+            <summary>{locale === 'ar' ? 'مزيد من إجماليات القروض' : 'More loan totals'}</summary>
+            <dl className="ln-summary-metrics ln-summary-details">
+              {metrics.slice(3).map(([label, field]) => (
+                <div className="ln-summary-metric" key={field}>
+                  <dt>{translate(locale, label)}</dt>
+                  <dd><bdi>{formatMinorAmount(summary[field], summary.currency, locale)}</bdi></dd>
+                </div>
+              ))}
+            </dl>
+          </details>
         </article>
       ))}
     </section>

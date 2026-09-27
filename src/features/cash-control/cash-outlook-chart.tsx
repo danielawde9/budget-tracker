@@ -14,6 +14,12 @@ function scenarioLabel(locale: Locale, scenario: CashOutlookScenario): string {
     : t(locale, 'Conservative (no future income)', 'متحفظ (بدون دخل مستقبلي)');
 }
 
+function scenarioShortLabel(locale: Locale, scenario: CashOutlookScenario): string {
+  return scenario === 'expected'
+    ? t(locale, 'Expected', 'المتوقع')
+    : t(locale, 'No future income', 'بدون دخل مستقبلي');
+}
+
 /** The bounded 0-100 visual half-width for one signed day bar, plus which
  * side of the zero baseline it belongs on. Reuses `chartPercent` with the
  * day's absolute magnitude (per the brief's own "for signed plots, call it
@@ -87,9 +93,10 @@ export function CashOutlookChart({ locale, currency, outlook, scenario, onScenar
         <h3 className="cc-subheading">{t(locale, 'Expected outlook', 'التوقع المتوقع')}</h3>
         <div className="cr-chips cc-scenario-tabs" role="tablist" aria-label={t(locale, 'Forecast scenario', 'سيناريو التوقع')}>
           {SCENARIOS.map((value) => (
-            <button key={value} type="button" role="tab" aria-selected={scenario === value} className={`cr-chip${scenario === value ? ' cr-chip--active' : ''}`}
+            <button key={value} type="button" role="tab" aria-label={scenarioLabel(locale, value)} aria-selected={scenario === value} className={`cr-chip${scenario === value ? ' cr-chip--active' : ''}`}
               onClick={() => onScenarioChange(value)}>
-              {scenarioLabel(locale, value)}
+              <span className="cc-scenario-long">{scenarioLabel(locale, value)}</span>
+              <span className="cc-scenario-short" aria-hidden="true">{scenarioShortLabel(locale, value)}</span>
             </button>
           ))}
         </div>
@@ -121,7 +128,10 @@ export function CashOutlookChart({ locale, currency, outlook, scenario, onScenar
           <p className="cc-label-muted">{t(locale, 'No forecast days in this window yet.', 'لا توجد أيام توقع في هذا النطاق بعد.')}</p>
         ) : (
           <>
-            <p className="cc-label-muted">{outlook.data.assumption}</p>
+            <OutlookTrend locale={locale} currency={currency} days={outlook.data.days} />
+            <details className="cc-outlook-notes">
+              <summary>{t(locale, 'Forecast notes', 'ملاحظات التوقع')}</summary>
+              <p className="cc-label-muted">{outlook.data.assumption}</p>
             {outlook.data.overdueCount > 0 && (
               <p className="cc-danger-text">
                 {t(locale, 'Overdue', 'متأخر')}: {outlook.data.overdueCount} · <bdi>{formatMinorAmount(outlook.data.overdueMinor, currency, locale)}</bdi>{' '}
@@ -135,7 +145,7 @@ export function CashOutlookChart({ locale, currency, outlook, scenario, onScenar
             ) : (
               <p className="cc-label-muted">{t(locale, 'No shortfall projected in this window.', 'لا يوجد عجز متوقع في هذا النطاق.')}</p>
             )}
-            <OutlookTrend locale={locale} currency={currency} days={outlook.data.days} />
+            </details>
             <OutlookTable locale={locale} currency={currency} outlook={outlook.data} />
           </>
         )

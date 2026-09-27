@@ -31,7 +31,10 @@
   .cc-page { grid-template-columns: 1fr; }
   .cc-page-summary,
   .cc-page-outlook,
-  .cc-page-reservations { grid-column: 1; grid-row: auto; }
+  .cc-page-reservations { grid-column: 1; }
+  .cc-page-summary { grid-row: 1; }
+  .cc-page-outlook { grid-row: 2; }
+  .cc-page-reservations { grid-row: 3; }
 }
 
 .cc-row {
@@ -130,6 +133,22 @@
   gap: var(--cr-space-2);
 }
 
+.cc-summary > .cr-section-header { order: 0; }
+.cc-summary > .cc-badge { order: 0; }
+.cc-summary > .cc-metrics { order: 1; }
+.cc-summary > p.cr-helper { order: 2; }
+.cc-summary > .cc-signed-bar { order: 3; }
+.cc-summary > .cc-subheading { order: 4; }
+.cc-summary > .cc-reservation-list { order: 5; }
+.cc-summary > .cc-more-details { order: 6; }
+
+.cc-more-details { color: var(--cr-ink-soft); font-size: 13px; }
+.cc-more-details summary { inline-size: fit-content; cursor: pointer; }
+.cc-more-details[open] {
+  display: grid;
+  gap: var(--cr-space-2);
+}
+
 .cc-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -138,6 +157,9 @@
 }
 .cc-metrics--secondary {
   grid-template-columns: repeat(3, 1fr);
+}
+.cc-metrics--supplemental {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .cc-metric--hero { grid-column: 1 / -1; }
 .cc-metric dt {
@@ -151,8 +173,9 @@
   font-weight: 600;
 }
 .cc-metric--hero dd {
-  font-size: 26px;
+  font-size: clamp(28px, 3vw, 42px);
 }
+.cc-metric--hero .cr-amount:not(.cc-danger-text) { color: var(--cr-accent-strong); }
 
 .cc-reservation-list {
   list-style: none;
@@ -299,6 +322,11 @@ td .cc-signed-bar {
   flex-direction: column;
   gap: var(--cr-space-2);
 }
+.cc-scenario-short { display: none; }
+.cc-outlook-notes { color: var(--cr-ink-soft); font-size: 13px; }
+.cc-outlook-notes summary { inline-size: fit-content; cursor: pointer; }
+.cc-outlook-notes[open] { display: grid; gap: var(--cr-space-2); }
+.cc-outlook-notes p { margin: 0; }
 
 .cc-trend-block {
   display: flex;
@@ -326,6 +354,29 @@ td .cc-signed-bar {
 .cc-bars {
   overflow: auto;
   max-block-size: 280px;
+}
+
+@media (max-width: 620px) {
+  .cc-page-outlook { padding: var(--cr-space-3); }
+  .cc-outlook > .cc-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--cr-space-2);
+  }
+  .cc-outlook > .cc-row .cc-subheading { margin: 0; }
+  .cc-scenario-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--cr-space-2);
+  }
+  .cc-scenario-tabs .cr-chip {
+    min-block-size: 44px;
+    padding-inline: var(--cr-space-1);
+    font-size: 12px;
+  }
+  .cc-scenario-long { display: none; }
+  .cc-scenario-short { display: inline; }
+  .cc-trend { block-size: 240px; }
 }
 
 /* Phone-width layouts: responsive table -> stacked cards, matching the

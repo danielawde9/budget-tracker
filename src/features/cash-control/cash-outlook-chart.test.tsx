@@ -52,6 +52,20 @@ function renderChart(
 }
 
 describe('CashOutlookChart', () => {
+  it('shows the trend before an expandable forecast explanation', async () => {
+    renderChart({ data: {
+      ...slice().data,
+      days: [{ date: '2026-09-15', openingCashMinor: '100000', expectedIncomeMinor: '0', expectedOutflowMinor: '20000', closingCashMinor: '80000' }],
+    } });
+    const trend = screen.getByRole('img', { name: 'Expected cash trend' });
+    const notes = screen.getByText('Forecast notes').closest('details');
+    expect(notes).not.toHaveAttribute('open');
+    expect(trend.compareDocumentPosition(notes as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await userEvent.click(screen.getByText('Forecast notes'));
+    expect(notes).toHaveAttribute('open');
+    expect(notes).toHaveTextContent('Projects only unpaid scheduled income and scheduled bills.');
+  });
+
   it('shows a loading skeleton', () => {
     renderChart({ status: 'loading' });
     expect(document.querySelectorAll('.cr-skeleton').length).toBeGreaterThan(0);

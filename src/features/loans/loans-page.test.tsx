@@ -95,6 +95,19 @@ describe('LoansPage', () => {
     expect(screen.queryByText(/grand total/i)).not.toBeInTheDocument();
   });
 
+  it('shows only the selected currency when embedded under Plan', async () => {
+    const user = userEvent.setup();
+    render(<LoansPage gateway={new InMemoryLoansGateway()} locale="en" embedded currency="USD" />);
+    await screen.findByRole('button', { name: 'Open Maya loan' });
+
+    expect(screen.getByTestId('summary-USD')).toBeInTheDocument();
+    expect(screen.queryByTestId('summary-LBP')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open Rana loan' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Month')).not.toBeVisible();
+    await user.click(screen.getByText('Month', { selector: 'summary' }));
+    expect(screen.getByLabelText('Month')).toBeVisible();
+  });
+
   it('opens the existing repayment flow directly from each outstanding loan card', async () => {
     const { user } = await renderPage();
 

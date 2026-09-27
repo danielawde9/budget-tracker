@@ -25,15 +25,34 @@ const INTERNET_OCCURRENCE = {
   asOf: '2026-09-20',
 };
 
-async function recordSixtyDollarEssentialsExpense(page: import('@playwright/test').Page) {
+async function confirmExpenseTypeIfRequired(page: import('@playwright/test').Page) {
+  const record = page.getByRole('dialog', { name: 'Record' });
+  const continueButton = record.getByRole('button', { name: 'Continue', exact: true });
+  if (await continueButton.isVisible()) await continueButton.click();
+}
+
+async function recordExpense(page: import('@playwright/test').Page, amount: string) {
   await page.getByRole('button', { name: 'Record' }).first().click();
-  await page.getByRole('button', { name: 'Expense' }).click();
-  for (const key of ['6', '0']) await page.getByRole('button', { name: key, exact: true }).click();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('button', { name: 'Daily USD' }).click();
-  await page.getByRole('button', { name: 'Essentials', exact: true }).click();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('button', { name: 'Confirm' }).click();
+  const record = page.getByRole('dialog', { name: 'Record' });
+  await record.getByRole('button', { name: 'Expense', exact: true }).click();
+  await confirmExpenseTypeIfRequired(page);
+
+  const mobileForm = record.locator('.cr-record-mobile-form');
+  if (await mobileForm.isVisible()) {
+    await mobileForm.getByLabel('Amount').fill(amount);
+    await mobileForm.getByLabel('Wallet').selectOption({ label: 'Daily USD · USD' });
+    await mobileForm.getByLabel('Category').selectOption({ label: 'Essentials' });
+    await mobileForm.getByRole('button', { name: 'Save expense', exact: true }).click();
+    await expect(record).toHaveCount(0);
+    return;
+  }
+
+  for (const key of amount) await record.getByRole('button', { name: key, exact: true }).click();
+  await record.getByRole('button', { name: 'Continue', exact: true }).click();
+  await record.getByRole('button', { name: 'Daily USD' }).click();
+  await record.getByRole('button', { name: 'Essentials', exact: true }).click();
+  await record.getByRole('button', { name: 'Continue', exact: true }).click();
+  await record.getByRole('button', { name: 'Confirm', exact: true }).click();
 }
 
 test('recording an expense that exactly matches a bill settles it automatically', async ({ page }) => {
@@ -51,7 +70,7 @@ test('recording an expense that exactly matches a bill settles it automatically'
   await expect(upcomingBills.getByText('Internet')).toBeVisible();
 
   await chooseWorkspaceDestination(page, 'Home');
-  await recordSixtyDollarEssentialsExpense(page);
+  await recordExpense(page, '60');
   await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible();
   await expect(page.locator('.cr-header-text').getByText('Personal space', { exact: true })).toBeVisible();
 
@@ -79,14 +98,7 @@ test('a non-matching expense leaves the bill pending', async ({ page }) => {
 
   await chooseWorkspaceDestination(page, 'Home');
   // Record $61 -- close but not the expected $60.
-  await page.getByRole('button', { name: 'Record' }).first().click();
-  await page.getByRole('button', { name: 'Expense' }).click();
-  for (const key of ['6', '1']) await page.getByRole('button', { name: key, exact: true }).click();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('button', { name: 'Daily USD' }).click();
-  await page.getByRole('button', { name: 'Essentials', exact: true }).click();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('button', { name: 'Confirm' }).click();
+  await recordExpense(page, '61');
   await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible();
   await expect(page.locator('.cr-header-text').getByText('Personal space', { exact: true })).toBeVisible();
   await expect(page.getByRole('status').filter({ hasText: 'Internet' })).toHaveCount(0);

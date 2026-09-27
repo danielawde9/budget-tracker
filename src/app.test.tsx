@@ -13,6 +13,13 @@ import { householdMemberId, householdOwnerId, InMemoryHouseholdGateway } from '.
 import { createHouseholdInvitationBootstrap } from './features/household/invitation-fragment.js';
 import { InMemoryPlanClient } from './test/in-memory-plan-client.js';
 
+// These tests inject their own gateways. Avoid creating a real Supabase auth
+// client for each mounted App, which leaves browser-context timers behind.
+vi.mock('./lib/supabase.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('./lib/supabase.js')>(),
+  createBrowserDataClient: () => null,
+}));
+
 function authGateway(initial: AuthUser | null, session?: Promise<AuthUser | null>): AuthGateway {
   return {
     getSession: vi.fn(async () => session ? session : initial),

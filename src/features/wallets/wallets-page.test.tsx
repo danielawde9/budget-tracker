@@ -139,7 +139,17 @@ describe('WalletsPage', () => {
 
     const totals = screen.getByRole('region', { name: 'Wallet totals by currency' });
     expect(within(totals).getByText('$1,750.50')).toBeInTheDocument();
-    expect(within(totals).getByText('LBP 2,500,000')).toBeInTheDocument();
+    expect(within(totals).getByText('2,500,000')).toBeInTheDocument();
+  });
+
+  it('keeps mobile recording unavailable until the first wallet exists', async () => {
+    const gateway = new InMemoryWalletsGateway();
+    gateway.wallets = [];
+    gateway.events = [];
+    await renderPage(gateway);
+
+    expect(screen.getByRole('button', { name: 'Add wallet' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Record transaction' })).toBeDisabled();
   });
 
   it('shows each wallet its own loaded recent activity', async () => {

@@ -43,6 +43,13 @@ describe('PhoneShortcutPage', () => {
     expect(screen.getByText('The link only opens the form. Nothing is saved until you tap Save.')).toBeInTheDocument();
   });
 
+  it('shows an illustrated shortcut preview without putting setup instructions in the image', () => {
+    render(<PhoneShortcutPage locale="en" origin={ORIGIN} />);
+    const preview = screen.getByRole('region', { name: 'Shortcut preview' });
+    expect(preview.querySelector('img[alt=""]')).toBeInTheDocument();
+    expect(preview).toHaveTextContent('This is how it can look on your phone.');
+  });
+
   it('isolates the English terms quoted inside Arabic steps so they keep their order', () => {
     render(<PhoneShortcutPage locale="ar" origin={ORIGIN} />);
     const isolated = [...document.querySelectorAll('bdi')].map((node) => node.textContent);

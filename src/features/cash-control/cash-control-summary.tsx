@@ -34,8 +34,9 @@ interface ReservationLine {
 
 function reservationLines(data: AvailableCashSummary): readonly ReservationLine[] {
   return [
-    { label: { en: 'Reserved goal claims', ar: 'حجوزات الأهداف' }, amountMinor: data.goalClaimsMinor },
+    { label: { en: 'Wallet balance', ar: 'رصيد المحفظة' }, amountMinor: data.cashMinor },
     { label: { en: 'Unpaid bills (net of goal cover)', ar: 'الفواتير غير المدفوعة (بعد تغطية الهدف)' }, amountMinor: data.expenseCommitmentsMinor },
+    { label: { en: 'Reserved goal claims', ar: 'حجوزات الأهداف' }, amountMinor: data.goalClaimsMinor },
     { label: { en: 'Debt commitments', ar: 'التزامات الديون' }, amountMinor: data.debtCommitmentsMinor },
     { label: { en: 'Goal monthly top-ups', ar: 'إضافات الأهداف الشهرية' }, amountMinor: data.goalTopupsMinor },
     { label: { en: 'Future-purpose headroom', ar: 'هامش الغرض المستقبلي' }, amountMinor: data.futureHeadroomMinor },
@@ -113,6 +114,15 @@ export function CashControlSummary({ locale, currency, available, variant }: Cas
   const deficitMinor = data.deficitMinor as string;
   const negative = BigInt(availableMinor) < 0n;
   const ratio = availableRatio(data.cashMinor, availableMinor, deficitMinor);
+  const reservationItems = reservationLines(data).map((line) => (
+    <li key={line.label.en}>
+      <span className="cc-label">{t(locale, line.label.en, line.label.ar)}</span>
+      <span>{line.amountMinor === null
+        ? t(locale, 'Not applicable', 'لا ينطبق')
+        : <bdi>{formatMinorAmount(line.amountMinor, currency, locale)}</bdi>}
+      </span>
+    </li>
+  ));
 
   if (compact) {
     return (
@@ -145,13 +155,18 @@ export function CashControlSummary({ locale, currency, available, variant }: Cas
 
       <dl className="cc-metrics">
         <div className="cc-metric cc-metric--hero">
-          <dt>{t(locale, 'Available after commitments', 'المتاح بعد الالتزامات')}</dt>
+          <dt className="cc-visually-hidden">{t(locale, 'Available after commitments', 'المتاح بعد الالتزامات')}</dt>
           <dd><bdi className={`cr-amount cr-amount--hero${negative ? ' cc-danger-text' : ''}`}>{formatMinorAmount(availableMinor, currency, locale)}</bdi></dd>
         </div>
-        <div className="cc-metric">
-          <dt>{t(locale, 'Actual cash', 'السيولة الفعلية')}</dt>
-          <dd><bdi>{formatMinorAmount(data.cashMinor, currency, locale)}</bdi></dd>
-        </div>
+      </dl>
+
+      <ul className="cc-reservation-list">
+        {reservationItems.slice(0, 4)}
+      </ul>
+
+      <details className="cc-more-details">
+        <summary>{t(locale, 'More cash details', 'مزيد من تفاصيل السيولة')}</summary>
+      <dl className="cc-metrics cc-metrics--supplemental">
         <div className="cc-metric">
           <dt>{t(locale, 'Spendable now', 'المتاح للإنفاق الآن')}</dt>
           <dd><bdi>{formatMinorAmount(spendableMinor, currency, locale)}</bdi></dd>
@@ -161,12 +176,6 @@ export function CashControlSummary({ locale, currency, available, variant }: Cas
           <dd><bdi className={BigInt(deficitMinor) > 0n ? 'cc-danger-text' : undefined}>{formatMinorAmount(deficitMinor, currency, locale)}</bdi></dd>
         </div>
       </dl>
-
-      {/* The `dl` above already states every exact value visibly (not just
-          for assistive tech) next to this bar, so it stands in as this
-          bar's own "table equivalent" -- a second, hidden table repeating
-          the same four amounts would only invite the two copies to drift or
-          to double-match text queries. */}
       {ratio.hasScale && (
         <div className="cc-signed-bar cc-signed-bar--summary" aria-hidden="true">
           <span className="cc-signed-bar-negative"><span style={{ inlineSize: ratio.negative ? `${ratio.percent}%` : '0%' }} /></span>
@@ -174,20 +183,8 @@ export function CashControlSummary({ locale, currency, available, variant }: Cas
           <span className="cc-signed-bar-positive"><span style={{ inlineSize: ratio.negative ? '0%' : `${ratio.percent}%` }} /></span>
         </div>
       )}
-
-      <h4 className="cc-subheading">{t(locale, 'Reservation breakdown', 'تفصيل الحجوزات')}</h4>
-      <ul className="cc-reservation-list">
-        {reservationLines(data).map((line) => (
-          <li key={line.label.en}>
-            <span className="cc-label">{t(locale, line.label.en, line.label.ar)}</span>
-            <span>{line.amountMinor === null
-              ? t(locale, 'Not applicable', 'لا ينطبق')
-              : <bdi>{formatMinorAmount(line.amountMinor, currency, locale)}</bdi>}
-            </span>
-          </li>
-        ))}
-      </ul>
-
+      <h4 className="cc-subheading">{t(locale, 'Other commitments', 'التزامات أخرى')}</h4>
+      <ul className="cc-reservation-list">{reservationItems.slice(4)}</ul>
       {data.dailyExtraGuideMinor !== null && (
         <p className="cc-guide">
           <span className="cc-label">{t(locale, 'Extra unassigned cash per day', 'السيولة الإضافية غير المخصَّصة يوميًا')}</span>
@@ -231,6 +228,7 @@ export function CashControlSummary({ locale, currency, available, variant }: Cas
           <dd><bdi>{formatMinorAmount(data.incomeMinusSpendingMinor, currency, locale)}</bdi></dd>
         </div>
       </dl>
+      </details>
     </div>
   );
 }

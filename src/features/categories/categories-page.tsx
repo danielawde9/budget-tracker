@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Archive, Plus } from 'lucide-react';
+import { Archive, ChevronDown, Plus, Tags } from 'lucide-react';
 
 import type { Locale } from '../loans/types.js';
 import { ArchiveCategoryDialog } from './archive-category-dialog.js';
@@ -49,13 +49,22 @@ function CategoryName({ category, locale }: { category: Category; locale: Locale
 }
 
 function CategoryTree({ props }: { props: RegisterProps }) {
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   const roots = props.categories.filter((category) => category.parentCategoryId === null);
   return <ul className="category-list cg-list">{roots.map((root) => {
     const children = props.categories.filter((category) => category.parentCategoryId === root.id);
     const rootName = primaryName(root, props.locale);
+    const expanded = !collapsed.has(root.id);
     return <li key={root.id} className="category-tree-root cg-tree-root">
       <div className="category-row category-root-row cg-row cg-row-root">
+        {children.length > 0 ? <button type="button" className="text-button cg-toggle" aria-label={t(props.locale, `${expanded ? 'Collapse' : 'Expand'} ${rootName} subcategories`, `${expanded ? 'طي' : 'عرض'} الفئات الفرعية ضمن ${rootName}`)} aria-expanded={expanded} onClick={() => setCollapsed((current) => {
+          const next = new Set(current);
+          if (expanded) next.add(root.id); else next.delete(root.id);
+          return next;
+        })}><ChevronDown aria-hidden size={17} /></button> : <span className="cg-toggle-spacer" aria-hidden="true" />}
+        <span className="cg-root-icon" aria-hidden="true"><Tags size={19} /></span>
         <CategoryName category={root} locale={props.locale} />
+        {children.length > 0 ? <span className="cr-helper cg-child-count">{children.length}</span> : null}
         <div className="category-actions cg-actions">
           <button type="button" className="text-button cg-action" aria-label={t(props.locale, `New subcategory for ${rootName}`, `فئة فرعية جديدة ضمن ${rootName}`)} onClick={() => props.onCreateSubcategory(root)}><Plus aria-hidden size={15} />{t(props.locale, 'New subcategory', 'فئة فرعية جديدة')}</button>
           {children.length === 0 && props.nextCursor === null
@@ -66,7 +75,7 @@ function CategoryTree({ props }: { props: RegisterProps }) {
           ? <span className="category-archive-note cg-archive-note">{t(props.locale, 'Archive subcategories first', 'أرشف الفئات الفرعية أولًا')}</span>
           : null}
       </div>
-      {children.length > 0 && <ul className="subcategory-list cg-subcategory-list" aria-label={t(props.locale, `Subcategories of ${rootName}`, `الفئات الفرعية ضمن ${rootName}`)}>{children.map((child) => <li key={child.id}>
+      {children.length > 0 && expanded && <ul className="subcategory-list cg-subcategory-list" aria-label={t(props.locale, `Subcategories of ${rootName}`, `الفئات الفرعية ضمن ${rootName}`)}>{children.map((child) => <li key={child.id}>
         <div className="category-row subcategory-row cg-row cg-row-sub">
           <CategoryName category={child} locale={props.locale} />
           <button type="button" className="text-button cg-action cg-action-archive" aria-label={`${t(props.locale, 'Archive', 'أرشفة')} ${primaryName(child, props.locale)}`} onClick={() => props.onArchive(child)}><Archive aria-hidden size={15} />{t(props.locale, 'Archive', 'أرشفة')}</button>
@@ -99,10 +108,12 @@ export function CategoriesPage({ gateway, spaceId, locale = 'en', onSpaceUnavail
     <PageHeader
       title={t(locale, 'Categories', 'الفئات')}
       subtitle={t(locale, 'Use categories to label your income and expenses. Archiving hides a category from new entries; past records stay intact.', 'استخدم الفئات لتسمية الدخل والمصروف. تخفي الأرشفة الفئة من القيود الجديدة وتبقى السجلات السابقة كما هي.')}
-      actions={<button type="button" className="cr-button cr-button--primary" onClick={() => setDialog({ create: activeKind })}><Plus aria-hidden size={18} />{t(locale, 'New category', 'فئة جديدة')}</button>}
     />
 
-    <div className="category-kind-tabs cg-kind-tabs" role="group" aria-label={t(locale, 'Category type', 'نوع الفئة')}><button type="button" className={`cr-chip ${activeKind === 'income' ? 'cr-chip--active category-tab-active' : ''}`} aria-pressed={activeKind === 'income'} onClick={() => setActiveKind('income')}>{t(locale, 'Income', 'الدخل')}</button><button type="button" className={`cr-chip ${activeKind === 'expense' ? 'cr-chip--active category-tab-active' : ''}`} aria-pressed={activeKind === 'expense'} onClick={() => setActiveKind('expense')}>{t(locale, 'Expense', 'المصروف')}</button></div>
+    <div className="cg-toolbar">
+      <div className="category-kind-tabs cg-kind-tabs" role="group" aria-label={t(locale, 'Category type', 'نوع الفئة')}><button type="button" className={`cr-chip ${activeKind === 'income' ? 'cr-chip--active category-tab-active' : ''}`} aria-pressed={activeKind === 'income'} onClick={() => setActiveKind('income')}>{t(locale, 'Income', 'الدخل')}</button><button type="button" className={`cr-chip ${activeKind === 'expense' ? 'cr-chip--active category-tab-active' : ''}`} aria-pressed={activeKind === 'expense'} onClick={() => setActiveKind('expense')}>{t(locale, 'Expense', 'المصروف')}</button></div>
+      <button type="button" className="cr-button cr-button--primary cg-new-category" onClick={() => setDialog({ create: activeKind })}><Plus aria-hidden size={18} />{t(locale, 'New category', 'فئة جديدة')}</button>
+    </div>
 
     {state.status === 'loading' && <CategoriesSkeleton locale={locale} />}
     {state.status === 'error' && <div className="state-panel error-notice" role="alert"><strong>{t(locale, 'Categories are unavailable', 'الفئات غير متاحة')}</strong><p>{loadError?.message}</p><p>{loadError?.recovery}</p><button type="button" onClick={() => void state.refresh()}>{t(locale, 'Try again', 'المحاولة مجددًا')}</button></div>}

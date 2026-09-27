@@ -1,12 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
-  ArrowDownLeft,
   ArrowLeftRight,
-  ArrowUpRight,
-  Banknote,
+  CircleArrowDown,
+  CircleDollarSign,
   HandCoins,
   Handshake,
-  Undo2,
+  RefreshCw,
+  ShoppingCart,
 } from 'lucide-react';
 import type { ExchangeDraft } from '../exchange/use-exchange.js';
 import type { Currency, Locale, LoanDirection } from '../loans/types.js';
@@ -114,14 +114,14 @@ function amountFitsCurrency(display: string, currency: Currency): boolean {
   }
 }
 
-const TILES: readonly { kind: RecordKind; en: string; ar: string; icon: typeof ArrowDownLeft }[] = [
-  { kind: 'expense', en: 'Expense', ar: 'مصروف', icon: ArrowDownLeft },
-  { kind: 'income', en: 'Income', ar: 'دخل', icon: ArrowUpRight },
-  { kind: 'transfer', en: 'Transfer', ar: 'تحويل', icon: ArrowLeftRight },
-  { kind: 'exchange', en: 'Exchange', ar: 'صرف', icon: Banknote },
-  { kind: 'lend', en: 'Lend', ar: 'إقراض', icon: HandCoins },
-  { kind: 'borrow', en: 'Borrow', ar: 'استدانة', icon: Handshake },
-  { kind: 'repay', en: 'Repay', ar: 'سداد', icon: Undo2 },
+const TILES: readonly { kind: RecordKind; en: string; ar: string; descriptionEn: string; descriptionAr: string; icon: typeof ShoppingCart }[] = [
+  { kind: 'expense', en: 'Expense', ar: 'مصروف', descriptionEn: 'You spent money', descriptionAr: 'أنفقت مالًا', icon: ShoppingCart },
+  { kind: 'income', en: 'Income', ar: 'دخل', descriptionEn: 'You received money', descriptionAr: 'تلقيت مالًا', icon: CircleArrowDown },
+  { kind: 'transfer', en: 'Transfer', ar: 'تحويل', descriptionEn: 'Move money between wallets', descriptionAr: 'انقل المال بين المحافظ', icon: ArrowLeftRight },
+  { kind: 'exchange', en: 'Exchange', ar: 'صرف', descriptionEn: 'Convert one currency to another', descriptionAr: 'حوّل عملة إلى أخرى', icon: RefreshCw },
+  { kind: 'lend', en: 'Lend', ar: 'إقراض', descriptionEn: 'You lent money to someone', descriptionAr: 'أقرضت مالًا لشخص', icon: Handshake },
+  { kind: 'borrow', en: 'Borrow', ar: 'استدانة', descriptionEn: 'You borrowed money', descriptionAr: 'استدنت مالًا', icon: HandCoins },
+  { kind: 'repay', en: 'Repay', ar: 'سداد', descriptionEn: 'You repaid money', descriptionAr: 'سددت مالًا', icon: CircleDollarSign },
 ];
 
 const KIND_LABELS: Record<RecordKind, { en: string; ar: string }> = {
@@ -137,6 +137,10 @@ const KIND_LABELS: Record<RecordKind, { en: string; ar: string }> = {
 function todayLocal(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+function isCompactViewport(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia?.('(max-width: 599px)').matches === true;
 }
 
 function categoryName(node: { nameEn: string; nameAr: string }, locale: Locale): string {
@@ -216,20 +220,21 @@ function stepLabel(locale: Locale, step: Step, kind: RecordKind | null, loanId: 
 
 function StepIndicator({ locale, step, kind, loanId }: { locale: Locale; step: Step; kind: RecordKind | null; loanId: string | null }) {
   const currentIndex = stepIndex(step);
+  const visibleSteps = STEP_ORDER.filter((candidate) => {
+    if (candidate === 'category' || candidate === 'details') return kind !== null && kind !== 'transfer' && kind !== 'exchange' && kind !== 'repay';
+    if (candidate === 'wallet') return kind !== 'exchange';
+    return true;
+  });
   return (
     <div className="cr-record-steps" aria-label={t(locale, 'Progress', 'التقدم')}>
-      {STEP_ORDER.map((candidate, index) => {
-        // Skip category/details for flows that don't use them.
-        if (candidate === 'category' && (!kind || kind === 'transfer' || kind === 'exchange' || kind === 'repay')) return null;
-        if (candidate === 'details' && (!kind || kind === 'transfer' || kind === 'exchange' || kind === 'repay')) return null;
-        if (candidate === 'wallet' && kind === 'exchange') return null; // wallet step is split into two picks
+      {visibleSteps.map((candidate, index) => {
         let state: 'done' | 'current' | 'upcoming';
-        if (index < currentIndex) state = 'done';
-        else if (index === currentIndex) state = 'current';
+        if (stepIndex(candidate) < currentIndex) state = 'done';
+        else if (stepIndex(candidate) === currentIndex) state = 'current';
         else state = 'upcoming';
         return (
           <span key={candidate} className={`cr-record-step cr-record-step--${state}`}>
-            <span className="cr-record-step-dot" />
+            <span className="cr-record-step-dot" aria-hidden="true">{index + 1}</span>
             <span className="cr-record-step-label">{stepLabel(locale, candidate, kind, loanId)}</span>
           </span>
         );
@@ -249,6 +254,8 @@ function StepContent({ step, children }: { step: Step; children: ReactNode }) {
 export function RecordSheet(props: RecordSheetProps) {
   const { locale } = props;
   const [kind, setKind] = useState<RecordKind | null>(null);
+  const [typeConfirmed, setTypeConfirmed] = useState(false);
+  const [compact, setCompact] = useState(isCompactViewport);
   const [display, setDisplay] = useState('');
   const [usdDisplay, setUsdDisplay] = useState('');
   const [lbpDisplay, setLbpDisplay] = useState('');
@@ -275,6 +282,14 @@ export function RecordSheet(props: RecordSheetProps) {
   const [walletPickError, setWalletPickError] = useState<string | null>(null);
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const openerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const query = window.matchMedia('(max-width: 599px)');
+    const update = () => setCompact(query.matches);
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
 
   const resetFlow = () => {
     setDisplay('');
@@ -309,7 +324,8 @@ export function RecordSheet(props: RecordSheetProps) {
   useLayoutEffect(() => {
     if (!props.open) return;
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setKind(props.initialKind ?? null);
+    setKind(props.initialKind ?? (isCompactViewport() ? 'expense' : null));
+    setTypeConfirmed(props.initialKind != null);
     resetFlow();
     sheetRef.current?.focus();
     return () => { openerRef.current?.focus(); };
@@ -338,8 +354,10 @@ export function RecordSheet(props: RecordSheetProps) {
   }, [amountDone, kind, props.wallets, props.rememberedWalletId, display]);
 
   const pickKind = (next: RecordKind) => {
+    if (next === kind) return;
     resetFlow();
     setKind(next);
+    setTypeConfirmed(false);
   };
 
   const wallet = useMemo(
@@ -399,7 +417,7 @@ export function RecordSheet(props: RecordSheetProps) {
     /^\d+(\.\d{1,2})?$/.test(usdDisplay.trim()) && /^\d+$/.test(lbpDisplay.trim());
 
   const step: Step = (() => {
-    if (!kind) return 'type';
+    if (!kind || (!compact && !typeConfirmed)) return 'type';
     if (kind === 'exchange') {
       if (!amountDone) return 'amount';
       if (!walletId || !destWalletId) return 'wallet';
@@ -416,6 +434,7 @@ export function RecordSheet(props: RecordSheetProps) {
     if ((isCategorizedKind(kind) || isLoanKind(kind)) && !detailsDone) return 'details';
     return 'confirm';
   })();
+  const mobileEntry = compact && (kind === 'expense' || kind === 'income');
 
   if (!props.open) return null;
 
@@ -447,7 +466,10 @@ export function RecordSheet(props: RecordSheetProps) {
         break;
       case 'amount':
         if (kind === 'repay' && loanId !== null) setLoanId(null);
-        else setKind(null);
+        else {
+          setKind(null);
+          setTypeConfirmed(false);
+        }
         setDisplay('');
         setUsdDisplay('');
         setLbpDisplay('');
@@ -529,7 +551,22 @@ export function RecordSheet(props: RecordSheetProps) {
   };
 
   const submit = async () => {
-    if (!kind || !flowReady() || submitting || props.pending) return;
+    if (!kind || submitting || props.pending) return;
+    if (mobileEntry) {
+      if (!amountFitsCurrency(display, wallet?.currency ?? 'USD')) {
+        setSubmitError(t(locale, 'Enter a valid positive amount', 'أدخل مبلغًا موجبًا صالحًا'));
+        return;
+      }
+      if (!wallet) {
+        setSubmitError(t(locale, 'Choose a wallet', 'اختر محفظة'));
+        return;
+      }
+      if (!effectiveDate) {
+        setSubmitError(t(locale, 'Choose a date', 'اختر تاريخًا'));
+        return;
+      }
+    }
+    if (!flowReady()) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -874,30 +911,87 @@ export function RecordSheet(props: RecordSheetProps) {
     </div>
   );
 
+  const renderTypeGrid = () => (
+    <div className="cr-type-grid" role="group" aria-label={t(locale, 'Record type', 'نوع القيد')}>
+      {TILES.map((tile) => {
+        const Icon = tile.icon;
+        const disabled = tile.kind === 'exchange' && !props.exchangeAvailable;
+        return (
+          <button
+            key={tile.kind}
+            type="button"
+            className="cr-type-tile"
+            aria-label={t(locale, tile.en, tile.ar)}
+            aria-describedby={`cr-type-description-${tile.kind}`}
+            aria-pressed={kind === tile.kind}
+            disabled={disabled}
+            title={disabled
+              ? t(locale, 'Connect this browser to its data service to record exchanges.', 'اربط هذا المتصفح بخدمة البيانات لتسجيل الصرافة.')
+              : undefined}
+            onClick={() => pickKind(tile.kind)}
+          >
+            <Icon size={32} aria-hidden="true" />
+            <strong>{t(locale, tile.en, tile.ar)}</strong>
+            <span id={`cr-type-description-${tile.kind}`} className="cr-type-description">{t(locale, tile.descriptionEn, tile.descriptionAr)}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const renderMobileEntry = () => {
+    if (kind !== 'expense' && kind !== 'income') return null;
+    const categories = props.categoryTree
+      .filter((root) => root.kind === kind)
+      .flatMap((root) => [root, ...root.children]);
+    const saveDisabled = props.pending || submitting;
+    return <div className="cr-record-mobile-entry">
+      {renderTypeGrid()}
+      <form className="cr-record-mobile-form" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+        <label className="cr-label">
+          {t(locale, 'Amount', 'المبلغ')}
+          <input type="text" inputMode="decimal" placeholder="0.00" value={display} onChange={(event) => setDisplay(event.target.value.replace(/[^0-9.]/g, ''))} />
+        </label>
+        <label className="cr-label">
+          {t(locale, 'Wallet', 'المحفظة')}
+          <select value={walletId ?? ''} onChange={(event) => setWalletId(event.target.value || null)}>
+            <option value="">{t(locale, 'Select a wallet', 'اختر محفظة')}</option>
+            {props.wallets.map((candidate) => <option key={candidate.id} value={candidate.id} dir="auto">{candidate.name} · {candidate.currency}</option>)}
+          </select>
+        </label>
+        <label className="cr-label">
+          {t(locale, 'Category', 'الفئة')}
+          <select value={categoryId ?? ''} onChange={(event) => setCategoryId(event.target.value || null)}>
+            <option value="">{t(locale, 'Select a category', 'اختر فئة')}</option>
+            {categories.map((candidate) => <option key={candidate.id} value={candidate.id} dir="auto">{categoryName(candidate, locale)}</option>)}
+          </select>
+        </label>
+        <label className="cr-label">
+          {t(locale, 'Date', 'التاريخ')}
+          <input type="date" value={effectiveDate} onChange={(event) => setEffectiveDate(event.target.value)} />
+        </label>
+        <label className="cr-label">
+          {t(locale, 'Note (optional)', 'ملاحظة (اختيارية)')}
+          <input type="text" placeholder={t(locale, 'Add a note', 'أضف ملاحظة')} value={note} onChange={(event) => setNote(event.target.value)} />
+        </label>
+        {submitError ? <div className="cr-sheet-error" role="alert"><span className="cr-danger-text">{submitError}</span></div> : null}
+        <button type="submit" className="cr-button cr-button--primary cr-button--block" disabled={saveDisabled}>
+          {kind === 'expense' ? t(locale, 'Save expense', 'حفظ المصروف') : t(locale, 'Save income', 'حفظ الدخل')}
+        </button>
+      </form>
+    </div>;
+  };
+
   const renderStep = () => {
     switch (step) {
       case 'type':
         return (
-          <div className="cr-type-grid" role="group" aria-label={t(locale, 'Record type', 'نوع القيد')}>
-            {TILES.map((tile) => {
-              const Icon = tile.icon;
-              const disabled = tile.kind === 'exchange' && !props.exchangeAvailable;
-              return (
-                <button
-                  key={tile.kind}
-                  type="button"
-                  className="cr-type-tile"
-                  disabled={disabled}
-                  title={disabled
-                    ? t(locale, 'Connect this browser to its data service to record exchanges.', 'اربط هذا المتصفح بخدمة البيانات لتسجيل الصرافة.')
-                    : undefined}
-                  onClick={() => pickKind(tile.kind)}
-                >
-                  <Icon size={20} aria-hidden="true" />
-                  {t(locale, tile.en, tile.ar)}
-                </button>
-              );
-            })}
+          <div className="cr-record-type-stage">
+            {renderTypeGrid()}
+            <div className="cr-record-type-footer">
+              <button type="button" className="text-button" onClick={props.onClose}>{t(locale, 'Cancel', 'إلغاء')}</button>
+              <button type="button" className="cr-button cr-button--primary" disabled={!kind} onClick={() => setTypeConfirmed(true)}>{t(locale, 'Continue', 'متابعة')}</button>
+            </div>
           </div>
         );
       case 'amount':
@@ -993,6 +1087,7 @@ export function RecordSheet(props: RecordSheetProps) {
 
 
   const currentStepIndex = stepIndex(step);
+  const visualTypeStage = step === 'type' || mobileEntry;
   const stepTitle = (() => {
     switch (step) {
       case 'type': return t(locale, 'Record', 'سجّل');
@@ -1010,7 +1105,7 @@ export function RecordSheet(props: RecordSheetProps) {
     <div className="cr-sheet-backdrop" onClick={props.onClose}>
       <div
         ref={sheetRef}
-        className="cr-sheet cr-record-sheet"
+        className={`cr-sheet cr-record-sheet${visualTypeStage ? ' cr-record-sheet--type' : ''}${mobileEntry ? ' cr-record-sheet--mobile-entry' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-label={t(locale, 'Record', 'تسجيل')}
@@ -1020,22 +1115,26 @@ export function RecordSheet(props: RecordSheetProps) {
       >
         <header className="cr-record-header">
           <div className="cr-record-header-row">
-            {step !== 'type' ? (
+            {!visualTypeStage ? (
               <button type="button" className="cr-button cr-button--sm cr-record-back" onClick={goBack}>
                 {t(locale, 'Back', 'رجوع')}
               </button>
             ) : <span />}
-            <h2>{stepTitle}</h2>
+            <h2>{visualTypeStage ? <><span className="cr-record-title-desktop">{t(locale, 'Record', 'سجّل')}</span><span className="cr-record-title-mobile">{t(locale, 'Record a transaction', 'سجّل معاملة')}</span></> : stepTitle}</h2>
             <button type="button" className="cr-button cr-button--sm cr-record-close" aria-label={t(locale, 'Close', 'إغلاق')} onClick={props.onClose}>×</button>
           </div>
-          <StepIndicator locale={locale} step={step} kind={kind} loanId={loanId} />
+          <StepIndicator locale={locale} step={visualTypeStage ? 'type' : step} kind={kind} loanId={loanId} />
+          {visualTypeStage ? <div className="cr-record-type-intro">
+            <h3>{t(locale, 'What happened?', 'ماذا حدث؟')}</h3>
+            <p>{t(locale, 'Choose what happened to your money.', 'اختر ما حدث لأموالك.')}</p>
+          </div> : null}
         </header>
         {props.error ? (
           <div className="cr-sheet-error" role="alert">
             <span className="cr-danger-text">{props.error}</span>
           </div>
         ) : null}
-        <StepContent step={step}>{renderStep()}</StepContent>
+        <StepContent step={visualTypeStage ? 'type' : step}>{mobileEntry ? renderMobileEntry() : renderStep()}</StepContent>
         {walletPickError ? (
           <div className="cr-sheet-error" role="alert">
             <span className="cr-danger-text">{walletPickError}</span>

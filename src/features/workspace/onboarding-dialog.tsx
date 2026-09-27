@@ -1,4 +1,6 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { UserRound, UsersRound } from 'lucide-react';
+import onboardingBackdrop from '../../assets/onboarding-lifestyle-backdrop.png';
 import type { Currency, Locale, SpaceKind } from '../loans/types.js';
 import type { CreateSpaceInput, CreateWalletInput, CreatedRecord } from './types.js';
 
@@ -21,11 +23,17 @@ const copy = {
     personalPrivate: 'A personal space is private. Only you can see its wallets, loans and data.',
     spaceName: 'Space name', currencyLabel: 'Choose a currency',
     spaceNameHint: 'e.g. Home', walletNameHint: 'e.g. Cash',
+    spaceExamples: 'For example: My money or Our home.',
     personalAction: 'Create personal space', householdAction: 'Create household space',
+    combinedAction: 'Create space and wallet', walletRequired: 'Enter a wallet name between 1 and 120 characters.',
+    mobileWalletTitle: 'Set up your first wallet',
+    mobileWalletHint: 'This will be the first wallet in your space. You can add more later.',
     walletTitle: 'Add your first wallet', walletIntro: 'Choose the currency you use first. You can add more wallets later.',
     walletName: 'Wallet name', walletAction: (currency: Currency) => `Create ${currency} wallet`,
     householdLater: 'After setup, invite members from Manage > Household.',
     required: 'Enter a name between 1 and 120 characters.', working: 'Checking your setup…',
+    sceneTitle: 'A clearer picture for a brighter tomorrow',
+    sceneBody: 'Track your money. Stay in control. Build the life you want.',
   },
   ar: {
     product: 'دفتر الميزانية', progress: 'تقدّم الإعداد', stepSpace: 'المساحة', stepWallet: 'المحفظة الأولى',
@@ -37,11 +45,17 @@ const copy = {
     personalPrivate: 'المساحة الشخصية خاصة. أنت وحدك من يرى محافظها وقروضها وبياناتها.',
     spaceName: 'اسم المساحة', currencyLabel: 'اختر العملة',
     spaceNameHint: 'مثال: المنزل', walletNameHint: 'مثال: نقد',
+    spaceExamples: 'مثال: أموالي أو منزلنا.',
     personalAction: 'إنشاء مساحة شخصية', householdAction: 'إنشاء مساحة منزلية',
+    combinedAction: 'إنشاء المساحة والمحفظة', walletRequired: 'أدخل اسمًا للمحفظة من 1 إلى 120 حرفًا.',
+    mobileWalletTitle: 'أعدّ محفظتك الأولى',
+    mobileWalletHint: 'ستكون هذه أول محفظة في مساحتك. يمكنك إضافة المزيد لاحقًا.',
     walletTitle: 'أضف محفظتك الأولى', walletIntro: 'اختر العملة التي تستخدمها أولًا. يمكنك إضافة محافظ أخرى لاحقًا.',
     walletName: 'اسم المحفظة', walletAction: (currency: Currency) => `إنشاء محفظة ${currency}`,
     householdLater: 'بعد الإعداد، يمكنك دعوة الأعضاء من صفحة المنزل ضمن إدارة.',
     required: 'أدخل اسمًا من 1 إلى 120 حرفًا.', working: 'جارٍ التحقق من الإعداد…',
+    sceneTitle: 'صورة أوضح لغد أفضل',
+    sceneBody: 'تابع أموالك. حافظ على التحكم. وابنِ الحياة التي تريدها.',
   },
 } as const;
 
@@ -59,9 +73,19 @@ export function OnboardingDialog({ locale, mode = 'first', createSpace, createWa
   const [walletName, setWalletName] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [compact, setCompact] = useState(() => typeof window !== 'undefined' && window.matchMedia?.('(max-width: 700px)').matches === true);
   const dialogRef = useRef<HTMLElement>(null);
   const personalDescriptionId = useId();
   const householdDescriptionId = useId();
+  const combinedSetup = compact && mode === 'first';
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const query = window.matchMedia('(max-width: 700px)');
+    const update = () => setCompact(query.matches);
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -95,12 +119,27 @@ export function OnboardingDialog({ locale, mode = 'first', createSpace, createWa
       setError(text.required);
       return;
     }
+    const firstWalletName = walletName.trim();
+    if (combinedSetup && (firstWalletName.length < 1 || firstWalletName.length > 120)) {
+      setError(text.walletRequired);
+      return;
+    }
     setPending(true);
     setError(null);
     try {
       const result = await createSpace({ name, kind });
       setSpaceId(result.id);
-      setStep('wallet');
+      if (!combinedSetup) {
+        setStep('wallet');
+        return;
+      }
+      try {
+        await createWallet({ spaceId: result.id, name: firstWalletName, currency });
+        onComplete(result.id);
+      } catch (cause) {
+        setStep('wallet');
+        throw cause;
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : text.required);
     } finally {
@@ -130,6 +169,11 @@ export function OnboardingDialog({ locale, mode = 'first', createSpace, createWa
   const spaceTitle = mode === 'additional' ? text.spaceTitleAdditional : text.spaceTitle;
   const title = step === 'space' ? spaceTitle : text.walletTitle;
   return <div className="overlay onboarding-overlay">
+    <div className="onboarding-scene" aria-hidden="true">
+      <img src={onboardingBackdrop} alt="" />
+      <div className="onboarding-scene-copy"><p className="onboarding-scene-title">{text.sceneTitle}</p><p className="onboarding-scene-body">{text.sceneBody}</p></div>
+    </div>
+    <div className="onboarding-scrim" aria-hidden="true" />
     <section ref={dialogRef} className="dialog dialog-setup onboarding-dialog" role="dialog" aria-modal="true" aria-labelledby="onboarding-title" onKeyDown={trapFocus}>
       <header className="dialog-header"><div><span className="auth-brand"><span className="auth-brand-mark" aria-hidden="true" />{text.product}</span><h1 id="onboarding-title">{title}</h1><p className="dialog-intro">{step === 'space' ? text.spaceIntro : text.walletIntro}</p></div></header>
       <ol className="onboarding-progress" aria-label={text.progress}>
@@ -139,13 +183,19 @@ export function OnboardingDialog({ locale, mode = 'first', createSpace, createWa
       {step === 'space' ? <form onSubmit={(event) => void submitSpace(event)}>
         <fieldset className="segmented onboarding-kind-options">
           <legend>{text.chooseKind}</legend>
-          <label><input type="radio" name="space-kind" aria-label={text.personal} aria-describedby={personalDescriptionId} checked={kind === 'personal'} onChange={() => setKind('personal')} /><span><strong>{text.personal}</strong><small id={personalDescriptionId}>{text.personalDescription}</small></span></label>
-          <label><input type="radio" name="space-kind" aria-label={text.household} aria-describedby={householdDescriptionId} checked={kind === 'household'} onChange={() => setKind('household')} /><span><strong>{text.household}</strong><small id={householdDescriptionId}>{text.householdDescription}</small></span></label>
+          <label><input type="radio" name="space-kind" aria-label={text.personal} aria-describedby={personalDescriptionId} checked={kind === 'personal'} onChange={() => setKind('personal')} /><UserRound className="onboarding-kind-icon" aria-hidden="true" /><span><strong>{text.personal}</strong><small id={personalDescriptionId}>{text.personalDescription}</small></span></label>
+          <label><input type="radio" name="space-kind" aria-label={text.household} aria-describedby={householdDescriptionId} checked={kind === 'household'} onChange={() => setKind('household')} /><UsersRound className="onboarding-kind-icon" aria-hidden="true" /><span><strong>{text.household}</strong><small id={householdDescriptionId}>{text.householdDescription}</small></span></label>
         </fieldset>
         <label className="onboarding-name-field">{text.spaceName}<input autoComplete="off" maxLength={120} placeholder={text.spaceNameHint} value={spaceName} onChange={(event) => setSpaceName(event.target.value)} /></label>
+        <p className="onboarding-name-hint">{text.spaceExamples}</p>
+        {combinedSetup ? <div className="onboarding-mobile-wallet">
+          <h2>{text.mobileWalletTitle}</h2>
+          <input aria-label={text.walletName} autoComplete="off" maxLength={120} placeholder={text.walletNameHint} value={walletName} onChange={(event) => setWalletName(event.target.value)} />
+          <p className="onboarding-name-hint">{text.mobileWalletHint}</p>
+        </div> : null}
         {error ? <div className="error-notice" role="alert">{error}</div> : null}
         {pending ? <div role="status">{text.working}</div> : null}
-        <div className="dialog-actions"><button type="submit" className="cr-button cr-button--primary cr-button--block" disabled={pending}>{kind === 'personal' ? text.personalAction : text.householdAction}</button></div>
+        <div className="dialog-actions"><button type="submit" className="cr-button cr-button--primary cr-button--block" disabled={pending}>{combinedSetup ? text.combinedAction : kind === 'personal' ? text.personalAction : text.householdAction}</button></div>
         {kind === 'personal' ? <p className="onboarding-privacy">{text.personalPrivate}</p> : null}
       </form> : <form onSubmit={(event) => void submitWallet(event)}>
         {kind === 'household' ? <p className="onboarding-boundary">{text.householdLater}</p> : null}

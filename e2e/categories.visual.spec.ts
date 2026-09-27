@@ -55,8 +55,9 @@ test('desktop category register separates active income and expense labels', asy
   const actionsBox = await essentialsRow.locator('.category-actions').boundingBox();
   expect(nameBox).not.toBeNull();
   expect(actionsBox).not.toBeNull();
-  const overlap = Math.min(nameBox!.x + nameBox!.width, actionsBox!.x + actionsBox!.width) - Math.max(nameBox!.x, actionsBox!.x);
-  expect(overlap).toBeLessThanOrEqual(0);
+  const overlapInline = Math.min(nameBox!.x + nameBox!.width, actionsBox!.x + actionsBox!.width) - Math.max(nameBox!.x, actionsBox!.x);
+  const overlapBlock = Math.min(nameBox!.y + nameBox!.height, actionsBox!.y + actionsBox!.height) - Math.max(nameBox!.y, actionsBox!.y);
+  expect(Math.min(overlapInline, overlapBlock)).toBeLessThanOrEqual(0);
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-category-register.png'), fullPage: true });
 });
 
@@ -266,7 +267,7 @@ test('mobile category tabs and dialog remain contained with accessible targets',
   await page.screenshot({ path: screenshotPath(testInfo, 'mobile-create-subcategory.png') });
   await page.keyboard.press('Escape');
   await chooseWorkspaceDestination(page, 'Wallets');
-  await page.getByRole('button', { name: 'Add transaction' }).click();
+  await page.getByRole('button', { name: 'Record transaction', exact: true }).click();
   const transactionDialog = page.getByRole('dialog', { name: 'Add a transaction' });
   await expectMinimumControlSize(transactionDialog);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
