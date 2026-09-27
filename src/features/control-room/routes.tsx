@@ -778,6 +778,7 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
   }, [gateways.recurring, spaceId, showSettleOutcome]);
   const loans = useLoans(gateways.loans, {
     spaceId,
+    month,
     ...(props.onSpaceUnavailable ? { onSpaceUnavailable: props.onSpaceUnavailable } : {}),
     onRepaymentRecorded,
   });

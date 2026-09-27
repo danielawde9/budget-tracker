@@ -44,6 +44,24 @@ import { createSupabaseReportsGateway } from './features/reports/supabase-report
 import type { ReportsGateway } from './features/reports/types.js';
 import { WorkspaceSkeleton } from './features/control-room/skeletons.js';
 
+const LOCALE_STORAGE_KEY = 'budget:locale';
+
+function readStoredLocale(): Locale {
+  try {
+    return localStorage.getItem(LOCALE_STORAGE_KEY) === 'ar' ? 'ar' : 'en';
+  } catch {
+    return 'en';
+  }
+}
+
+function persistLocale(locale: Locale): void {
+  try {
+    localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+  } catch {
+    // Storage can be unavailable; the in-memory choice still applies.
+  }
+}
+
 const unavailableReportsGateway: ReportsGateway = {
   async loadMonthlyComparison() { throw new Error('Reports are unavailable until this browser is connected to its data service.'); },
 };
@@ -180,8 +198,24 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
   if (workspace.status === 'error') {
     return <main className="workspace-state-page"><section className="state-panel error-notice" role="alert"><strong>Spaces are unavailable</strong><p>{workspace.error}</p><button type="button" onClick={() => void workspace.refresh()}>Try again</button></section></main>;
   }
-  if (workspace.status === 'empty') {
-    return <OnboardingDialog locale={props.locale} createSpace={workspace.createFirstSpace} createWallet={workspace.createFirstWallet} onComplete={() => undefined} />;
+  if (workspace.status === 'empty' || workspace.status === 'onboarding') {
+    return <OnboardingDialog
+      locale={props.locale}
+      setup={workspace.onboardingSetup}
+      createSpace={workspace.createFirstSpace}
+      createWallet={workspace.createFirstWallet}
+      onProgress={workspace.saveOnboardingProgress}
+      recordOpeningBalance={async (input) => {
+        await props.walletsGateway.recordEvent({
+          spaceId: input.spaceId,
+          requestId: input.requestId,
+          kind: 'opening_balance',
+          effectiveDate: new Date().toISOString().slice(0, 10),
+          movements: [{ walletId: input.walletId, amountMinor: input.amountMinor }],
+        });
+      }}
+      onComplete={(spaceId) => { void workspace.finishOnboarding(spaceId); }}
+    />;
   }
   if (!workspace.selectedSpace) return null;
 
@@ -191,6 +225,7 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
       mode="additional"
       createSpace={workspace.createFirstSpace}
       createWallet={workspace.createFirstWallet}
+      onClose={() => setAddingSpace(false)}
       onComplete={(spaceId) => {
         setAddingSpace(false);
         void workspace.refresh(spaceId);
@@ -249,8 +284,16 @@ interface ConfiguredAppProps extends Omit<Required<AppProps>, 'householdInvitati
 
 function ConfiguredApp({ authGateway, categoriesGateway, householdGateway, householdInvitationBootstrap, loansGateway, walletsGateway, reportsGateway, workspaceGateway, planClient, insightsClient, exchangeClient, allocationGateway, goalsGateway, recurringGateway, cashControlGateway }: ConfiguredAppProps) {
   const auth = useAuthSession(authGateway);
-  const [locale, setLocale] = useState<Locale>('en');
+  const [locale, setLocale] = useState<Locale>(() => readStoredLocale());
   const [householdInvitationToken, setHouseholdInvitationToken] = useState(() => householdInvitationBootstrap?.take() ?? null);
+
+  const onLocaleChange = useCallback(() => {
+    setLocale((current) => {
+      const next: Locale = current === 'en' ? 'ar' : 'en';
+      persistLocale(next);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -268,7 +311,7 @@ function ConfiguredApp({ authGateway, categoriesGateway, householdGateway, house
       confirmationEmail={auth.confirmationEmail}
       error={auth.error}
       pending={auth.pending}
-      onLocaleChange={() => setLocale((current) => current === 'en' ? 'ar' : 'en')}
+      onLocaleChange={onLocaleChange}
       onSignIn={auth.signIn}
       onSignUp={auth.signUp}
       onBack={auth.dismissConfirmation}
@@ -295,7 +338,7 @@ function ConfiguredApp({ authGateway, categoriesGateway, householdGateway, house
     goalsGateway={goalsGateway}
     recurringGateway={recurringGateway}
     cashControlGateway={cashControlGateway}
-    onLocaleChange={() => setLocale((current) => current === 'en' ? 'ar' : 'en')}
+    onLocaleChange={onLocaleChange}
     onHouseholdInvitationConsumed={() => setHouseholdInvitationToken(null)}
     onSignOut={() => void auth.signOut()}
   />;
