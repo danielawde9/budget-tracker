@@ -1,5 +1,4 @@
 import type { Locale } from '../loans/types.js';
-import { formatMinorAmount } from '../wallets/money.js';
 import type { AutoSettleOutcome } from './auto-settle.js';
 import { billCount } from './bill-count.js';
 import { localizeRecurringError } from './errors.js';
@@ -16,14 +15,6 @@ function noticeBody(outcome: Exclude<AutoSettleOutcome, { status: 'none' }>, loc
   switch (outcome.status) {
     case 'settled': {
       const name = locale === 'ar' ? (outcome.nameAr ?? outcome.nameEn) : (outcome.nameEn ?? outcome.nameAr);
-      if (outcome.unallocatedMinor && outcome.currency) {
-        // An over-payment: the bill is paid and the surplus is stated, not
-        // silently reassigned to another bill (D3).
-        const over = formatMinorAmount(outcome.unallocatedMinor, outcome.currency, locale);
-        return locale === 'ar'
-          ? <>تم تعليم «<bdi>{name}</bdi>» كمدفوعة. كانت هذه الدفعة أكبر من المبلغ المتبقي بمقدار <bdi>{over}</bdi>.</>
-          : <>Marked "<bdi>{name}</bdi>" as paid. This payment was <bdi>{over}</bdi> more than the amount still due.</>;
-      }
       if (outcome.remainsDue) {
         // A payment smaller than what the bill still owed (a partial bill
         // payment, D3, or a loan repayment smaller than its instalment, M3)

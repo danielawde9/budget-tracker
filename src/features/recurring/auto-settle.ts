@@ -24,17 +24,15 @@ export type AutoSettleOutcome =
   // partial payment smaller than what the bill still owed (D3), or a loan
   // repayment smaller than its instalment (final review M3). The notice must
   // not call that "paid".
-  // `unallocatedMinor`/`currency`: an overpayment larger than the bill's
-  // remaining amount. The bill is settled in full and the surplus is reported
-  // rather than guessed onto another bill; the amount is in `currency`.
+  // An amount larger than the bill still owes is never auto-linked (the bill
+  // cannot absorb it and it may belong elsewhere), so no surplus is reported
+  // here; only an exact or partial payment reaches this outcome.
   | {
       readonly status: 'settled';
       readonly occurrenceId: string;
       readonly nameEn: string | null;
       readonly nameAr: string | null;
       readonly remainsDue: boolean;
-      readonly unallocatedMinor?: string;
-      readonly currency?: Currency;
     }
   | { readonly status: 'none' }
   // Two or more schedules look like this entry; none is guessed (review focus #4).
@@ -110,14 +108,13 @@ export async function loadSettleCandidates(
  * bound is the ceiling for future-dated candidates (entry date + 31 days);
  * overdue occurrences of any age are candidates.
  *
- * A partial or over-payment (D3) has no exact-remaining look-alike at all, so
- * when zero schedules are look-alikes the matcher falls back to the schedules
- * it filtered (each contributing its oldest unpaid occurrence): exactly one is
- * the one that payment belongs to -- a smaller amount settles it partially, a
- * larger one settles it and leaves a reported surplus -- and two or more stay
- * `ambiguous` rather than being guessed. The caller (`autoSettleRecordedEvent`)
- * derives the link amount (`min(entry, remaining)`) and whether a remainder
- * stays due from the matched occurrence's own remaining amount. */
+ * A partial payment (D3) has no exact-remaining look-alike at all, so when zero
+ * schedules are look-alikes the matcher falls back to the schedules it filtered
+ * (each contributing its oldest unpaid occurrence): exactly one that still owes
+ * MORE than the entry is a partial payment of it; two or more stay `ambiguous`
+ * rather than being guessed, and an entry larger than the bill's remainder is
+ * refused. The caller derives the link amount (`min(entry, remaining)`) and
+ * whether a remainder stays due from the matched occurrence's remaining. */
 export function findSettleableOccurrence(
   recorded: RecordedEventForMatching,
   occurrences: readonly ScheduledOccurrenceRow[],
@@ -152,10 +149,16 @@ export function findSettleableOccurrence(
     if (only.oldest.remainingMinor !== recorded.amountMinor) return { kind: 'none' };
     return { kind: 'match', occurrence: only.oldest };
   }
-  // No exact-remaining look-alike anywhere: a partial or over-payment.
+  // No exact-remaining look-alike anywhere: a SMALLER amount is a partial
+  // payment of the one plausible bill. A LARGER amount is refused -- the bill
+  // cannot absorb it and it may belong elsewhere, so it stays for the manual
+  // linking path ("a non-matching expense leaves the bill pending",
+  // e2e/auto-settle.spec.ts).
   if (schedules.length > 1) return { kind: 'ambiguous', scheduleCount: schedules.length };
   const [fallback] = schedules;
-  return fallback ? { kind: 'match', occurrence: fallback.oldest } : { kind: 'none' };
+  if (!fallback) return { kind: 'none' };
+  if (BigInt(recorded.amountMinor) > BigInt(fallback.oldest.remainingMinor)) return { kind: 'none' };
+  return { kind: 'match', occurrence: fallback.oldest };
 }
 
 /**
@@ -167,9 +170,9 @@ export function findSettleableOccurrence(
  * outcome is returned so the caller can tell the person what happened.
  *
  * The amount may be smaller than the bill's remaining amount (a partial
- * payment links what was paid) or larger (an overpayment settles the bill in
- * full and reports the surplus), never guessing which other bill it belongs
- * to (D3). The link is retried once on an uncertain transport failure (D7).
+ * payment links what was paid); an amount larger than the bill still owes is
+ * never auto-linked, so it stays for the manual path. The link is retried once
+ * on an uncertain transport failure (D7).
  */
 export async function autoSettleRecordedEvent(
   gateway: RecurringGateway,
@@ -190,8 +193,7 @@ export async function autoSettleRecordedEvent(
     const amount = BigInt(recorded.amountMinor);
     const remaining = BigInt(match.remainingMinor);
     // Never link more than the bill still owes: a partial payment links the
-    // amount paid, an over-payment settles the remainder and leaves the
-    // surplus reported rather than assigned to another bill (D3).
+    // amount paid (an over-payment is refused before reaching here).
     const linkAmountMinor = (remaining < amount ? remaining : amount).toString();
     await linkScheduledPaymentWithRetry(gateway, {
       spaceId,
@@ -207,7 +209,6 @@ export async function autoSettleRecordedEvent(
       nameEn: match.nameEn,
       nameAr: match.nameAr,
       remainsDue: remaining > amount,
-      ...(amount > remaining ? { unallocatedMinor: (amount - remaining).toString(), currency: recorded.currency } : {}),
     };
   } catch (cause) {
     return { status: 'failed', error: classifyRecurringError(cause) };

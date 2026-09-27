@@ -83,25 +83,6 @@ describe('SettleNoticeBanner', () => {
     expect(arabic).not.toHaveTextContent('كمدفوعة');
   });
 
-  // D3: an over-payment settles the bill and states the surplus honestly.
-  it('states the unallocated surplus of an over-payment in both locales', () => {
-    const outcome = {
-      status: 'settled', occurrenceId: 'occ-1', nameEn: 'Rent', nameAr: 'إيجار',
-      remainsDue: false, unallocatedMinor: '4000', currency: 'USD',
-    } as const;
-    const { unmount } = render(<SettleNoticeBanner locale="en" outcome={outcome} onDismiss={vi.fn()} />);
-    expect(screen.getByRole('status')).toHaveTextContent(
-      'Marked "Rent" as paid. This payment was $40.00 more than the amount still due.',
-    );
-    unmount();
-    render(<SettleNoticeBanner locale="ar" outcome={outcome} onDismiss={vi.fn()} />);
-    const arabic = screen.getByRole('status');
-    expect(arabic).toHaveTextContent('تم تعليم «إيجار» كمدفوعة. كانت هذه الدفعة أكبر من المبلغ المتبقي بمقدار ٤٠٫٠٠');
-    // The sentence itself is Arabic; the only Latin text is the currency code
-    // `formatMinorAmount` appends everywhere (as in every other amount cell).
-    expect(arabic.textContent?.replace('USD', '').replace('تجاهل', '')).not.toMatch(/[A-Za-z]/);
-  });
-
   it('says "paid" when the link paid the bill in full', () => {
     render(<SettleNoticeBanner locale="en" outcome={{ status: 'settled', occurrenceId: 'occ-1', nameEn: 'Rent', nameAr: null, remainsDue: false }} onDismiss={vi.fn()} />);
     expect(screen.getByRole('status')).toHaveTextContent('Marked "Rent" as paid.');
