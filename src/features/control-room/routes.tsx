@@ -16,6 +16,7 @@ import type { ExchangeClient } from '../exchange/types.js';
 import { GoalsPage } from '../goals/goals-page.js';
 import type { GoalsGateway } from '../goals/types.js';
 import { useGoals } from '../goals/use-goals.js';
+import { useGoalMonthlyTargetLines } from '../goals/use-goal-monthly-targets.js';
 import type { HouseholdGateway } from '../household/types.js';
 import type { RecurringGateway } from '../recurring/types.js';
 import { AutoMaterializeBanner } from '../recurring/auto-materialize-banner.js';
@@ -368,8 +369,10 @@ function AllocationCurrencySection(props: {
   plannedIncomeRevisionId: string | null;
   onPublished(): void;
   onSpaceUnavailable?: (() => void) | undefined;
+  goalsGateway: GoalsGateway | null;
 }) {
   const allocation = useAllocation(props.gateway, props.spaceId, props.month, props.currency, props.onSpaceUnavailable);
+  const goalLines = useGoalMonthlyTargetLines(props.goalsGateway, props.spaceId, props.currency, props.month);
   return (
     <section className="cr-card" aria-label={`${props.locale === 'ar' ? 'التخصيص' : 'Allocation'} ${props.currency}`}>
       <AllocationSetup
@@ -378,6 +381,7 @@ function AllocationCurrencySection(props: {
         month={props.month}
         categories={props.categories}
         categoryTargets={props.categoryTargets}
+        goalLines={goalLines}
         monthlyPlanIncomeMinor={props.plannedIncomeMinor}
         monthlyPlanIncomeRevisionId={props.plannedIncomeRevisionId}
         allocation={allocation}
@@ -662,6 +666,7 @@ function PlanRoutes(props: PlanRoutesProps) {
           month={props.month}
           currency={currency}
           gateway={gateways.allocation ?? unavailableAllocationGateway}
+          goalsGateway={gateways.goals ?? null}
           categories={props.expenseRootCategories}
           categoryTargets={categoryTargetsByCurrency.get(currency) ?? new Map()}
           plannedIncomeMinor={plannedIncomeByCurrency[currency]}
