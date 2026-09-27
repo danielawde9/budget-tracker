@@ -245,6 +245,20 @@ export interface SetMonthlyTargetResult {
   readonly revisionId: string;
 }
 
+/** A goal's monthly target for one plan month, as the allocation publish needs
+ * it: the amount to snapshot plus the `goal_monthly_target_revisions` head the
+ * command must check (`set_goal_monthly_target`'s expected revision). The head
+ * is only null when no target revision exists for that month yet. Mirrors
+ * `AllocationGoalTargetInput` minus the Future-group link, which is a
+ * publish-time property of `allocation_month_goal_lines`, not of the goal. */
+export interface GoalMonthlyTargetLine {
+  readonly goalId: string;
+  readonly nameEn: string | null;
+  readonly nameAr: string | null;
+  readonly amountMinor: string;
+  readonly expectedRevisionId: string | null;
+}
+
 export interface SetMilestoneInput {
   readonly spaceId: string;
   readonly requestId: string;

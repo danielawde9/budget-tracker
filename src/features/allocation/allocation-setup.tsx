@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Currency, Locale } from '../loans/types.js';
+import type { GoalMonthlyTargetLine } from '../goals/types.js';
 import { AllocationMonthEditor, type AllocationMonthEditorInitial, type CategoryOption } from './allocation-month-editor.js';
 import { AllocationOverview } from './allocation-overview.js';
 import { classifyAllocationError, localizeAllocationError } from './errors.js';
@@ -25,6 +26,10 @@ export interface AllocationSetupProps {
    * publishMonth's expected income head must be the Plan's, not the last
    * snapshot's (audit B2). */
   monthlyPlanIncomeRevisionId?: string | null;
+  /** The current month's goal monthly targets from the goal surface (audit
+   * C3/B6). When present and non-empty, Confirm publishes with
+   * `publishMonthV2` carrying them; otherwise it stays on v1. */
+  goalLines?: readonly GoalMonthlyTargetLine[] | undefined;
   allocation: ReturnType<typeof useAllocation>;
   gateway: AllocationGateway;
   /** Called once a publish succeeds. The publish wrote a new income revision
@@ -139,6 +144,7 @@ export function AllocationSetup(props: AllocationSetupProps) {
         categories={props.categories}
         initial={initial}
         plannedIncomeMinor={props.monthlyPlanIncomeMinor ?? null}
+        goalLines={props.goalLines}
         pending={allocation.pending}
         error={submitError ?? (allocation.error?.message ?? null)}
         onCancel={() => setEditing(false)}
@@ -159,7 +165,7 @@ export function AllocationSetup(props: AllocationSetupProps) {
               });
               if (templateOutcome.status === 'ambiguous') return;
               const templateResult = templateOutcome.result as SaveTemplateResult;
-              const publishOutcome = await allocation.publishMonth({
+              const publishInput = {
                 templateRevisionId: templateResult.templateRevisionId,
                 expectedSnapshotId: allocation.month.snapshotId,
                 // The Plan's current income revision, not the last-published
@@ -168,7 +174,14 @@ export function AllocationSetup(props: AllocationSetupProps) {
                 incomeMinor: submission.incomeMinor,
                 rootTargets: submission.rootTargets,
                 loanGroupId: submission.loanGroupId,
-              });
+              };
+              // A month with goal monthly targets must publish with the
+              // explicit v2 command that carries those lines (linked or
+              // standalone); a month without them keeps the unchanged v1
+              // command. Never an overload chosen ambiguously by shape.
+              const publishOutcome = submission.goalTargets.length > 0
+                ? await allocation.publishMonthV2({ ...publishInput, goalTargets: submission.goalTargets })
+                : await allocation.publishMonth(publishInput);
               void (publishOutcome.result as PublishMonthResult | undefined);
               if (publishOutcome.status === 'ambiguous') return;
               props.onPublished?.();

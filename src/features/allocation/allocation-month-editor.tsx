@@ -1,8 +1,9 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { Currency, Locale } from '../loans/types.js';
+import type { GoalMonthlyTargetLine } from '../goals/types.js';
 import { formatMinorAmount } from '../wallets/money.js';
 import { allocateIncome, basisPointsToPercentText, minorToMajorText, percentToBasisPoints } from './money-allocation.js';
-import type { AllocationRootMappingInput, AllocationRootTargetInput, AllocationTemplateGroupInput } from './types.js';
+import type { AllocationGoalTargetInput, AllocationRootMappingInput, AllocationRootTargetInput, AllocationTemplateGroupInput } from './types.js';
 
 const t = (locale: Locale, en: string, ar: string) => (locale === 'ar' ? ar : en);
 const residualId = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
@@ -72,6 +73,10 @@ export interface AllocationMonthEditorSubmission {
   readonly rootMappings: readonly AllocationRootMappingInput[];
   readonly rootTargets: readonly AllocationRootTargetInput[];
   readonly loanGroupId: string | null;
+  /** The month's goal monthly targets, each optionally linked to a Future
+   * group. Empty when no goal has a monthly target, in which case the publish
+   * stays on v1. */
+  readonly goalTargets: readonly AllocationGoalTargetInput[];
 }
 
 export interface AllocationMonthEditorProps {
@@ -84,6 +89,10 @@ export interface AllocationMonthEditorProps {
    * the income field and offered as a one-click fill when the entered income
    * diverges from it. */
   plannedIncomeMinor: string | null;
+  /** The current month's goal monthly targets (from the goal surface). When
+   * present, the publish must carry them (linked to a Future group or
+   * standalone), so the setup chooses publishMonthV2. */
+  goalLines?: readonly GoalMonthlyTargetLine[] | undefined;
   pending: boolean;
   error: string | null;
   onCancel(): void;
@@ -92,6 +101,11 @@ export interface AllocationMonthEditorProps {
 
 function categoryName(category: CategoryOption, locale: Locale): string {
   return (locale === 'ar' ? category.nameAr : category.nameEn) || category.nameEn || category.nameAr;
+}
+
+/** Goal display name, falling back to whichever language is present. */
+function goalLineName(line: GoalMonthlyTargetLine, locale: Locale): string {
+  return (locale === 'ar' ? line.nameAr : line.nameEn) ?? line.nameEn ?? line.nameAr ?? 'Goal';
 }
 
 function newGroupId(): string {
@@ -121,6 +135,14 @@ export function AllocationMonthEditor(props: AllocationMonthEditorProps) {
     return byId;
   });
   const [loanGroupId, setLoanGroupId] = useState<string | null>(initial.loanGroupId);
+  const goalLines = props.goalLines ?? [];
+  // A goal's Future-group link lives on the publish (`allocation_month_goal_lines.group_id`),
+  // never on the goal itself; `null` is the spec's standalone commitment.
+  const [goalLinks, setGoalLinks] = useState<Record<string, string | null>>(() => {
+    const links: Record<string, string | null> = {};
+    for (const line of props.goalLines ?? []) links[line.goalId] = null;
+    return links;
+  });
   const [formError, setFormError] = useState<string | null>(null);
   const [step, setStep] = useState<Step>('mode');
   const [stepError, setStepError] = useState<string | null>(null);
@@ -248,6 +270,9 @@ export function AllocationMonthEditor(props: AllocationMonthEditorProps) {
       try { amountMinor = parseNonnegativeMajorAmount(draft.amountMajorText, currency); } catch { amountMinor = '0'; }
       rootTargetInputs.push({ categoryId: draft.categoryId, amountMinor, expectedRevisionId: draft.expectedRevisionId });
     }
+    const goalTargetInputs: AllocationGoalTargetInput[] = goalLines.map((line) => ({
+      goalId: line.goalId, groupId: goalLinks[line.goalId] ?? null, amountMinor: line.amountMinor, expectedRevisionId: line.expectedRevisionId,
+    }));
     props.onSubmit({
       incomeMinor: parsedIncome.value,
       groups: mode === 'manual' ? [] : groups.map((group, index) => ({
@@ -257,6 +282,7 @@ export function AllocationMonthEditor(props: AllocationMonthEditorProps) {
       rootMappings,
       rootTargets: rootTargetInputs,
       loanGroupId: mode === 'manual' ? null : loanGroupId,
+      goalTargets: goalTargetInputs,
     });
   };
 
@@ -429,6 +455,27 @@ export function AllocationMonthEditor(props: AllocationMonthEditorProps) {
                 </select>
               </label>
             ) : null}
+
+            {goalLines.length > 0 ? (
+              <fieldset className="cr-choice">
+                <legend>{t(locale, 'Goal monthly targets', 'الأهداف الشهرية للأهداف')}</legend>
+                {goalLines.map((line) => (
+                  <label key={line.goalId} className="alloc-field">
+                    <bdi>{goalLineName(line, locale)}</bdi>
+                    <select
+                      aria-label={t(locale, `${goalLineName(line, locale)} future group`, `${goalLineName(line, locale)} مجموعة مستقبلية`)}
+                      value={goalLinks[line.goalId] ?? ''}
+                      onChange={(event) => setGoalLinks((current) => ({ ...current, [line.goalId]: event.target.value || null }))}
+                    >
+                      <option value="">{t(locale, 'Standalone', 'مستقل')}</option>
+                      {futureGroups.map((group) => (
+                        <option key={group.id} value={group.id}>{locale === 'ar' ? group.nameAr : group.nameEn}</option>
+                      ))}
+                    </select>
+                  </label>
+                ))}
+              </fieldset>
+            ) : null}
           </>
         ) : null}
 
@@ -491,6 +538,19 @@ export function AllocationMonthEditor(props: AllocationMonthEditorProps) {
                 <span>{loanGroup ? <bdi>{locale === 'ar' ? loanGroup.nameAr : loanGroup.nameEn}</bdi> : t(locale, 'Standalone (no group)', 'مستقل (بدون مجموعة)')}</span>
               </div>
             ) : null}
+            {goalLines.map((line) => {
+              const linkedGroup = groups.find((group) => group.id === goalLinks[line.goalId]) ?? null;
+              return (
+                <div className="cr-wizard-review-row" key={line.goalId}>
+                  <span><bdi>{goalLineName(line, locale)}</bdi> — {t(locale, 'monthly target', 'الهدف الشهري')}</span>
+                  <span>
+                    {formatMinorAmount(line.amountMinor, currency, locale)}
+                    {' · '}
+                    {linkedGroup ? <bdi>{locale === 'ar' ? linkedGroup.nameAr : linkedGroup.nameEn}</bdi> : t(locale, 'Standalone', 'مستقل')}
+                  </span>
+                </div>
+              );
+            })}
             {categories.map((category) => {
               const draft = rootTargets[category.id]!;
               const minor = parseTargetMinor(draft);

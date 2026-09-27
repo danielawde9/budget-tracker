@@ -6,7 +6,9 @@ import { classifyGoalsError, localizeGoalsError, type GoalsErrorView } from './e
 import { GoalEditor } from './goal-editor.js';
 import { GoalFundingDialog } from './goal-funding-dialog.js';
 import { GoalMilestones } from './goal-milestones.js';
+import { GoalMonthlyTargetDialog } from './goal-monthly-target-dialog.js';
 import { GoalPurchaseDialog } from './goal-purchase-dialog.js';
+import { latestMonthlyTargetRevisionId } from './monthly-target.js';
 import type { GoalDetail as GoalDetailData, GoalHistoryRow, GoalState, GoalSummary } from './types.js';
 import type { GoalsState } from './use-goals.js';
 import { GoalDetailSkeleton } from '../control-room/skeletons.js';
@@ -23,7 +25,7 @@ interface GoalDetailProps {
   onBack(): void;
 }
 
-type DialogKind = 'funding' | 'purchase' | 'edit';
+type DialogKind = 'funding' | 'purchase' | 'edit' | 'monthlyTarget';
 
 const t = (locale: Locale, en: string, ar: string) => locale === 'ar' ? ar : en;
 
@@ -100,6 +102,7 @@ export function GoalDetail(props: GoalDetailProps) {
   const [historyRows, setHistoryRows] = useState<readonly GoalHistoryRow[]>([]);
   const [historyCursor, setHistoryCursor] = useState<{ createdAt: string; sourceKind: string; sourceId: string } | null>(null);
   const [historyHasMore, setHistoryHasMore] = useState(false);
+  const [monthlyTargetRevisionId, setMonthlyTargetRevisionId] = useState<string | null>(null);
   const month = currentMonthStart();
 
   const { loadDetail, loadHistory } = props.goals;
@@ -111,6 +114,11 @@ export function GoalDetail(props: GoalDetailProps) {
       setStatus('ready');
       const history = await loadHistory({ goalId: props.goalId, beforeCreatedAt: null, beforeSourceKind: null, beforeSourceId: null, limit: 10 });
       setHistoryRows(history.rows);
+      // The plan month's monthly-target head is not on goal_detail; it comes
+      // from the history feed's `monthly_target` rows (sourceId). This is the
+      // value set_goal_monthly_target and publish_allocation_month_v2 must
+      // send as the expected revision.
+      setMonthlyTargetRevisionId(latestMonthlyTargetRevisionId(history.rows, month));
       setHistoryCursor(history.nextCursor);
       setHistoryHasMore(history.hasMore);
     } catch (cause) {
@@ -195,6 +203,7 @@ export function GoalDetail(props: GoalDetailProps) {
 
     <div className="goal-row">
       {(summary.state !== 'closed' || summary.needsReview) && <button type="button" className="cr-button" onClick={() => setDialog('funding')}>{t(props.locale, 'Manage funding (reserve/release/move)', 'إدارة التمويل (حجز/تحرير/نقل)')}</button>}
+      <button type="button" className="cr-button" onClick={() => setDialog('monthlyTarget')}>{t(props.locale, 'Set monthly target', 'تعيين الهدف الشهري')}</button>
       <button type="button" className="cr-button" onClick={() => setDialog('purchase')}>{t(props.locale, 'Link a purchase', 'ربط عملية شراء')}</button>
       {summary.state === 'active' && <button type="button" className="cr-button" onClick={() => openStateChange('paused')}>{t(props.locale, 'Pause goal', 'إيقاف الهدف مؤقتًا')}</button>}
       {summary.state === 'paused' && <button type="button" className="cr-button" onClick={() => openStateChange('active')}>{t(props.locale, 'Resume goal', 'استئناف الهدف')}</button>}
@@ -221,6 +230,14 @@ export function GoalDetail(props: GoalDetailProps) {
       onReserveOrRelease={(input) => props.goals.reserveOrRelease({ ...input, goalId: props.goalId })}
       onLoadToHead={(id) => props.goals.loadDetail({ goalId: id, month }).then((data) => data.earmarkHead)}
       onMove={(input) => props.goals.move({ ...input, fromGoalId: props.goalId })} />}
+
+    {dialog === 'monthlyTarget' && <GoalMonthlyTargetDialog locale={props.locale} currency={props.currency} goalName={goalName}
+      currentAmountMinor={summary.monthlyTargetMinor} expectedRevisionId={monthlyTargetRevisionId}
+      pending={props.goals.pending} ambiguous={props.goals.ambiguous !== null}
+      onClose={closeDialog} onClearAmbiguous={props.goals.clearAmbiguous} onRetry={props.goals.retryAmbiguous}
+      onSet={(input) => props.goals.setMonthlyTarget({
+        goalId: props.goalId, month, amountMinor: input.amountMinor, expectedRevisionId: input.expectedRevisionId,
+      })} />}
 
     {dialog === 'purchase' && <GoalPurchaseDialog locale={props.locale} currency={props.currency} goal={summary} goalHead={detail.earmarkHead}
       pending={props.goals.pending} ambiguous={props.goals.ambiguous !== null}

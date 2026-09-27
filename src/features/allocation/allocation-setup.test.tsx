@@ -25,6 +25,7 @@ function fakeAllocation(overrides: Partial<AllocationHook> = {}): AllocationHook
     refresh: vi.fn(async () => true),
     saveTemplate: vi.fn(async (_input: Omit<SaveTemplateInput, 'spaceId' | 'requestId'>) => ({ status: 'success', reconciled: false, result: { templateRevisionId: '9' } }) as CommandOutcome),
     publishMonth: vi.fn(async (_input: Omit<PublishMonthInput, 'spaceId' | 'requestId' | 'month' | 'currency'>) => ({ status: 'success', reconciled: false, result: { snapshotId: '1', incomeRevisionId: '1' } }) as CommandOutcome),
+    publishMonthV2: vi.fn(async () => ({ status: 'success', reconciled: false, result: { snapshotId: '1', incomeRevisionId: '1' } }) as CommandOutcome),
     retryAmbiguous: vi.fn(async () => ({ status: 'success', reconciled: true }) as CommandOutcome),
     clearAmbiguous: vi.fn(),
     loadCategoryPage: vi.fn(async () => ({ rows: [], nextRootId: null, hasMore: false })),
@@ -199,5 +200,69 @@ describe('AllocationSetup', () => {
     // categories step where the pre-filled target renders.
     await userEvent.click(screen.getByRole('button', { name: 'Next' }));
     expect(await screen.findByDisplayValue('500.00')).toBeInTheDocument();
+  });
+
+  // Audit C3/B6, docs/verification/2026-09-25-linking-audit.md rank 10 and
+  // §6: with a reserve goal of 600 in a Future group of 600, the goal line
+  // must reach the plan as a linked goal target. income 3000 -> 300000 minor.
+  it('publishes via publishMonthV2 carrying linked and standalone goal targets (audit example 3000/600/600)', async () => {
+    const GOAL_ID = '00000000-0000-4000-8000-000000000101';
+    const futureGroupId = '00000000-0000-4000-8000-000000000003';
+    const monthWithFuture: AllocationMonthState = {
+      ...emptyMonth, hasPlan: true, snapshotId: '12',
+      groups: [{
+        groupId: futureGroupId, rowKind: 'future', nameEn: 'Future', nameAr: null, order: 0,
+        targetMinor: '60000', actualMinor: '0', varianceMinor: '60000', basisPoints: 2000, actualShareOfIncomeBps: null, hasPlan: true,
+      }],
+    };
+    const saveTemplate = vi.fn(async (_input: Omit<SaveTemplateInput, 'spaceId' | 'requestId'>) => ({ status: 'success', reconciled: false, result: { templateRevisionId: '77' } }) as CommandOutcome);
+    const publishMonth = vi.fn(async () => ({ status: 'success', reconciled: false, result: { snapshotId: '1', incomeRevisionId: '1' } }) as CommandOutcome);
+    const publishMonthV2 = vi.fn(async () => ({ status: 'success', reconciled: false, result: { snapshotId: '1', incomeRevisionId: '1' } }) as CommandOutcome);
+    render(<AllocationSetup locale="en" currency="USD" month="2026-09-01" categories={categories}
+      allocation={fakeAllocation({ month: monthWithFuture, saveTemplate, publishMonth, publishMonthV2 })} gateway={stubGateway}
+      goalLines={[{ goalId: GOAL_ID, nameEn: 'Emergency fund', nameAr: null, amountMinor: '60000', expectedRevisionId: null }]} />);
+    await userEvent.click(screen.getByRole('button', { name: /Set up|Edit/ }));
+    await userEvent.clear(screen.getByLabelText('Planned income'));
+    await userEvent.type(screen.getByLabelText('Planned income'), '3000');
+    await userEvent.click(screen.getByRole('button', { name: 'Next' })); // Groups step (percentage mode)
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Emergency fund future group' }), futureGroupId);
+    await userEvent.click(screen.getByRole('button', { name: 'Next' })); // Categories
+    await userEvent.click(screen.getByRole('button', { name: 'Next' })); // Review
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(publishMonth).not.toHaveBeenCalled();
+    expect(publishMonthV2).toHaveBeenCalledWith(expect.objectContaining({
+      templateRevisionId: '77',
+      goalTargets: [{ goalId: GOAL_ID, groupId: futureGroupId, amountMinor: '60000', expectedRevisionId: null }],
+    }));
+  });
+
+  it('carries a goal with no chosen group as a standalone goal target', async () => {
+    const GOAL_ID = '00000000-0000-4000-8000-000000000102';
+    const publishMonthV2 = vi.fn(async () => ({ status: 'success', reconciled: false, result: { snapshotId: '1', incomeRevisionId: '1' } }) as CommandOutcome);
+    const publishMonth = vi.fn(async () => ({ status: 'success', reconciled: false, result: { snapshotId: '1', incomeRevisionId: '1' } }) as CommandOutcome);
+    render(<AllocationSetup locale="en" currency="USD" month="2026-09-01" categories={categories}
+      allocation={fakeAllocation({ publishMonth, publishMonthV2 })} gateway={stubGateway}
+      goalLines={[{ goalId: GOAL_ID, nameEn: 'Laptop', nameAr: null, amountMinor: '15000', expectedRevisionId: '4' }]} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Set up' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Next' })); // Categories (manual mode)
+    await userEvent.click(screen.getByRole('button', { name: 'Next' })); // Review
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(publishMonth).not.toHaveBeenCalled();
+    expect(publishMonthV2).toHaveBeenCalledWith(expect.objectContaining({
+      goalTargets: [{ goalId: GOAL_ID, groupId: null, amountMinor: '15000', expectedRevisionId: '4' }],
+    }));
+  });
+
+  it('keeps using publishMonth (v1) when there are no goal monthly targets', async () => {
+    const publishMonth = vi.fn(async () => ({ status: 'success', reconciled: false, result: { snapshotId: '1', incomeRevisionId: '1' } }) as CommandOutcome);
+    const publishMonthV2 = vi.fn(async () => ({ status: 'success', reconciled: false, result: { snapshotId: '1', incomeRevisionId: '1' } }) as CommandOutcome);
+    render(<AllocationSetup locale="en" currency="USD" month="2026-09-01" categories={categories}
+      allocation={fakeAllocation({ publishMonth, publishMonthV2 })} gateway={stubGateway} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Set up' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(publishMonth).toHaveBeenCalledTimes(1);
+    expect(publishMonthV2).not.toHaveBeenCalled();
   });
 });

@@ -195,4 +195,39 @@ describe('GoalDetail', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Back to goals' }));
     expect(onBack).toHaveBeenCalledTimes(1);
   });
+
+  it('shows "None set" for the monthly target only until one exists', async () => {
+    const goals = fakeGoalsState({ loadDetail: vi.fn().mockResolvedValue(detailData({ summary: summary({ monthlyTargetMinor: null }) })) });
+    const { unmount } = render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('None set')).toBeInTheDocument());
+    unmount();
+
+    const withTarget = fakeGoalsState();
+    render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={withTarget} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Emergency fund')).toBeInTheDocument());
+    expect(screen.queryByText('None set')).not.toBeInTheDocument();
+    expect(screen.getByText('$500.00')).toBeInTheDocument();
+  });
+
+  it('sets this goal\'s monthly target through useGoals.setMonthlyTarget with the current month and revision head', async () => {
+    const now = new Date();
+    const currentMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-01`;
+    const setMonthlyTarget = vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { revisionId: '8' } });
+    const goals = fakeGoalsState({
+      setMonthlyTarget,
+      loadHistory: vi.fn().mockResolvedValue({
+        rows: [{ createdAt: '2026-09-14T12:00:00Z', sourceKind: 'monthly_target', sourceId: '7', detail: { monthStart: currentMonth, amountMinor: '50000' } }],
+        hasMore: false, nextCursor: null,
+      }),
+    });
+    render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Emergency fund')).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('button', { name: 'Set monthly target' }));
+    await userEvent.clear(screen.getByRole('textbox', { name: 'Monthly target' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Monthly target' }), '750');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(setMonthlyTarget).toHaveBeenCalledWith({
+      goalId: GOAL_ID, month: currentMonth, amountMinor: '75000', expectedRevisionId: '7',
+    }));
+  });
 });

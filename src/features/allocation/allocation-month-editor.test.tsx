@@ -227,6 +227,7 @@ describe('AllocationMonthEditor', () => {
         { categoryId: 'cat-lifestyle', amountMinor: '0', expectedRevisionId: null },
       ],
       loanGroupId: null,
+      goalTargets: [],
     });
   });
 
@@ -354,5 +355,41 @@ describe('AllocationMonthEditor', () => {
     rerender(<AllocationMonthEditor locale="en" currency="USD" categories={categories} initial={initial({ incomeMajorText: '1000' })} plannedIncomeMinor={null} pending={false} error="Could not save this plan." onCancel={vi.fn()} onSubmit={onSubmit} />);
     await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
     expect(onSubmit).toHaveBeenCalledTimes(2);
+  });
+
+  it('lists each goal monthly target with a Standalone/Future-group link and carries the chosen groupId', async () => {
+    const onSubmit = vi.fn();
+    const futureId = '00000000-0000-4000-8000-0000000000f0';
+    renderEditor({
+      incomeMajorText: '3000',
+      groups: [{ id: futureId, purpose: 'future', nameEn: 'Future', nameAr: '', percentText: '20' }],
+    }, {
+      onSubmit,
+      goalLines: [{ goalId: '00000000-0000-4000-8000-000000000101', nameEn: 'Emergency fund', nameAr: null, amountMinor: '60000', expectedRevisionId: '7' }],
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Next' })); // Groups
+    const link = screen.getByRole('combobox', { name: 'Emergency fund future group' });
+    expect(within(link).getByRole('option', { name: 'Standalone' })).toBeInTheDocument();
+    await userEvent.selectOptions(link, futureId);
+    await userEvent.click(screen.getByRole('button', { name: 'Next' })); // Categories
+    await userEvent.click(screen.getByRole('button', { name: 'Next' })); // Review
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      goalTargets: [{ goalId: '00000000-0000-4000-8000-000000000101', groupId: futureId, amountMinor: '60000', expectedRevisionId: '7' }],
+    }));
+  });
+
+  it('defaults a goal monthly target link to standalone when no Future group is chosen', async () => {
+    const onSubmit = vi.fn();
+    renderEditor({ incomeMajorText: '1000' }, {
+      onSubmit,
+      goalLines: [{ goalId: '00000000-0000-4000-8000-000000000102', nameEn: 'Laptop', nameAr: null, amountMinor: '5000', expectedRevisionId: null }],
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Next' })); // Categories (manual)
+    await userEvent.click(screen.getByRole('button', { name: 'Next' })); // Review
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      goalTargets: [{ goalId: '00000000-0000-4000-8000-000000000102', groupId: null, amountMinor: '5000', expectedRevisionId: null }],
+    }));
   });
 });
