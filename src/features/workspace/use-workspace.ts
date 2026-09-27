@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Space } from '../loans/types.js';
+import type { Space, Wallet } from '../loans/types.js';
+import {
+  clearOnboardingProgress,
+  readOnboardingProgress,
+  writeOnboardingProgress,
+  type OnboardingProgress,
+  type OnboardingSetup,
+} from './onboarding-progress.js';
 import type { CreateSpaceInput, CreateWalletInput, CreatedRecord, WorkspaceGateway } from './types.js';
 
-export type WorkspaceStatus = 'loading' | 'empty' | 'ready' | 'error';
+export type WorkspaceStatus = 'loading' | 'empty' | 'onboarding' | 'ready' | 'error';
 
 function isAmbiguousTransportFailure(cause: unknown): boolean {
   const value = cause instanceof Error
@@ -21,8 +28,10 @@ export function useWorkspace(gateway: WorkspaceGateway, userId: string) {
   const [status, setStatus] = useState<WorkspaceStatus>('loading');
   const [spaces, setSpaces] = useState<readonly Space[]>([]);
   const [selectedSpaceId, setSelectedSpaceId] = useState('');
+  const [setup, setSetup] = useState<OnboardingSetup | null>(null);
   const [error, setError] = useState<string | null>(null);
   const selectedRef = useRef('');
+  const spacesRef = useRef<readonly Space[]>([]);
   const request = useRef(0);
 
   const storageKey = `budget:selected-space:${userId}`;
@@ -35,18 +44,45 @@ export function useWorkspace(gateway: WorkspaceGateway, userId: string) {
       selectedRef.current = '';
       setSelectedSpaceId('');
       setSpaces([]);
+      spacesRef.current = [];
     }
     try {
       const visibleSpaces = await gateway.listSpaces();
       if (request.current !== requestId) return;
+      spacesRef.current = visibleSpaces;
       setSpaces(visibleSpaces);
       if (visibleSpaces.length === 0) {
         selectedRef.current = '';
         setSelectedSpaceId('');
         localStorage.removeItem(storageKey);
+        clearOnboardingProgress(userId);
+        setSetup(null);
         setStatus('empty');
         return;
       }
+      // A stored first-run setup resumes before the shell appears, so a person
+      // who abandoned after the space step can still create the missing wallet
+      // (and, later, the starting balance).
+      const progress = readOnboardingProgress(userId);
+      if (progress) {
+        const pending = visibleSpaces.find((space) => space.id === progress.spaceId);
+        if (!pending) {
+          clearOnboardingProgress(userId);
+        } else {
+          let wallet: Wallet | undefined;
+          try {
+            wallet = (await gateway.listWallets(progress.spaceId))[0];
+          } catch {
+            // The wallet read only decides whether to skip ahead; trust the stored step.
+            wallet = undefined;
+          }
+          if (request.current !== requestId) return;
+          setSetup({ ...progress, ...(wallet ? { wallet: { id: wallet.id, currency: wallet.currency } } : {}) });
+          setStatus('onboarding');
+          return;
+        }
+      }
+      setSetup(null);
       const stored = localStorage.getItem(storageKey) ?? '';
       const current = resetSelection ? '' : selectedRef.current;
       const selected = visibleSpaces.find((space) => space.id === preferredSpaceId)?.id
@@ -60,13 +96,15 @@ export function useWorkspace(gateway: WorkspaceGateway, userId: string) {
       setStatus('ready');
     } catch {
       if (request.current !== requestId) return;
+      spacesRef.current = [];
       setSpaces([]);
+      setSetup(null);
       selectedRef.current = '';
       setSelectedSpaceId('');
       setError('We could not load your spaces. Check your connection and try again.');
       setStatus('error');
     }
-  }, [gateway, storageKey]);
+  }, [gateway, storageKey, userId]);
 
   useEffect(() => {
     void load(true);
@@ -80,11 +118,25 @@ export function useWorkspace(gateway: WorkspaceGateway, userId: string) {
     localStorage.setItem(storageKey, spaceId);
   }, [spaces, storageKey]);
 
+  const saveOnboardingProgress = useCallback((progress: OnboardingProgress) => {
+    writeOnboardingProgress(userId, progress);
+    setSetup(progress);
+  }, [userId]);
+
+  const finishOnboarding = useCallback((spaceId?: string) => {
+    clearOnboardingProgress(userId);
+    setSetup(null);
+    return load(false, spaceId ?? '');
+  }, [load, userId]);
+
   const createFirstSpace = useCallback(async (input: CreateSpaceInput): Promise<CreatedRecord> => {
     try {
       return await gateway.createSpace(input);
     } catch (cause) {
       if (!isAmbiguousTransportFailure(cause)) throw rejected('space');
+      // Recovery accepts only a space that was not visible before this command:
+      // a space that already existed with the same name is not the created one.
+      const known = new Set(spacesRef.current.map((space) => space.id));
       let visible: readonly Space[] = [];
       try {
         visible = await gateway.listSpaces();
@@ -92,32 +144,38 @@ export function useWorkspace(gateway: WorkspaceGateway, userId: string) {
         throw new Error('We checked your visible spaces, but the connection is still unavailable. Reconnect before trying again.');
       }
       const normalizedName = input.name.trim();
-      const match = visible.find((space) => space.kind === input.kind && space.name === normalizedName);
+      const match = visible.find((space) => !known.has(space.id) && space.kind === input.kind && space.name === normalizedName);
       if (match) return { id: match.id };
       throw new Error('We checked your visible spaces. Nothing matched, so review the name before trying again.');
     }
   }, [gateway]);
 
   const createFirstWallet = useCallback(async (input: CreateWalletInput): Promise<CreatedRecord> => {
-    let created: CreatedRecord;
+    let visibleBefore: readonly Wallet[];
     try {
-      created = await gateway.createWallet(input);
+      visibleBefore = await gateway.listWallets(input.spaceId);
+    } catch {
+      throw new Error('We checked your visible wallets, but the connection is still unavailable. Reconnect before trying again.');
+    }
+    const known = new Set(visibleBefore.map((wallet) => wallet.id));
+    try {
+      return await gateway.createWallet(input);
     } catch (cause) {
       if (!isAmbiguousTransportFailure(cause)) throw rejected('wallet');
-      let visible = [] as Awaited<ReturnType<WorkspaceGateway['listWallets']>>;
+      // Recovery accepts only a wallet that appeared after the failed command:
+      // a wallet that already existed with the same name and currency is not the created one.
+      let visible: readonly Wallet[];
       try {
         visible = await gateway.listWallets(input.spaceId);
       } catch {
         throw new Error('We checked your visible wallets, but the connection is still unavailable. Reconnect before trying again.');
       }
       const normalizedName = input.name.trim();
-      const match = visible.find((wallet) => wallet.currency === input.currency && wallet.name === normalizedName);
+      const match = visible.find((wallet) => !known.has(wallet.id) && wallet.currency === input.currency && wallet.name === normalizedName);
       if (!match) throw new Error('We checked your visible wallets. Nothing matched, so review the wallet before trying again.');
-      created = { id: match.id };
+      return { id: match.id };
     }
-    await load(false);
-    return created;
-  }, [gateway, load]);
+  }, [gateway]);
 
   const refresh = useCallback((preferredSpaceId?: string) => load(false, preferredSpaceId), [load]);
 
@@ -126,9 +184,12 @@ export function useWorkspace(gateway: WorkspaceGateway, userId: string) {
     spaces,
     selectedSpaceId,
     selectedSpace: spaces.find((space) => space.id === selectedSpaceId) ?? null,
+    onboardingSetup: setup,
     error,
     selectSpace,
     refresh,
+    saveOnboardingProgress,
+    finishOnboarding,
     createFirstSpace,
     createFirstWallet,
   };

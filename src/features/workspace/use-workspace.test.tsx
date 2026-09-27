@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Wallet } from '../loans/types.js';
 import { personalSpace, householdSpace } from '../../test/in-memory-loans-gateway.js';
 import type { WorkspaceGateway } from './types.js';
 import { useWorkspace } from './use-workspace.js';
@@ -8,7 +9,10 @@ class FakeWorkspaceGateway implements WorkspaceGateway {
   spaces = [personalSpace, householdSpace];
   error: Error | null = null;
   mutationError: unknown = null;
-  wallets: Awaited<ReturnType<WorkspaceGateway['listWallets']>> = [];
+  wallets: readonly Wallet[] = [];
+  walletError: Error | null = null;
+  /** Successive responses for `listWallets`, consumed before `wallets`. */
+  walletReads: Array<readonly Wallet[]> = [];
   calls: string[] = [];
 
   async listSpaces() {
@@ -19,7 +23,9 @@ class FakeWorkspaceGateway implements WorkspaceGateway {
 
   async listWallets(spaceId: string) {
     this.calls.push(`listWallets:${spaceId}`);
-    return this.wallets;
+    if (this.walletError) throw this.walletError;
+    const queued = this.walletReads.shift();
+    return queued ?? this.wallets;
   }
 
   async createSpace() {
@@ -33,6 +39,14 @@ class FakeWorkspaceGateway implements WorkspaceGateway {
     if (this.mutationError) throw this.mutationError;
     return { id: 'new-wallet' };
   }
+}
+
+const spaceWallet = (id: string, name: string, currency: Wallet['currency'] = 'USD'): Wallet => ({
+  id, spaceId: personalSpace.id, name, currency, archivedAt: null,
+});
+
+function seedProgress(userId: string, spaceId: string, balanceRequestId = 'req-1') {
+  localStorage.setItem(`budget:onboarding:${userId}`, JSON.stringify({ spaceId, balanceRequestId }));
 }
 
 describe('useWorkspace', () => {
@@ -108,7 +122,7 @@ describe('useWorkspace', () => {
     expect(gateway.calls.filter((call) => call === 'listSpaces')).toHaveLength(2);
   });
 
-  it('recovers an ambiguously-created space or wallet from safe reads without resubmitting', async () => {
+  it('recovers an ambiguously-created space from a newly visible space of the same name', async () => {
     const gateway = new FakeWorkspaceGateway();
     gateway.spaces = [];
     const { result } = renderHook(() => useWorkspace(gateway, 'user-1'));
@@ -117,9 +131,105 @@ describe('useWorkspace', () => {
     gateway.spaces = [{ id: 'recovered-space', name: 'Our home', kind: 'household' }];
 
     await expect(result.current.createFirstSpace({ name: 'Our home', kind: 'household' })).resolves.toEqual({ id: 'recovered-space' });
-    gateway.wallets = [{ id: 'recovered-wallet', spaceId: 'recovered-space', name: 'Home USD', currency: 'USD', archivedAt: null }];
-    await expect(result.current.createFirstWallet({ spaceId: 'recovered-space', name: 'Home USD', currency: 'USD' })).resolves.toEqual({ id: 'recovered-wallet' });
     expect(gateway.calls.filter((call) => call === 'createSpace')).toHaveLength(1);
+  });
+
+  it('recovers an ambiguously-created wallet from a newly visible wallet of the same name and currency', async () => {
+    const gateway = new FakeWorkspaceGateway();
+    gateway.spaces = [personalSpace];
+    const { result } = renderHook(() => useWorkspace(gateway, 'user-1'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    gateway.mutationError = { message: 'upstream timeout' };
+    // The pre-read sees no wallet; the recovery read sees only the one just created.
+    gateway.walletReads = [[], [spaceWallet('recovered-wallet', 'Home USD')]];
+
+    await expect(result.current.createFirstWallet({ spaceId: personalSpace.id, name: 'Home USD', currency: 'USD' })).resolves.toEqual({ id: 'recovered-wallet' });
     expect(gateway.calls.filter((call) => call === 'createWallet')).toHaveLength(1);
+  });
+
+  it('does not recover an ambiguous space from a same-named space that was already visible', async () => {
+    const gateway = new FakeWorkspaceGateway();
+    gateway.spaces = [personalSpace];
+    const { result } = renderHook(() => useWorkspace(gateway, 'user-1'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    gateway.mutationError = new Error('Network request failed');
+
+    await expect(result.current.createFirstSpace({ name: personalSpace.name, kind: personalSpace.kind })).rejects.toThrow('Nothing matched');
+  });
+
+  it('does not recover an ambiguous wallet from a same-named wallet that was already visible', async () => {
+    const gateway = new FakeWorkspaceGateway();
+    gateway.spaces = [personalSpace];
+    gateway.wallets = [spaceWallet('existing-wallet', 'Cash')];
+    const { result } = renderHook(() => useWorkspace(gateway, 'user-1'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    gateway.mutationError = new Error('Network request failed');
+
+    await expect(result.current.createFirstWallet({ spaceId: personalSpace.id, name: 'Cash', currency: 'USD' })).rejects.toThrow('Nothing matched');
+  });
+
+  it('resumes an unfinished first run at the wallet step', async () => {
+    const gateway = new FakeWorkspaceGateway();
+    gateway.spaces = [personalSpace];
+    gateway.wallets = [];
+    seedProgress('user-1', personalSpace.id);
+    const { result } = renderHook(() => useWorkspace(gateway, 'user-1'));
+
+    await waitFor(() => expect(result.current.status).toBe('onboarding'));
+    expect(result.current.onboardingSetup).toEqual({ spaceId: personalSpace.id, balanceRequestId: 'req-1' });
+    expect(result.current.selectedSpaceId).toBe('');
+  });
+
+  it('resumes at the starting-balance step and clears progress when finished', async () => {
+    const gateway = new FakeWorkspaceGateway();
+    gateway.spaces = [personalSpace];
+    gateway.wallets = [spaceWallet('w1', 'Cash')];
+    seedProgress('user-1', personalSpace.id);
+    const { result } = renderHook(() => useWorkspace(gateway, 'user-1'));
+
+    await waitFor(() => expect(result.current.status).toBe('onboarding'));
+    expect(result.current.onboardingSetup).toEqual({ spaceId: personalSpace.id, balanceRequestId: 'req-1', wallet: { id: 'w1', currency: 'USD' } });
+
+    await act(async () => { await result.current.finishOnboarding(personalSpace.id); });
+    expect(result.current.status).toBe('ready');
+    expect(result.current.onboardingSetup).toBeNull();
+    expect(result.current.selectedSpaceId).toBe(personalSpace.id);
+    expect(localStorage.getItem('budget:onboarding:user-1')).toBeNull();
+  });
+
+  it('persists progress for the first run and drops it once no space can match', async () => {
+    const gateway = new FakeWorkspaceGateway();
+    gateway.spaces = [];
+    const { result } = renderHook(() => useWorkspace(gateway, 'user-1'));
+    await waitFor(() => expect(result.current.status).toBe('empty'));
+    act(() => result.current.saveOnboardingProgress({ spaceId: 'new-space', balanceRequestId: 'req-9' }));
+    expect(JSON.parse(localStorage.getItem('budget:onboarding:user-1') ?? 'null')).toEqual({ spaceId: 'new-space', balanceRequestId: 'req-9' });
+
+    gateway.spaces = [personalSpace];
+    await act(async () => result.current.refresh());
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(localStorage.getItem('budget:onboarding:user-1')).toBeNull();
+  });
+
+  it('ignores malformed or foreign-user setup progress', async () => {
+    localStorage.setItem('budget:onboarding:user-1', '{not json');
+    localStorage.setItem('budget:onboarding:user-2', JSON.stringify({ spaceId: householdSpace.id, balanceRequestId: 'req-2' }));
+    const gateway = new FakeWorkspaceGateway();
+    gateway.spaces = [personalSpace];
+    const { result } = renderHook(() => useWorkspace(gateway, 'user-1'));
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(result.current.onboardingSetup).toBeNull();
+  });
+
+  it('never invokes the create_wallet mutation when the visible-wallet baseline is unknown', async () => {
+    const gateway = new FakeWorkspaceGateway();
+    gateway.spaces = [personalSpace];
+    const { result } = renderHook(() => useWorkspace(gateway, 'user-1'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    gateway.walletError = new Error('Failed to fetch');
+
+    await expect(result.current.createFirstWallet({ spaceId: personalSpace.id, name: 'Cash', currency: 'USD' })).rejects.toThrow('connection is still unavailable');
+    expect(gateway.calls.filter((call) => call === 'createWallet')).toHaveLength(0);
   });
 });
