@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 
 const script = join(process.cwd(), 'scripts/ops/migrate-budget.sh');
 const sourceSha = '41504561b7f6fdf3f1321fa38a025673eb0d9f0d';
-const liveReleaseHead = 'ab80a95ebe4e50df8551787ee7a3e1139f0d0cda';
+const liveReleaseHead = '287b1a7e8af444b87faed22047a8ebe80a7e20e0';
 const liveManifest = join(process.cwd(), 'ops/budget-migrations.sha256');
 
 function fixture() {
@@ -84,7 +84,7 @@ function run(args: string[]) {
 }
 
 describe('forward-only migration manifest gate', () => {
-  it('pins the space-payday release as 58 immutable migrations', () => {
+  it('pins the period-bounds release as 59 immutable migrations', () => {
     const rows = readFileSync(liveManifest, 'utf8').trimEnd().split('\n');
     const migrationRows = rows.slice(2);
     const localMigrationNames = readdirSync(join(process.cwd(), 'supabase/migrations'))
@@ -93,12 +93,12 @@ describe('forward-only migration manifest gate', () => {
 
     expect(rows[0]).toBe('budget_migration_manifest_version=1');
     expect(rows[1]).toBe(`source_sha=${liveReleaseHead}`);
-    expect(migrationRows).toHaveLength(58);
+    expect(migrationRows).toHaveLength(59);
     expect(migrationRows.some((row) =>
       row.startsWith('20260908170000|20260908170000_household_membership_schema.sql|'),
     )).toBe(true);
     expect(migrationRows.at(-1)).toMatch(
-      /^20260929100000\|20260929100000_space_payday\.sql\|[a-f0-9]{64}$/,
+      /^20260929110000\|20260929110000_space_period_bounds\.sql\|[a-f0-9]{64}$/,
     );
     expect(migrationRows.map((row) => row.split('|')[1])).toEqual(localMigrationNames);
 
