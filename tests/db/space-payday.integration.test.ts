@@ -122,3 +122,49 @@ describe('per-space payday period (W4a-2)', () => {
     expect(String(clock.periodEnd) > String(clock.periodStart)).toBe(true);
   });
 });
+
+// W4a-2 stage B foundation: the key-based period window every converted read will
+// use. `p_month` stays the period KEY (the 1st); only the window is anchored.
+async function boundsAt(spaceId: string, month: string): Promise<{ start: string; end: string }> {
+  const rows = await db().client.query<{ start: string; end: string }>(
+    'select b.period_start::text as start, b.period_end::text as end from private.space_period_bounds($1, $2::date) b',
+    [spaceId, month],
+  );
+  return rows.rows[0]!;
+}
+
+async function clockPeriodStartAt(spaceId: string, instant: string): Promise<string> {
+  const rows = await db().client.query<{ at: string }>(
+    'select private.space_period_start($1, $2::timestamptz)::text as at', [spaceId, instant],
+  );
+  return rows.rows[0]!.at;
+}
+
+describe('anchored period bounds (W4a-2 stage B)', () => {
+  it('payday 1 bounds are exactly the calendar month', async () => {
+    const id = await freshSpace('Bounds calendar', 'UTC', 1);
+    expect(await boundsAt(id, '2026-09-01')).toEqual({ start: '2026-09-01', end: '2026-10-01' });
+    expect(await boundsAt(id, '2026-12-01')).toEqual({ start: '2026-12-01', end: '2027-01-01' });
+  });
+
+  it('a payday of 25 anchors the window on the 25th of the key month', async () => {
+    const id = await freshSpace('Bounds payday 25', 'UTC', 25);
+    expect(await boundsAt(id, '2026-09-01')).toEqual({ start: '2026-09-25', end: '2026-10-25' });
+  });
+
+  it('clamps the anchor in a short key month', async () => {
+    const id = await freshSpace('Bounds payday 31', 'UTC', 31);
+    // February 2026 (28 days) starts on the 28th; March starts on the 31st.
+    expect(await boundsAt(id, '2026-02-01')).toEqual({ start: '2026-02-28', end: '2026-03-31' });
+  });
+
+  it('the clock period start agrees with its key bounds', async () => {
+    const id = await freshSpace('Bounds invariant', 'Asia/Beirut', 25);
+    for (const instant of ['2026-09-24T20:00:00Z', '2026-09-24T22:00:00Z', '2026-10-24T20:00:00Z']) {
+      const periodStart = await clockPeriodStartAt(id, instant);
+      const key = `${periodStart.slice(0, 7)}-01`;
+      const bounds = await boundsAt(id, key);
+      expect(bounds.start).toBe(periodStart);
+    }
+  });
+});
