@@ -68,6 +68,7 @@ function occurrenceRow(value: unknown): ScheduledOccurrenceRow {
     sourceRevisionId: bigIntId(row['sourceRevisionId'], 'sourceRevisionId'),
     currentEventId: row['currentEventId'] === null || row['currentEventId'] === undefined
       ? null : bigIntId(row['currentEventId'], 'currentEventId'),
+    linkedEventId: nullableUuid(row['linkedEventId'], 'linkedEventId'),
     currency: currency(row['currency']),
     kind: enumValue(row['kind'], SCHEDULE_KINDS, 'kind'),
     nameEn: row['nameEn'] === null || row['nameEn'] === undefined ? null : string(row['nameEn'], 'nameEn'),

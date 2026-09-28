@@ -33,7 +33,7 @@ const WALLET_ID = '00000000-0000-4000-8000-000000000601';
 const CATEGORY_ID = '00000000-0000-4000-8000-000000000701';
 
 const occurrenceFixture = {
-  id: OCCURRENCE_ID, scheduleId: SCHEDULE_ID, sourceRevisionId: '1', currentEventId: null,
+  id: OCCURRENCE_ID, scheduleId: SCHEDULE_ID, sourceRevisionId: '1', currentEventId: null, linkedEventId: null,
   currency: 'USD', kind: 'expense', nameEn: 'Rent', nameAr: null, dueDate: '2026-09-30',
   expectedMinor: '50000', settledMinor: '20000', remainingMinor: '30000', state: 'partial',
   overdue: false, categoryId: CATEGORY_ID, loanId: null, fundingGoalId: null, preferredWalletId: null,
@@ -74,6 +74,42 @@ describe('createSupabaseRecurringGateway: loadOccurrences', () => {
       spaceId: 'space-1', fromDate: '2026-09-01', toDate: '2026-09-30', afterDueDate: null, afterId: null, limit: 25,
     });
     expect(result.rows[0]!.sourceRevisionId).toBe('9007199254740993');
+  });
+
+  // D7: the row carries the wallet event a settlement already linked, so a
+  // match made earlier (auto-settle, a previous visit) can be unlinked.
+  it('parses the linked wallet event id a settlement already made', async () => {
+    const { client } = fakeClient(() => ({
+      data: { ...occurrencePageFixture, rows: [{ ...occurrenceFixture, currentEventId: '7', linkedEventId: EVENT_ID }] }, error: null,
+    }));
+    const gateway = createSupabaseRecurringGateway(client);
+    const result = await gateway.loadOccurrences({
+      spaceId: 'space-1', fromDate: '2026-09-01', toDate: '2026-09-30', afterDueDate: null, afterId: null, limit: 25,
+    });
+    expect(result.rows[0]!.linkedEventId).toBe(EVENT_ID);
+    expect(result.rows[0]!.currentEventId).toBe('7');
+  });
+
+  it('defaults a missing linked event id to null', async () => {
+    const { linkedEventId: _omitted, ...withoutLinked } = occurrenceFixture;
+    const { client } = fakeClient(() => ({
+      data: { ...occurrencePageFixture, rows: [withoutLinked] }, error: null,
+    }));
+    const gateway = createSupabaseRecurringGateway(client);
+    const result = await gateway.loadOccurrences({
+      spaceId: 'space-1', fromDate: '2026-09-01', toDate: '2026-09-30', afterDueDate: null, afterId: null, limit: 25,
+    });
+    expect(result.rows[0]!.linkedEventId).toBeNull();
+  });
+
+  it('rejects a malformed linked event id', async () => {
+    const { client } = fakeClient(() => ({
+      data: { ...occurrencePageFixture, rows: [{ ...occurrenceFixture, linkedEventId: 'not-a-uuid' }] }, error: null,
+    }));
+    const gateway = createSupabaseRecurringGateway(client);
+    await expect(gateway.loadOccurrences({
+      spaceId: 'space-1', fromDate: '2026-09-01', toDate: '2026-09-30', afterDueDate: null, afterId: null, limit: 25,
+    })).rejects.toThrow();
   });
 
   it('rejects the equivalent unsafe money number in the response', async () => {

@@ -39,6 +39,16 @@ export interface ScheduledOccurrenceRow {
   readonly scheduleId: string;
   readonly sourceRevisionId: string;
   readonly currentEventId: string | null;
+  /** The wallet event the newest still-live settlement link/confirm points at
+   * (`occurrence_events.linked_event_id`), or null when nothing is currently
+   * linked. Unlike `currentEventId` (the occurrence-event head), this is the
+   * id `OccurrenceDetail` can reverse to unlink a match made earlier -- e.g.
+   * by auto-settle on Record (audit D7). A `link`/`confirm` whose wallet
+   * event is already reversed is not reported, so after a successful unlink
+   * the field falls back to the next live payment or to null. Optional so
+   * pre-existing hand-built row fixtures (the shared in-memory gateway) stay
+   * assignable; both DB reads and the gateway parser always supply it. */
+  readonly linkedEventId?: string | null;
   readonly currency: Currency;
   readonly kind: ScheduleKind;
   readonly nameEn: string | null;

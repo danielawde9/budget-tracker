@@ -19,10 +19,10 @@ interface OccurrenceDetailProps {
   /** Loads the existing wallet events the payment dialog offers for linking
    * (D4). Read-only, through the wallets gateway. */
   loadLinkableEvents?: (query: LinkableEventsQuery) => Promise<readonly LinkableEventOption[]>;
-  /** Reverses the wallet transaction a settlement in this session linked (D7).
-   * Only reached for a link this view itself made: the occurrence row never
-   * carries the linked financial event id, so a match made earlier (for
-   * example by auto-settle) cannot be unlinked from here yet. */
+  /** Reverses the wallet transaction a settlement linked (D7). Reached for a
+   * link made in this view *and* for any match the row already carries (for
+   * example an auto-settle made when the entry was recorded), through the
+   * read's `linkedEventId`. */
   onUnlink?: (eventId: string) => Promise<unknown>;
   onBack(): void;
 }
@@ -141,17 +141,18 @@ export function OccurrenceDetail(props: OccurrenceDetailProps) {
   const [actionError, setActionError] = useState<RecurringErrorView | null>(null);
   const [held, setHeld] = useState<HeldOccurrence | null>(null);
   // The wallet event THIS view linked (D7): the command's own result carries
-  // `financialEventId`, so a mistaken link made here can be reversed. A row
-  // settled elsewhere (e.g. auto-settle) has no id here yet -- see the file's
-  // own note on the missing occurrence-event read.
-  const [linkedEventId, setLinkedEventId] = useState<string | null>(null);
+  // `financialEventId`, so a mistaken link made here can be reversed even if
+  // its refreshed row has not landed yet (or has left the list). A match made
+  // elsewhere (e.g. auto-settle) is carried on the row itself as
+  // `row.linkedEventId`; `linkedEventId` below prefers whichever is present.
+  const [actionLinkedEventId, setActionLinkedEventId] = useState<string | null>(null);
   const [unlinking, setUnlinking] = useState(false);
   const [unlinkError, setUnlinkError] = useState<RecurringErrorView | null>(null);
   const listed = props.recurring.page.rows.find((candidate) => candidate.id === props.occurrenceId);
 
   // A different occurrence is a different settlement: drop the tracked link.
   useEffect(() => {
-    setLinkedEventId(null);
+    setActionLinkedEventId(null);
     setUnlinkError(null);
   }, [props.occurrenceId]);
 
@@ -192,6 +193,11 @@ export function OccurrenceDetail(props: OccurrenceDetailProps) {
   const bucket = occurrenceBucket(row);
   const remaining = BigInt(row.remainingMinor);
   const leftList = !listed && held?.done === true ? held.action : null;
+  // D7: offer Unlink for any live match. A link this view just made is
+  // preferred (its result is the freshest, and works even when the row has
+  // left the list); otherwise the row's own `linkedEventId` -- a match made
+  // earlier, e.g. by auto-settle -- drives the affordance.
+  const linkedEventId = actionLinkedEventId ?? row.linkedEventId;
 
   const track = async (action: HeldAction, run: () => Promise<CommandOutcome>): Promise<CommandOutcome> => {
     const snapshot = row;
@@ -204,7 +210,7 @@ export function OccurrenceDetail(props: OccurrenceDetailProps) {
       // A confirm or link result carries the wallet event it settled against,
       // so this view can offer to reverse a mistaken one (D7).
       const result = outcome.result;
-      setLinkedEventId(result && 'financialEventId' in result && typeof result.financialEventId === 'string'
+      setActionLinkedEventId(result && 'financialEventId' in result && typeof result.financialEventId === 'string'
         ? result.financialEventId
         : null);
       return outcome;
@@ -220,7 +226,7 @@ export function OccurrenceDetail(props: OccurrenceDetailProps) {
     setUnlinkError(null);
     try {
       await props.onUnlink(linkedEventId);
-      setLinkedEventId(null);
+      setActionLinkedEventId(null);
       await props.recurring.refresh();
     } catch (cause) {
       setUnlinkError(localizeRecurringError(classifyRecurringError(cause), props.locale));
@@ -268,9 +274,10 @@ export function OccurrenceDetail(props: OccurrenceDetailProps) {
       {t(props.locale, 'Skipped. This bill has left the list; Reopen brings it back.', 'تم تخطي هذه الفاتورة وخرجت من القائمة. استخدم «إعادة فتح» لإرجاعها.')}
     </p>}
 
-    {/* D7: reverse a link this view just made against the wrong bill. It stays
-        reachable while the paid confirmation is up, so a mistaken match can be
-        undone without a duplicate. */}
+    {/* D7: reverse any live settlement match -- one this view just made, or one
+        the row already carried (e.g. auto-settle). It stays reachable while the
+        paid confirmation is up, so a mistaken match can be undone without a
+        duplicate. */}
     {linkedEventId && props.onUnlink && <div className="rec-row">
       {unlinkError && <div className="error-notice" role="alert">{unlinkError.message} {unlinkError.recovery}</div>}
       <button type="button" className="cr-button" disabled={props.recurring.pending || unlinking} onClick={() => void unlink()}>

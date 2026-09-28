@@ -13,6 +13,7 @@ const WALLET_OPTIONS = [{ id: '00000000-0000-4000-8000-000000000601', name: 'Dai
 function row(overrides: Partial<ScheduledOccurrenceRow> = {}): ScheduledOccurrenceRow {
   return {
     id: OCCURRENCE_ID, scheduleId: '00000000-0000-4000-8000-000000000301', sourceRevisionId: '1', currentEventId: '3',
+    linkedEventId: null,
     currency: 'USD', kind: 'expense', nameEn: 'Rent', nameAr: null, dueDate: '2026-09-30',
     expectedMinor: '50000', settledMinor: '20000', remainingMinor: '30000', state: 'partial', overdue: false,
     categoryId: null, loanId: null, fundingGoalId: null, preferredWalletId: null, fundingShortfallMinor: null,
@@ -190,6 +191,30 @@ describe('OccurrenceDetail', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Unlink payment' }));
     await waitFor(() => expect(onUnlink).toHaveBeenCalledWith(eventId));
     expect(refresh).toHaveBeenCalled();
+  });
+
+  // D7: a link made in an earlier session (e.g. auto-settle on Record) is
+  // carried on the row itself, so it can be unlinked without re-linking here.
+  it('unlinks a match the row already carries, made before this view opened (D7)', async () => {
+    const eventId = '00000000-0000-4000-8000-000000000501';
+    const refresh = vi.fn().mockResolvedValue(true);
+    const onUnlink = vi.fn().mockResolvedValue(undefined);
+    const recurring = fakeRecurringState({
+      page: page([row({ state: 'settled', settledMinor: '50000', remainingMinor: '0', linkedEventId: eventId })]),
+      refresh,
+    });
+    render(<OccurrenceDetail locale="en" recurring={recurring} occurrenceId={OCCURRENCE_ID}
+      walletOptions={WALLET_OPTIONS} onUnlink={onUnlink} onBack={vi.fn()} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Unlink payment' }));
+    await waitFor(() => expect(onUnlink).toHaveBeenCalledWith(eventId));
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it('hides Unlink payment when the row carries no linked event', () => {
+    render(<OccurrenceDetail locale="en"
+      recurring={fakeRecurringState({ page: page([row({ state: 'settled', settledMinor: '50000', remainingMinor: '0' })]) })}
+      occurrenceId={OCCURRENCE_ID} walletOptions={WALLET_OPTIONS} onUnlink={vi.fn()} onBack={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'Unlink payment' })).not.toBeInTheDocument();
   });
 
   it('U16-04: a confirm timeout offers an unchanged retry, never a second differently-shaped save', async () => {
