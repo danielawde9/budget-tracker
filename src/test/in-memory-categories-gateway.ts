@@ -10,6 +10,7 @@ import type {
   CreateSubcategoryInput,
   EventCategory,
 } from '../features/categories/types.js';
+import { namesCollide } from '../features/categories/category-name-rules.js';
 
 export const categoryFixtures: readonly Category[] = [
   { id: 'category-salary', spaceId: 'space-1', kind: 'income', nameEn: 'Salary', nameAr: 'راتب', parentCategoryId: null, createdAt: '2026-09-08T10:00:00Z', archivedAt: null },
@@ -36,6 +37,20 @@ export class InMemoryCategoriesGateway implements CategoriesGateway {
   async createCategory(input: CreateCategoryInput) {
     this.calls.push({ name: 'createCategory', input });
     this.failIfNeeded();
+    // Mirror the server's per-(space, kind) active-name unique index: the same
+    // normalized name is rejected within a kind, so an income category and an
+    // expense category of the same name never collide with each other.
+    const collision = this.categories.some((category) =>
+      category.spaceId === input.spaceId
+      && category.kind === input.kind
+      && category.archivedAt === null
+      && namesCollide(input, category));
+    if (collision) {
+      throw Object.assign(
+        new Error('an active category already uses one of the supplied normalized names'),
+        { code: 'P0001' },
+      );
+    }
     const id = `category-${this.categories.length + 1}`;
     this.categories.push({ id, spaceId: input.spaceId, kind: input.kind, nameEn: input.nameEn, nameAr: input.nameAr, parentCategoryId: null, createdAt: `2026-09-08T12:00:0${this.categories.length}Z`, archivedAt: null });
     return { id };

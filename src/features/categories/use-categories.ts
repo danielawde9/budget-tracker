@@ -52,7 +52,12 @@ function emptyView(spaceId: string): CategoriesView {
   };
 }
 
-function normalizeNames(draft: CreateSubcategoryDraft): CreateSubcategoryDraft {
+/**
+ * The existing client-side category name rules (trim, require at least one,
+ * bound to 120 characters). The database still canonicalizes further; this is
+ * the same normalizer every other create-category caller uses.
+ */
+export function normalizeCategoryNames(draft: CreateSubcategoryDraft): CreateSubcategoryDraft {
   const nameEn = draft.nameEn?.trim() || null;
   const nameAr = draft.nameAr?.trim() || null;
   if (!nameEn && !nameAr) throw new Error('Enter at least one category name.');
@@ -62,8 +67,8 @@ function normalizeNames(draft: CreateSubcategoryDraft): CreateSubcategoryDraft {
   return { nameEn, nameAr };
 }
 
-function normalizeDraft(draft: CreateCategoryDraft): CreateCategoryDraft {
-  return { ...draft, ...normalizeNames(draft) };
+export function normalizeCategoryDraft(draft: CreateCategoryDraft): CreateCategoryDraft {
+  return { ...draft, ...normalizeCategoryNames(draft) };
 }
 
 function inaccessible(error: CategoryErrorView): boolean {
@@ -176,9 +181,8 @@ export function useCategories(
     return { status: refreshed ? 'success' : 'refresh-required', reconciled: false };
   }, [gateway, load]);
 
-  const createCategory = useCallback(async (draft: CreateCategoryDraft): Promise<CategoryCommandOutcome> => {
-    const normalized = normalizeDraft(draft);
-    const requestId = createRequestId();
+  const createCategoryWithRequestId = useCallback(async (draft: CreateCategoryDraft, requestId: string): Promise<CategoryCommandOutcome> => {
+    const normalized = normalizeCategoryDraft(draft);
     const command: RetryCommand = {
       kind: 'create',
       requestId,
@@ -186,7 +190,12 @@ export function useCategories(
     };
     setRetry(null);
     return withPending(() => reconcile(command));
-  }, [createRequestId, reconcile, spaceId, withPending]);
+  }, [reconcile, spaceId, withPending]);
+
+  const createCategory = useCallback(async (draft: CreateCategoryDraft): Promise<CategoryCommandOutcome> => {
+    const requestId = createRequestId();
+    return createCategoryWithRequestId(draft, requestId);
+  }, [createCategoryWithRequestId, createRequestId]);
 
   const archiveCategory = useCallback(async (categoryId: string): Promise<CategoryCommandOutcome> => {
     const requestId = createRequestId();
@@ -203,7 +212,7 @@ export function useCategories(
     parentCategoryId: string,
     draft: CreateSubcategoryDraft,
   ): Promise<CategoryCommandOutcome> => {
-    const normalized = normalizeNames(draft);
+    const normalized = normalizeCategoryNames(draft);
     const requestId = createRequestId();
     const command: RetryCommand = {
       kind: 'create-subcategory',
@@ -272,6 +281,7 @@ export function useCategories(
     recoverRefresh: () => load(true, false),
     loadMore,
     createCategory,
+    createCategoryWithRequestId,
     createSubcategory,
     archiveCategory,
     retryAmbiguous,

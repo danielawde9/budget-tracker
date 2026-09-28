@@ -223,4 +223,52 @@ describe('CategoriesPage', () => {
     expect(dialog).not.toBeInTheDocument();
     expect(opener).toHaveFocus();
   });
+
+  it('adds a starter suggestion pack from the categories surface and refreshes the register', async () => {
+    const { gateway, user } = await renderPage();
+    const opener = screen.getByRole('button', { name: 'Add suggestion pack' });
+    await user.click(opener);
+    const dialog = screen.getByRole('dialog', { name: 'Add suggestion pack' });
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Include Housing' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add selected categories' }));
+    await waitFor(() => expect(within(dialog).getByRole('status')).toHaveTextContent('1 created'));
+    await user.click(within(dialog).getByRole('button', { name: 'Done' }));
+
+    expect(await screen.findByText('Housing')).toBeInTheDocument();
+    expect(gateway.calls.filter((call) => call.name === 'createCategory')).toHaveLength(1);
+    expect(opener).toBeInTheDocument();
+  });
+
+  it('surfaces an existing expense category instead of duplicating a suggestion name', async () => {
+    const gateway = new InMemoryCategoriesGateway();
+    gateway.categories.push({
+      id: 'category-housing', spaceId: 'space-1', kind: 'expense', nameEn: 'Housing', nameAr: 'السكن',
+      parentCategoryId: null, createdAt: '2026-09-08T12:30:00Z', archivedAt: null,
+    });
+    const { user } = await renderPage(gateway);
+    await user.click(screen.getByRole('button', { name: 'Add suggestion pack' }));
+    const dialog = screen.getByRole('dialog', { name: 'Add suggestion pack' });
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Include Housing' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add selected categories' }));
+    await waitFor(() => expect(within(dialog).getByRole('status')).toHaveTextContent('1 skipped'));
+    expect(within(dialog).getByText('Existing category')).toBeInTheDocument();
+    expect(gateway.calls.filter((call) => call.name === 'createCategory')).toHaveLength(0);
+    await user.click(within(dialog).getByRole('button', { name: 'Done' }));
+    expect(screen.getAllByText('Housing')).toHaveLength(1);
+  });
+
+  it('creates the expense suggestion when only an income category shares its name', async () => {
+    const gateway = new InMemoryCategoriesGateway();
+    gateway.categories.push({
+      id: 'category-income-housing', spaceId: 'space-1', kind: 'income', nameEn: 'Housing', nameAr: null,
+      parentCategoryId: null, createdAt: '2026-09-08T12:30:00Z', archivedAt: null,
+    });
+    const { user } = await renderPage(gateway);
+    await user.click(screen.getByRole('button', { name: 'Add suggestion pack' }));
+    const dialog = screen.getByRole('dialog', { name: 'Add suggestion pack' });
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Include Housing' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add selected categories' }));
+    await waitFor(() => expect(within(dialog).getByRole('status')).toHaveTextContent('1 created'));
+    expect(gateway.calls.some((call) => call.name === 'createCategory')).toBe(true);
+  });
 });

@@ -28,6 +28,18 @@
   gap: var(--cr-space-2);
 }
 
+.cg-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--cr-space-2);
+}
+
+.cg-add-pack {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cr-space-2);
+}
+
 .cr-main .cg-kind-tabs {
   display: inline-grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -239,8 +251,18 @@
 @media (max-width: 800px) {
   .cg-toolbar {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--cr-space-2);
     margin-block-start: var(--cr-space-4);
+  }
+
+  .cg-toolbar-actions {
+    justify-content: stretch;
+  }
+
+  .cg-toolbar-actions > button {
+    flex: 1 1 auto;
+    justify-content: center;
   }
 
   .cr-main .cg-registers {
@@ -296,11 +318,89 @@
     margin-block-start: calc(var(--cr-space-5) + var(--cr-space-3));
   }
 
-  .categories-workspace .cg-new-category {
+  .categories-workspace .cg-toolbar-actions {
     position: absolute;
     inset-block-start: var(--cr-space-3);
     inset-inline-end: 0;
   }
+}
+
+/* ---- Optional suggestion pack dialog (26c) ---- */
+.cg-pack-form {
+  gap: var(--cr-space-4);
+}
+
+.cg-pack-cap {
+  margin: 0;
+  font-size: 13px;
+  color: var(--cr-ink-soft);
+}
+
+.cg-pack {
+  display: grid;
+  gap: var(--cr-space-2);
+}
+
+.cg-pack-title {
+  margin: 0;
+  font-size: 15px;
+}
+
+.cg-pack-list {
+  display: grid;
+  gap: var(--cr-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cg-pack-entry {
+  display: grid;
+  gap: var(--cr-space-2);
+  margin: 0;
+  padding: var(--cr-space-3);
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius-sm);
+}
+
+.cg-pack-legend {
+  padding-inline: var(--cr-space-1);
+  font-weight: 650;
+}
+
+.cg-pack-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cr-space-2);
+}
+
+.cg-pack-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: var(--cr-space-2);
+}
+
+.cg-pack-results {
+  display: grid;
+  gap: var(--cr-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cg-pack-result-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--cr-space-2);
+}
+
+.cg-pack-status {
+  font-weight: 650;
+}
+
+.cg-pack-existing {
+  font-size: 13px;
 }
 
 @media (prefers-reduced-motion: reduce) {

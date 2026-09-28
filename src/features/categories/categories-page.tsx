@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Archive, ChevronDown, Plus, Tags } from 'lucide-react';
+import { Archive, ChevronDown, Plus, Sparkles, Tags } from 'lucide-react';
 
 import type { Locale } from '../loans/types.js';
 import { ArchiveCategoryDialog } from './archive-category-dialog.js';
 import { CategoryDialog } from './category-dialog.js';
+import { CategoryPackDialog } from './category-pack-dialog.js';
 import { localizeCategoryError } from './errors.js';
 import { SubcategoryDialog } from './subcategory-dialog.js';
 import type { CategoriesGateway, Category, CategoryKind } from './types.js';
@@ -103,6 +104,7 @@ export function CategoriesPage({ gateway, spaceId, locale = 'en', onSpaceUnavail
     : null;
   const [activeKind, setActiveKind] = useState<CategoryKind>('income');
   const [dialog, setDialog] = useState<OpenDialog>(null);
+  const [packOpen, setPackOpen] = useState(false);
 
   return <section className="categories-workspace">
     <PageHeader
@@ -112,7 +114,10 @@ export function CategoriesPage({ gateway, spaceId, locale = 'en', onSpaceUnavail
 
     <div className="cg-toolbar">
       <div className="category-kind-tabs cg-kind-tabs" role="group" aria-label={t(locale, 'Category type', 'نوع الفئة')}><button type="button" className={`cr-chip ${activeKind === 'income' ? 'cr-chip--active category-tab-active' : ''}`} aria-pressed={activeKind === 'income'} onClick={() => setActiveKind('income')}>{t(locale, 'Income', 'الدخل')}</button><button type="button" className={`cr-chip ${activeKind === 'expense' ? 'cr-chip--active category-tab-active' : ''}`} aria-pressed={activeKind === 'expense'} onClick={() => setActiveKind('expense')}>{t(locale, 'Expense', 'المصروف')}</button></div>
-      <button type="button" className="cr-button cr-button--primary cg-new-category" onClick={() => setDialog({ create: activeKind })}><Plus aria-hidden size={18} />{t(locale, 'New category', 'فئة جديدة')}</button>
+      <div className="cg-toolbar-actions">
+        <button type="button" className="cr-button cg-add-pack" onClick={() => setPackOpen(true)}><Sparkles aria-hidden size={18} />{t(locale, 'Add suggestion pack', 'إضافة حزمة اقتراحات')}</button>
+        <button type="button" className="cr-button cr-button--primary cg-new-category" onClick={() => setDialog({ create: activeKind })}><Plus aria-hidden size={18} />{t(locale, 'New category', 'فئة جديدة')}</button>
+      </div>
     </div>
 
     {state.status === 'loading' && <CategoriesSkeleton locale={locale} />}
@@ -126,5 +131,6 @@ export function CategoriesPage({ gateway, spaceId, locale = 'en', onSpaceUnavail
     {dialog && 'create' in dialog && <CategoryDialog locale={locale} initialKind={dialog.create} pending={state.pending} ambiguous={state.ambiguous?.kind === 'create'} onClose={() => setDialog(null)} onClearAmbiguous={state.clearAmbiguous} onRetry={state.retryAmbiguous} onRefresh={state.recoverRefresh} onSubmit={state.createCategory} />}
     {dialog && 'createSubcategory' in dialog && <SubcategoryDialog locale={locale} parent={dialog.createSubcategory} pending={state.pending} ambiguous={state.ambiguous?.kind === 'create-subcategory'} onClose={() => setDialog(null)} onClearAmbiguous={state.clearAmbiguous} onRetry={state.retryAmbiguous} onRefresh={state.recoverRefresh} onSubmit={(draft) => state.createSubcategory(dialog.createSubcategory.id, draft)} />}
     {dialog && 'archive' in dialog && <ArchiveCategoryDialog locale={locale} category={dialog.archive} pending={state.pending} ambiguous={state.ambiguous?.kind === 'archive'} onClose={() => setDialog(null)} onRetry={state.retryAmbiguous} onRefresh={state.recoverRefresh} onSubmit={() => state.archiveCategory(dialog.archive.id)} />}
+    {packOpen && <CategoryPackDialog locale={locale} existingCategories={[...state.incomeCategories, ...state.expenseCategories]} onCreateCategory={state.createCategoryWithRequestId} onClose={() => setPackOpen(false)} />}
   </section>;
 }
