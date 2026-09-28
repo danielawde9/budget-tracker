@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { AllocationSetup } from '../allocation/allocation-setup.js';
 import type { CategoryOption } from '../allocation/allocation-month-editor.js';
 import type { AllocationGateway } from '../allocation/types.js';
+import { MonthTransitionsPanel } from '../allocation/month-transitions.js';
 import { useAllocation } from '../allocation/use-allocation.js';
 import { CashControlSummary } from '../cash-control/cash-control-summary.js';
 import { CashOutlookChart } from '../cash-control/cash-outlook-chart.js';
@@ -84,6 +85,11 @@ const unavailableAllocationGateway: AllocationGateway = {
   async publishMonth() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
   async publishMonthV2() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
   async findCommand() { throw new Error('Allocation is unavailable until this browser is connected to its data service.'); },
+  async previewCopy() { throw new Error('Month transitions are unavailable until this browser is connected to its data service.'); },
+  async copyMonth() { throw new Error('Month transitions are unavailable until this browser is connected to its data service.'); },
+  async previewClose() { throw new Error('Month transitions are unavailable until this browser is connected to its data service.'); },
+  async closeMonth() { throw new Error('Month transitions are unavailable until this browser is connected to its data service.'); },
+  async setRollover() { throw new Error('Month transitions are unavailable until this browser is connected to its data service.'); },
 };
 
 const unavailableGoalsGateway: GoalsGateway = {
@@ -662,7 +668,21 @@ function PlanRoutes(props: PlanRoutesProps) {
           </button>
         ))}
       </nav>
-      {section === 'plan' ? planSection : null}
+      {section === 'plan' ? (
+        <>
+          {planSection}
+          {gateways.allocation ? (
+            <MonthTransitionsPanel
+              locale={locale}
+              spaceId={spaceId}
+              currency={planCurrency}
+              month={props.month}
+              gateway={gateways.allocation}
+              onSpaceUnavailable={props.onSpaceUnavailable}
+            />
+          ) : null}
+        </>
+      ) : null}
       {section === 'allocation' ? [planCurrency].map((currency) => (
         <AllocationCurrencySection
           key={currency}

@@ -7,14 +7,24 @@ import type {
   AllocationHistoryPage,
   AllocationMonthState,
   AllocationTrend,
+  CloseMonthInput,
+  CloseMonthResult,
+  ClosePreview,
+  CopyMonthInput,
+  CopyMonthResult,
   LoadCategoryPageInput,
   LoadHistoryPageInput,
   LoadTrendInput,
+  MonthCopyPreview,
+  PreviewCloseInput,
+  PreviewCopyInput,
   PublishMonthInput,
   PublishMonthResult,
   PublishMonthV2Input,
   SaveTemplateInput,
   SaveTemplateResult,
+  SetRolloverInput,
+  SetRolloverResult,
   TemplateHeadResult,
 } from './types.js';
 
@@ -27,14 +37,19 @@ export interface CommandOutcome {
    * confirmed happened yet. Lets a caller chain saveTemplate -> publishMonth
    * as one logical "Confirm" without the hook itself bundling the two SQL
    * commands into a single non-idempotent unit. */
-  result?: SaveTemplateResult | PublishMonthResult;
+  result?: SaveTemplateResult | PublishMonthResult | CopyMonthResult | CloseMonthResult | SetRolloverResult;
 }
 
-function runAllocationCommand(gateway: AllocationGateway, command: RetryCommand): Promise<SaveTemplateResult | PublishMonthResult> {
+type CommandResult = NonNullable<CommandOutcome['result']>;
+
+function runAllocationCommand(gateway: AllocationGateway, command: RetryCommand): Promise<CommandResult> {
   switch (command.kind) {
     case 'saveTemplate': return gateway.saveTemplate(command.input);
     case 'publishMonth': return gateway.publishMonth(command.input);
     case 'publishMonthV2': return gateway.publishMonthV2(command.input);
+    case 'copyMonth': return gateway.copyMonth(command.input);
+    case 'closeMonth': return gateway.closeMonth(command.input);
+    case 'setRollover': return gateway.setRollover(command.input);
   }
 }
 
@@ -42,6 +57,9 @@ const ALLOCATION_COMMAND_NAME: Record<RetryCommand['kind'], string> = {
   saveTemplate: 'save_allocation_template',
   publishMonth: 'publish_allocation_month',
   publishMonthV2: 'publish_allocation_month_v2',
+  copyMonth: 'copy_allocation_month',
+  closeMonth: 'close_budget_month',
+  setRollover: 'set_rollover_policy',
 };
 
 export const defaultMonthState: AllocationMonthState = {
@@ -55,11 +73,17 @@ export const defaultMonthState: AllocationMonthState = {
 type SaveTemplateDraft = Omit<SaveTemplateInput, 'spaceId' | 'requestId'>;
 type PublishMonthDraft = Omit<PublishMonthInput, 'spaceId' | 'requestId' | 'month' | 'currency'>;
 type PublishMonthV2Draft = Omit<PublishMonthV2Input, 'spaceId' | 'requestId' | 'month' | 'currency'>;
+type CopyMonthDraft = Omit<CopyMonthInput, 'spaceId' | 'requestId' | 'currency'>;
+type CloseMonthDraft = Omit<CloseMonthInput, 'spaceId' | 'requestId' | 'currency' | 'month'>;
+type SetRolloverDraft = Omit<SetRolloverInput, 'spaceId' | 'requestId' | 'currency'>;
 
 type RetryCommand =
   | { kind: 'saveTemplate'; requestId: string; input: SaveTemplateInput }
   | { kind: 'publishMonth'; requestId: string; input: PublishMonthInput }
-  | { kind: 'publishMonthV2'; requestId: string; input: PublishMonthV2Input };
+  | { kind: 'publishMonthV2'; requestId: string; input: PublishMonthV2Input }
+  | { kind: 'copyMonth'; requestId: string; input: CopyMonthInput }
+  | { kind: 'closeMonth'; requestId: string; input: CloseMonthInput }
+  | { kind: 'setRollover'; requestId: string; input: SetRolloverInput };
 
 interface AllocationView {
   loadedKey: string;
@@ -226,15 +250,43 @@ export function useAllocation(
     if (!retry) throw new Error('There is no unresolved command to retry.');
     return withPending(() => reconcileCommand(retry));
   }, [reconcileCommand, retry, withPending]);
-
   const clearAmbiguous = useCallback(() => {
     setRetry(null);
     setView((current) => (current.status === 'ambiguous' ? { ...current, status: 'ready' } : current));
   }, []);
 
+  // --- Month transitions (task 21). Reads pass through unchanged; the three
+  // commands share the same accepted/ambiguous/retry machinery above, so a
+  // copy, close or policy change is idempotent and never double-posts.
+  const previewCopy = useCallback((draft: Omit<PreviewCopyInput, 'spaceId' | 'currency'>, signal?: AbortSignal): Promise<MonthCopyPreview> =>
+    gateway.previewCopy({ ...draft, spaceId, currency }, signal), [gateway, spaceId, currency]);
+
+  const copyMonth = useCallback((draft: CopyMonthDraft): Promise<CommandOutcome> => {
+    const requestId = createRequestId();
+    return runCommand({ kind: 'copyMonth', requestId, input: { ...draft, spaceId, requestId, currency } });
+  }, [createRequestId, runCommand, spaceId, currency]);
+
+  const previewClose = useCallback((draft: Omit<PreviewCloseInput, 'spaceId' | 'currency'>, signal?: AbortSignal): Promise<ClosePreview> =>
+    gateway.previewClose({ ...draft, spaceId, currency }, signal), [gateway, spaceId, currency]);
+
+  const closeMonth = useCallback((draft: CloseMonthDraft): Promise<CommandOutcome> => {
+    const requestId = createRequestId();
+    return runCommand({ kind: 'closeMonth', requestId, input: { ...draft, spaceId, requestId, currency, month } });
+  }, [createRequestId, runCommand, spaceId, currency, month]);
+
+  const setRollover = useCallback((draft: SetRolloverDraft): Promise<CommandOutcome> => {
+    const requestId = createRequestId();
+    return runCommand({ kind: 'setRollover', requestId, input: { ...draft, spaceId, requestId, currency } });
+  }, [createRequestId, runCommand, spaceId, currency]);
+
+  /** Reads another month's allocation state in this same space/currency -- used
+   * to discover the previous month's latest snapshot id before a copy preview.
+   * Never a command, so it carries no request id. */
+  const loadMonthFor = useCallback((targetMonth: string, signal?: AbortSignal): Promise<AllocationMonthState> =>
+    gateway.loadMonth({ spaceId, month: targetMonth, currency, snapshotId: null }, signal), [gateway, spaceId, currency]);
+
   const loadCategoryPage = useCallback((draft: Omit<LoadCategoryPageInput, 'spaceId' | 'month' | 'currency'>, signal?: AbortSignal): Promise<AllocationCategoryPage> =>
     gateway.loadCategoryPage({ ...draft, spaceId, month, currency }, signal), [gateway, spaceId, month, currency]);
-
   const loadHistoryPage = useCallback((draft: Omit<LoadHistoryPageInput, 'spaceId' | 'month' | 'currency'>, signal?: AbortSignal): Promise<AllocationHistoryPage> =>
     gateway.loadHistoryPage({ ...draft, spaceId, month, currency }, signal), [gateway, spaceId, month, currency]);
 
@@ -258,6 +310,12 @@ export function useAllocation(
     saveTemplate,
     publishMonth,
     publishMonthV2,
+    previewCopy,
+    copyMonth,
+    previewClose,
+    closeMonth,
+    setRollover,
+    loadMonthFor,
     retryAmbiguous,
     clearAmbiguous,
     loadCategoryPage,

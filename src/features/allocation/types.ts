@@ -211,6 +211,178 @@ export interface PlanningCommandReceipt {
   readonly result: unknown;
 }
 
+// ---------------------------------------------------------------------------
+// Month transitions (task 21): copy a saved month, close a month, and opt in
+// per root/currency to signed carry. Field lists mirror
+// `20260916100000_month_transitions.sql` exactly -- never inferred.
+// ---------------------------------------------------------------------------
+
+/** One row of `preview_month_copy`'s `roots[]`. `actualMinor`/
+ * `outgoingCarryMinor` are close-only and are always `null` in a copy preview. */
+export interface MonthCopyRootRow {
+  readonly categoryId: string;
+  readonly nameEn: string | null;
+  readonly nameAr: string | null;
+  readonly groupId: string | null;
+  readonly baseMinor: string;
+  /** Signed integer text: an overspent root carries a negative amount. */
+  readonly carryMinor: string;
+  readonly effectiveMinor: string;
+  readonly actualMinor: string | null;
+  readonly outgoingCarryMinor: string | null;
+  readonly expectedRevisionId: string | null;
+}
+
+export interface MonthCopyGroupRow {
+  readonly groupId: string;
+  readonly nameEn: string | null;
+  readonly nameAr: string | null;
+  readonly purpose: AllocationGroupPurpose;
+  readonly order: number;
+  readonly basisPoints: number;
+  readonly targetMinor: string;
+  readonly carryMinor: string;
+  readonly effectiveMinor: string;
+}
+
+export interface MonthCopyGoalRow {
+  readonly goalId: string;
+  readonly groupId: string | null;
+  readonly targetMinor: string;
+  readonly expectedRevisionId: string | null;
+}
+
+export type MonthCopyOmissionKind = 'root' | 'goal' | 'carry';
+export interface MonthCopyOmission {
+  readonly entityId: string;
+  readonly kind: MonthCopyOmissionKind;
+  readonly reason: string;
+}
+
+export interface MonthCopyCarrySource {
+  readonly rootId: string;
+  readonly sourceCloseId: string | null;
+  readonly carryMinor: string;
+}
+
+/** `preview_month_copy` result. `carryMinor` is signed and is a distinct
+ * adjustment, never income; the accepted `previewHash` (with
+ * `expectedTargetSnapshotId`) is the exact acknowledgement `copy` replays. */
+export interface MonthCopyPreview {
+  readonly previewHash: string;
+  readonly sourceSnapshotId: string;
+  readonly sourceMonth: string;
+  readonly targetMonth: string;
+  readonly currency: Currency;
+  readonly expectedTargetSnapshotId: string | null;
+  readonly templateRevisionId: string;
+  readonly expectedIncomeRevisionId: string | null;
+  readonly incomeMinor: string;
+  readonly loanGroupId: string | null;
+  readonly carryCloseId: string | null;
+  readonly roots: readonly MonthCopyRootRow[];
+  readonly groups: readonly MonthCopyGroupRow[];
+  readonly goals: readonly MonthCopyGoalRow[];
+  readonly omissions: readonly MonthCopyOmission[];
+  readonly carrySources: readonly MonthCopyCarrySource[];
+}
+
+export interface PreviewCopyInput {
+  readonly spaceId: string;
+  readonly currency: Currency;
+  readonly sourceSnapshotId: string;
+  readonly targetMonth: string;
+}
+
+export interface CopyMonthInput {
+  readonly spaceId: string;
+  readonly requestId: string;
+  readonly currency: Currency;
+  readonly sourceSnapshotId: string;
+  readonly targetMonth: string;
+  readonly expectedTargetSnapshotId: string | null;
+  readonly acceptedPreviewHash: string;
+}
+
+export interface CopyMonthResult {
+  readonly snapshotId: string;
+  readonly sourceSnapshotId: string;
+  readonly previewHash: string;
+}
+
+/** One row of `preview_budget_month_close`'s `roots[]`. `policyRevisionId` is
+ * the root's current rollover-policy head (null before any opt-in), which is
+ * also the exact head `setRollover` must be checked against. */
+export interface CloseRootRow {
+  readonly categoryId: string;
+  readonly nameEn: string | null;
+  readonly nameAr: string | null;
+  readonly groupId: string | null;
+  readonly baseMinor: string;
+  readonly carryMinor: string;
+  readonly effectiveMinor: string;
+  readonly actualMinor: string;
+  /** Signed integer text and never clamped: an overspent enabled root carries
+   * a negative amount into the next month. */
+  readonly outgoingCarryMinor: string;
+  readonly enabled: boolean;
+  readonly policyRevisionId: string | null;
+  readonly carrySourceCloseId: string | null;
+}
+
+export interface ClosePreview {
+  readonly previewHash: string;
+  readonly month: string;
+  readonly currency: Currency;
+  readonly snapshotId: string;
+  /** The current close head this exact preview hash was computed against. */
+  readonly expectedCloseId: string | null;
+  readonly incomeMinor: string;
+  readonly spendingMinor: string;
+  readonly factCount: string;
+  readonly factDigest: string;
+  /** True when re-closing now would freeze a different set of facts -- the
+   * freeze is restatement-aware, not silently reused. */
+  readonly restatementRequired: boolean;
+  readonly roots: readonly CloseRootRow[];
+}
+
+export interface PreviewCloseInput {
+  readonly spaceId: string;
+  readonly currency: Currency;
+  readonly month: string;
+  readonly expectedCloseId: string | null;
+}
+
+export interface CloseMonthInput {
+  readonly spaceId: string;
+  readonly requestId: string;
+  readonly currency: Currency;
+  readonly month: string;
+  readonly expectedCloseId: string | null;
+  readonly acceptedPreviewHash: string;
+}
+
+export interface CloseMonthResult {
+  readonly closeId: string;
+  readonly previewHash: string;
+  /** The close this one supersedes (a restatement), or null for the first. */
+  readonly restatesCloseId: string | null;
+}
+
+export interface SetRolloverInput {
+  readonly spaceId: string;
+  readonly requestId: string;
+  readonly currency: Currency;
+  readonly rootId: string;
+  readonly enabled: boolean;
+  readonly expectedRevisionId: string | null;
+}
+
+export interface SetRolloverResult {
+  readonly revisionId: string;
+}
+
 export interface AllocationGateway {
   loadMonth(input: LoadMonthInput, signal?: AbortSignal): Promise<AllocationMonthState>;
   loadCategoryPage(input: LoadCategoryPageInput, signal?: AbortSignal): Promise<AllocationCategoryPage>;
@@ -221,4 +393,11 @@ export interface AllocationGateway {
   publishMonth(input: PublishMonthInput): Promise<PublishMonthResult>;
   publishMonthV2(input: PublishMonthV2Input): Promise<PublishMonthResult>;
   findCommand(spaceId: string, requestId: string): Promise<PlanningCommandReceipt | null>;
+  /** Copy a saved month: read-only preview carrying the exact hash + expected
+   * target head the command must echo back. */
+  previewCopy(input: PreviewCopyInput, signal?: AbortSignal): Promise<MonthCopyPreview>;
+  copyMonth(input: CopyMonthInput): Promise<CopyMonthResult>;
+  previewClose(input: PreviewCloseInput, signal?: AbortSignal): Promise<ClosePreview>;
+  closeMonth(input: CloseMonthInput): Promise<CloseMonthResult>;
+  setRollover(input: SetRolloverInput): Promise<SetRolloverResult>;
 }

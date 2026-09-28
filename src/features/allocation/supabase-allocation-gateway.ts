@@ -1,6 +1,6 @@
 import { planningRpc, type PlanningRpcClient } from '../planning-shared/rpc.js';
 import {
-  array, bigIntId, boolean, currency, date, enumValue, integer, minor, month,
+  array, bigIntId, boolean, currency, date, enumValue, head, integer, minor, month,
   nullableBigIntId, nullableInteger, nullableMinor, nullableSignedIntegerText,
   nullableString, nullableUuid, object, planningMoneyInput, string, uniqueBy, uuid,
 } from '../planning-shared/parse.js';
@@ -16,17 +16,34 @@ import type {
   AllocationRowKind,
   AllocationTrend,
   AllocationTrendMonth,
+  CloseMonthInput,
+  CloseMonthResult,
+  ClosePreview,
+  CloseRootRow,
+  CopyMonthResult,
+  CopyMonthInput,
   LoadCategoryPageInput,
   LoadHistoryPageInput,
   LoadMonthInput,
   LoadTemplateHeadInput,
   LoadTrendInput,
+  MonthCopyCarrySource,
+  MonthCopyGoalRow,
+  MonthCopyGroupRow,
+  MonthCopyOmission,
+  MonthCopyOmissionKind,
+  MonthCopyPreview,
+  MonthCopyRootRow,
   PlanningCommandReceipt,
+  PreviewCloseInput,
+  PreviewCopyInput,
   PublishMonthInput,
   PublishMonthResult,
   PublishMonthV2Input,
   SaveTemplateInput,
   SaveTemplateResult,
+  SetRolloverInput,
+  SetRolloverResult,
   TemplateHeadResult,
 } from './types.js';
 
@@ -37,6 +54,15 @@ const MAX_GROUP_ROWS = 14;
 const MAX_CATEGORY_ROWS = 100;
 const MAX_HISTORY_ROWS = 100;
 const MAX_TREND_MONTHS = 12;
+
+// Month-transition read bounds, matching the SQL caps exactly.
+const GROUP_PURPOSES: readonly ('spending' | 'future')[] = ['spending', 'future'];
+const OMISSION_KINDS: readonly MonthCopyOmissionKind[] = ['root', 'goal', 'carry'];
+const MAX_COPY_ROOT_ROWS = 200;
+const MAX_COPY_GOAL_ROWS = 100;
+const MAX_COPY_GROUP_ROWS = 14;
+const MAX_OMISSION_ROWS = 300;
+const MAX_CLOSE_ROOT_ROWS = 200;
 
 /** Converts a bigint-identifier string into the JS number RPC callers use for
  * a `bigint` SQL parameter, matching the existing Plan gateway's convention. */
@@ -197,6 +223,145 @@ function receiptResult(value: unknown): PlanningCommandReceipt | null {
   };
 }
 
+function copyRootRow(value: unknown): MonthCopyRootRow {
+  const row = object(value);
+  return {
+    categoryId: uuid(row['categoryId'], 'categoryId'),
+    nameEn: nullableString(row['nameEn'], 'nameEn'),
+    nameAr: nullableString(row['nameAr'], 'nameAr'),
+    groupId: nullableUuid(row['groupId'], 'groupId'),
+    baseMinor: minor(row['baseMinor']),
+    carryMinor: minor(row['carryMinor']),
+    effectiveMinor: minor(row['effectiveMinor']),
+    actualMinor: nullableMinor(row['actualMinor']),
+    outgoingCarryMinor: nullableMinor(row['outgoingCarryMinor']),
+    expectedRevisionId: nullableBigIntId(row['expectedRevisionId'], 'expectedRevisionId'),
+  };
+}
+
+function copyGroupRow(value: unknown): MonthCopyGroupRow {
+  const row = object(value);
+  return {
+    groupId: uuid(row['groupId'], 'groupId'),
+    nameEn: nullableString(row['nameEn'], 'nameEn'),
+    nameAr: nullableString(row['nameAr'], 'nameAr'),
+    purpose: enumValue(row['purpose'], GROUP_PURPOSES, 'purpose'),
+    order: integer(row['order'], 'order'),
+    basisPoints: integer(row['basisPoints'], 'basisPoints'),
+    targetMinor: minor(row['targetMinor']),
+    carryMinor: minor(row['carryMinor']),
+    effectiveMinor: minor(row['effectiveMinor']),
+  };
+}
+
+function copyGoalRow(value: unknown): MonthCopyGoalRow {
+  const row = object(value);
+  return {
+    goalId: uuid(row['goalId'], 'goalId'),
+    groupId: nullableUuid(row['groupId'], 'groupId'),
+    targetMinor: minor(row['targetMinor']),
+    expectedRevisionId: nullableBigIntId(row['expectedRevisionId'], 'expectedRevisionId'),
+  };
+}
+
+function copyOmission(value: unknown): MonthCopyOmission {
+  const row = object(value);
+  return {
+    entityId: uuid(row['entityId'], 'entityId'),
+    kind: enumValue(row['kind'], OMISSION_KINDS, 'kind'),
+    reason: string(row['reason'], 'reason'),
+  };
+}
+
+function copyCarrySource(value: unknown): MonthCopyCarrySource {
+  const row = object(value);
+  return {
+    rootId: uuid(row['rootId'], 'rootId'),
+    sourceCloseId: nullableBigIntId(row['sourceCloseId'], 'sourceCloseId'),
+    carryMinor: minor(row['carryMinor']),
+  };
+}
+
+function parseCopyPreview(value: unknown): MonthCopyPreview {
+  const row = object(value);
+  return {
+    previewHash: head(row['previewHash'], 'previewHash'),
+    sourceSnapshotId: bigIntId(row['sourceSnapshotId'], 'sourceSnapshotId'),
+    sourceMonth: month(row['sourceMonth']),
+    targetMonth: month(row['targetMonth']),
+    currency: currency(row['currency']),
+    expectedTargetSnapshotId: nullableBigIntId(row['expectedTargetSnapshotId'], 'expectedTargetSnapshotId'),
+    templateRevisionId: bigIntId(row['templateRevisionId'], 'templateRevisionId'),
+    expectedIncomeRevisionId: nullableBigIntId(row['expectedIncomeRevisionId'], 'expectedIncomeRevisionId'),
+    incomeMinor: minor(row['incomeMinor']),
+    loanGroupId: nullableUuid(row['loanGroupId'], 'loanGroupId'),
+    carryCloseId: nullableBigIntId(row['carryCloseId'], 'carryCloseId'),
+    roots: uniqueBy(array(row['roots'], 'roots', MAX_COPY_ROOT_ROWS).map(copyRootRow), (item) => item.categoryId, 'categoryId'),
+    groups: uniqueBy(array(row['groups'], 'groups', MAX_COPY_GROUP_ROWS).map(copyGroupRow), (item) => item.groupId, 'groupId'),
+    goals: uniqueBy(array(row['goals'], 'goals', MAX_COPY_GOAL_ROWS).map(copyGoalRow), (item) => item.goalId, 'goalId'),
+    omissions: array(row['omissions'], 'omissions', MAX_OMISSION_ROWS).map(copyOmission),
+    carrySources: array(row['carrySources'], 'carrySources', MAX_COPY_ROOT_ROWS).map(copyCarrySource),
+  };
+}
+
+function copyMonthResult(value: unknown): CopyMonthResult {
+  const row = object(value);
+  return {
+    snapshotId: bigIntId(row['snapshotId'], 'snapshotId'),
+    sourceSnapshotId: bigIntId(row['sourceSnapshotId'], 'sourceSnapshotId'),
+    previewHash: head(row['previewHash'], 'previewHash'),
+  };
+}
+
+function closeRootRow(value: unknown): CloseRootRow {
+  const row = object(value);
+  return {
+    categoryId: uuid(row['categoryId'], 'categoryId'),
+    nameEn: nullableString(row['nameEn'], 'nameEn'),
+    nameAr: nullableString(row['nameAr'], 'nameAr'),
+    groupId: nullableUuid(row['groupId'], 'groupId'),
+    baseMinor: minor(row['baseMinor']),
+    carryMinor: minor(row['carryMinor']),
+    effectiveMinor: minor(row['effectiveMinor']),
+    actualMinor: minor(row['actualMinor']),
+    outgoingCarryMinor: minor(row['outgoingCarryMinor']),
+    enabled: boolean(row['enabled'], 'enabled'),
+    policyRevisionId: nullableBigIntId(row['policyRevisionId'], 'policyRevisionId'),
+    carrySourceCloseId: nullableBigIntId(row['carrySourceCloseId'], 'carrySourceCloseId'),
+  };
+}
+
+function parseClosePreview(value: unknown): ClosePreview {
+  const row = object(value);
+  return {
+    previewHash: head(row['previewHash'], 'previewHash'),
+    month: month(row['month']),
+    currency: currency(row['currency']),
+    snapshotId: bigIntId(row['snapshotId'], 'snapshotId'),
+    expectedCloseId: nullableBigIntId(row['expectedCloseId'], 'expectedCloseId'),
+    incomeMinor: minor(row['incomeMinor']),
+    spendingMinor: minor(row['spendingMinor']),
+    factCount: bigIntId(row['factCount'], 'factCount'),
+    factDigest: head(row['factDigest'], 'factDigest'),
+    restatementRequired: boolean(row['restatementRequired'], 'restatementRequired'),
+    roots: uniqueBy(array(row['roots'], 'roots', MAX_CLOSE_ROOT_ROWS).map(closeRootRow), (item) => item.categoryId, 'categoryId'),
+  };
+}
+
+function closeMonthResult(value: unknown): CloseMonthResult {
+  const row = object(value);
+  return {
+    closeId: bigIntId(row['closeId'], 'closeId'),
+    previewHash: head(row['previewHash'], 'previewHash'),
+    restatesCloseId: nullableBigIntId(row['restatesCloseId'], 'restatesCloseId'),
+  };
+}
+
+function setRolloverResult(value: unknown): SetRolloverResult {
+  const row = object(value);
+  return { revisionId: bigIntId(row['revisionId'], 'revisionId') };
+}
+
 function templateGroupArg(group: SaveTemplateInput['groups'][number]): Record<string, unknown> {
   return {
     id: uuid(group.id, 'group.id'),
@@ -336,6 +501,63 @@ export function createSupabaseAllocationGateway(client: AllocationDataClient): A
     async findCommand(spaceId: string, requestId: string): Promise<PlanningCommandReceipt | null> {
       const data = await planningRpc(client, 'find_planning_command', { p_space_id: spaceId, p_request_id: requestId });
       return receiptResult(data);
+    },
+
+    async previewCopy(input: PreviewCopyInput, signal?: AbortSignal): Promise<MonthCopyPreview> {
+      const data = await planningRpc(client, 'preview_month_copy', {
+        p_space_id: input.spaceId,
+        p_currency: currency(input.currency),
+        p_source_snapshot_id: bigIntArg(input.sourceSnapshotId, 'sourceSnapshotId'),
+        p_target_month: month(input.targetMonth),
+      }, signal);
+      return parseCopyPreview(data);
+    },
+
+    async copyMonth(input: CopyMonthInput): Promise<CopyMonthResult> {
+      const data = await planningRpc(client, 'copy_allocation_month', {
+        p_space_id: input.spaceId,
+        p_request_id: input.requestId,
+        p_currency: currency(input.currency),
+        p_source_snapshot_id: bigIntArg(input.sourceSnapshotId, 'sourceSnapshotId'),
+        p_target_month: month(input.targetMonth),
+        p_expected_target_snapshot_id: bigIntArg(input.expectedTargetSnapshotId, 'expectedTargetSnapshotId'),
+        p_accepted_preview_hash: head(input.acceptedPreviewHash, 'acceptedPreviewHash'),
+      });
+      return copyMonthResult(data);
+    },
+
+    async previewClose(input: PreviewCloseInput, signal?: AbortSignal): Promise<ClosePreview> {
+      const data = await planningRpc(client, 'preview_budget_month_close', {
+        p_space_id: input.spaceId,
+        p_currency: currency(input.currency),
+        p_month: month(input.month),
+        p_expected_close_id: bigIntArg(input.expectedCloseId, 'expectedCloseId'),
+      }, signal);
+      return parseClosePreview(data);
+    },
+
+    async closeMonth(input: CloseMonthInput): Promise<CloseMonthResult> {
+      const data = await planningRpc(client, 'close_budget_month', {
+        p_space_id: input.spaceId,
+        p_request_id: input.requestId,
+        p_currency: currency(input.currency),
+        p_month: month(input.month),
+        p_expected_close_id: bigIntArg(input.expectedCloseId, 'expectedCloseId'),
+        p_accepted_preview_hash: head(input.acceptedPreviewHash, 'acceptedPreviewHash'),
+      });
+      return closeMonthResult(data);
+    },
+
+    async setRollover(input: SetRolloverInput): Promise<SetRolloverResult> {
+      const data = await planningRpc(client, 'set_rollover_policy', {
+        p_space_id: input.spaceId,
+        p_request_id: input.requestId,
+        p_currency: currency(input.currency),
+        p_root_id: uuid(input.rootId, 'rootId'),
+        p_enabled: boolean(input.enabled, 'enabled'),
+        p_expected_revision_id: bigIntArg(input.expectedRevisionId, 'expectedRevisionId'),
+      });
+      return setRolloverResult(data);
     },
   };
 }

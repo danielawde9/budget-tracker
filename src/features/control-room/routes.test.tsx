@@ -761,6 +761,27 @@ describe('ControlRoomRoutes plan destination', () => {
     expect(alert).toHaveTextContent('Could not load the monthly plan.');
     expect(alert).toHaveTextContent('plan backend exploded');
   });
+
+  it('mounts the month-transitions controls in the Plan section and hides them on another section', async () => {
+    const user = userEvent.setup();
+    const gatewaysBag = gateways({});
+    gatewaysBag.allocation = new InMemoryAllocationGateway();
+    render(
+      <ControlRoomRoutes
+        locale="en"
+        spaceId="personal-space"
+        spaceKind="personal"
+        destination="plan"
+        gateways={gatewaysBag}
+        recordOpen={false}
+        onCloseRecord={() => undefined}
+      />,
+    );
+    expect(await screen.findByRole('button', { name: 'Copy previous month' })).toBeInTheDocument();
+    const sections = screen.getByRole('navigation', { name: 'Plan sections' });
+    await user.click(within(sections).getByRole('button', { name: 'Allocation' }));
+    expect(screen.queryByRole('button', { name: 'Copy previous month' })).not.toBeInTheDocument();
+  });
 });
 
 describe('ControlRoomRoutes plan save failure and retry', () => {

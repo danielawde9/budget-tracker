@@ -4,17 +4,27 @@ import type {
   AllocationHistoryPage,
   AllocationMonthState,
   AllocationTrend,
+  CloseMonthInput,
+  CloseMonthResult,
+  ClosePreview,
+  CopyMonthInput,
+  CopyMonthResult,
   LoadCategoryPageInput,
   LoadHistoryPageInput,
   LoadMonthInput,
   LoadTemplateHeadInput,
   LoadTrendInput,
+  MonthCopyPreview,
   PlanningCommandReceipt,
+  PreviewCloseInput,
+  PreviewCopyInput,
   PublishMonthInput,
   PublishMonthResult,
   PublishMonthV2Input,
   SaveTemplateInput,
   SaveTemplateResult,
+  SetRolloverInput,
+  SetRolloverResult,
   TemplateHeadResult,
 } from '../features/allocation/types.js';
 import { postgrestRejection } from './postgrest-rejection.js';
@@ -75,6 +85,63 @@ export const coreMonthStateFixture: AllocationMonthState = {
   ],
 };
 
+/** Month-transitions copy preview fixture: source snapshot 12 (September)
+ * copied into October, with the task 21 monetary subset (base 10000, carry
+ * -2500, effective 7500) on the one root. */
+export const copyPreviewFixture: MonthCopyPreview = {
+  previewHash: 'a'.repeat(64),
+  sourceSnapshotId: '12',
+  sourceMonth: '2026-09-01',
+  targetMonth: '2026-10-01',
+  currency: 'USD',
+  expectedTargetSnapshotId: null,
+  templateRevisionId: '9',
+  expectedIncomeRevisionId: null,
+  incomeMinor: '200000',
+  loanGroupId: '00000000-0000-4000-8000-000000000003',
+  carryCloseId: '7',
+  roots: [
+    {
+      categoryId: '00000000-0000-4000-8000-000000000010', nameEn: 'Groceries', nameAr: 'بقالة',
+      groupId: '00000000-0000-4000-8000-000000000001',
+      baseMinor: '10000', carryMinor: '-2500', effectiveMinor: '7500',
+      actualMinor: null, outgoingCarryMinor: null, expectedRevisionId: null,
+    },
+  ],
+  groups: [
+    {
+      groupId: '00000000-0000-4000-8000-000000000001', nameEn: 'Essentials', nameAr: 'الأساسيات',
+      purpose: 'spending', order: 0, basisPoints: 5600, targetMinor: '112000', carryMinor: '-2500', effectiveMinor: '109500',
+    },
+  ],
+  goals: [],
+  omissions: [{ entityId: '33333333-3333-4333-8333-333333333333', kind: 'root', reason: 'archived' }],
+  carrySources: [{ rootId: '00000000-0000-4000-8000-000000000010', sourceCloseId: '7', carryMinor: '-2500' }],
+};
+
+/** Month-transitions close preview fixture for September 2026. `enabled` and
+ * `policyRevisionId` mirror the root's current rollover policy head. */
+export const closePreviewFixture: ClosePreview = {
+  previewHash: 'b'.repeat(64),
+  month: '2026-09-01',
+  currency: 'USD',
+  snapshotId: '12',
+  expectedCloseId: null,
+  incomeMinor: '180000',
+  spendingMinor: '161000',
+  factCount: '42',
+  factDigest: 'c'.repeat(64),
+  restatementRequired: false,
+  roots: [
+    {
+      categoryId: '00000000-0000-4000-8000-000000000010', nameEn: 'Groceries', nameAr: 'بقالة',
+      groupId: '00000000-0000-4000-8000-000000000001',
+      baseMinor: '10000', carryMinor: '0', effectiveMinor: '10000',
+      actualMinor: '12500', outgoingCarryMinor: '-2500', enabled: false, policyRevisionId: null, carrySourceCloseId: null,
+    },
+  ],
+};
+
 export class InMemoryAllocationGateway implements AllocationGateway {
   monthState: AllocationMonthState = emptyMonthState;
   categoryPage: AllocationCategoryPage = { rows: [], nextRootId: null, hasMore: false };
@@ -95,6 +162,14 @@ export class InMemoryAllocationGateway implements AllocationGateway {
    * month and currency -- enforced by `publishMonth`/`publishMonthV2` the same
    * way SQL enforces it (audit B2). */
   incomeHeads = new Map<string, string | null>();
+  /** Month-transitions fixtures + heads. `previewCloseError` lets a test model
+   * the `budget_month_not_ended`/`budget_month_close_requires_plan` refusals. */
+  copyPreview: MonthCopyPreview = copyPreviewFixture;
+  closePreview: ClosePreview = closePreviewFixture;
+  previewCloseError: Error | null = null;
+  nextCloseId = 100;
+  nextRolloverRevisionId = 100;
+  policyHeadByRoot = new Map<string, string | null>();
 
   private async settle<T>(name: string, input: unknown, value: () => T, signal?: AbortSignal): Promise<T> {
     this.calls.push({ name, input });
@@ -169,5 +244,66 @@ export class InMemoryAllocationGateway implements AllocationGateway {
   async findCommand(spaceId: string, requestId: string): Promise<PlanningCommandReceipt | null> {
     this.calls.push({ name: 'findCommand', input: { spaceId, requestId } });
     return this.receipts.get(requestId) ?? null;
+  }
+
+  async previewCopy(input: PreviewCopyInput, signal?: AbortSignal): Promise<MonthCopyPreview> {
+    return this.settle('previewCopy', input, () => {
+      if (input.sourceSnapshotId !== this.copyPreview.sourceSnapshotId) throw postgrestRejection('P0001', 'month_copy_source_not_found');
+      return this.copyPreview;
+    }, signal);
+  }
+
+  async copyMonth(input: CopyMonthInput): Promise<CopyMonthResult> {
+    this.calls.push({ name: 'copyMonth', input });
+    if (this.error) throw this.error;
+    const existing = this.receipts.get(input.requestId);
+    if (existing) return existing.result as CopyMonthResult;
+    if (input.acceptedPreviewHash !== this.copyPreview.previewHash
+      || (input.expectedTargetSnapshotId ?? null) !== this.copyPreview.expectedTargetSnapshotId) {
+      throw postgrestRejection('40001', 'planning_stale_revision');
+    }
+    const result: CopyMonthResult = {
+      snapshotId: String(this.nextSnapshotId++), sourceSnapshotId: input.sourceSnapshotId, previewHash: input.acceptedPreviewHash,
+    };
+    this.receipts.set(input.requestId, { command: 'copy_allocation_month', sequenceId: result.snapshotId, result });
+    return result;
+  }
+
+  async previewClose(input: PreviewCloseInput, signal?: AbortSignal): Promise<ClosePreview> {
+    return this.settle('previewClose', input, () => {
+      if (this.previewCloseError) throw this.previewCloseError;
+      return this.closePreview;
+    }, signal);
+  }
+
+  async closeMonth(input: CloseMonthInput): Promise<CloseMonthResult> {
+    this.calls.push({ name: 'closeMonth', input });
+    if (this.error) throw this.error;
+    const existing = this.receipts.get(input.requestId);
+    if (existing) return existing.result as CloseMonthResult;
+    if ((input.expectedCloseId ?? null) !== this.closePreview.expectedCloseId
+      || input.acceptedPreviewHash !== this.closePreview.previewHash) {
+      throw postgrestRejection('40001', 'planning_stale_revision');
+    }
+    const result: CloseMonthResult = {
+      closeId: String(this.nextCloseId++), previewHash: input.acceptedPreviewHash, restatesCloseId: input.expectedCloseId,
+    };
+    this.receipts.set(input.requestId, { command: 'close_budget_month', sequenceId: result.closeId, result });
+    return result;
+  }
+
+  async setRollover(input: SetRolloverInput): Promise<SetRolloverResult> {
+    this.calls.push({ name: 'setRollover', input });
+    if (this.error) throw this.error;
+    const existing = this.receipts.get(input.requestId);
+    if (existing) return existing.result as SetRolloverResult;
+    if ((input.expectedRevisionId ?? null) !== (this.policyHeadByRoot.get(input.rootId) ?? null)) {
+      throw postgrestRejection('40001', 'planning_stale_revision');
+    }
+    const revisionId = String(this.nextRolloverRevisionId++);
+    this.policyHeadByRoot.set(input.rootId, revisionId);
+    const result: SetRolloverResult = { revisionId };
+    this.receipts.set(input.requestId, { command: 'set_rollover_policy', sequenceId: revisionId, result });
+    return result;
   }
 }

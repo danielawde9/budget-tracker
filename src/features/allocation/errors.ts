@@ -11,6 +11,12 @@ export type AllocationErrorCode =
   | 'group_overallocated'
   | 'invalid_loan_group'
   | 'loan_commitment_misfit'
+  | 'month_not_ended'
+  | 'close_requires_plan'
+  | 'copy_source_not_found'
+  | 'range_too_large'
+  | 'rollover_requires_expense_root'
+  | 'rollover_archived_root'
   | 'domain_rejection'
   | 'timeout'
   | 'unknown';
@@ -55,6 +61,52 @@ export function classifyAllocationError(cause: unknown): AllocationErrorView {
       code: 'timeout',
       message: 'The request timed out before a response arrived.',
       recovery: 'A timeout after submission is not a rejection. We are checking whether it went through.',
+    };
+  }
+  // Month transitions (task 21). These message checks must sit ahead of the
+  // broad `22023` invalid-input branch below: `budget_month_not_ended` is
+  // raised with SQLSTATE 22023 too, and without this a manager would see the
+  // generic "one of the entered values is not valid" line.
+  if (/budget_month_not_ended/i.test(message)) {
+    return {
+      code: 'month_not_ended',
+      message: 'This month has not ended yet.',
+      recovery: 'Close a month only after its last day has passed, then try again.',
+    };
+  }
+  if (/budget_month_close_requires_plan/i.test(message)) {
+    return {
+      code: 'close_requires_plan',
+      message: 'This month has no published plan to close.',
+      recovery: 'Publish this month’s plan first, then close it.',
+    };
+  }
+  if (/month_copy_source_not_found/i.test(message)) {
+    return {
+      code: 'copy_source_not_found',
+      message: 'That saved month could not be found to copy.',
+      recovery: 'Reload the month history and choose a saved month that still exists.',
+    };
+  }
+  if (/range_too_large/i.test(message)) {
+    return {
+      code: 'range_too_large',
+      message: 'This month has too many transactions to close at once.',
+      recovery: 'Split the period or contact support before closing this month.',
+    };
+  }
+  if (/rollover_policy_requires_expense_root/i.test(message)) {
+    return {
+      code: 'rollover_requires_expense_root',
+      message: 'Carry can only be turned on for a top-level expense category.',
+      recovery: 'Choose an active expense category that has no parent.',
+    };
+  }
+  if (/rollover_policy_archived_root/i.test(message)) {
+    return {
+      code: 'rollover_archived_root',
+      message: 'This category is archived, so carry cannot be turned on for it.',
+      recovery: 'Restore the category, or leave carry off for it.',
     };
   }
   // A Plan head that moved under a publish is raised by
@@ -199,6 +251,30 @@ const arabicCopy: Record<AllocationErrorCode, Pick<AllocationErrorView, 'message
   loan_commitment_misfit: {
     message: 'دفعة الدين الحالية أكبر من هدف المجموعة المستقبلية المرتبطة.',
     recovery: 'ارفع هدف المجموعة المستقبلية، أو اترك تجميع الدين مستقلًا.',
+  },
+  month_not_ended: {
+    message: 'لم ينتهِ هذا الشهر بعد.',
+    recovery: 'أغلق الشهر فقط بعد انتهاء يومه الأخير، ثم حاول مرة أخرى.',
+  },
+  close_requires_plan: {
+    message: 'لا توجد خطة منشورة لإغلاق هذا الشهر.',
+    recovery: 'انشر خطة هذا الشهر أولًا، ثم أغلقه.',
+  },
+  copy_source_not_found: {
+    message: 'تعذر العثور على ذلك الشهر المحفوظ لنسخه.',
+    recovery: 'أعد تحميل سجل الأشهر واختر شهرًا محفوظًا لا يزال موجودًا.',
+  },
+  range_too_large: {
+    message: 'يحتوي هذا الشهر على عدد كبير جدًا من الحركات لإغلاقه دفعة واحدة.',
+    recovery: 'قسّم الفترة أو تواصل مع الدعم قبل إغلاق هذا الشهر.',
+  },
+  rollover_requires_expense_root: {
+    message: 'يمكن تشغيل الترحيل فقط لفئة مصروفات رئيسية.',
+    recovery: 'اختر فئة مصروفات فعالة ليس لها فئة أصليّة.',
+  },
+  rollover_archived_root: {
+    message: 'هذه الفئة مؤرشفة، لذا لا يمكن تشغيل الترحيل لها.',
+    recovery: 'استعد الفئة، أو اترك الترحيل متوقفًا لها.',
   },
   domain_rejection: {
     message: 'تعذر حفظ هذه الخطة لأنها لم تعد متسقة داخليًا.',
