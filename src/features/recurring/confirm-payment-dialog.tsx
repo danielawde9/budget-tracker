@@ -4,6 +4,7 @@ import { formatMinorAmount, parsePositiveMinorAmount } from '../wallets/money.js
 import { DialogShell } from '../wallets/dialog-shell.js';
 import { classifyRecurringError, localizeRecurringError } from './errors.js';
 import type { LinkableEventOption, LinkableEventsQuery } from './linkable-events.js';
+import { useSpaceClock } from '../workspace/space-clock.js';
 import type { ScheduleKind } from './types.js';
 import type { CommandOutcome } from './use-recurring.js';
 
@@ -40,7 +41,6 @@ interface ConfirmPaymentDialogProps {
 }
 
 const t = (locale: Locale, en: string, ar: string) => locale === 'ar' ? ar : en;
-const todayIso = () => new Date().toISOString().slice(0, 10);
 
 function validDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -58,9 +58,12 @@ function minorToInput(amountMinor: string, currency: Currency): string {
 
 export function ConfirmPaymentDialog(props: ConfirmPaymentDialogProps) {
   const descriptionId = useId();
+  // W4a-1: the date default and the "today or earlier" bound come from the
+  // space's single server clock -- not a second browser/UTC clock.
+  const serverToday = useSpaceClock()?.today ?? '';
   const [mode, setMode] = useState<PaymentMode>('confirm');
   const [amountMajor, setAmountMajor] = useState('');
-  const [effectiveDate, setEffectiveDate] = useState(todayIso());
+  const [effectiveDate, setEffectiveDate] = useState(serverToday);
   const [walletId, setWalletId] = useState('');
   const [selectedEventId, setSelectedEventId] = useState('');
   const [candidates, setCandidates] = useState<readonly LinkableEventOption[] | null>(null);
@@ -109,7 +112,7 @@ export function ConfirmPaymentDialog(props: ConfirmPaymentDialogProps) {
     const expectedEventId = props.occurrence.currentEventId;
 
     if (mode === 'confirm') {
-      if (!validDate(effectiveDate) || effectiveDate > todayIso()) {
+      if (!validDate(effectiveDate) || (serverToday !== '' && effectiveDate > serverToday)) {
         setError(t(props.locale, 'Choose today or an earlier date.', 'اختر تاريخ اليوم أو تاريخًا أسبق.'));
         return;
       }

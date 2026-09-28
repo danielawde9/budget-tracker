@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { setActiveSpaceClock } from '../workspace/space-clock.js';
 import { ConfirmPaymentDialog } from './confirm-payment-dialog.js';
 import type { LinkableEventOption } from './linkable-events.js';
 
@@ -11,6 +12,18 @@ const EVENT_ID = '00000000-0000-4000-8000-000000000501';
 const CANDIDATE: LinkableEventOption = {
   id: EVENT_ID, kind: 'expense', effectiveDate: '2026-09-20', amountMinor: '15000', currency: 'USD', label: 'Rent',
 };
+
+// W4a-1: the dialog takes "today" from the server clock. Publish the
+// browser-local date so the existing date-default/future-date assertions hold.
+function todayLocal(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+beforeEach(() => {
+  const today = todayLocal();
+  setActiveSpaceClock({ timezone: 'UTC', today, currentMonth: `${today.slice(0, 7)}-01` });
+});
 
 function baseProps() {
   return {

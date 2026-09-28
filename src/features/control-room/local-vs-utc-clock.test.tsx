@@ -7,28 +7,19 @@ import { InMemoryCategoriesGateway } from '../../test/in-memory-categories-gatew
 import { InMemoryHouseholdGateway } from '../../test/in-memory-household-gateway.js';
 import { InMemoryLoansGateway } from '../../test/in-memory-loans-gateway.js';
 import { InMemoryWalletsGateway } from '../../test/in-memory-wallets-gateway.js';
+import { setActiveSpaceClock, type SpaceClock } from '../workspace/space-clock.js';
 import { ControlRoomRoutes } from './routes.js';
 import type { ControlRoomGateways } from './routes.js';
 
 /**
- * E7 regression net: the app runs on **two clocks** today.
+ * W4a-1: the app has ONE clock.
  *
- * Audit `docs/verification/2026-09-25-linking-audit.md` §3.5 (E7) and §6: no
- * test ran in a non-UTC timezone, so the split between the **browser-local**
- * plan month and the **UTC** "today" had no regression net. This file is that
- * net, and it is a *characterisation of the current behaviour*, not a fix --
- * the later one-clock (per-space timezone) work will deliberately rewrite it.
- *
- * The helpers it pins, exactly as they are written today:
- * - Browser-local month start, `currentMonthStart()` in
- *   `src/features/control-room/routes.tsx` (local `getFullYear`/`getMonth`,
- *   feeds the Plan/Home month).
- * - UTC "today", `todayIso()` in `src/features/control-room/routes.tsx`
- *   (also `new Date().toISOString().slice(0, 10)`, feeds `available_cash_summary`
- *   and the occurrence window). NOTE: the task brief places this helper in
- *   `src/features/recurring/occurrence-window.ts`; it is not there. That module
- *   exports only the UTC window helpers `shiftDateIso`/`occurrenceWindow`, which
- *   are pinned separately below.
+ * Audit `docs/verification/2026-09-25-linking-audit.md` §3.5 (E1/E7) and §6:
+ * before this slice Home's/Plan's month was browser-local and cash control's
+ * "today" was UTC, so in Beirut from 00:00-03:00 the two named different months.
+ * The predecessor of this file pinned that split; it is deliberately rewritten
+ * here to prove the opposite: the month and the as-of date both come from the
+ * server-supplied space clock, whatever the browser's own clock says.
  *
  * The file establishes the zone itself so it does not depend on, or mutate,
  * `vitest.ui.config.ts`'s global environment.
@@ -71,10 +62,12 @@ function gateways(overrides: { insights: InsightsClient; cashControl: InMemoryCa
   };
 }
 
-/** Renders Home at a fixed instant and reports the local month the app chose
- * (via Home's insights read) plus the UTC as-of date it sent to cash control. */
-async function observeClocksAt(instant: string): Promise<{ localMonth: string; utcToday: string }> {
+/** Renders Home at a fixed instant with a fixed server clock and reports the
+ * month the app chose (via Home's insights read) plus the as-of date it sent to
+ * cash control. */
+async function observeClocksAt(instant: string, clock: SpaceClock): Promise<{ month: string; asOf: string }> {
   vi.setSystemTime(new Date(instant));
+  setActiveSpaceClock(clock);
   const insights = capturingInsights();
   const cashControl = new InMemoryCashControlGateway();
   render(
@@ -89,62 +82,46 @@ async function observeClocksAt(instant: string): Promise<{ localMonth: string; u
     />,
   );
   await waitFor(() => expect(cashControl.calls.some((call) => call.name === 'loadAvailable')).toBe(true));
-  const localMonth = insights.monthCalls[0] ?? '';
-  const utcToday = (cashControl.calls.find((call) => call.name === 'loadAvailable')?.input as { asOfDate?: string } | undefined)?.asOfDate ?? '';
-  return { localMonth, utcToday };
+  const month = insights.monthCalls[0] ?? '';
+  const asOf = (cashControl.calls.find((call) => call.name === 'loadAvailable')?.input as { asOfDate?: string } | undefined)?.asOfDate ?? '';
+  return { month, asOf };
 }
 
-describe('Control Room two clocks under Asia/Beirut (UTC+3)', () => {
+function browserLocalMonth(instantNow: Date): string {
+  return `${instantNow.getFullYear()}-${String(instantNow.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
+describe('Control Room one clock under Asia/Beirut (UTC+3)', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] });
   });
   afterEach(() => {
     vi.useRealTimers();
+    setActiveSpaceClock(null);
   });
 
-  it('keeps the browser-local plan month a day ahead of the UTC "today" across local midnight', async () => {
+  it('uses the server month and as-of date, not the browser clock, across local midnight', async () => {
     // 2026-09-30 21:30 UTC is 2026-10-01 00:30 in Beirut: October locally,
-    // still September in UTC. This is the audit's "Beirut 00:00-02:00" window.
-    const { localMonth, utcToday } = await observeClocksAt('2026-09-30T21:30:00.000Z');
+    // still September in UTC -- the audit's "Beirut 00:00-03:00" window.
+    const { month, asOf } = await observeClocksAt('2026-09-30T21:30:00.000Z', {
+      timezone: 'UTC', today: '2026-09-30', currentMonth: '2026-09-01',
+    });
 
-    // Browser-local clock: the plan/Home month already rolled to October.
-    expect(localMonth).toBe('2026-10-01');
-    // UTC clock: cash control's as-of date is still 30 September.
-    expect(utcToday).toBe('2026-09-30');
-    // The two clocks name different calendar months -- the defect E1/E2/E7 describes.
-    expect(localMonth.slice(0, 7)).not.toBe(utcToday.slice(0, 7));
+    // The browser clock really is a different month here...
+    expect(browserLocalMonth(new Date())).toBe('2026-10-01');
+    // ...but the screen follows the server clock, so both agree on September.
+    expect(month).toBe('2026-09-01');
+    expect(asOf).toBe('2026-09-30');
   });
 
-  it('keeps both clocks on the same month away from local midnight', async () => {
-    // 2026-09-15 12:00 UTC is 2026-09-15 15:00 in Beirut: same month both ways.
-    const { localMonth, utcToday } = await observeClocksAt('2026-09-15T12:00:00.000Z');
+  it('follows a server zone that is ahead of the browser clock', async () => {
+    // 2026-09-15 12:00 UTC is still 15 September in Beirut, but already the
+    // 16th in a UTC+14 space.
+    const { month, asOf } = await observeClocksAt('2026-09-15T12:00:00.000Z', {
+      timezone: 'Pacific/Kiritimati', today: '2026-09-16', currentMonth: '2026-09-01',
+    });
 
-    expect(localMonth).toBe('2026-09-01');
-    expect(utcToday).toBe('2026-09-15');
-    expect(localMonth.slice(0, 7)).toBe(utcToday.slice(0, 7));
-  });
-});
-
-describe('pure UTC date helpers stay zone-independent under Asia/Beirut', () => {
-  beforeEach(() => {
-    vi.useFakeTimers({ toFake: ['Date'] });
-    vi.setSystemTime(new Date('2026-09-30T21:30:00.000Z'));
-  });
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('occurrence-window.ts shifts whole UTC days regardless of the local zone', async () => {
-    // Dynamically imported AFTER `process.env.TZ` is established, per the
-    // brief's guidance for a self-contained zone test.
-    const { OCCURRENCE_WINDOW_DAYS, occurrenceWindow, shiftDateIso } = await import('../recurring/occurrence-window.js');
-
-    expect(OCCURRENCE_WINDOW_DAYS).toBe(89);
-    expect(shiftDateIso('2026-09-30', 89)).toBe('2026-12-28');
-    // The window helper is fed the UTC today, so even though the browser-local
-    // day has rolled to 2026-10-01, the window still starts on the UTC day.
-    expect(occurrenceWindow('2026-09-30')).toEqual({ fromDate: '2026-09-30', toDate: '2026-12-28' });
-    // And the UTC day formula the Control Room and record sheet use for "today".
-    expect(new Date().toISOString().slice(0, 10)).toBe('2026-09-30');
+    expect(asOf).toBe('2026-09-16');
+    expect(month).toBe('2026-09-01');
   });
 });

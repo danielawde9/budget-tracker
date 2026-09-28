@@ -20,6 +20,11 @@ function recordingClient(rowsByRelation: Record<string, unknown[]> = {}) {
     },
     async rpc(name, args) {
       calls.push({ type: 'rpc', name, value: args });
+      if (name === 'space_clock') {
+        // PostgREST returns the jsonb result directly; the client type widens
+        // `data` to an array, so cast to the real object shape.
+        return { data: { timezone: 'Asia/Beirut', today: '2026-10-01', currentMonth: '2026-10-01' } as unknown as unknown[], error: null };
+      }
       return { data: [{ id: name === 'create_space' ? 'space-new' : 'wallet-new' }], error: null };
     },
   };
@@ -29,15 +34,25 @@ function recordingClient(rowsByRelation: Record<string, unknown[]> = {}) {
 describe('Supabase workspace gateway', () => {
   it('uses bounded safe reads for visible spaces and wallets', async () => {
     const recorder = recordingClient({
-      spaces: [{ id: 'space-1', name: 'My money', kind: 'personal' }],
+      spaces: [{ id: 'space-1', name: 'My money', kind: 'personal', timezone: 'Asia/Beirut' }],
       wallets: [{ id: 'wallet-1', space_id: 'space-1', name: 'Daily USD', currency: 'USD', archived_at: null }],
     });
     const gateway = createSupabaseWorkspaceGateway(recorder.client);
 
-    await expect(gateway.listSpaces()).resolves.toEqual([{ id: 'space-1', name: 'My money', kind: 'personal' }]);
+    await expect(gateway.listSpaces()).resolves.toEqual([{ id: 'space-1', name: 'My money', kind: 'personal', timezone: 'Asia/Beirut' }]);
     await expect(gateway.listWallets('space-1')).resolves.toEqual([{ id: 'wallet-1', spaceId: 'space-1', name: 'Daily USD', currency: 'USD', archivedAt: null }]);
     expect(recorder.calls).toContainEqual({ type: 'eq', name: 'space_id', value: 'space-1' });
     expect(recorder.calls.filter((call) => call.type === 'limit').map((call) => call.value)).toEqual([501, 501]);
+  });
+
+  it('reads the space clock through the exact space_clock RPC', async () => {
+    const recorder = recordingClient();
+    const gateway = createSupabaseWorkspaceGateway(recorder.client);
+
+    await expect(gateway.loadSpaceClock('space-1')).resolves.toEqual({ timezone: 'Asia/Beirut', today: '2026-10-01', currentMonth: '2026-10-01' });
+    expect(recorder.calls.filter((call) => call.type === 'rpc')).toEqual([
+      { type: 'rpc', name: 'space_clock', value: { p_space_id: 'space-1' } },
+    ]);
   });
 
   it('creates a space and wallet only through their exact protected commands', async () => {
@@ -54,7 +69,7 @@ describe('Supabase workspace gateway', () => {
   });
 
   it('rejects overflowing reads instead of silently truncating', async () => {
-    const recorder = recordingClient({ spaces: Array.from({ length: 501 }, (_, index) => ({ id: `space-${index}`, name: `Space ${index}`, kind: 'personal' })) });
+    const recorder = recordingClient({ spaces: Array.from({ length: 501 }, (_, index) => ({ id: `space-${index}`, name: `Space ${index}`, kind: 'personal', timezone: 'UTC' })) });
     await expect(createSupabaseWorkspaceGateway(recorder.client).listSpaces()).rejects.toThrow('Spaces has more than 500 rows');
   });
 

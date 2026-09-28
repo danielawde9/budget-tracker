@@ -1,6 +1,7 @@
 import type { LoansDataClient } from '../loans/supabase-loans-gateway.js';
 import type { Currency, Space, Wallet } from '../loans/types.js';
 import type { CreatedRecord, WorkspaceGateway } from './types.js';
+import type { SpaceClock } from './space-clock.js';
 
 const READ_LIMIT = 500;
 type Row = Record<string, unknown>;
@@ -45,10 +46,31 @@ export function createSupabaseWorkspaceGateway(client: LoansDataClient): Workspa
     return commandRecord(result.data);
   }
 
+  async function runRpc(name: 'space_clock', args: Record<string, unknown>): Promise<unknown> {
+    const result = await client.rpc(name, args);
+    if (result.error) throw result.error;
+    return result.data;
+  }
+
   return {
     async listSpaces() {
-      const values = await readRows(client.from('spaces').select('id,name,kind').order('created_at').limit(READ_LIMIT + 1), 'Spaces');
-      return values.map((value): Space => ({ id: text(value, 'id'), name: text(value, 'name'), kind: text(value, 'kind') as Space['kind'] }));
+      const values = await readRows(client.from('spaces').select('id,name,kind,timezone').order('created_at').limit(READ_LIMIT + 1), 'Spaces');
+      return values.map((value): Space => ({
+        id: text(value, 'id'),
+        name: text(value, 'name'),
+        kind: text(value, 'kind') as Space['kind'],
+        timezone: text(value, 'timezone'),
+      }));
+    },
+
+    async loadSpaceClock(spaceId) {
+      const data = await runRpc('space_clock', { p_space_id: spaceId });
+      const value = row(data);
+      return {
+        timezone: text(value, 'timezone'),
+        today: text(value, 'today'),
+        currentMonth: text(value, 'currentMonth'),
+      } satisfies SpaceClock;
     },
 
     async listWallets(spaceId) {

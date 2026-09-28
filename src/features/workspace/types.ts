@@ -1,4 +1,5 @@
 import type { Currency, Space, SpaceKind, Wallet } from '../loans/types.js';
+import type { SpaceClock } from './space-clock.js';
 
 export interface CreateSpaceInput {
   name: string;
@@ -30,6 +31,8 @@ export interface OpeningBalanceInput {
 export interface WorkspaceGateway {
   listSpaces(): Promise<readonly Space[]>;
   listWallets(spaceId: string): Promise<readonly Wallet[]>;
+  /** W4a-1: the server's single clock for the space (`public.space_clock`). */
+  loadSpaceClock(spaceId: string): Promise<SpaceClock>;
   createSpace(input: CreateSpaceInput): Promise<CreatedRecord>;
   createWallet(input: CreateWalletInput): Promise<CreatedRecord>;
 }

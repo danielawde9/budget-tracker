@@ -1,12 +1,18 @@
 import { render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { InMemoryCategoriesGateway } from '../../test/in-memory-categories-gateway.js';
 import { InMemoryHouseholdGateway, householdOwnerId } from '../../test/in-memory-household-gateway.js';
 import { InMemoryLoansGateway } from '../../test/in-memory-loans-gateway.js';
 import { InMemoryWalletsGateway } from '../../test/in-memory-wallets-gateway.js';
 import { ControlRoomRoutes } from './routes.js';
 import type { ControlRoomGateways } from './routes.js';
+import { setActiveSpaceClock } from '../workspace/space-clock.js';
+
+// W4a-1: the Control Room needs a server clock before it renders.
+beforeEach(() => {
+  setActiveSpaceClock({ timezone: 'Asia/Beirut', today: '2026-09-15', currentMonth: '2026-09-01' });
+});
 
 function gateways(): ControlRoomGateways {
   return {

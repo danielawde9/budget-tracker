@@ -9,6 +9,7 @@ import {
   ShoppingCart,
 } from 'lucide-react';
 import type { ExchangeDraft } from '../exchange/use-exchange.js';
+import { useSpaceClock } from '../workspace/space-clock.js';
 import { classifyCategoryError, localizeCategoryError } from '../categories/errors.js';
 import type { Currency, Locale, LoanDirection } from '../loans/types.js';
 import { formatMinorAmount, parsePositiveMinorAmount } from '../wallets/money.js';
@@ -135,11 +136,6 @@ const KIND_LABELS: Record<RecordKind, { en: string; ar: string }> = {
   repay: { en: 'Repay', ar: 'سداد' },
 };
 
-function todayLocal(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-}
-
 function isCompactViewport(): boolean {
   return typeof window !== 'undefined' && window.matchMedia?.('(max-width: 599px)').matches === true;
 }
@@ -254,6 +250,9 @@ function StepContent({ step, children }: { step: Step; children: ReactNode }) {
 
 export function RecordSheet(props: RecordSheetProps) {
   const { locale } = props;
+  // W4a-1: the record date defaults to the space's server "today", never the
+  // browser's local date.
+  const serverToday = useSpaceClock()?.today ?? '';
   const [kind, setKind] = useState<RecordKind | null>(null);
   const [typeConfirmed, setTypeConfirmed] = useState(false);
   const [compact, setCompact] = useState(isCompactViewport);
@@ -276,7 +275,7 @@ export function RecordSheet(props: RecordSheetProps) {
   const [note, setNote] = useState('');
   const [personName, setPersonName] = useState('');
   const [dueDate, setDueDate] = useState('');
-  const [effectiveDate, setEffectiveDate] = useState(todayLocal);
+  const [effectiveDate, setEffectiveDate] = useState(serverToday);
   const [detailsDone, setDetailsDone] = useState(false);
   const [amountDone, setAmountDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -313,7 +312,7 @@ export function RecordSheet(props: RecordSheetProps) {
     setNote('');
     setPersonName('');
     setDueDate('');
-    setEffectiveDate(todayLocal());
+    setEffectiveDate(serverToday);
     setDetailsDone(false);
     setAmountDone(false);
     setSubmitting(false);
@@ -571,7 +570,7 @@ export function RecordSheet(props: RecordSheetProps) {
     }
     // E3: a future-dated entry lands in Net position but not in cash or
     // Available, so refuse a date the model cannot represent consistently.
-    if (effectiveDate > todayLocal()) {
+    if (effectiveDate > serverToday) {
       setSubmitError(t(locale, 'Choose a date today or earlier.', 'اختر تاريخًا اليوم أو في تاريخ أقدم.'));
       return;
     }
@@ -866,7 +865,7 @@ export function RecordSheet(props: RecordSheetProps) {
         {t(locale, 'Date', 'التاريخ')}
         <input
           type="date"
-          max={todayLocal()}
+          max={serverToday}
           value={effectiveDate}
           onChange={(event) => setEffectiveDate(event.target.value)}
         />
@@ -987,7 +986,7 @@ export function RecordSheet(props: RecordSheetProps) {
         </label>
         <label className="cr-label">
           {t(locale, 'Date', 'التاريخ')}
-          <input type="date" max={todayLocal()} value={effectiveDate} onChange={(event) => setEffectiveDate(event.target.value)} />
+          <input type="date" max={serverToday} value={effectiveDate} onChange={(event) => setEffectiveDate(event.target.value)} />
         </label>
         <label className="cr-label">
           {t(locale, 'Note (optional)', 'ملاحظة (اختيارية)')}

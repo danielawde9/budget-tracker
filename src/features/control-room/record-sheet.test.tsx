@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Currency, LoanDirection } from '../loans/types.js';
 import type { WalletProjection } from '../wallets/types.js';
+import { setActiveSpaceClock } from '../workspace/space-clock.js';
 import { RecordSheet } from './record-sheet.js';
 import type { RecordSheetProps } from './record-sheet.js';
 
@@ -32,6 +33,14 @@ function todayLocal(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
+
+// W4a-1: the record sheet now takes "today" from the server clock. These tests
+// publish a clock whose today is the browser-local date, so the sheet's default
+// effective date matches what the assertions below expect.
+beforeEach(() => {
+  const today = todayLocal();
+  setActiveSpaceClock({ timezone: 'UTC', today, currentMonth: `${today.slice(0, 7)}-01` });
+});
 
 function makeProps(overrides: Partial<RecordSheetProps> = {}): RecordSheetProps {
   return {
