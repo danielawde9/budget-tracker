@@ -154,8 +154,8 @@ const protectedMutationNames = new Set([
 ]);
 
 const spaces = [
-  { id: 'aaaa0000-0000-4000-8000-000000000001', name: 'My money', kind: 'personal', created_at: '2026-01-01T00:00:00Z' },
-  { id: 'aaaa0000-0000-4000-8000-000000000002', name: 'Home budget', kind: 'household', created_at: '2026-01-02T00:00:00Z' },
+  { id: 'aaaa0000-0000-4000-8000-000000000001', name: 'My money', kind: 'personal', timezone: 'UTC', created_at: '2026-01-01T00:00:00Z' },
+  { id: 'aaaa0000-0000-4000-8000-000000000002', name: 'Home budget', kind: 'household', timezone: 'UTC', created_at: '2026-01-02T00:00:00Z' },
 ];
 
 interface VisualWallet {
@@ -411,7 +411,7 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
     }
     if (path.endsWith('/rpc/create_space')) {
       const body = request.postDataJSON() as { p_name: string; p_kind: 'personal' | 'household' };
-      const created = { id: 'created-space', name: body.p_name, kind: body.p_kind, created_at: '2026-09-08T00:00:00Z' };
+      const created = { id: 'created-space', name: body.p_name, kind: body.p_kind, timezone: 'UTC', created_at: '2026-09-08T00:00:00Z' };
       if (!visibleSpaces.some((space) => space.id === created.id)) visibleSpaces.push(created);
       if (ambiguousSpaceRemaining > 0) {
         ambiguousSpaceRemaining -= 1;
@@ -990,6 +990,17 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       // The gateway only checks that the returned id is a UUID; keep it fixed
       // so runs stay deterministic.
       return json(route, [{ id: 'f4000000-0000-4000-8000-000000000001' }]);
+    }
+    if (path.endsWith('/rpc/space_clock')) {
+      // W4a-1: "today" and the current month now come from the server space
+      // clock. Mirror the pre-change client behaviour exactly (UTC today, the
+      // browser-local month start) so existing date-based expectations hold.
+      const now = new Date();
+      return json(route, {
+        timezone: 'UTC',
+        today: now.toISOString().slice(0, 10),
+        currentMonth: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`,
+      });
     }
     if (path.endsWith('/spaces')) return json(route, visibleSpaces);
     if (path.endsWith('/categories')) {

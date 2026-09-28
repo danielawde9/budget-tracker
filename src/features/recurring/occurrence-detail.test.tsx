@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import { setActiveSpaceClock } from '../workspace/space-clock.js';
 import { OccurrenceDetail } from './occurrence-detail.js';
 import type { ScheduledOccurrencePage, ScheduledOccurrenceRow } from './types.js';
 import type { RecurringState } from './use-recurring.js';
@@ -8,6 +9,7 @@ import type { RecurringState } from './use-recurring.js';
 const OCCURRENCE_ID = '00000000-0000-4000-8000-000000000401';
 const OTHER_ID = '00000000-0000-4000-8000-000000000402';
 const ASOF = '2026-09-14';
+setActiveSpaceClock({ timezone: 'UTC', today: ASOF, currentMonth: `${ASOF.slice(0, 7)}-01` });
 const WALLET_OPTIONS = [{ id: '00000000-0000-4000-8000-000000000601', name: 'Daily USD', currency: 'USD' }];
 
 function row(overrides: Partial<ScheduledOccurrenceRow> = {}): ScheduledOccurrenceRow {

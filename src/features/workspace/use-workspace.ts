@@ -8,6 +8,7 @@ import {
   type OnboardingSetup,
 } from './onboarding-progress.js';
 import type { CreateSpaceInput, CreateWalletInput, CreatedRecord, WorkspaceGateway } from './types.js';
+import { setActiveSpaceClock } from './space-clock.js';
 
 export type WorkspaceStatus = 'loading' | 'empty' | 'onboarding' | 'ready' | 'error';
 
@@ -57,6 +58,7 @@ export function useWorkspace(gateway: WorkspaceGateway, userId: string) {
         localStorage.removeItem(storageKey);
         clearOnboardingProgress(userId);
         setSetup(null);
+        setActiveSpaceClock(null);
         setStatus('empty');
         return;
       }
@@ -93,6 +95,11 @@ export function useWorkspace(gateway: WorkspaceGateway, userId: string) {
       selectedRef.current = selected;
       setSelectedSpaceId(selected);
       localStorage.setItem(storageKey, selected);
+      // W4a-1: the server owns "today". Load the selected space's clock before
+      // the shell renders so the Control Room never derives its own month/as-of.
+      const clock = await gateway.loadSpaceClock(selected);
+      if (request.current !== requestId) return;
+      setActiveSpaceClock(clock);
       setStatus('ready');
     } catch {
       if (request.current !== requestId) return;
@@ -101,6 +108,7 @@ export function useWorkspace(gateway: WorkspaceGateway, userId: string) {
       setSetup(null);
       selectedRef.current = '';
       setSelectedSpaceId('');
+      setActiveSpaceClock(null);
       setError('We could not load your spaces. Check your connection and try again.');
       setStatus('error');
     }
@@ -111,12 +119,20 @@ export function useWorkspace(gateway: WorkspaceGateway, userId: string) {
     return () => { request.current += 1; };
   }, [load]);
 
+  // Clear the shared clock when the workspace unmounts (e.g. sign-out), so a
+  // later mount never renders against a stale space's "today".
+  useEffect(() => () => { setActiveSpaceClock(null); }, []);
+
   const selectSpace = useCallback((spaceId: string) => {
     if (!spaces.some((space) => space.id === spaceId)) return;
     selectedRef.current = spaceId;
     setSelectedSpaceId(spaceId);
     localStorage.setItem(storageKey, spaceId);
-  }, [spaces, storageKey]);
+    void gateway.loadSpaceClock(spaceId).then(
+      (clock) => { if (selectedRef.current === spaceId) setActiveSpaceClock(clock); },
+      () => { if (selectedRef.current === spaceId) setActiveSpaceClock(null); },
+    );
+  }, [spaces, storageKey, gateway]);
 
   const saveOnboardingProgress = useCallback((progress: OnboardingProgress) => {
     writeOnboardingProgress(userId, progress);

@@ -56,8 +56,9 @@ import { JournalScreen } from './journal-screen.js';
 import { ManageScreen } from './manage-screen.js';
 import { PageHeader } from './page-header.js';
 import { RecordSheet } from './record-sheet.js';
-import { HomeSkeleton, JournalSkeleton, PlanSkeleton } from './skeletons.js';
+import { HomeSkeleton, JournalSkeleton, PlanSkeleton, WorkspaceSkeleton } from './skeletons.js';
 import type { ControlRoomDestination } from './types.js';
+import { useSpaceClock } from '../workspace/space-clock.js';
 
 const unavailableInsightsClient: InsightsClient = {
   async walletActivity() { throw new Error('Insights are unavailable until this browser is connected to its data service.'); },
@@ -161,13 +162,11 @@ export interface ControlRoomRoutesProps {
   onSignOut?(): void;
 }
 
-function currentMonthStart(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-}
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+/** The server-owned "today" for the active space (W4a-1). Sub-sections read
+ * it directly from the shared space clock rather than taking a prop, so the
+ * Control Room has exactly one source for "today" and the current month. */
+function useToday(): string {
+  return useSpaceClock()?.today ?? '';
 }
 
 function isSpaceUnavailable(cause: unknown): boolean {
@@ -212,7 +211,7 @@ function useCashControlHomeSummary(
   byCurrency: readonly { currency: Currency; available: ReturnType<typeof useCashControl>['available'] }[];
   autoMaterialize: AutoMaterializeState;
 } {
-  const today = todayIso();
+  const today = useToday();
   const usd = useCashControl(gateway, spaceId, 'USD', today, 60, 'expected', onSpaceUnavailable);
   const lbp = useCashControl(gateway, spaceId, 'LBP', today, 60, 'expected', onSpaceUnavailable);
   const byCurrency = [
@@ -454,7 +453,7 @@ function UpcomingBillsSection(props: {
   // (`OCCURRENCE_WINDOW_DAYS`) drives the list, its explicit "Refresh
   // occurrences" (still explicit-refresh only, never on mount here), and the
   // automatic generate alike.
-  const fromDate = todayIso();
+  const fromDate = useToday();
   const { toDate } = occurrenceWindow(fromDate);
   const recurring = useRecurring(props.gateway, props.spaceId, fromDate, toDate, props.onSpaceUnavailable);
   useReloadAfterSettle(props.settledVersion, () => { void recurring.refresh(); });
@@ -478,7 +477,7 @@ function UpcomingBillsSection(props: {
         plannedIncomeByCurrency={props.plannedIncomeByCurrency}
         walletOptions={props.referenceOptions.wallets}
         loadLinkableEvents={(query) => loadLinkableEvents(props.walletsGateway, props.spaceId, query)}
-        onUnlink={(eventId) => unlinkSettlementPayment(props.walletsGateway, props.spaceId, eventId, todayIso())} />
+        onUnlink={(eventId) => unlinkSettlementPayment(props.walletsGateway, props.spaceId, eventId, fromDate)} />
     </section>
   );
 }
@@ -499,7 +498,7 @@ function CashControlSection(props: {
   onSpaceUnavailable?: (() => void) | undefined;
 }) {
   const [scenario, setScenario] = useState<CashOutlookScenario>('expected');
-  const today = todayIso();
+  const today = useToday();
   const cashControl = useCashControl(props.gateway, props.spaceId, props.currency, today, 60, scenario, props.onSpaceUnavailable);
   useReloadAfterSettle(props.settledVersion, () => {
     cashControl.available.refresh();
@@ -755,7 +754,19 @@ function PlanRoutes(props: PlanRoutesProps) {
 
 export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
   const { locale, spaceId, gateways } = props;
-  const [month, setMonth] = useState(currentMonthStart);
+  // W4a-1: the month and "today" come from one server clock, never the browser.
+  const spaceClock = useSpaceClock();
+  const [month, setMonth] = useState(spaceClock?.currentMonth ?? '');
+  const monthTouched = useRef(false);
+  // Adopt the space's current month once the clock is available (and on a space
+  // switch), unless the person has already picked a month in the picker.
+  useEffect(() => {
+    if (spaceClock && !monthTouched.current) setMonth(spaceClock.currentMonth);
+  }, [spaceClock]);
+  const handleMonthChange = useCallback((next: string) => {
+    monthTouched.current = true;
+    setMonth(next);
+  }, []);
   // A Manage wallet entry can open the Loans section when Plan mounts.
   // Consume the request on entry so later visits open the Plan overview.
   const [planEntrySection, setPlanEntrySection] = useState<PlanSection>('plan');
@@ -866,6 +877,12 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
 
   const [sheetError, setSheetError] = useState<string | null>(null);
 
+  // The server clock is loaded with the workspace (before the shell renders);
+  // this is only a guard for the brief window before it arrives.
+  if (!spaceClock) {
+    return <main className="workspace-state-page"><WorkspaceSkeleton locale={locale} /></main>;
+  }
+
   let destinationRoutes: ReactNode;
   switch (props.destination) {
     case 'home':
@@ -878,7 +895,7 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
           wallets={wallets}
           loansOutstanding={loansOutstanding}
           month={month}
-          onMonthChange={setMonth}
+          onMonthChange={handleMonthChange}
           onSpaceUnavailable={props.onSpaceUnavailable}
           onOpenRecord={props.onOpenRecord}
           onSeeAll={() => props.onDestinationChange?.('journal')}

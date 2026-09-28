@@ -8,6 +8,9 @@ export interface Space {
   id: string;
   name: string;
   kind: SpaceKind;
+  /** W4a-1: the space's IANA time zone. Optional so existing test doubles that
+   * predate the per-space clock keep compiling; the server always returns it. */
+  timezone?: string;
 }
 
 export interface Wallet {

@@ -76,7 +76,7 @@ function authSession() {
 }
 
 export async function installHouseholdApiFixture(page: Page, options: HouseholdFixtureOptions = {}) {
-  const space = { id: SPACE_ID, name: 'Home budget', kind: 'household', created_at: '2026-01-02T00:00:00Z' };
+  const space = { id: SPACE_ID, name: 'Home budget', kind: 'household', timezone: 'UTC', created_at: '2026-01-02T00:00:00Z' };
   const visibleSpaces = options.invitationAcceptance ? [] : [space];
   const selfRole = options.memberAccess ? 'member' : 'owner';
   const members: FixtureMembership[] = [
@@ -183,6 +183,14 @@ export async function installHouseholdApiFixture(page: Page, options: HouseholdF
         database: 'in-memory-fixture-state',
         protectedMutationCalls: [...protectedMutationCalls],
         deliverCalls,
+      });
+    }
+    if (path.endsWith('/rpc/space_clock')) {
+      const now = new Date();
+      return json(route, {
+        timezone: 'UTC',
+        today: now.toISOString().slice(0, 10),
+        currentMonth: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`,
       });
     }
     if (path.endsWith('/spaces')) return json(route, visibleSpaces);

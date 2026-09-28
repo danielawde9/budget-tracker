@@ -35,9 +35,18 @@ function workspaceGateway(spaces = [personalSpace]): WorkspaceGateway {
   return {
     listSpaces: vi.fn(async () => spaces),
     listWallets: vi.fn(async () => []),
+    loadSpaceClock: vi.fn(async () => currentSpaceClock()),
     createSpace: vi.fn(async () => ({ id: 'new-space' })),
     createWallet: vi.fn(async () => ({ id: 'new-wallet' })),
   };
+}
+
+/** The server clock the fake workspace gateway reports; mirrors the browser
+ * month/UTC-today shape the pre-W4a-1 shell used, so existing assertions hold. */
+function currentSpaceClock(): { timezone: string; today: string; currentMonth: string } {
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  return { timezone: 'UTC', today: now.toISOString().slice(0, 10), currentMonth };
 }
 
 function unconfiguredPlanClient(): InMemoryPlanClient {
@@ -134,6 +143,7 @@ describe('App', () => {
     const gateway: WorkspaceGateway = {
       listSpaces: vi.fn(async () => spaces),
       listWallets: vi.fn(async () => []),
+      loadSpaceClock: vi.fn(async () => currentSpaceClock()),
       createSpace: vi.fn(async (input) => {
         spaces.push({ id: 'household-space', name: input.name, kind: input.kind });
         return { id: 'household-space' };

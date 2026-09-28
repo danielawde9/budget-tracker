@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Wallet } from '../loans/types.js';
 import { personalSpace, householdSpace } from '../../test/in-memory-loans-gateway.js';
+import type { SpaceClock } from './space-clock.js';
 import type { WorkspaceGateway } from './types.js';
 import { useWorkspace } from './use-workspace.js';
 
@@ -11,6 +12,8 @@ class FakeWorkspaceGateway implements WorkspaceGateway {
   mutationError: unknown = null;
   wallets: readonly Wallet[] = [];
   walletError: Error | null = null;
+  clock: SpaceClock = { timezone: 'Asia/Beirut', today: '2026-09-15', currentMonth: '2026-09-01' };
+  clockError: Error | null = null;
   /** Successive responses for `listWallets`, consumed before `wallets`. */
   walletReads: Array<readonly Wallet[]> = [];
   calls: string[] = [];
@@ -19,6 +22,12 @@ class FakeWorkspaceGateway implements WorkspaceGateway {
     this.calls.push('listSpaces');
     if (this.error) throw this.error;
     return this.spaces;
+  }
+
+  async loadSpaceClock(spaceId: string) {
+    this.calls.push(`loadSpaceClock:${spaceId}`);
+    if (this.clockError) throw this.clockError;
+    return this.clock;
   }
 
   async listWallets(spaceId: string) {

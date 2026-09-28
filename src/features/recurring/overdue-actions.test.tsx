@@ -6,12 +6,14 @@ import { postgrestRejection } from '../../test/postgrest-rejection.js';
 import type {
   ConfirmInput, ConfirmResult, ScheduledOccurrenceRow, SetOccurrenceStateInput, SetOccurrenceStateResult,
 } from './types.js';
+import { setActiveSpaceClock } from '../workspace/space-clock.js';
 import { UpcomingPage } from './upcoming-page.js';
 import { useRecurring } from './use-recurring.js';
 
 // Final review I3: what a person sees after acting on an OVERDUE bill from
 // its detail screen, through the real `useRecurring` and `UpcomingPage`.
 const TODAY = '2026-09-26';
+setActiveSpaceClock({ timezone: 'UTC', today: TODAY, currentMonth: `${TODAY.slice(0, 7)}-01` });
 
 const water: ScheduledOccurrenceRow = {
   id: 'e0000000-0000-4000-8000-000000000003', scheduleId: 'e0000000-0000-4000-8000-000000000103', sourceRevisionId: '1',

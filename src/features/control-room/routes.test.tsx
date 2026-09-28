@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InsightsClient, CategoryBudgetRow } from '../insights/types.js';
 import type { Currency } from '../loans/types.js';
 import type { PublishMonthInput } from '../allocation/types.js';
@@ -18,6 +18,7 @@ import { InMemoryWalletsGateway } from '../../test/in-memory-wallets-gateway.js'
 import { ControlRoomRoutes } from './routes.js';
 import type { ControlRoomGateways } from './routes.js';
 import type { ControlRoomDestination } from './types.js';
+import { setActiveSpaceClock } from '../workspace/space-clock.js';
 
 const BUDGET_ROW: CategoryBudgetRow = {
   categoryKey: 'groceries', nameEn: 'Groceries', nameAr: 'بقالة', kind: 'expense',
@@ -69,6 +70,15 @@ function renderHome(gatewaysBag: ControlRoomGateways, extra: Partial<Parameters<
     />,
   );
 }
+
+// W4a-1: the Control Room reads its month/"today" from the shared server
+// clock. Pin it to the browser-local month and UTC today (the exact split the
+// shell used before), so these tests keep asserting their original behaviour.
+beforeEach(() => {
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  setActiveSpaceClock({ timezone: 'UTC', today: now.toISOString().slice(0, 10), currentMonth });
+});
 
 describe('ControlRoomRoutes home data loading', () => {
   it('includes receivables and debts in Home net position by direction', async () => {
