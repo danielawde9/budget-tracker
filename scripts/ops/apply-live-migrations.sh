@@ -9,7 +9,7 @@ readonly LIVE_REPO_ROOT="$(cd "${LIVE_SCRIPT_DIR}/../.." && pwd -P)"
 source "${LIVE_SCRIPT_DIR}/budget-common.sh"
 
 readonly LIVE_PROJECT_REF='hqblhzqitrbvpyoxtmew'
-readonly LIVE_MANIFEST_SOURCE_SHA='1e067d8124c18aab5a4692d1e5bbcca46e3ddd25'
+readonly LIVE_MANIFEST_SOURCE_SHA='7f6eab3b555f2cab032cb80a1207482c9182eaf9'
 readonly LIVE_CONFIRMATION="APPLY LIVE MIGRATIONS TO ${LIVE_PROJECT_REF}"
 readonly LIVE_MAX_PROJECT_LIST_BYTES=1048576
 readonly LIVE_SUPABASE_BIN="${BUDGET_SUPABASE_BIN:-$(command -v supabase || true)}"
@@ -57,6 +57,8 @@ readonly LIVE_VERIFY_SQL="select case when
   and to_regprocedure('public.allocation_template_head(uuid,public.currency_code)') is not null
   and to_regprocedure('public.monthly_budget_category_page_v3(uuid,date,public.currency_code,text,uuid,integer)') is not null
   and to_regprocedure('public.scheduled_overdue_page(uuid,date,uuid,integer)') is not null
+  and to_regprocedure('public.space_clock(uuid)') is not null
+  and to_regprocedure('public.space_today(uuid)') is not null
   and exists (select 1 from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace where n.nspname = 'private' and p.proname = 'check_goal_earmark_event' and p.prosrc like '%goal_financing_state%')
   and (select array_agg(version order by version) from supabase_migrations.schema_migrations)
     = array[
@@ -73,7 +75,8 @@ readonly LIVE_VERIFY_SQL="select case when
       '20260914110000','20260914120000','20260914130000','20260914140000',
       '20260914150000','20260914160000','20260914170000','20260914180000',
       '20260916100000','20260919100000','20260925100000','20260925101000',
-      '20260925102000','20260925103000','20260925104000','20260927100000'
+      '20260925102000','20260925103000','20260925104000','20260927100000',
+      '20260928100000'
     ]::text[]
   then 'budget_schema_ready'
   else 'budget_schema_incomplete'
