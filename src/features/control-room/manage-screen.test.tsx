@@ -98,16 +98,30 @@ describe('ManageScreen section menu', () => {
   });
 
   it('opens directly on the section a deep link asks for', () => {
-    renderManage({ pendingSection: 'household' });
+    renderManage({ pendingSection: 'household', spaceKind: 'household' });
     expect(screen.getByRole('button', { name: 'Back to manage sections' })).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Manage sections' })).not.toBeInTheDocument();
   });
 
+  it('stays on the hub when the deep-linked section is ineligible for the space', () => {
+    renderManage({ pendingSection: 'household' });
+    expect(screen.getByRole('navigation', { name: 'Manage sections' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Back to manage sections' })).not.toBeInTheDocument();
+  });
+
   it('applies a pending section that arrives while Manage is already open', () => {
-    const view = render(<ControlRoomRoutes {...manageProps()} />);
+    const view = render(<ControlRoomRoutes {...manageProps({ spaceKind: 'household' })} />);
     expect(screen.getByRole('navigation', { name: 'Manage sections' })).toBeInTheDocument();
 
-    view.rerender(<ControlRoomRoutes {...manageProps({ pendingSection: 'household' })} />);
+    view.rerender(<ControlRoomRoutes {...manageProps({ pendingSection: 'household', spaceKind: 'household' })} />);
+    expect(screen.getByRole('button', { name: 'Back to manage sections' })).toBeInTheDocument();
+  });
+
+  it('does not reset the open section when the consumed pending value clears', () => {
+    const view = render(<ControlRoomRoutes {...manageProps({ pendingSection: 'household', spaceKind: 'household' })} />);
+    expect(screen.getByRole('button', { name: 'Back to manage sections' })).toBeInTheDocument();
+
+    view.rerender(<ControlRoomRoutes {...manageProps({ spaceKind: 'household' })} />);
     expect(screen.getByRole('button', { name: 'Back to manage sections' })).toBeInTheDocument();
   });
 });

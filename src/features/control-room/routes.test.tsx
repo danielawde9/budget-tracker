@@ -609,6 +609,18 @@ describe('ControlRoomRoutes allocation publish, twice in one visit', () => {
 });
 
 describe('ControlRoomRoutes plan destination', () => {
+  it('mounts the deep-linked plan section from pendingSection', () => {
+    renderHome(gateways({}), { destination: 'plan', pendingSection: 'goals' });
+    const sections = screen.getByRole('navigation', { name: 'Plan sections' });
+    expect(within(sections).getByRole('button', { name: 'Goals' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('ignores a pendingSection that belongs to another destination', () => {
+    renderHome(gateways({}), { destination: 'plan', pendingSection: 'household' });
+    const sections = screen.getByRole('navigation', { name: 'Plan sections' });
+    expect(within(sections).getByRole('button', { name: 'Plan' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
   it('shows available cash, reservations, and forecast in separate cards', async () => {
     const user = userEvent.setup();
     const cashControl = new InMemoryCashControlGateway();

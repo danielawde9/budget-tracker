@@ -155,10 +155,14 @@ export interface ControlRoomRoutesProps {
   onSpaceUnavailable?(): void;
   /** Opens the record sheet (Task 9 mounts it); the home screen's Record action calls this. */
   onOpenRecord?(): void;
-  /** One-shot section the welcome tour deep-links into; consumed when the
-   *  destination screen mounts (the tour always leaves `home` for a plan or
-   *  manage destination, so a fresh mount is guaranteed). */
+  /** One-shot section the welcome tour deep-links into: read when the plan
+   *  destination mounts, and applied by Manage on mount or when the value
+   *  changes while it is open. The caller clears it once notified via
+   *  `onPendingSectionConsumed`. */
   pendingSection?: PlanSection | ManageSection | null;
+  /** Notifies the caller that `pendingSection` has been applied, so it can be
+   *  cleared; until then the value persists (and would re-apply on remount). */
+  onPendingSectionConsumed?(): void;
   /** Manage screen plumbing (Task 11): account, language, and household section wiring. */
   userId?: string;
   spaceName?: string;
@@ -167,7 +171,12 @@ export interface ControlRoomRoutesProps {
   onSignOut?(): void;
 }
 
-const MANAGE_SECTIONS: readonly ManageSection[] = ['wallets', 'categories', 'household', 'phone'];
+const MANAGE_SECTIONS = ['wallets', 'categories', 'household', 'phone'] as const;
+
+// Compile-time guard: a future ManageSection that is not listed in
+// MANAGE_SECTIONS would silently miss the deep link (review fix E).
+type _ExhaustiveManageSection = Exclude<ManageSection, (typeof MANAGE_SECTIONS)[number]> extends never ? true : never;
+const _exhaustiveManageSection: _ExhaustiveManageSection = true;
 
 function isPlanSection(value: PlanSection | ManageSection): value is PlanSection {
   return PLAN_SECTIONS.some((item) => item.id === value);
@@ -818,6 +827,13 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
     if (props.destination === 'plan' && planEntrySection !== 'plan') setPlanEntrySection('plan');
   }, [props.destination, planEntrySection]);
   const pendingPlanSection = props.pendingSection && isPlanSection(props.pendingSection) ? props.pendingSection : null;
+  // One-shot plumbing: tell the caller the pending value has been read so it
+  // can clear it (review fix B). The callback is pulled into a local so the
+  // effect only re-runs when the value or the callback itself changes.
+  const onPendingSectionConsumed = props.onPendingSectionConsumed;
+  useEffect(() => {
+    if (pendingPlanSection) onPendingSectionConsumed?.();
+  }, [pendingPlanSection, onPendingSectionConsumed]);
   // Re-read whenever the sheet opens or closes or the space changes, so a
   // wallet stored by the last save is preselected on the next quick entry.
   const rememberedWalletId = useMemo(() => readRememberedWallet(spaceId), [spaceId, props.recordOpen]);
@@ -997,6 +1013,7 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
           }}
           walletState={wallets}
           initialSection={props.pendingSection && isManageSection(props.pendingSection) ? props.pendingSection : undefined}
+          onPendingSectionConsumed={props.onPendingSectionConsumed}
           onOpenLoans={() => {
             setPlanEntrySection('loans');
             props.onDestinationChange?.('plan');

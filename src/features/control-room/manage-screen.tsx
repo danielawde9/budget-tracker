@@ -30,6 +30,8 @@ export interface ManageScreenProps {
   /** One-shot deep link: opens this section instead of the hub, and applies
    *  it again if the value changes while Manage is already mounted. */
   initialSection?: ManageSection | undefined;
+  /** Reports that `initialSection` was applied, so the caller can clear it. */
+  onPendingSectionConsumed?: (() => void) | undefined;
   onLocaleChange(): void;
   onOpenLoans(): void;
   onSignOut(): void;
@@ -72,10 +74,19 @@ function ManageHubRow(props: HubRowProps) {
 
 export function ManageScreen(props: ManageScreenProps) {
   const { locale, spaceId, spaceKind } = props;
-  const [section, setSection] = useState<ManageSection | null>(props.initialSection ?? null);
+  // Same eligibility rule the hub uses to hide the Household row: a deep link
+  // must never open HouseholdPage on a personal space (review fix A), where
+  // useHousehold would find no self-membership and fire onSpaceUnavailable.
+  const sectionEligible = (value: ManageSection) => value !== 'household' || spaceKind === 'household';
+  const [section, setSection] = useState<ManageSection | null>(
+    () => (props.initialSection && sectionEligible(props.initialSection) ? props.initialSection : null),
+  );
   useEffect(() => {
-    if (props.initialSection) setSection(props.initialSection);
-  }, [props.initialSection]);
+    if (props.initialSection) {
+      if (sectionEligible(props.initialSection)) setSection(props.initialSection);
+      props.onPendingSectionConsumed?.();
+    }
+  }, [props.initialSection, props.onPendingSectionConsumed]);
 
   if (section === null) {
     const sections = SECTIONS.filter((item) => item.id !== 'household' || spaceKind === 'household');
