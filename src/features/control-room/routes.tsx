@@ -169,6 +169,8 @@ export interface ControlRoomRoutesProps {
   userEmail?: string | null;
   onLocaleChange?(): void;
   onSignOut?(): void;
+  /** Wires Manage > Preferences' "Replay welcome tour" row. */
+  onReplayWelcome?(): void;
 }
 
 const MANAGE_SECTIONS = ['wallets', 'categories', 'household', 'phone'] as const;
@@ -1020,6 +1022,7 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
           }}
           onLocaleChange={() => props.onLocaleChange?.()}
           onSignOut={() => props.onSignOut?.()}
+          onReplayWelcome={props.onReplayWelcome}
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
       );

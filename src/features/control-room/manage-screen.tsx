@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
-import { ChevronLeft, ChevronRight, Globe, LogOut, Mail, Smartphone, Tags, Users, Wallet } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Globe, LogOut, Mail, RotateCcw, Smartphone, Tags, Users, Wallet } from 'lucide-react';
 import { CategoriesPage } from '../categories/categories-page.js';
 import type { CategoriesGateway } from '../categories/types.js';
 import { HouseholdPage } from '../household/household-page.js';
@@ -35,6 +35,9 @@ export interface ManageScreenProps {
   onLocaleChange(): void;
   onOpenLoans(): void;
   onSignOut(): void;
+  /** Manage > Preferences: replays the welcome tour. Present whenever the
+   *  app wires it (always, in `app.tsx`). */
+  onReplayWelcome?: (() => void) | undefined;
   onSpaceUnavailable?: (() => void) | undefined;
 }
 
@@ -123,6 +126,15 @@ export function ManageScreen(props: ManageScreenProps) {
               trail={locale === 'ar' ? <ChevronLeft aria-hidden size={18} /> : <ChevronRight aria-hidden size={18} />}
               onClick={() => setSection('phone')}
             />
+            {props.onReplayWelcome ? (
+              <ManageHubRow
+                name={t(locale, 'Replay welcome tour', 'إعادة عرض الجولة الترحيبية')}
+                description={t(locale, 'See the welcome introduction again', 'شاهد مقدمة الترحيب مرة أخرى')}
+                icon={<RotateCcw size={19} strokeWidth={2} />}
+                trail={locale === 'ar' ? <ChevronLeft aria-hidden size={18} /> : <ChevronRight aria-hidden size={18} />}
+                onClick={props.onReplayWelcome}
+              />
+            ) : null}
           </div>
           <div className="cr-card mg-hub-group mg-hub-account-group">
             <h2 className="mg-hub-heading">{t(locale, 'Account', 'الحساب')}</h2>

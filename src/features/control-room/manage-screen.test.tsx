@@ -138,6 +138,15 @@ describe('ManageScreen section menu', () => {
     view.rerender(<ControlRoomRoutes {...manageProps({ spaceKind: 'household' })} />);
     expect(screen.getByRole('button', { name: 'Back to manage sections' })).toBeInTheDocument();
   });
+
+  it('offers the welcome tour replay from Preferences', async () => {
+    const user = userEvent.setup();
+    const onReplayWelcome = vi.fn();
+    renderManage({ onReplayWelcome });
+
+    await user.click(screen.getByRole('button', { name: /Replay welcome tour/ }));
+    expect(onReplayWelcome).toHaveBeenCalledOnce();
+  });
 });
 
 describe('ManageScreen section panels', () => {
