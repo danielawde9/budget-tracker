@@ -195,3 +195,22 @@ test('sign-out followed by another user starts a fresh authenticated shell', asy
   const account = await openWorkspaceAccount(page, 'Account');
   await expect(account).toContainText('second@example.test');
 });
+
+test('existing user sees the welcome tour once, then never again', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop');
+  await installApplicationFixture(page, { showWelcomeTour: true });
+  await page.goto('/');
+  const tour = page.getByRole('dialog', { name: 'Welcome back!' });
+  await expect(tour).toBeVisible();
+  await expect(tour.getByText('Four quick things that make budgeting easier. 1 of 4.')).toBeVisible();
+  await page.screenshot({ path: screenshotPath(testInfo, `welcome-tour-${testInfo.project.name}.png`), fullPage: true });
+
+  await tour.getByRole('button', { name: 'Next' }).click();
+  await expect(tour.getByText('Four quick things that make budgeting easier. 2 of 4.')).toBeVisible();
+  await tour.getByRole('button', { name: 'Skip tour' }).click();
+  await expect(tour).toHaveCount(0);
+
+  await page.reload();
+  await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Welcome back!' })).toHaveCount(0);
+});

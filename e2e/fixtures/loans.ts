@@ -80,6 +80,12 @@ export interface ApplicationFixtureOptions {
    *  fails once (503), then a retry succeeds with the seeded/default data --
    *  matching `failCategoriesOnce`'s own shape above. */
   failAvailableCashSummaryOnce?: boolean;
+  /** Leave `budget:welcome-seen:visual-user` unset so the existing-user welcome
+   *  tour appears. The flag is seeded as seen by default so every other spec
+   *  keeps its current behavior; a fresh Playwright context starts with empty
+   *  storage, so this branch simply never writes the key (dismissals during the
+   *  test still persist across reloads). */
+  showWelcomeTour?: boolean;
 }
 
 const defaultAllocationMonth: Record<string, unknown> = {
@@ -360,7 +366,15 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
   }
 
   if (authenticated) {
-    await page.addInitScript((value) => localStorage.setItem('sb-127-auth-token', JSON.stringify(value)), authSession());
+    await page.addInitScript((value: { session: unknown; welcomeTour: boolean }) => {
+      localStorage.setItem('sb-127-auth-token', JSON.stringify(value.session));
+      if (!value.welcomeTour) {
+        // Every user id the token route below can issue: `visual-user` for any
+        // email, `visual-user-2` for `second@example.test` (sign-out replay).
+        localStorage.setItem('budget:welcome-seen:visual-user', '1');
+        localStorage.setItem('budget:welcome-seen:visual-user-2', '1');
+      }
+    }, { session: authSession(), welcomeTour: options.showWelcomeTour ?? false });
   } else {
     await page.addInitScript(() => localStorage.removeItem('sb-127-auth-token'));
   }

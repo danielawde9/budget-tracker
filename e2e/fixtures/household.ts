@@ -125,6 +125,7 @@ export async function installHouseholdApiFixture(page: Page, options: HouseholdF
   let invitationSequence = 1;
 
   await page.addInitScript((value) => localStorage.setItem('sb-127-auth-token', JSON.stringify(value)), authSession());
+  await page.addInitScript((userId) => localStorage.setItem(`budget:welcome-seen:${userId}`, '1'), OWNER_ID);
 
   await page.route('**/api/household-invitations/deliver', async (route) => {
     const request = route.request();
