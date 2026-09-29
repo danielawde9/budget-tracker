@@ -842,7 +842,9 @@ describe('App welcome tour', () => {
 
   it('replays the tour from Manage preferences and deep-links into Household', async () => {
     const user = userEvent.setup();
-    renderApp();
+    // Household is only eligible in a household space (Task 3's eligibility
+    // gate); the default personal-space gateway would fall back to the hub.
+    renderApp({ workspaceGateway: workspaceGateway([householdSpace]) });
     expect(await screen.findByRole('heading', { name: 'Home' })).toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: 'Welcome back!' })).not.toBeInTheDocument();
 
@@ -918,11 +920,18 @@ import { WelcomeTourDialog, type WelcomeTarget } from './features/workspace/welc
 ```tsx
       onDestinationChange={navigateTo}
       pendingSection={pendingSection}
+      onPendingSectionConsumed={() => setPendingSection(null)}
       onReplayWelcome={() => {
         setTourSuppressed(false);
         workspace.replayWelcome();
       }}
 ```
+
+(`onPendingSectionConsumed` is the one-shot contract added in Task 3's review
+fix: routes reports the value was read — via mount for plan, mount/change for
+manage, and even for an ineligible section so it cannot linger — and we clear
+it. `navigateTo`'s clear on destination change remains the second line of
+defense.)
 
 4. In the shell fragment (`return <>` at line ~222), add the tour next to the `addingSpace` block (it overlays the shell; `.overlay` is position:fixed, so JSX order is irrelevant):
 

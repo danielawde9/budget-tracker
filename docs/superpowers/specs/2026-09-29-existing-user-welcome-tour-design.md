@@ -119,18 +119,27 @@ type WelcomeTarget = 'record' | 'reports' | 'goals' | 'household';
 - `record` — `setRecordInitialKind('expense'); setRecordOpen(true)` (the
   existing quick-add/record-sheet path).
 - `reports` — `setActiveDestination('home')`.
-- `goals` — `setActiveDestination('plan')` plus the existing one-shot
-  `planEntrySection` mechanism in `routes.tsx`: set the entry section, then
-  switch destination, so `PlanScreen` mounts with `initialSection='goals'`.
-  The tour always starts from `home`, so Plan is not already mounted and the
-  remount is guaranteed.
-- `household` — `setActiveDestination('manage')` plus a new one-shot intent:
-  `ManageScreen` gains an optional `initialSection?: ManageSection` prop
-  (`useState(initialSection ?? null)` instead of always `null`), passed
-  through a new optional prop on `ControlRoomRoutes`. Same mount-time contract
-  as the plan path.
+- `goals` — `setActiveDestination('plan')` plus a one-shot
+  `pendingSection='goals'`; `routes.tsx` hands it to `PlanRoutes` as
+  `initialSection` at mount (the legacy `planEntrySection` mechanism stays for
+  `onOpenLoans`). The tour always starts from `home`, so Plan is not already
+  mounted and the remount is guaranteed.
+- `household` — `setActiveDestination('manage')` plus
+  `pendingSection='household'`, passed through a new optional prop on
+  `ControlRoomRoutes` to `ManageScreen.initialSection`: applied at mount, or
+  when the value changes while Manage is already open (the replay case).
 
-The intent prop is consumed once at mount; there is no URL/routing change.
+Two contracts govern the intent value:
+
+- **Eligibility:** `household` is applied only when the active space is a
+  household space — the same rule the Manage hub uses to hide the row. On any
+  other space the link lands on the Manage hub instead; `ManageScreen`
+  enforces this so no caller can open `HouseholdPage` without a membership
+  (which would misfire the space-revocation recovery path).
+- **One-shot consumption:** the value is read once and reported back via
+  `onPendingSectionConsumed`, which `app.tsx` answers by clearing it;
+  destination changes clear it as a second line of defense. It never survives
+  long enough to re-apply on a later remount. There is no URL/routing change.
 
 ## Components and files
 
