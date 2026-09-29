@@ -3,6 +3,8 @@ import type { Currency, Locale } from '../loans/types.js';
 import { formatMinorAmount } from '../wallets/money.js';
 import { chartPercent } from './chart-ratio.js';
 import { classifyGoalsError, localizeGoalsError, type GoalsErrorView } from './errors.js';
+import { GoalBuyItDialog } from './goal-buy-it-dialog.js';
+import { buyItCommands, goalRevisionFromDetail, type GoalBuyItEnvironment } from './buy-it.js';
 import { GoalEditor } from './goal-editor.js';
 import { GoalFundingDialog } from './goal-funding-dialog.js';
 import { GoalMilestones } from './goal-milestones.js';
@@ -22,10 +24,13 @@ interface GoalDetailProps {
   goals: GoalsState;
   goalId: string;
   otherGoals: readonly GoalSummary[];
+  /** The Control Room's buy-it wiring (wallets/categories/goals gateways and
+   * reference lists). When absent, the guided "Buy it" action is not shown. */
+  buyIt?: GoalBuyItEnvironment | undefined;
   onBack(): void;
 }
 
-type DialogKind = 'funding' | 'purchase' | 'edit' | 'monthlyTarget';
+type DialogKind = 'funding' | 'purchase' | 'buyIt' | 'edit' | 'monthlyTarget';
 
 const t = (locale: Locale, en: string, ar: string) => locale === 'ar' ? ar : en;
 
@@ -152,6 +157,16 @@ export function GoalDetail(props: GoalDetailProps) {
     void load();
   }
 
+  /** The guided buy-it flow records a wallets expense as well as driving the
+   * goals commands directly (not through `useGoals`), so finishing it reloads
+   * both this detail and the list behind it. */
+  function closeBuyIt() {
+    setDialog(null);
+    setPendingState(null);
+    void props.goals.refresh();
+    void load();
+  }
+
   function openStateChange(target: GoalState) {
     setPendingState(target);
     setDialog('edit');
@@ -170,6 +185,9 @@ export function GoalDetail(props: GoalDetailProps) {
   const moveTargets = props.otherGoals
     .filter((candidate) => candidate.id !== props.goalId && candidate.state === 'active')
     .map((candidate) => ({ id: candidate.id, nameEn: candidate.nameEn, nameAr: candidate.nameAr }));
+  // The full revise input for the close path, reconstructed exactly as the
+  // edit dialog already reconstructs it (see goalRevisionFromDetail).
+  const revision = goalRevisionFromDetail(summary, detail.milestones);
 
   return <section className="goal-detail" aria-label={t(props.locale, 'Goal detail', 'تفاصيل الهدف')}>
     <div className="goal-row">
@@ -202,6 +220,7 @@ export function GoalDetail(props: GoalDetailProps) {
     <p className="goal-label-muted">{forecastLabel(props.locale, summary)}</p>
 
     <div className="goal-row">
+      {summary.kind === 'purchase' && summary.state === 'active' && props.buyIt && <button type="button" className="cr-button cr-button--primary" onClick={() => setDialog('buyIt')}>{t(props.locale, 'Buy it', 'اشترِه')}</button>}
       {(summary.state !== 'closed' || summary.needsReview) && <button type="button" className="cr-button" onClick={() => setDialog('funding')}>{t(props.locale, 'Manage funding (reserve/release/move)', 'إدارة التمويل (حجز/تحرير/نقل)')}</button>}
       <button type="button" className="cr-button" onClick={() => setDialog('monthlyTarget')}>{t(props.locale, 'Set monthly target', 'تعيين الهدف الشهري')}</button>
       <button type="button" className="cr-button" onClick={() => setDialog('purchase')}>{t(props.locale, 'Link a purchase', 'ربط عملية شراء')}</button>
@@ -247,20 +266,17 @@ export function GoalDetail(props: GoalDetailProps) {
         lines: [{ goalId: props.goalId, amountMinor: input.amountMinor, expectedHead: input.expectedHead }],
       })} />}
 
+    {dialog === 'buyIt' && props.buyIt && <GoalBuyItDialog locale={props.locale} currency={props.currency} goal={summary}
+      goalHead={detail.earmarkHead} today={props.buyIt.today} revision={revision}
+      walletOptions={props.buyIt.walletOptions.filter((wallet) => wallet.currency === props.currency)}
+      categoryOptions={props.buyIt.categoryOptions} commands={buyItCommands(props.buyIt)}
+      onClose={closeBuyIt} />}
+
     {dialog === 'edit' && <GoalEditor locale={props.locale} mode="revise" initialState={pendingState ?? undefined} plannedIncomeMinor={props.plannedIncomeMinor}
       existing={{
-        goalId: props.goalId, expectedRevisionId: summary.revisionId, currentState: summary.state,
-        definition: {
-          kind: summary.kind, currency: props.currency, nameEn: summary.nameEn, nameAr: summary.nameAr, note: null,
-          targetMinor: summary.targetMinor, deadline: summary.dueDate,
-          contributionMode: summary.dueDate !== null ? 'by_deadline' : 'manual_monthly',
-          monthlyAmountMinor: summary.dueDate !== null ? null : (summary.monthlyTargetMinor ?? '0'),
-          priority: 0,
-        },
-        milestones: detail.milestones.map((row) => ({
-          id: row.id, kind: row.kind, labelEn: row.labelEn, labelAr: row.labelAr,
-          thresholdMinor: row.thresholdMinor, dueDate: row.dueDate, ordinal: row.ordinal,
-        })),
+        goalId: props.goalId, expectedRevisionId: revision.expectedRevisionId, currentState: summary.state,
+        definition: revision.definition,
+        milestones: revision.milestones,
       }}
       pending={props.goals.pending} ambiguous={props.goals.ambiguous !== null}
       onClose={closeDialog} onClearAmbiguous={props.goals.clearAmbiguous} onRetry={props.goals.retryAmbiguous}

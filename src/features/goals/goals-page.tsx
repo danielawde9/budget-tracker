@@ -4,6 +4,7 @@ import { formatMinorAmount } from '../wallets/money.js';
 import { GoalDetail } from './goal-detail.js';
 import { GoalEditor } from './goal-editor.js';
 import { chartPercent } from './chart-ratio.js';
+import type { GoalBuyItEnvironment } from './buy-it.js';
 import type { GoalStateFilter, GoalSummary } from './types.js';
 import type { GoalsState } from './use-goals.js';
 import { GoalsSkeleton } from '../control-room/skeletons.js';
@@ -15,6 +16,9 @@ interface GoalsPageProps {
    * plan; forwarded to the create editor's 'Planned income' amount source. */
   plannedIncomeMinor: string | null;
   goals: GoalsState;
+  /** The Control Room's buy-it wiring, forwarded to the goal detail's guided
+   * "Buy it" action. Absent outside the Control Room. */
+  buyIt?: GoalBuyItEnvironment | undefined;
 }
 
 const t = (locale: Locale, en: string, ar: string) => locale === 'ar' ? ar : en;
@@ -45,7 +49,7 @@ export function GoalsPage(props: GoalsPageProps) {
 
   if (selectedGoalId) {
     return <GoalDetail locale={props.locale} currency={props.currency} goals={goals} goalId={selectedGoalId}
-      otherGoals={goals.page.rows} plannedIncomeMinor={props.plannedIncomeMinor} onBack={() => setSelectedGoalId(null)} />;
+      otherGoals={goals.page.rows} plannedIncomeMinor={props.plannedIncomeMinor} buyIt={props.buyIt} onBack={() => setSelectedGoalId(null)} />;
   }
 
   const visibleGoals = goals.page.rows.filter((goal) =>

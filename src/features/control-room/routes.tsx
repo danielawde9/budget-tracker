@@ -15,6 +15,7 @@ import type { CategoriesGateway } from '../categories/types.js';
 import { useExchange } from '../exchange/use-exchange.js';
 import type { ExchangeClient } from '../exchange/types.js';
 import { GoalsPage } from '../goals/goals-page.js';
+import type { GoalBuyItEnvironment } from '../goals/buy-it.js';
 import type { GoalsGateway } from '../goals/types.js';
 import { useGoals } from '../goals/use-goals.js';
 import { useGoalMonthlyTargetLines } from '../goals/use-goal-monthly-targets.js';
@@ -357,7 +358,13 @@ interface PlanRoutesProps {
   loans: ReturnType<typeof useLoans>;
   month: string;
   expenseRootCategories: readonly CategoryOption[];
+  /** Every active expense category (roots and subcategories), for the guided
+   * buy-it flow's category picker. */
+  buyItCategoryOptions: readonly { id: string; nameEn: string | null; nameAr: string | null }[];
   referenceOptions: Omit<ScheduleReferenceOptions, 'goals'>;
+  /** The space-clock "today"; the buy-it record date defaults to and is capped
+   * at it. */
+  today: string;
   /** Bumped by `ControlRoomRoutes` whenever a settle outcome linked
    * something; mounted Upcoming bills and cash sections reload on it (M7). */
   settledVersion: number;
@@ -404,6 +411,11 @@ function GoalsCurrencySection(props: {
   spaceId: string;
   currency: 'USD' | 'LBP';
   gateway: GoalsGateway;
+  wallets: WalletsGateway;
+  categories: CategoriesGateway;
+  today: string;
+  walletOptions: readonly { id: string; name: string; currency: string }[];
+  categoryOptions: readonly { id: string; nameEn: string | null; nameAr: string | null }[];
   plannedIncomeMinor: string | null;
   onSpaceUnavailable?: (() => void) | undefined;
 }) {
@@ -411,9 +423,22 @@ function GoalsCurrencySection(props: {
   // fetch of the full relevant set (bounded to 200 goals by the DB layer),
   // rather than re-querying goal_page per filter tab.
   const goals = useGoals(props.gateway, props.spaceId, props.currency, 'all', props.onSpaceUnavailable);
+  // The guided buy-it flow calls the wallets/categories recording command and
+  // the goals commands directly (it is one three-step action, not a single
+  // useGoals command), so it gets the raw gateways and the reference lists it
+  // needs -- all read-only here, and only its own section's wiring.
+  const buyIt: GoalBuyItEnvironment = {
+    spaceId: props.spaceId,
+    today: props.today,
+    wallets: props.wallets,
+    categories: props.categories,
+    goals: props.gateway,
+    walletOptions: props.walletOptions,
+    categoryOptions: props.categoryOptions,
+  };
   return (
     <section className="cr-card" aria-label={`${props.locale === 'ar' ? 'الأهداف' : 'Goals'} ${props.currency}`}>
-      <GoalsPage locale={props.locale} currency={props.currency} goals={goals} plannedIncomeMinor={props.plannedIncomeMinor} />
+      <GoalsPage locale={props.locale} currency={props.currency} goals={goals} plannedIncomeMinor={props.plannedIncomeMinor} buyIt={buyIt} />
     </section>
   );
 }
@@ -708,6 +733,11 @@ function PlanRoutes(props: PlanRoutesProps) {
           spaceId={spaceId}
           currency={currency}
           gateway={gateways.goals ?? unavailableGoalsGateway}
+          wallets={gateways.wallets}
+          categories={gateways.categories}
+          today={props.today}
+          walletOptions={props.referenceOptions.wallets}
+          categoryOptions={props.buyItCategoryOptions}
           plannedIncomeMinor={plannedIncomeByCurrency[currency]}
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
@@ -847,6 +877,13 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
     .map((category) => ({ id: category.id, nameEn: category.nameEn ?? '', nameAr: category.nameAr ?? '' })),
   [categories.expenseCategories]);
 
+  // The guided buy-it flow may post against any active expense category (a
+  // root or a subcategory), unlike the plan editors' root-only lists.
+  const buyItCategoryOptions = useMemo(() => categories.expenseCategories
+    .filter((category) => category.archivedAt === null)
+    .map((category) => ({ id: category.id, nameEn: category.nameEn, nameAr: category.nameAr })),
+  [categories.expenseCategories]);
+
   // Reference lists for the schedule/goal editors' dropdowns (they replace
   // the old pasted-UUID fields).
   const scheduleReferenceOptions = useMemo<Omit<ScheduleReferenceOptions, 'goals'>>(() => ({
@@ -921,7 +958,9 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
           loans={loans}
           month={month}
           expenseRootCategories={expenseRootCategoryOptions}
+          buyItCategoryOptions={buyItCategoryOptions}
           referenceOptions={scheduleReferenceOptions}
+          today={spaceClock.today}
           settledVersion={settledVersion}
           onSpaceUnavailable={props.onSpaceUnavailable}
         />
