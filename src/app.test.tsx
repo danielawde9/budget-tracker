@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './app.js';
 import type { AuthGateway, AuthUser } from './features/auth/types.js';
 import type { Space } from './features/loans/types.js';
@@ -55,7 +55,12 @@ function unconfiguredPlanClient(): InMemoryPlanClient {
   return client;
 }
 
-function renderApp(props: Parameters<typeof App>[0] = {}) {
+function seedWelcomeSeen(userId = 'user-1') {
+  localStorage.setItem(`budget:welcome-seen:${userId}`, '1');
+}
+
+function renderApp(props: Parameters<typeof App>[0] = {}, options: { allowWelcomeTour?: boolean } = {}) {
+  if (!options.allowWelcomeTour) seedWelcomeSeen();
   return render(<App
     authGateway={authGateway({ id: 'user-1', email: 'owner@example.com' })}
     workspaceGateway={workspaceGateway()}
@@ -176,6 +181,7 @@ describe('App', () => {
 
   it('keeps the shell stable when switching from a household space to a personal space', async () => {
     const user = userEvent.setup();
+    seedWelcomeSeen(householdOwnerId);
     render(<App
       authGateway={authGateway({ id: householdOwnerId, email: 'owner@example.com' })}
       workspaceGateway={workspaceGateway([householdSpace, personalSpace])}
@@ -213,6 +219,7 @@ describe('App', () => {
     };
     const token = 'A'.repeat(43);
     const invitationBootstrap = createHouseholdInvitationBootstrap(token);
+    seedWelcomeSeen(householdMemberId);
     render(<App
       householdInvitationBootstrap={invitationBootstrap}
       authGateway={authGateway({ id: householdMemberId, email: 'member@example.com' })}
@@ -297,6 +304,86 @@ describe('App quick-add link', () => {
       expect(screen.queryByRole('dialog', { name: 'Record' })).not.toBeInTheDocument();
     } finally {
       visit('/');
+    }
+  });
+});
+
+describe('App welcome tour', () => {
+  // Earlier tests in this file (and earlier cases in this block) can leave the
+  // flag behind; each tour test starts from a clean "never seen" state.
+  beforeEach(() => localStorage.removeItem('budget:welcome-seen:user-1'));
+
+  it('shows the tour once over the shell and never again after dismissal', async () => {
+    const user = userEvent.setup();
+    const view = renderApp({}, { allowWelcomeTour: true });
+    const tour = await screen.findByRole('dialog', { name: 'Welcome back!' });
+    expect(screen.getByRole('heading', { name: 'Home' })).toBeInTheDocument();
+
+    await user.click(within(tour).getByRole('button', { name: 'Skip tour' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Welcome back!' })).not.toBeInTheDocument());
+    expect(localStorage.getItem('budget:welcome-seen:user-1')).toBe('1');
+
+    view.unmount();
+    renderApp({}, { allowWelcomeTour: true });
+    expect(await screen.findByRole('heading', { name: 'Home' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Welcome back!' })).not.toBeInTheDocument();
+  });
+
+  it('opens the record sheet from the Quick add step', async () => {
+    const user = userEvent.setup();
+    renderApp({}, { allowWelcomeTour: true });
+    const tour = await screen.findByRole('dialog', { name: 'Welcome back!' });
+
+    await user.click(within(tour).getByRole('button', { name: 'Try it →' }));
+    // A string ByRole `name` is already a strict full-string match (no `exact`
+    // option exists on ByRoleOptions in @testing-library/dom v10).
+    expect(await screen.findByRole('dialog', { name: 'Record' })).toBeInTheDocument();
+    expect(localStorage.getItem('budget:welcome-seen:user-1')).toBe('1');
+  });
+
+  it('deep-links into Plan goals from the third step', async () => {
+    const user = userEvent.setup();
+    renderApp({}, { allowWelcomeTour: true });
+    const tour = await screen.findByRole('dialog', { name: 'Welcome back!' });
+
+    await user.click(within(tour).getByRole('button', { name: 'Next' }));
+    await user.click(within(tour).getByRole('button', { name: 'Next' }));
+    await user.click(within(tour).getByRole('button', { name: 'Try it →' }));
+
+    expect(screen.getAllByRole('button', { name: 'Plan' })[0]).toHaveAttribute('aria-current', 'page');
+    const sections = await screen.findByRole('navigation', { name: 'Plan sections' });
+    expect(within(sections).getByRole('button', { name: 'Goals' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('replays the tour from Manage preferences and deep-links into Household', async () => {
+    const user = userEvent.setup();
+    // [AMENDED] Household is only eligible in a household space (Task 3's
+    // eligibility gate); the default personal-space gateway would fall back to the hub.
+    renderApp({ workspaceGateway: workspaceGateway([householdSpace]) });
+    expect(await screen.findByRole('heading', { name: 'Home' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Welcome back!' })).not.toBeInTheDocument();
+
+    await user.click(screen.getAllByRole('button', { name: 'Manage' })[0]!);
+    await user.click(await screen.findByRole('button', { name: /Replay welcome tour/ }));
+    const tour = await screen.findByRole('dialog', { name: 'Welcome back!' });
+
+    await user.click(within(tour).getByRole('button', { name: 'Next' }));
+    await user.click(within(tour).getByRole('button', { name: 'Next' }));
+    await user.click(within(tour).getByRole('button', { name: 'Next' }));
+    await user.click(within(tour).getByRole('button', { name: 'Try it →' }));
+
+    expect(await screen.findByRole('button', { name: 'Back to manage sections' })).toBeInTheDocument();
+  });
+
+  it('defers the tour when a quick-add link opens the app', async () => {
+    window.history.replaceState(null, '', '/?add=expense');
+    try {
+      renderApp({}, { allowWelcomeTour: true });
+      expect(await screen.findByRole('dialog', { name: 'Record' })).toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: 'Welcome back!' })).not.toBeInTheDocument();
+      expect(localStorage.getItem('budget:welcome-seen:user-1')).toBeNull();
+    } finally {
+      window.history.replaceState(null, '', '/');
     }
   });
 });

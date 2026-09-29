@@ -30,6 +30,7 @@ import { OnboardingDialog } from './features/workspace/onboarding-dialog.js';
 import { createSupabaseWorkspaceGateway } from './features/workspace/supabase-workspace-gateway.js';
 import type { WorkspaceGateway } from './features/workspace/types.js';
 import { useWorkspace } from './features/workspace/use-workspace.js';
+import { WelcomeTourDialog, type WelcomeTarget } from './features/workspace/welcome-tour.js';
 import { createSupabaseWalletsGateway } from './features/wallets/supabase-wallets-gateway.js';
 import type { WalletsGateway } from './features/wallets/types.js';
 import { createBrowserDataClient, readBrowserAccessToken } from './lib/supabase.js';
@@ -140,6 +141,29 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
   // phone Shortcuts action) opens the record sheet on that kind once a
   // space is ready, then drops the parameter so a reload doesn't reopen it.
   const [pendingQuickAdd, setPendingQuickAdd] = useState<QuickAddKind | null>(() => readQuickAddIntent(window.location.search));
+  // A quick-add link owns this app open: the tour waits for the next one.
+  const [tourSuppressed, setTourSuppressed] = useState(() => pendingQuickAdd !== null);
+  // One-shot deep link for the tour's Try it (goals / household).
+  const [pendingSection, setPendingSection] = useState<'goals' | 'household' | null>(null);
+  const navigateTo = useCallback((destination: ControlRoomDestination) => {
+    setActiveDestination(destination);
+    setPendingSection(null);
+  }, []);
+  const onWelcomeTryIt = useCallback((target: WelcomeTarget) => {
+    workspace.dismissWelcome();
+    if (target === 'record') {
+      setRecordInitialKind('expense');
+      setRecordOpen(true);
+      return;
+    }
+    if (target === 'reports') {
+      navigateTo('home');
+      return;
+    }
+    // navigateTo clears first; the section is set after, in the same batch.
+    navigateTo(target === 'goals' ? 'plan' : 'manage');
+    setPendingSection(target);
+  }, [navigateTo, workspace.dismissWelcome]);
   const [recordInitialKind, setRecordInitialKind] = useState<QuickAddKind | null>(null);
   const workspaceReady = workspace.status === 'ready' && workspace.selectedSpace !== null && !showAcceptance;
   useEffect(() => {
@@ -231,6 +255,13 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
         void workspace.refresh(spaceId);
       }}
     /> : null}
+    {workspace.showWelcome && !tourSuppressed ? (
+      <WelcomeTourDialog
+        locale={props.locale}
+        onDismiss={workspace.dismissWelcome}
+        onTryIt={onWelcomeTryIt}
+      />
+    ) : null}
     <ControlRoomShell
       locale={props.locale}
       userEmail={props.userEmail}
@@ -254,7 +285,13 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
       spaceId={workspace.selectedSpaceId}
       spaceKind={workspace.selectedSpace.kind}
       destination={activeDestination}
-      onDestinationChange={setActiveDestination}
+      onDestinationChange={navigateTo}
+      pendingSection={pendingSection}
+      onPendingSectionConsumed={() => setPendingSection(null)}
+      onReplayWelcome={() => {
+        setTourSuppressed(false);
+        workspace.replayWelcome();
+      }}
       gateways={{ wallets: props.walletsGateway, loans: props.loansGateway, categories: props.categoriesGateway, reports: props.reportsGateway, household: props.householdGateway, plan: props.planClient, insights: props.insightsClient, exchange: props.exchangeClient, allocation: props.allocationGateway, goals: props.goalsGateway, recurring: props.recurringGateway, cashControl: props.cashControlGateway }}
       recordOpen={recordOpen}
       recordInitialKind={recordInitialKind}
