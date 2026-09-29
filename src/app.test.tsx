@@ -420,7 +420,10 @@ describe('App welcome tour', () => {
 
       await user.click(screen.getAllByRole('button', { name: 'Manage' })[0]!);
       await user.click(await screen.findByRole('button', { name: /Replay welcome tour/ }));
-      expect(await screen.findByRole('dialog', { name: 'Welcome back!' })).toBeInTheDocument();
+      const tour = await screen.findByRole('dialog', { name: 'Welcome back!' });
+      await user.click(within(tour).getByRole('button', { name: 'Skip tour' }));
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Welcome back!' })).not.toBeInTheDocument());
+      expect(localStorage.getItem('budget:welcome-seen:user-1')).toBe('1');
     } finally {
       window.history.replaceState(null, '', '/');
     }
@@ -441,7 +444,7 @@ describe('App welcome tour', () => {
     expect(await screen.findByRole('heading', { name: 'Home' })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Home' })[0]).toHaveAttribute('aria-current', 'page');
 
-    await user.click(within(tour).getByRole('button', { name: 'Skip tour' }));
+    // Try it already dismissed the tour; pin that it is gone.
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Welcome back!' })).not.toBeInTheDocument());
   });
 });
