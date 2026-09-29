@@ -109,6 +109,20 @@ describe('ManageScreen section menu', () => {
     expect(screen.queryByRole('button', { name: 'Back to manage sections' })).not.toBeInTheDocument();
   });
 
+  it('reports a deep link once it has been read so the caller can clear it', () => {
+    const onPendingSectionConsumed = vi.fn();
+    renderManage({ pendingSection: 'household', spaceKind: 'household', onPendingSectionConsumed });
+    expect(screen.getByRole('button', { name: 'Back to manage sections' })).toBeInTheDocument();
+    expect(onPendingSectionConsumed).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports an ineligible deep link too, so it cannot linger and apply later', () => {
+    const onPendingSectionConsumed = vi.fn();
+    renderManage({ pendingSection: 'household', onPendingSectionConsumed });
+    expect(screen.getByRole('navigation', { name: 'Manage sections' })).toBeInTheDocument();
+    expect(onPendingSectionConsumed).toHaveBeenCalledTimes(1);
+  });
+
   it('applies a pending section that arrives while Manage is already open', () => {
     const view = render(<ControlRoomRoutes {...manageProps({ spaceKind: 'household' })} />);
     expect(screen.getByRole('navigation', { name: 'Manage sections' })).toBeInTheDocument();

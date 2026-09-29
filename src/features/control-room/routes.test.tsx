@@ -621,6 +621,14 @@ describe('ControlRoomRoutes plan destination', () => {
     expect(within(sections).getByRole('button', { name: 'Plan' })).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('reports a plan deep link after reading it, so the caller can clear it', () => {
+    const onPendingSectionConsumed = vi.fn();
+    renderHome(gateways({}), { destination: 'plan', pendingSection: 'goals', onPendingSectionConsumed });
+    const sections = screen.getByRole('navigation', { name: 'Plan sections' });
+    expect(within(sections).getByRole('button', { name: 'Goals' })).toHaveAttribute('aria-pressed', 'true');
+    expect(onPendingSectionConsumed).toHaveBeenCalledTimes(1);
+  });
+
   it('shows available cash, reservations, and forecast in separate cards', async () => {
     const user = userEvent.setup();
     const cashControl = new InMemoryCashControlGateway();
