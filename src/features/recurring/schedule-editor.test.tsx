@@ -183,6 +183,70 @@ describe('ScheduleEditor', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
+  it('pins the interval to 1 for Twice a month and submits semimonthly', async () => {
+    const onSave = successSave();
+    render(<ScheduleEditor {...baseProps()} onSave={onSave} />);
+    const form = screen.getByRole('form', { name: 'Schedule details' });
+    await clickNext(form); // → Amount
+    await fillAmount(form);
+    await clickNext(form); // → Details
+    await fillDetails(form);
+
+    const interval = within(form).getByRole('spinbutton', { name: 'Repeat every' });
+    // An out-of-range interval typed first must be reset when semimonthly is
+    // chosen -- the DB rejects any interval other than 1 for this cadence.
+    await userEvent.clear(interval);
+    await userEvent.type(interval, '5');
+    await userEvent.click(within(form).getByRole('radio', { name: 'Twice a month' }));
+    expect(interval).toBeDisabled();
+    expect(interval).toHaveValue(1);
+
+    await clickNext(form); // → References
+    await clickNext(form); // → Review
+    expect(within(form).getByText('Twice a month · 1 month')).toBeInTheDocument();
+    await userEvent.click(within(form).getByRole('button', { name: 'Save' }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      definition: expect.objectContaining({ cadence: 'semimonthly', intervalCount: 1 }),
+    }));
+  });
+
+  it('supports Last business day with a multi-month interval', async () => {
+    const onSave = successSave();
+    render(<ScheduleEditor {...baseProps()} onSave={onSave} />);
+    const form = screen.getByRole('form', { name: 'Schedule details' });
+    await clickNext(form); // → Amount
+    await fillAmount(form);
+    await clickNext(form); // → Details
+    await fillDetails(form);
+    await userEvent.click(within(form).getByRole('radio', { name: 'Last business day' }));
+    const interval = within(form).getByRole('spinbutton', { name: 'Repeat every' });
+    expect(interval).not.toBeDisabled();
+    await userEvent.clear(interval);
+    await userEvent.type(interval, '2');
+    await clickNext(form); // → References
+    await clickNext(form); // → Review
+    expect(within(form).getByText('Last business day · 2 months')).toBeInTheDocument();
+    await userEvent.click(within(form).getByRole('button', { name: 'Save' }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      definition: expect.objectContaining({ cadence: 'monthly_last_business_day', intervalCount: 2 }),
+    }));
+  });
+
+  it('renders the new cadence radios in Arabic', async () => {
+    render(<ScheduleEditor {...baseProps()} locale="ar" />);
+    const form = screen.getByRole('form', { name: 'تفاصيل الجدول' });
+    await userEvent.click(within(form).getByRole('button', { name: 'التالي' })); // → Amount
+    await userEvent.type(within(form).getByRole('textbox', { name: 'المبلغ المتوقع' }), '500');
+    await userEvent.click(within(form).getByRole('button', { name: 'التالي' })); // → Details
+    await userEvent.type(within(form).getByRole('textbox', { name: 'الاسم (إنجليزي)' }), 'إيجار');
+    const startsOn = within(form).getByLabelText('يبدأ في');
+    await userEvent.clear(startsOn);
+    await userEvent.type(startsOn, '2026-10-01');
+    await userEvent.click(within(form).getByRole('radio', { name: 'آخر يوم عمل' }));
+    expect(within(form).getByRole('radio', { name: 'آخر يوم عمل' })).toBeChecked();
+    expect(within(form).getByRole('radio', { name: 'مرتين شهريًا' })).toBeInTheDocument();
+  });
+
   it('rejects a debt payment schedule with no loan selected, and accepts one with a loan chosen from the dropdown', async () => {
     const onSave = successSave();
     render(<ScheduleEditor {...baseProps()} onSave={onSave} />);

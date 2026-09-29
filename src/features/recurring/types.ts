@@ -2,7 +2,7 @@ import type { Currency } from '../loans/types.js';
 
 export type ScheduleKind = 'income' | 'expense' | 'debt_payment';
 export type ScheduleState = 'active' | 'paused' | 'ended';
-export type ScheduleCadence = 'weekly' | 'monthly' | 'yearly';
+export type ScheduleCadence = 'weekly' | 'monthly' | 'yearly' | 'semimonthly' | 'monthly_last_business_day';
 export type OccurrenceState = 'pending' | 'partial' | 'settled' | 'skipped';
 export type OccurrenceStateAction = 'skip' | 'reopen';
 

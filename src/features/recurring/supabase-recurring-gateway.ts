@@ -31,7 +31,7 @@ export type RecurringDataClient = PlanningRpcClient;
 
 const SCHEDULE_KINDS = ['income', 'expense', 'debt_payment'] as const;
 const SCHEDULE_STATES = ['active', 'paused', 'ended'] as const;
-const SCHEDULE_CADENCES = ['weekly', 'monthly', 'yearly'] as const;
+const SCHEDULE_CADENCES = ['weekly', 'monthly', 'yearly', 'semimonthly', 'monthly_last_business_day'] as const;
 const OCCURRENCE_STATES: readonly OccurrenceState[] = ['pending', 'partial', 'settled', 'skipped'];
 
 const MAX_PAGE_ROWS = 100;

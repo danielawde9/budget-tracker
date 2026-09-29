@@ -76,6 +76,8 @@ function cadenceLabel(locale: Locale, cadence: ScheduleCadence): string {
     case 'weekly': return t(locale, 'Weekly', 'أسبوعيًا');
     case 'monthly': return t(locale, 'Monthly', 'شهريًا');
     case 'yearly': return t(locale, 'Yearly', 'سنويًا');
+    case 'semimonthly': return t(locale, 'Twice a month', 'مرتين شهريًا');
+    case 'monthly_last_business_day': return t(locale, 'Last business day', 'آخر يوم عمل');
   }
 }
 
@@ -84,6 +86,10 @@ function cadenceUnit(locale: Locale, cadence: ScheduleCadence): string {
     case 'weekly': return t(locale, 'weeks', 'أسابيع');
     case 'monthly': return t(locale, 'months', 'أشهر');
     case 'yearly': return t(locale, 'years', 'سنوات');
+    // semimonthly already means two occurrences in a single month, so its
+    // fixed interval is one month and the unit is singular.
+    case 'semimonthly': return t(locale, 'month', 'شهر');
+    case 'monthly_last_business_day': return t(locale, 'months', 'أشهر');
   }
 }
 
@@ -160,6 +166,14 @@ export function ScheduleEditor(props: ScheduleEditorProps) {
     setCurrency(next);
     setError(null);
     if (amountSource === 'planned' && props.plannedIncomeByCurrency[next] == null) setAmountSource('custom');
+  }
+
+  /** semimonthly is fixed at two occurrences a month, so its interval is
+   * pinned to 1 the moment it is chosen -- the DB rejects any other value. */
+  function changeCadence(next: ScheduleCadence) {
+    setCadence(next);
+    setError(null);
+    if (next === 'semimonthly') setIntervalCountText('1');
   }
 
   function resolveExpectedMinor(): { ok: true; minor: string } | { ok: false; plannedMissing: boolean } {
@@ -246,7 +260,8 @@ export function ScheduleEditor(props: ScheduleEditorProps) {
     if (!resolved.ok) return; // every gate above passed; unreachable
     const definition: ScheduleDefinitionInput = {
       currency, kind, state, nameEn: nameEn.trim() || null, nameAr: nameAr.trim() || null,
-      expectedMinor: resolved.minor, startsOn, endsOn: endsOn || null, cadence, intervalCount: Number(intervalCountText),
+      expectedMinor: resolved.minor, startsOn, endsOn: endsOn || null, cadence,
+      intervalCount: cadence === 'semimonthly' ? 1 : Number(intervalCountText),
       categoryId: categoryId || null, loanId: loanId || null, fundingGoalId: fundingGoalId || null, preferredWalletId: preferredWalletId || null,
     };
     savingRef.current = true;
@@ -328,13 +343,15 @@ export function ScheduleEditor(props: ScheduleEditorProps) {
 
           <fieldset className="cr-choice">
             <legend>{t(props.locale, 'Recurrence', 'التكرار')}</legend>
-            <label><input type="radio" name="rec-cadence" checked={cadence === 'weekly'} onChange={() => setCadence('weekly')} />{cadenceLabel(props.locale, 'weekly')}</label>
-            <label><input type="radio" name="rec-cadence" checked={cadence === 'monthly'} onChange={() => setCadence('monthly')} />{cadenceLabel(props.locale, 'monthly')}</label>
-            <label><input type="radio" name="rec-cadence" checked={cadence === 'yearly'} onChange={() => setCadence('yearly')} />{cadenceLabel(props.locale, 'yearly')}</label>
+            <label><input type="radio" name="rec-cadence" checked={cadence === 'weekly'} onChange={() => changeCadence('weekly')} />{cadenceLabel(props.locale, 'weekly')}</label>
+            <label><input type="radio" name="rec-cadence" checked={cadence === 'monthly'} onChange={() => changeCadence('monthly')} />{cadenceLabel(props.locale, 'monthly')}</label>
+            <label><input type="radio" name="rec-cadence" checked={cadence === 'yearly'} onChange={() => changeCadence('yearly')} />{cadenceLabel(props.locale, 'yearly')}</label>
+            <label><input type="radio" name="rec-cadence" checked={cadence === 'semimonthly'} onChange={() => changeCadence('semimonthly')} />{cadenceLabel(props.locale, 'semimonthly')}</label>
+            <label><input type="radio" name="rec-cadence" checked={cadence === 'monthly_last_business_day'} onChange={() => changeCadence('monthly_last_business_day')} />{cadenceLabel(props.locale, 'monthly_last_business_day')}</label>
           </fieldset>
           <div className="cr-affix">
             <label>{t(props.locale, 'Repeat every', 'كرر كل')}
-              <input type="number" min={1} max={12} placeholder={t(props.locale, 'e.g. 2', 'مثال: 2')} value={intervalCountText} onChange={(event) => { setIntervalCountText(event.target.value); setError(null); }} /></label>
+              <input type="number" min={1} max={12} placeholder={t(props.locale, 'e.g. 2', 'مثال: 2')} value={intervalCountText} disabled={cadence === 'semimonthly'} onChange={(event) => { setIntervalCountText(event.target.value); setError(null); }} /></label>
             <span className="cr-affix-suffix" aria-hidden="true">{cadenceUnit(props.locale, cadence)}</span>
           </div>
 
