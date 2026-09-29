@@ -229,6 +229,7 @@ describe('useWorkspace', () => {
 
     act(() => result.current.replayWelcome());
     expect(result.current.showWelcome).toBe(true);
+    expect(localStorage.getItem('budget:welcome-seen:user-1')).toBe('1');
   });
 
   it('marks the tour seen when the first run finishes so new users skip it', async () => {
@@ -248,9 +249,13 @@ describe('useWorkspace', () => {
 
   it('never offers the welcome tour before the workspace is ready', async () => {
     const gateway = new FakeWorkspaceGateway();
-    gateway.error = new Error('Network request failed');
     const { result } = renderHook(() => useWorkspace(gateway, 'user-1'));
-    await waitFor(() => expect(result.current.status).toBe('error'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(result.current.showWelcome).toBe(true);
+
+    gateway.error = new Error('Network request failed');
+    await act(async () => result.current.refresh());
+    expect(result.current.status).toBe('error');
     expect(result.current.showWelcome).toBe(false);
 
     gateway.error = null;

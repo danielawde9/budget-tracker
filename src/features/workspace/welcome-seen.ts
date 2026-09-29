@@ -1,9 +1,10 @@
 /**
  * Per-user marker that the welcome tour has already been shown.
  *
- * Written from two places: any tour dismissal path in `app.tsx`, and
- * `useWorkspace.finishOnboarding` (so a person who completes first-run
- * setup never sees the tour). Purely local; no server involvement.
+ * Written by `useWorkspace.dismissWelcome` (every tour exit path routes
+ * through it) and by `useWorkspace.finishOnboarding`, so a person who
+ * completes first-run setup never sees the tour. Purely local; no server
+ * involvement.
  */
 export function welcomeSeenKey(userId: string): string {
   return `budget:welcome-seen:${userId}`;

@@ -43,6 +43,7 @@ export function useWorkspace(gateway: WorkspaceGateway, userId: string) {
     const requestId = ++request.current;
     setStatus('loading');
     setError(null);
+    setShowWelcome(false);
     if (resetSelection) {
       selectedRef.current = '';
       setSelectedSpaceId('');
@@ -83,6 +84,7 @@ export function useWorkspace(gateway: WorkspaceGateway, userId: string) {
           }
           if (request.current !== requestId) return;
           setSetup({ ...progress, ...(wallet ? { wallet: { id: wallet.id, currency: wallet.currency } } : {}) });
+          setShowWelcome(false);
           setStatus('onboarding');
           return;
         }
@@ -104,6 +106,8 @@ export function useWorkspace(gateway: WorkspaceGateway, userId: string) {
       if (request.current !== requestId) return;
       setActiveSpaceClock(clock);
       setStatus('ready');
+      // Recomputed from the flag: a refresh closes a replayed tour (replay it
+      // again if that happens); dismissal always wins because it writes the flag.
       setShowWelcome(!readWelcomeSeen(userId));
     } catch {
       if (request.current !== requestId) return;
