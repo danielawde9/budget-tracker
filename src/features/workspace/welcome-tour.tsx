@@ -112,7 +112,9 @@ export function WelcomeTourDialog({ locale, onDismiss, onTryIt }: WelcomeTourPro
   };
 
   return (
-    <div className="overlay welcome-overlay">
+    <div className="overlay" onMouseDown={(event) => event.preventDefault()}>
+      {/* Keep focus inside the dialog: a click on hero text or the scrim would
+          otherwise move focus to <body>, silently killing the keydown trap. */}
       <section
         ref={dialogRef}
         className="dialog welcome-dialog"
