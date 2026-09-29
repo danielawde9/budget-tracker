@@ -933,7 +933,7 @@ manage, and even for an ineligible section so it cannot linger — and we clear
 it. `navigateTo`'s clear on destination change remains the second line of
 defense.)
 
-4. In the shell fragment (`return <>` at line ~222), add the tour next to the `addingSpace` block (it overlays the shell; `.overlay` is position:fixed, so JSX order is irrelevant):
+4. In the shell fragment (`return <>` at line ~222), add the tour next to the `addingSpace` block (it overlays the shell; both use `.overlay` at equal `z-index`, so JSX order decides any overlap — the tour sits after `addingSpace` and would stack on top; no reachable path renders both):
 
 ```tsx
     {workspace.showWelcome && !tourSuppressed ? (
