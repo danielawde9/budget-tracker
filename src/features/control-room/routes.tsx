@@ -54,7 +54,7 @@ import { AmbiguousBanner } from './ambiguous-banner.js';
 import { HomeScreen } from './home-screen.js';
 import { eventLabel } from './home-screen.js';
 import { JournalScreen } from './journal-screen.js';
-import { ManageScreen } from './manage-screen.js';
+import { ManageScreen, type ManageSection } from './manage-screen.js';
 import { PageHeader } from './page-header.js';
 import { RecordSheet } from './record-sheet.js';
 import { HomeSkeleton, JournalSkeleton, PlanSkeleton, WorkspaceSkeleton } from './skeletons.js';
@@ -155,12 +155,26 @@ export interface ControlRoomRoutesProps {
   onSpaceUnavailable?(): void;
   /** Opens the record sheet (Task 9 mounts it); the home screen's Record action calls this. */
   onOpenRecord?(): void;
+  /** One-shot section the welcome tour deep-links into; consumed when the
+   *  destination screen mounts (the tour always leaves `home` for a plan or
+   *  manage destination, so a fresh mount is guaranteed). */
+  pendingSection?: PlanSection | ManageSection | null;
   /** Manage screen plumbing (Task 11): account, language, and household section wiring. */
   userId?: string;
   spaceName?: string;
   userEmail?: string | null;
   onLocaleChange?(): void;
   onSignOut?(): void;
+}
+
+const MANAGE_SECTIONS: readonly ManageSection[] = ['wallets', 'categories', 'household', 'phone'];
+
+function isPlanSection(value: PlanSection | ManageSection): value is PlanSection {
+  return PLAN_SECTIONS.some((item) => item.id === value);
+}
+
+function isManageSection(value: PlanSection | ManageSection): value is ManageSection {
+  return (MANAGE_SECTIONS as readonly string[]).includes(value);
 }
 
 /** The server-owned "today" for the active space (W4a-1). Sub-sections read
@@ -569,7 +583,7 @@ const GOAL_CURRENCIES = ['USD', 'LBP'] as const;
 const CASH_CONTROL_CURRENCIES = ['USD', 'LBP'] as const;
 const PLAN_CURRENCY_OPTIONS = ['USD', 'LBP'] as const;
 
-type PlanSection = 'plan' | 'allocation' | 'goals' | 'cash' | 'bills' | 'loans';
+export type PlanSection = 'plan' | 'allocation' | 'goals' | 'cash' | 'bills' | 'loans';
 
 const PLAN_SECTIONS: readonly { id: PlanSection; en: string; ar: string }[] = [
   { id: 'plan', en: 'Plan', ar: 'الخطة' },
@@ -803,6 +817,7 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
   useEffect(() => {
     if (props.destination === 'plan' && planEntrySection !== 'plan') setPlanEntrySection('plan');
   }, [props.destination, planEntrySection]);
+  const pendingPlanSection = props.pendingSection && isPlanSection(props.pendingSection) ? props.pendingSection : null;
   // Re-read whenever the sheet opens or closes or the space changes, so a
   // wallet stored by the last save is preselected on the next quick entry.
   const rememberedWalletId = useMemo(() => readRememberedWallet(spaceId), [spaceId, props.recordOpen]);
@@ -953,7 +968,7 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
         <PlanRoutes
           locale={locale}
           spaceId={spaceId}
-          initialSection={planEntrySection}
+          initialSection={pendingPlanSection ?? planEntrySection}
           gateways={gateways}
           loans={loans}
           month={month}
@@ -981,6 +996,7 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
             household: gateways.household,
           }}
           walletState={wallets}
+          initialSection={props.pendingSection && isManageSection(props.pendingSection) ? props.pendingSection : undefined}
           onOpenLoans={() => {
             setPlanEntrySection('loans');
             props.onDestinationChange?.('plan');

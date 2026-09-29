@@ -31,24 +31,26 @@ function gateways(): ControlRoomGateways {
   };
 }
 
+function manageProps(extra: Partial<Parameters<typeof ControlRoomRoutes>[0]> = {}) {
+  return {
+    locale: 'en' as const,
+    spaceId: 'personal-space',
+    spaceKind: 'personal' as const,
+    destination: 'manage' as const,
+    gateways: gateways(),
+    recordOpen: false,
+    onCloseRecord: () => undefined,
+    userId: householdOwnerId,
+    spaceName: 'Test space',
+    userEmail: 'dana@example.com',
+    onLocaleChange: () => undefined,
+    onSignOut: () => undefined,
+    ...extra,
+  };
+}
+
 function renderManage(extra: Partial<Parameters<typeof ControlRoomRoutes>[0]> = {}) {
-  return render(
-    <ControlRoomRoutes
-      locale="en"
-      spaceId="personal-space"
-      spaceKind="personal"
-      destination="manage"
-      gateways={gateways()}
-      recordOpen={false}
-      onCloseRecord={() => undefined}
-      userId={householdOwnerId}
-      spaceName="Test space"
-      userEmail="dana@example.com"
-      onLocaleChange={() => undefined}
-      onSignOut={() => undefined}
-      {...extra}
-    />,
-  );
+  return render(<ControlRoomRoutes {...manageProps(extra)} />);
 }
 
 describe('ManageScreen section menu', () => {
@@ -93,6 +95,20 @@ describe('ManageScreen section menu', () => {
     expect(onLocaleChange).toHaveBeenCalled();
     await user.click(within(menu).getByRole('button', { name: 'Sign out' }));
     expect(onSignOut).toHaveBeenCalled();
+  });
+
+  it('opens directly on the section a deep link asks for', () => {
+    renderManage({ pendingSection: 'household' });
+    expect(screen.getByRole('button', { name: 'Back to manage sections' })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Manage sections' })).not.toBeInTheDocument();
+  });
+
+  it('applies a pending section that arrives while Manage is already open', () => {
+    const view = render(<ControlRoomRoutes {...manageProps()} />);
+    expect(screen.getByRole('navigation', { name: 'Manage sections' })).toBeInTheDocument();
+
+    view.rerender(<ControlRoomRoutes {...manageProps({ pendingSection: 'household' })} />);
+    expect(screen.getByRole('button', { name: 'Back to manage sections' })).toBeInTheDocument();
   });
 });
 

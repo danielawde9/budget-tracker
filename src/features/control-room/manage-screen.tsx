@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { ChevronLeft, ChevronRight, Globe, LogOut, Mail, Smartphone, Tags, Users, Wallet } from 'lucide-react';
 import { CategoriesPage } from '../categories/categories-page.js';
 import type { CategoriesGateway } from '../categories/types.js';
@@ -27,6 +27,9 @@ export interface ManageScreenProps {
     household: HouseholdGateway;
   };
   walletState: WalletsState;
+  /** One-shot deep link: opens this section instead of the hub, and applies
+   *  it again if the value changes while Manage is already mounted. */
+  initialSection?: ManageSection | undefined;
   onLocaleChange(): void;
   onOpenLoans(): void;
   onSignOut(): void;
@@ -69,7 +72,10 @@ function ManageHubRow(props: HubRowProps) {
 
 export function ManageScreen(props: ManageScreenProps) {
   const { locale, spaceId, spaceKind } = props;
-  const [section, setSection] = useState<ManageSection | null>(null);
+  const [section, setSection] = useState<ManageSection | null>(props.initialSection ?? null);
+  useEffect(() => {
+    if (props.initialSection) setSection(props.initialSection);
+  }, [props.initialSection]);
 
   if (section === null) {
     const sections = SECTIONS.filter((item) => item.id !== 'household' || spaceKind === 'household');
