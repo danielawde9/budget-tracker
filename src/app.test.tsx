@@ -378,12 +378,52 @@ describe('App welcome tour', () => {
   it('defers the tour when a quick-add link opens the app', async () => {
     window.history.replaceState(null, '', '/?add=expense');
     try {
-      renderApp({}, { allowWelcomeTour: true });
+      const view = renderApp({}, { allowWelcomeTour: true });
       expect(await screen.findByRole('dialog', { name: 'Record' })).toBeInTheDocument();
       expect(screen.queryByRole('dialog', { name: 'Welcome back!' })).not.toBeInTheDocument();
       expect(localStorage.getItem('budget:welcome-seen:user-1')).toBeNull();
+
+      // The record sheet's quick-add handler already stripped ?add= from the
+      // URL, so this clean-URL reopen shows the tour on the next open.
+      view.unmount();
+      renderApp({}, { allowWelcomeTour: true });
+      expect(await screen.findByRole('dialog', { name: 'Welcome back!' })).toBeInTheDocument();
     } finally {
       window.history.replaceState(null, '', '/');
     }
+  });
+
+  it('replays the tour even when a quick-add link deferred it this session', async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, '', '/?add=expense');
+    try {
+      renderApp({}, { allowWelcomeTour: true });
+      const sheet = await screen.findByRole('dialog', { name: 'Record' });
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(sheet).not.toBeInTheDocument());
+      expect(screen.queryByRole('dialog', { name: 'Welcome back!' })).not.toBeInTheDocument();
+
+      await user.click(screen.getAllByRole('button', { name: 'Manage' })[0]!);
+      await user.click(await screen.findByRole('button', { name: /Replay welcome tour/ }));
+      expect(await screen.findByRole('dialog', { name: 'Welcome back!' })).toBeInTheDocument();
+    } finally {
+      window.history.replaceState(null, '', '/');
+    }
+  });
+
+  it('navigates to Home from the Reports step', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    expect(await screen.findByRole('heading', { name: 'Home' })).toBeInTheDocument();
+
+    await user.click(screen.getAllByRole('button', { name: 'Manage' })[0]!);
+    await user.click(await screen.findByRole('button', { name: /Replay welcome tour/ }));
+    const tour = await screen.findByRole('dialog', { name: 'Welcome back!' });
+
+    await user.click(within(tour).getByRole('button', { name: 'Next' }));
+    await user.click(within(tour).getByRole('button', { name: 'Try it →' }));
+
+    expect(await screen.findByRole('heading', { name: 'Home' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Home' })[0]).toHaveAttribute('aria-current', 'page');
   });
 });

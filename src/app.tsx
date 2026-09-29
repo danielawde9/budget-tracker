@@ -164,6 +164,14 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
     navigateTo(target === 'goals' ? 'plan' : 'manage');
     setPendingSection(target);
   }, [navigateTo, workspace.dismissWelcome]);
+  // Stable identities for ControlRoomRoutes: routes (and the manage screen
+  // behind it) consume these in effects, so fresh per-render arrows there
+  // would re-run those effects on every state change in this component.
+  const clearPendingSection = useCallback(() => setPendingSection(null), []);
+  const replayWelcomeTour = useCallback(() => {
+    setTourSuppressed(false);
+    workspace.replayWelcome();
+  }, [workspace.replayWelcome]);
   const [recordInitialKind, setRecordInitialKind] = useState<QuickAddKind | null>(null);
   const workspaceReady = workspace.status === 'ready' && workspace.selectedSpace !== null && !showAcceptance;
   useEffect(() => {
@@ -266,7 +274,7 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
       locale={props.locale}
       userEmail={props.userEmail}
       activeDestination={activeDestination}
-      onDestinationChange={setActiveDestination}
+      onDestinationChange={navigateTo}
       onLocaleChange={props.onLocaleChange}
       onSignOut={props.onSignOut}
       onRecord={openRecord}
@@ -287,11 +295,8 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
       destination={activeDestination}
       onDestinationChange={navigateTo}
       pendingSection={pendingSection}
-      onPendingSectionConsumed={() => setPendingSection(null)}
-      onReplayWelcome={() => {
-        setTourSuppressed(false);
-        workspace.replayWelcome();
-      }}
+      onPendingSectionConsumed={clearPendingSection}
+      onReplayWelcome={replayWelcomeTour}
       gateways={{ wallets: props.walletsGateway, loans: props.loansGateway, categories: props.categoriesGateway, reports: props.reportsGateway, household: props.householdGateway, plan: props.planClient, insights: props.insightsClient, exchange: props.exchangeClient, allocation: props.allocationGateway, goals: props.goalsGateway, recurring: props.recurringGateway, cashControl: props.cashControlGateway }}
       recordOpen={recordOpen}
       recordInitialKind={recordInitialKind}
