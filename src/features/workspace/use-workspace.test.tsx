@@ -250,6 +250,7 @@ describe('useWorkspace', () => {
   it('never offers the welcome tour before the workspace is ready', async () => {
     const gateway = new FakeWorkspaceGateway();
     const { result } = renderHook(() => useWorkspace(gateway, 'user-1'));
+    expect(result.current.showWelcome).toBe(false);
     await waitFor(() => expect(result.current.status).toBe('ready'));
     expect(result.current.showWelcome).toBe(true);
 

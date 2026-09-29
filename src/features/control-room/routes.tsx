@@ -594,7 +594,7 @@ const GOAL_CURRENCIES = ['USD', 'LBP'] as const;
 const CASH_CONTROL_CURRENCIES = ['USD', 'LBP'] as const;
 const PLAN_CURRENCY_OPTIONS = ['USD', 'LBP'] as const;
 
-export type PlanSection = 'plan' | 'allocation' | 'goals' | 'cash' | 'bills' | 'loans';
+type PlanSection = 'plan' | 'allocation' | 'goals' | 'cash' | 'bills' | 'loans';
 
 const PLAN_SECTIONS: readonly { id: PlanSection; en: string; ar: string }[] = [
   { id: 'plan', en: 'Plan', ar: 'الخطة' },
@@ -834,8 +834,8 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
   // effect only re-runs when the value or the callback itself changes.
   const onPendingSectionConsumed = props.onPendingSectionConsumed;
   useEffect(() => {
-    if (pendingPlanSection) onPendingSectionConsumed?.();
-  }, [pendingPlanSection, onPendingSectionConsumed]);
+    if (props.destination === 'plan' && pendingPlanSection) onPendingSectionConsumed?.();
+  }, [props.destination, pendingPlanSection, onPendingSectionConsumed]);
   // Re-read whenever the sheet opens or closes or the space changes, so a
   // wallet stored by the last save is preselected on the next quick entry.
   const rememberedWalletId = useMemo(() => readRememberedWallet(spaceId), [spaceId, props.recordOpen]);

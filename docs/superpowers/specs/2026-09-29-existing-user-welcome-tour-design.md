@@ -104,7 +104,9 @@ Language and "Add from your phone":
   flag (a later dismissal writes it anyway). Replay always shows the tour,
   including when it was deferred by a quick-add link — the quick-add
   precedence is about the *automatic* appearance only.
-- The row is always present, regardless of whether the tour was ever seen.
+- The row is always present in the app (the optional prop is always wired),
+  regardless of whether the tour was ever seen; a caller that omits the prop
+  simply renders no row (tests rely on this).
 
 ## Deep-link plumbing
 

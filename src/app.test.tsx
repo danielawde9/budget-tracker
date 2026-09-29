@@ -313,6 +313,21 @@ describe('App welcome tour', () => {
   // flag behind; each tour test starts from a clean "never seen" state.
   beforeEach(() => localStorage.removeItem('budget:welcome-seen:user-1'));
 
+  it('shows a pending invitation before the tour', async () => {
+    // This test authenticates as the household member, not user-1: clear that
+    // member's flag too so the tour would be eligible if the invitation lost.
+    localStorage.removeItem(`budget:welcome-seen:${householdMemberId}`);
+    const token = 'A'.repeat(43);
+    renderApp({
+      householdInvitationBootstrap: createHouseholdInvitationBootstrap(token),
+      authGateway: authGateway({ id: householdMemberId, email: 'member@example.com' }),
+      workspaceGateway: workspaceGateway(),
+    }, { allowWelcomeTour: true });
+
+    expect(await screen.findByRole('dialog', { name: 'Accept household invitation' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Welcome back!' })).not.toBeInTheDocument();
+  });
+
   it('shows the tour once over the shell and never again after dismissal', async () => {
     const user = userEvent.setup();
     const view = renderApp({}, { allowWelcomeTour: true });
@@ -425,5 +440,8 @@ describe('App welcome tour', () => {
 
     expect(await screen.findByRole('heading', { name: 'Home' })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Home' })[0]).toHaveAttribute('aria-current', 'page');
+
+    await user.click(within(tour).getByRole('button', { name: 'Skip tour' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Welcome back!' })).not.toBeInTheDocument());
   });
 });
