@@ -206,6 +206,60 @@ describe('useWorkspace', () => {
     expect(localStorage.getItem('budget:onboarding:user-1')).toBeNull();
   });
 
+  it('shows the welcome tour once for an existing user and never again', async () => {
+    const gateway = new FakeWorkspaceGateway();
+    const { result } = renderHook(() => useWorkspace(gateway, 'user-1'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(result.current.showWelcome).toBe(true);
+
+    act(() => result.current.dismissWelcome());
+    expect(result.current.showWelcome).toBe(false);
+    expect(localStorage.getItem('budget:welcome-seen:user-1')).toBe('1');
+
+    await act(async () => result.current.refresh());
+    expect(result.current.showWelcome).toBe(false);
+  });
+
+  it('replays the welcome tour after it was seen', async () => {
+    localStorage.setItem('budget:welcome-seen:user-1', '1');
+    const gateway = new FakeWorkspaceGateway();
+    const { result } = renderHook(() => useWorkspace(gateway, 'user-1'));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(result.current.showWelcome).toBe(false);
+
+    act(() => result.current.replayWelcome());
+    expect(result.current.showWelcome).toBe(true);
+  });
+
+  it('marks the tour seen when the first run finishes so new users skip it', async () => {
+    const gateway = new FakeWorkspaceGateway();
+    gateway.spaces = [personalSpace];
+    gateway.wallets = [spaceWallet('w1', 'Cash')];
+    seedProgress('user-1', personalSpace.id);
+    const { result } = renderHook(() => useWorkspace(gateway, 'user-1'));
+    await waitFor(() => expect(result.current.status).toBe('onboarding'));
+    expect(result.current.showWelcome).toBe(false);
+
+    await act(async () => { await result.current.finishOnboarding(personalSpace.id); });
+    expect(result.current.status).toBe('ready');
+    expect(localStorage.getItem('budget:welcome-seen:user-1')).toBe('1');
+    expect(result.current.showWelcome).toBe(false);
+  });
+
+  it('never offers the welcome tour before the workspace is ready', async () => {
+    const gateway = new FakeWorkspaceGateway();
+    gateway.error = new Error('Network request failed');
+    const { result } = renderHook(() => useWorkspace(gateway, 'user-1'));
+    await waitFor(() => expect(result.current.status).toBe('error'));
+    expect(result.current.showWelcome).toBe(false);
+
+    gateway.error = null;
+    gateway.spaces = [];
+    await act(async () => result.current.refresh());
+    expect(result.current.status).toBe('empty');
+    expect(result.current.showWelcome).toBe(false);
+  });
+
   it('persists progress for the first run and drops it once no space can match', async () => {
     const gateway = new FakeWorkspaceGateway();
     gateway.spaces = [];

@@ -9,6 +9,7 @@ import {
 } from './onboarding-progress.js';
 import type { CreateSpaceInput, CreateWalletInput, CreatedRecord, WorkspaceGateway } from './types.js';
 import { setActiveSpaceClock } from './space-clock.js';
+import { readWelcomeSeen, writeWelcomeSeen } from './welcome-seen.js';
 
 export type WorkspaceStatus = 'loading' | 'empty' | 'onboarding' | 'ready' | 'error';
 
@@ -30,6 +31,7 @@ export function useWorkspace(gateway: WorkspaceGateway, userId: string) {
   const [spaces, setSpaces] = useState<readonly Space[]>([]);
   const [selectedSpaceId, setSelectedSpaceId] = useState('');
   const [setup, setSetup] = useState<OnboardingSetup | null>(null);
+  const [showWelcome, setShowWelcome] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const selectedRef = useRef('');
   const spacesRef = useRef<readonly Space[]>([]);
@@ -58,6 +60,7 @@ export function useWorkspace(gateway: WorkspaceGateway, userId: string) {
         localStorage.removeItem(storageKey);
         clearOnboardingProgress(userId);
         setSetup(null);
+        setShowWelcome(false);
         setActiveSpaceClock(null);
         setStatus('empty');
         return;
@@ -101,11 +104,13 @@ export function useWorkspace(gateway: WorkspaceGateway, userId: string) {
       if (request.current !== requestId) return;
       setActiveSpaceClock(clock);
       setStatus('ready');
+      setShowWelcome(!readWelcomeSeen(userId));
     } catch {
       if (request.current !== requestId) return;
       spacesRef.current = [];
       setSpaces([]);
       setSetup(null);
+      setShowWelcome(false);
       selectedRef.current = '';
       setSelectedSpaceId('');
       setActiveSpaceClock(null);
@@ -141,9 +146,21 @@ export function useWorkspace(gateway: WorkspaceGateway, userId: string) {
 
   const finishOnboarding = useCallback((spaceId?: string) => {
     clearOnboardingProgress(userId);
+    // A person who just completed first-run setup skips the welcome tour.
+    writeWelcomeSeen(userId);
+    setShowWelcome(false);
     setSetup(null);
     return load(false, spaceId ?? '');
   }, [load, userId]);
+
+  const dismissWelcome = useCallback(() => {
+    writeWelcomeSeen(userId);
+    setShowWelcome(false);
+  }, [userId]);
+
+  const replayWelcome = useCallback(() => {
+    setShowWelcome(true);
+  }, []);
 
   const createFirstSpace = useCallback(async (input: CreateSpaceInput): Promise<CreatedRecord> => {
     try {
@@ -201,6 +218,9 @@ export function useWorkspace(gateway: WorkspaceGateway, userId: string) {
     selectedSpaceId,
     selectedSpace: spaces.find((space) => space.id === selectedSpaceId) ?? null,
     onboardingSetup: setup,
+    showWelcome,
+    dismissWelcome,
+    replayWelcome,
     error,
     selectSpace,
     refresh,
