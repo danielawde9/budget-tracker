@@ -89,6 +89,23 @@ Consequences, all intentional:
 - User mid-first-run (stored progress) → resumes the wizard first; completion
   writes the flag, so they skip the tour too.
 
+## Replay from settings
+
+The Manage hub (destination `manage`, the settings home) gains a
+**Replay welcome tour** row in its existing *Preferences* group, next to
+Language and "Add from your phone":
+
+- EN label `Replay welcome tour`, AR `إعادة عرض الجولة الترحيبية`; description
+  "See the welcome introduction again" / `شاهد مقدمة الترحيب مرة أخرى`.
+- `ManageScreen` gets an `onReplayWelcome(): void` prop, threaded through
+  `ControlRoomRoutes` to `app.tsx`, which calls the new
+  `workspace.replayWelcome()`.
+- `replayWelcome()` only flips `showWelcome` to true; it does not touch the
+  flag (a later dismissal writes it anyway). Replay always shows the tour,
+  including when it was deferred by a quick-add link — the quick-add
+  precedence is about the *automatic* appearance only.
+- The row is always present, regardless of whether the tour was ever seen.
+
 ## Deep-link plumbing
 
 `WelcomeTourDialog` never navigates itself. It emits one of:
@@ -133,11 +150,12 @@ The intent prop is consumed once at mount; there is no URL/routing change.
   state: current step only (0–3).
 - **New** `src/features/workspace/welcome-seen.ts` — flag helpers above.
 - **Modified** `src/features/workspace/use-workspace.ts` — `showWelcome`,
-  `dismissWelcome`, flag write in `finishOnboarding`.
+  `dismissWelcome`, `replayWelcome`, flag write in `finishOnboarding`.
 - **Modified** `src/app.tsx` — render the dialog over the shell when
   `workspace.showWelcome`, map `onTryIt` to intents, quick-add precedence.
 - **Modified** `src/features/control-room/routes.tsx` and
-  `manage-screen.tsx` — one-shot `initialSection` plumbing for manage.
+  `manage-screen.tsx` — one-shot `initialSection` plumbing for manage, plus
+  the `onReplayWelcome` prop and the new Preferences row.
 - **Modified** `src/styles.css` — tour-specific rules alongside the existing
   onboarding block.
 
@@ -171,6 +189,9 @@ compact padding and the hero card stacks above the controls.
   after dismissal a remount does not show it again.
 - Manage deep link — `ManageScreen` opens directly on `household` when
   `initialSection` is passed.
+- Replay — the Preferences row calls `onReplayWelcome`; `use-workspace` shows
+  `showWelcome: true` after `replayWelcome()` even when the flag is set;
+  `src/app.test.tsx` covers replay → tour visible → dismiss → gone.
 - e2e — one screenshot in `e2e/application.visual.spec.ts` matching the
   existing onboarding baselines under `artifacts/application-shell/`.
 
@@ -178,6 +199,6 @@ compact padding and the hero card stacks above the controls.
 
 - Record evidence in `docs/verification/` following the existing
   `*-onboarding-fixes.md` pattern; visual baselines land with the e2e run.
-- Out of scope: replaying the tour from a menu, server-side flag, versioned
-  re-shows, URL routing for sections, coach-marks anchored to live UI, and any
-  change to the first-run wizard.
+- Out of scope: versioned re-shows, server-side flag, URL routing for
+  sections, coach-marks anchored to live UI, and any change to the first-run
+  wizard. (Replay from settings is in scope — see above.)
