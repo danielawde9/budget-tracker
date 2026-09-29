@@ -869,6 +869,24 @@ input[type="checkbox"]:checked::after { opacity: 1; }
 .onboarding-privacy { margin: var(--cr-space-5) 0 0; padding: var(--cr-space-4); border-radius: var(--cr-radius-sm); background: var(--cr-accent-soft); color: var(--cr-accent-strong); font-size: 13px; line-height: 1.5; }
 .onboarding-boundary { padding: var(--cr-space-3); border-inline-start: 3px solid var(--cr-warn); background: var(--cr-surface-sunken); color: var(--cr-warn-strong); line-height: 1.5; }
 
+/* ---- Welcome tour (existing users, shown once over the shell) ---- */
+.welcome-dialog { padding: 30px; }
+.welcome-dialog .dialog-header { padding-bottom: 12px; }
+.welcome-dialog .dialog-header h1 { margin-block: 14px 6px; font-size: clamp(1.5rem, 4vw, 2rem); letter-spacing: -0.02em; font-weight: 800; }
+.welcome-dialog .dialog-header .dialog-intro { margin: 0; }
+.welcome-dots { display: flex; justify-content: center; gap: 8px; list-style: none; margin: 18px 0; padding: 0; }
+.welcome-dot { inline-size: 8px; block-size: 8px; flex: none; border-radius: var(--cr-radius-full, 999px); background: var(--cr-border, #dde4e1); }
+.welcome-dot-current { inline-size: 22px; background: var(--cr-accent-strong, #0d5d48); }
+.welcome-hero { display: grid; justify-items: center; gap: 8px; text-align: center; padding: 30px 20px; border: 1px solid var(--cr-border, #dde4e1); border-radius: var(--cr-radius-sm, 12px); background: var(--cr-accent-soft, #e2f2ec); }
+.welcome-icon { inline-size: 46px; block-size: 46px; display: grid; place-items: center; border-radius: var(--cr-radius-full, 999px); background: var(--cr-surface, #ffffff); color: var(--cr-accent-strong, #0d5d48); }
+.welcome-hero strong { font-size: 16px; }
+.welcome-hero p { margin: 0; color: var(--cr-ink-soft, #55605a); line-height: 1.55; max-inline-size: 44ch; }
+.welcome-try { min-height: 32px; font-weight: 700; }
+.welcome-actions { justify-content: space-between; }
+@media (max-width: 700px) {
+  .welcome-dialog { padding: var(--cr-space-6, 24px) var(--cr-space-5, 20px); }
+}
+
 /* ---- Legacy space switcher (kept neutral; the rail re-skins it) ---- */
 .space-switcher { position: relative; }
 .space-switcher-trigger {
