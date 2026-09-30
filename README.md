@@ -15,6 +15,19 @@ hand-edited) balances, an immutable paginated journal, loan lending/borrowing
 with repayments and targets, one-level income/expense categories, and
 household spaces with RLS-scoped membership.
 
+## Screenshots
+
+Captured from the running app on 2026-09-30 against the repository's synthetic
+Playwright fixtures. No real accounts or data are shown.
+
+![Home: net position in USD and LBP, budget versus actual, monthly trend, loans and recent activity](docs/screenshots/2026-09-30/home-desktop.png)
+
+![Plan: planned income, left to allocate, category targets and loan commitments](docs/screenshots/2026-09-30/plan-desktop.png)
+
+![Journal: the immutable event feed with type filters, search and CSV export](docs/screenshots/2026-09-30/journal-desktop.png)
+
+![Home in Arabic, mirrored right-to-left](docs/screenshots/2026-09-30/home-ar-desktop.png)
+
 For future work, give the implementer one file from the
 [SQL-first task index](docs/superpowers/plans/future-planning/00-start-here.md).
 It contains separate database, gateway and UI instructions, a
