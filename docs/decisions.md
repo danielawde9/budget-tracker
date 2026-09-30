@@ -3947,3 +3947,11 @@ This supersedes the "remaining-amount match only" reading of "Auto-settle pays t
 **Why:** The first D3 implementation auto-linked any amount to a single candidate bill, so a $61 expense settled a $60 bill and broke the long-standing release contract "a non-matching expense leaves the bill pending" (`e2e/auto-settle.spec.ts:89`). Partial payment (entry < remaining) is unconstrained by that contract and is the case the audit asked for; auto-linking an over-payment is not, so it is deferred rather than silently changing the gate.
 
 **If changed:** Re-enabling over-payment auto-linking changes that e2e contract (a deliberate product decision) and must restore the surplus reporting; it is not a silent behavior change. Partial-payment auto-linking keeps the audit's look-alike guarding: two or more candidates stay `ambiguous`.
+
+## 2026-09-29 — Default plan, group links and a clean migration baseline (assumptions made without the client)
+
+**Decision:** New spaces are created with a default plan: Essentials 60% (Rent, Bills, Groceries, Transport), Guilt free 5% (Eating out, Fun, Shopping), Short-term goals 15%, Saving 10%, Investment 10%. It is editable. Loan payments default to the Short-term goals Future group. Existing users are offered the plan through a one-time card and are never migrated silently. The 61 layered migrations are replaced by one baseline exported from a database built from them, proven schema-equal by test, with the new links added as migrations on top. See `docs/superpowers/specs/2026-09-29-plan-linking-and-clean-baseline-design.md`.
+
+**Why:** The person asked for a forced, editable default so groups, categories, goals and loans are linked without manual wiring. The percentages are the set already used in their own space. The old production project was deleted, so no deployed database depends on the migration history.
+
+**If changed:** Different default groups or percentages change only the seed function. A different default loan group changes one setting. If a deployed database that depends on the old history reappears, the baseline must not be applied to it; it would need the original 61 migrations.
