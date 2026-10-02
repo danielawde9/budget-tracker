@@ -2,6 +2,8 @@ import { render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { OnboardingDialog } from './onboarding-dialog.js';
+import { InMemoryPlanClient } from '../../test/in-memory-plan-client.js';
+import type { CategoriesGateway } from '../categories/types.js';
 import type { OpeningBalanceInput } from './types.js';
 
 describe('OnboardingDialog', () => {
@@ -226,4 +228,37 @@ describe('OnboardingDialog', () => {
     expect(recordOpeningBalance).not.toHaveBeenCalled();
     expect(onComplete).toHaveBeenCalledWith('space-1');
   });
+});
+
+
+describe('first plan wizard integration', () => {
+  const services = () => ({
+    plan: new InMemoryPlanClient(),
+    categories: { listCategories: async () => ({ categories: [], nextCursor: null }) } as unknown as CategoriesGateway,
+    loadClock: async () => ({ today: '2026-10-02', currentMonth: '2026-10-01', timezone: 'Asia/Beirut' }),
+  });
+  it('continues from opening balance to the plan and persists the plan stage', async () => {
+    const user = userEvent.setup();
+    const onProgress = vi.fn();
+    const onComplete = vi.fn();
+    render(<OnboardingDialog locale="en" setup={{ spaceId: 's', balanceRequestId: 'r', wallet: { id: 'w', currency: 'USD' } }} createSpace={vi.fn()} createWallet={vi.fn()} recordOpeningBalance={vi.fn()} planServices={services()} onProgress={onProgress} onComplete={onComplete} />);
+    await user.click(screen.getByRole('button', { name: 'Skip' }));
+    expect(await screen.findByLabelText('Monthly income')).toBeInTheDocument();
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(onProgress).toHaveBeenCalledWith({ spaceId: 's', balanceRequestId: 'r', stage: 'plan' });
+    await user.click(screen.getByRole('button', { name: 'I’ll plan later' }));
+    expect(onComplete).toHaveBeenCalledWith('s');
+  });
+  it('resumes the plan without offering to post an opening balance again', async () => {
+    render(<OnboardingDialog locale="en" setup={{ spaceId: 's', balanceRequestId: 'r', stage: 'plan', wallet: { id: 'w', currency: 'LBP' } }} createSpace={vi.fn()} createWallet={vi.fn()} recordOpeningBalance={vi.fn()} planServices={services()} onComplete={vi.fn()} />);
+    expect(await screen.findByLabelText('Monthly income')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Record opening balance' })).not.toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'LBP' })).toBeChecked();
+  });
+  it('keeps the stored plan stage even when the resume wallet read was unavailable', async () => {
+    render(<OnboardingDialog locale="en" setup={{ spaceId: 's', balanceRequestId: 'r', stage: 'plan' }} createSpace={vi.fn()} createWallet={vi.fn()} recordOpeningBalance={vi.fn()} planServices={services()} onComplete={vi.fn()} />);
+    expect(await screen.findByLabelText('Monthly income')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create USD wallet' })).not.toBeInTheDocument();
+  });
+
 });

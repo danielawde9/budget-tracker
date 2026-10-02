@@ -234,6 +234,8 @@ function AuthenticatedWorkspace(props: AuthenticatedWorkspaceProps) {
     return <OnboardingDialog
       locale={props.locale}
       setup={workspace.onboardingSetup}
+      onLocaleChange={props.onLocaleChange}
+      planServices={props.planClient ? { plan: props.planClient, categories: props.categoriesGateway, loadClock: props.workspaceGateway.loadSpaceClock } : undefined}
       createSpace={workspace.createFirstSpace}
       createWallet={workspace.createFirstWallet}
       onProgress={workspace.saveOnboardingProgress}

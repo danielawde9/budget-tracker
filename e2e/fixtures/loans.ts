@@ -157,6 +157,8 @@ const protectedMutationNames = new Set([
   'restore_wallet',
   'reverse_financial_event',
   'set_loan_monthly_target',
+  'set_monthly_income_plan',
+  'set_monthly_category_target',
 ]);
 
 const spaces = [
@@ -302,6 +304,10 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
   const visibleEventCategories = options.emptyWallets ? [] : cloneRows(eventCategoryRows);
   const categoryCommandResults = new Map<string, { command_kind: 'create_category' | 'create_subcategory' | 'archive_category'; category_id: string; created_at: string }>();
   const walletCommandResults = new Map<string, { command_kind: 'rename_wallet' | 'archive_wallet' | 'restore_wallet'; wallet_id: string }>();
+  const planReceipts = new Map<string, number>();
+  const planSummaries: Record<string, unknown>[] = cloneRows(options.planSummary ?? []);
+  const planTargets: Record<string, unknown>[] = cloneRows(options.budgetRows ?? []);
+  let planRevision = 1;
   let signInAttempts = 0;
   let ambiguousSpaceRemaining = options.ambiguousSpaceOnce ? 1 : 0;
   let ambiguousEventRemaining = options.ambiguousEventOnce ? 1 : 0;
@@ -607,8 +613,38 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
     if (path.endsWith('/rpc/set_loan_monthly_target')) {
       return json(route, [{ id: 'f3000000-0000-4000-8000-000000000001' }]);
     }
+    if (path.endsWith('/rpc/set_monthly_income_plan') || path.endsWith('/rpc/set_monthly_category_target')) {
+      const body = request.postDataJSON() as { p_request_id: string; p_currency: string; p_amount_minor: string; p_category_id?: string };
+      const replay = planReceipts.get(body.p_request_id);
+      if (replay) return json(route, [{ id: replay }]);
+      const revision = planRevision++;
+      planReceipts.set(body.p_request_id, revision);
+      let summary = planSummaries.find(row => row['currency'] === body.p_currency);
+      if (!summary) {
+        summary = { currency: body.p_currency, planned_income_minor: '0', actual_income_minor: '0', category_target_total_minor: '0', category_actual_spent_minor: '0', uncategorized_spent_minor: '0', category_overspent_minor: '0', actual_loan_repayment_minor: '0', remaining_loan_reservation_minor: '0', loan_commitment_minor: '0', unallocated_minor: '0', overallocated_minor: '0', income_plan_revision_id: null };
+        planSummaries.push(summary);
+      }
+      if (!body.p_category_id) {
+        summary['planned_income_minor'] = body.p_amount_minor;
+        summary['income_plan_revision_id'] = String(revision);
+      } else {
+        const category = visibleCategories.find(row => row.id === body.p_category_id);
+        let target = planTargets.find(row => row['category_id'] === body.p_category_id && row['currency'] === body.p_currency);
+        if (!target) {
+          target = { category_id: body.p_category_id, currency: body.p_currency, name_en: category?.name_en ?? null, name_ar: category?.name_ar ?? null, archived_at: null, actual_spent_minor: '0', overspent_minor: '0' };
+          planTargets.push(target);
+        }
+        target['target_minor'] = body.p_amount_minor;
+        target['remaining_minor'] = body.p_amount_minor;
+        target['target_revision_id'] = String(revision);
+      }
+      const total = planTargets.filter(row => row['currency'] === body.p_currency).reduce((sum, row) => sum + BigInt(String(row['target_minor'] ?? 0)), 0n);
+      summary['category_target_total_minor'] = String(total);
+      summary['unallocated_minor'] = String(BigInt(String(summary['planned_income_minor'])) - total);
+      return json(route, [{ id: revision }]);
+    }
     if (path.endsWith('/rpc/monthly_budget_currency_summary')) {
-      return json(route, cloneRows(options.planSummary ?? []));
+      return json(route, cloneRows(planSummaries));
     }
     if (path.endsWith('/rpc/monthly_budget_category_page')) {
       return json(route, cloneRows(options.budgetRows ?? []));
@@ -627,7 +663,7 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       // that part of orderedV3Roots is a no-op today and stays correct if one
       // is added (its actual_spent_minor must already be pre-summed into the
       // parent row in the seed data -- this mock does not do that arithmetic).
-      const roots = orderedV3Roots(options.budgetRows ?? [], body.p_currency);
+      const roots = orderedV3Roots(planTargets, body.p_currency);
       const after = body.p_after_created_at != null && body.p_after_category_id != null
         ? { createdAt: body.p_after_created_at, categoryId: body.p_after_category_id }
         : null;

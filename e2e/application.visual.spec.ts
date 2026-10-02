@@ -109,6 +109,7 @@ test('first-time onboarding creates a personal space and first wallet', async ({
   const balance = page.getByRole('dialog', { name: 'Opening balance' });
   await expect(balance).toBeVisible();
   await balance.getByRole('button', { name: 'Skip' }).click();
+  await page.getByRole('button', { name: 'I’ll plan later' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible();
   await expect(page.locator('.cr-header-text').getByText('Personal space', { exact: true })).toBeVisible();
   await expect(page.getByText('No transactions yet')).toBeVisible();
@@ -169,6 +170,7 @@ test('ambiguous mobile space creation reconciles and completes first-wallet setu
   const balance = page.getByRole('dialog', { name: 'Opening balance' });
   await expect(balance).toBeVisible();
   await balance.getByRole('button', { name: 'Skip' }).click();
+  await page.getByRole('button', { name: 'I’ll plan later' }).click();
   await expect(setup).toHaveCount(0);
   await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible();
   await expect(page.locator('.cr-header-text').getByText('Household space', { exact: true })).toBeVisible();

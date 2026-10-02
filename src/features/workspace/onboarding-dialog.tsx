@@ -1,5 +1,6 @@
 import { useId, useRef, useState, useEffect, type FormEvent, type KeyboardEvent } from 'react';
 import { UserRound, UsersRound } from 'lucide-react';
+import { FirstPlanStep, type FirstPlanServices } from './first-plan-step.js';
 import onboardingBackdrop from '../../assets/onboarding-lifestyle-backdrop.png';
 import type { Currency, Locale, SpaceKind } from '../loans/types.js';
 import { parsePositiveMinorAmount } from '../wallets/money.js';
@@ -17,6 +18,8 @@ interface OnboardingDialogProps {
   onProgress?(progress: OnboardingProgress): void;
   /** Record the wallet's starting balance. Present only for the first-run wizard. */
   recordOpeningBalance?(input: OpeningBalanceInput): Promise<void>;
+  planServices?: FirstPlanServices | undefined;
+  onLocaleChange?(): void;
   onComplete(spaceId: string): void;
   /** Present only when the wizard can be dismissed (an additional space, never first run). */
   onClose?(): void;
@@ -76,17 +79,20 @@ const copy = {
 } as const;
 
 function focusable(container: HTMLElement): HTMLElement[] {
-  return [...container.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled])')];
+  return [...container.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), summary, a[href], [tabindex="0"]')];
 }
 
-function initialStep(setup: OnboardingSetup | null | undefined): 'space' | 'wallet' | 'balance' {
+function initialStep(setup: OnboardingSetup | null | undefined, planEnabled: boolean): 'space' | 'wallet' | 'balance' | 'plan' {
+  if (setup?.stage === 'plan' && planEnabled) return 'plan';
   if (!setup) return 'space';
   return setup.wallet ? 'balance' : 'wallet';
 }
 
-export function OnboardingDialog({ locale, mode = 'first', setup = null, createSpace, createWallet, onProgress, recordOpeningBalance, onComplete, onClose }: OnboardingDialogProps) {
+export function OnboardingDialog({ locale, mode = 'first', setup = null, createSpace, createWallet, onProgress, recordOpeningBalance, planServices, onLocaleChange, onComplete, onClose }: OnboardingDialogProps) {
   const text = copy[locale];
-  const [step, setStep] = useState<'space' | 'wallet' | 'balance'>(() => initialStep(setup));
+  const planEnabled = mode === 'first' && !!planServices;
+  const [step, setStep] = useState<'space' | 'wallet' | 'balance' | 'plan'>(() => initialStep(setup, planEnabled));
+  const [balanceSkipped, setBalanceSkipped] = useState(false);
   const [kind, setKind] = useState<SpaceKind>('personal');
   const [spaceName, setSpaceName] = useState('');
   const [spaceId, setSpaceId] = useState(setup?.spaceId ?? '');
@@ -140,9 +146,16 @@ export function OnboardingDialog({ locale, mode = 'first', setup = null, createS
     }
   };
 
+  const enterPlanOrFinish = (targetSpaceId: string) => {
+    if (planEnabled) {
+      onProgress?.({ spaceId: targetSpaceId, balanceRequestId, stage: 'plan' });
+      setStep('plan');
+    } else onComplete(targetSpaceId);
+  };
+
   const finishAfterWallet = (targetSpaceId: string) => {
     if (balanceEnabled) setStep('balance');
-    else onComplete(targetSpaceId);
+    else enterPlanOrFinish(targetSpaceId);
   };
 
   const submitSpace = async (event: FormEvent) => {
@@ -205,7 +218,7 @@ export function OnboardingDialog({ locale, mode = 'first', setup = null, createS
   const submitBalance = async (event: FormEvent) => {
     event.preventDefault();
     if (!recordOpeningBalance) {
-      onComplete(spaceId);
+      enterPlanOrFinish(spaceId);
       return;
     }
     let amountMinor: string;
@@ -219,7 +232,7 @@ export function OnboardingDialog({ locale, mode = 'first', setup = null, createS
     setError(null);
     try {
       await recordOpeningBalance({ spaceId, walletId, amountMinor, requestId: balanceRequestId });
-      onComplete(spaceId);
+      enterPlanOrFinish(spaceId);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : text.balanceInvalid);
     } finally {
@@ -228,27 +241,28 @@ export function OnboardingDialog({ locale, mode = 'first', setup = null, createS
   };
 
   const skipBalance = () => {
-    if (!pending) onComplete(spaceId);
+    if (!pending) { setBalanceSkipped(true); enterPlanOrFinish(spaceId); }
   };
 
   const spaceTitle = mode === 'additional' ? text.spaceTitleAdditional : text.spaceTitle;
   const title = step === 'space' ? spaceTitle : step === 'wallet' ? text.walletTitle : text.balanceTitle;
   const intro = step === 'space' ? text.spaceIntro : step === 'wallet' ? text.walletIntro : null;
   const cancel = onClose ? <button type="button" className="button-secondary" disabled={pending} onClick={onClose}>{text.cancel}</button> : null;
-  return <div className="overlay onboarding-overlay">
-    <div className="onboarding-scene" aria-hidden="true">
+  return <div className={`overlay onboarding-overlay${planEnabled ? ' onboarding-first-run' : ''}`}>
+    {!planEnabled ? <><div className="onboarding-scene" aria-hidden="true">
       <img src={onboardingBackdrop} alt="" />
       <div className="onboarding-scene-copy"><p className="onboarding-scene-title">{text.sceneTitle}</p><p className="onboarding-scene-body">{text.sceneBody}</p></div>
     </div>
-    <div className="onboarding-scrim" aria-hidden="true" />
-    <section ref={dialogRef} className="dialog dialog-setup onboarding-dialog" role="dialog" aria-modal="true" aria-labelledby="onboarding-title" onKeyDown={trapFocus}>
-      <header className="dialog-header"><div><span className="auth-brand"><span className="auth-brand-mark" aria-hidden="true" />{text.product}</span><h1 id="onboarding-title">{title}</h1>{intro ? <p className="dialog-intro">{intro}</p> : null}</div>{onClose ? <button type="button" className="icon-button" aria-label={text.close} disabled={pending} onClick={onClose}>×</button> : null}</header>
+    <div className="onboarding-scrim" aria-hidden="true" /></> : null}
+    <section ref={dialogRef} className={`dialog dialog-setup onboarding-dialog${planEnabled ? ` onboarding-wizard${step === 'plan' ? ' onboarding-wizard-plan' : ''}` : ''}`} role="dialog" aria-modal="true" aria-labelledby="onboarding-title" onKeyDown={trapFocus}>
+      <header className="dialog-header"><div><span className="auth-brand"><span className="auth-brand-mark" aria-hidden="true" />{text.product}</span>{!planEnabled ? <><h1 id="onboarding-title">{title}</h1>{intro ? <p className="dialog-intro">{intro}</p> : null}</> : null}</div>{planEnabled && onLocaleChange ? <button type="button" className="first-plan-later" onClick={onLocaleChange}>{locale === 'en' ? 'العربية' : 'English'}</button> : null}{onClose ? <button type="button" className="icon-button" aria-label={text.close} disabled={pending} onClick={onClose}>×</button> : null}</header>
       <ol className="onboarding-progress" aria-label={text.progress}>
-        <li className={step === 'space' ? 'onboarding-progress-current' : 'onboarding-progress-done'}><span className="onboarding-step-number" aria-hidden="true">1</span><span aria-current={step === 'space' ? 'step' : undefined}>{text.stepSpace}</span></li>
-        <li className={step === 'wallet' ? 'onboarding-progress-current' : step === 'balance' ? 'onboarding-progress-done' : undefined}><span className="onboarding-step-number" aria-hidden="true">2</span><span aria-current={step === 'wallet' ? 'step' : undefined}>{text.stepWallet}</span></li>
-        {balanceEnabled ? <li className={step === 'balance' ? 'onboarding-progress-current' : undefined}><span className="onboarding-step-number" aria-hidden="true">3</span><span aria-current={step === 'balance' ? 'step' : undefined}>{text.stepBalance}</span></li> : null}
+        <li className={step === 'space' ? 'onboarding-progress-current' : 'onboarding-progress-done'}><span className="onboarding-step-number" aria-hidden="true">1</span><span aria-current={step === 'space' ? 'step' : undefined}>{planEnabled ? locale === 'en' ? 'Your space' : 'مساحتك' : text.stepSpace}</span></li>
+        <li className={step === 'wallet' ? 'onboarding-progress-current' : step === 'balance' || step === 'plan' ? 'onboarding-progress-done' : undefined}><span className="onboarding-step-number" aria-hidden="true">2</span><span aria-current={step === 'wallet' || planEnabled && step === 'balance' ? 'step' : undefined}>{planEnabled ? locale === 'en' ? 'Your wallet' : 'محفظتك' : text.stepWallet}</span></li>
+        {planEnabled ? <li className={step === 'plan' ? 'onboarding-progress-current' : undefined}><span className="onboarding-step-number" aria-hidden="true">3</span><span aria-current={step === 'plan' ? 'step' : undefined}>{locale === 'en' ? 'Your plan' : 'خطتك'}</span></li> : balanceEnabled ? <li className={step === 'balance' ? 'onboarding-progress-current' : undefined}><span className="onboarding-step-number" aria-hidden="true">3</span><span aria-current={step === 'balance' ? 'step' : undefined}>{text.stepBalance}</span></li> : null}
       </ol>
-      {step === 'space' ? <form onSubmit={(event) => void submitSpace(event)}>
+      {planEnabled && step !== 'plan' ? <div className="onboarding-wizard-intro"><h1 id="onboarding-title">{title}</h1>{intro ? <p>{intro}</p> : null}</div> : null}
+      {step === 'plan' && planServices ? <FirstPlanStep locale={locale} spaceId={spaceId} initialCurrency={currency} services={planServices} onComplete={() => onComplete(spaceId)} onBack={balanceSkipped ? () => { setStep('balance'); onProgress?.({ spaceId, balanceRequestId }); } : undefined} /> : step === 'space' ? <form onSubmit={(event) => void submitSpace(event)}>
         <fieldset className="segmented onboarding-kind-options">
           <legend>{text.chooseKind}</legend>
           <label><input type="radio" name="space-kind" aria-label={text.personal} aria-describedby={personalDescriptionId} checked={kind === 'personal'} onChange={() => setKind('personal')} /><UserRound className="onboarding-kind-icon" aria-hidden="true" /><span><strong>{text.personal}</strong><small id={personalDescriptionId}>{text.personalDescription}</small></span></label>

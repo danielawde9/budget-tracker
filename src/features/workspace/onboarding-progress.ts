@@ -11,6 +11,8 @@ import type { Currency } from '../loans/types.js';
 export interface OnboardingProgress {
   spaceId: string;
   balanceRequestId: string;
+  /** Opening balance is finished or skipped; resume at the monthly plan. */
+  stage?: 'plan';
 }
 
 /** A resumed setup plus the created wallet, when it already exists. */
@@ -26,10 +28,10 @@ export function readOnboardingProgress(userId: string): OnboardingProgress | nul
   const raw = localStorage.getItem(onboardingProgressKey(userId));
   if (raw === null) return null;
   try {
-    const value = JSON.parse(raw) as Partial<Record<'spaceId' | 'balanceRequestId', unknown>>;
+    const value = JSON.parse(raw) as Partial<Record<'spaceId' | 'balanceRequestId' | 'stage', unknown>>;
     if (typeof value.spaceId !== 'string' || value.spaceId.length === 0) return null;
     if (typeof value.balanceRequestId !== 'string' || value.balanceRequestId.length === 0) return null;
-    return { spaceId: value.spaceId, balanceRequestId: value.balanceRequestId };
+    return { spaceId: value.spaceId, balanceRequestId: value.balanceRequestId, ...(value.stage === 'plan' ? { stage: 'plan' as const } : {}) };
   } catch {
     return null;
   }
