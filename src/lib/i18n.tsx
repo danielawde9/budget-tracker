@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { screenMessages } from './messages-screens.ts';
 import { formatMoney, type Currency, type Locale } from './money.ts';
 
 /**
@@ -94,6 +95,7 @@ export const messages = {
   'error.BUDGET_INVALID_RANGE': { en: 'That date range is too long.', ar: 'نطاق التواريخ هذا طويل جدًا.' },
   'error.BUDGET_INVALID_FILTER': { en: 'Those filters can’t be used together.', ar: 'لا يمكن استخدام هذه المرشحات معًا.' },
   'error.BUDGET_NOT_FOUND': { en: 'This space no longer exists.', ar: 'هذه المساحة لم تعد موجودة.' },
+  ...screenMessages,
 } as const satisfies Record<string, { readonly en: string; readonly ar: string }>;
 
 export type MessageKey = keyof typeof messages;
@@ -131,6 +133,8 @@ export interface I18n {
   date(isoDate: string, style?: DateStyle): string;
   /** A bilingual name stored as two columns; falls back to the other language. */
   name(value: { readonly nameEn: string | null; readonly nameAr: string | null }): string;
+  /** Digits in the reader's script (percentages, counts). */
+  digits(value: string): string;
 }
 
 function createI18n(locale: Locale): I18n {
@@ -141,6 +145,7 @@ function createI18n(locale: Locale): I18n {
     money: (minor, currency, options) => formatMoney(minor, currency, locale, options),
     date: (isoDate, style) => formatDate(locale, isoDate, style),
     name: (value) => (locale === 'ar' ? (value.nameAr ?? value.nameEn) : (value.nameEn ?? value.nameAr)) ?? '',
+    digits: (value) => (locale === 'ar' ? value.replace(/\d/g, (digit) => '٠١٢٣٤٥٦٧٨٩'[Number(digit)] ?? digit).replace('.', '٫') : value),
   };
 }
 

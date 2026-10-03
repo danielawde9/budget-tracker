@@ -254,3 +254,48 @@ Rules:
 - Entry styles live in `src/styles.css` because these screens render before
   the Control Room shell. Reuse `--cr-*` tokens and the shared field, button,
   focus, and dialog geometry; do not introduce another color palette.
+
+## 17. v2 connected money model patterns (2026-10-03)
+
+v2 reuses every pattern above. New shared classes live in the "v2" section at
+the end of `src/control-room.css`; feature code adds no visual language.
+
+- **Typography:** Arabic uses installed Tahoma (`:root:lang(ar)`), from the
+  selected design of 2026-10-02. Resting cards are flat: `--cr-shadow-card: none`
+  with the fine border.
+- **Dialogs:** `Dialog` (`src/ui/dialog.tsx`) is a native `<dialog>` opened with
+  `showModal()` and styled `.cr-dialog.dialog`. The browser supplies the focus
+  trap, the inert page, Escape and focus return. Below 1024px it fills the
+  screen. A dialog cannot be dismissed while a command is pending.
+- **Money fields:** `MoneyField` is `type="text"` with `inputmode="decimal"` (or
+  `"numeric"` for LBP). It accepts Latin or Arabic-Indic digits. Errors
+  (`.cr-field-error`) appear only after the field was edited and left.
+  `hideLabel` keeps the accessible name and hides the visible label.
+- **Amounts:** `Amount` renders `<bdi dir="ltr" class="cr-amount">`, with the tones
+  `--positive`, `--negative`, `--warn` and `--secondary` (a second currency).
+  Tone is always paired with a sign or a label.
+- **Explanations:** `.cr-explain` is a plain-language consequence (pale green).
+  `.cr-explain--warn` is the amber version, for a consequence the person
+  should notice before saving.
+- **Registers:** `.cr-register` > `.cr-register-row` (`.cr-register-main`,
+  `.cr-register-title`, amount at the inline end). A clickable row is a
+  `.cr-register-button`.
+- **Home equation:** `.cr-hero` (hero amount), `.cr-equation` (Cash you hold =
+  Set aside + Ready to assign, as a `<dl>`), `.cr-wallet-strip`,
+  `.cr-net-worth`, `.cr-alerts`/`.cr-alert(--danger)`. The currency switch is
+  `.cr-tabs > .cr-tab-button(--active)` with `aria-pressed`.
+- **Plan:**
+  - Summary and bar: `.cr-figures` (headline numbers), `.cr-stack-bar` with
+    `.cr-stack-bar-part.cr-tone-0…5` (group shares, text always beside it).
+  - Group cards: `<details class="cr-card cr-group">` with
+    `.cr-group-summary`, and `.cr-plan-table` for items (it stacks below
+    700px).
+  - Item details: `.cr-kind` (item kind), `.cr-goal` (progress shown while the
+    target date is ahead) and `.cr-statement` (an item's month statement).
+- **Editor and record:** `.cr-editor-group`, `.cr-editor-item`,
+  `.cr-record-kinds` (a scrolling chip row), `.cr-cover` (expense
+  shortfall), `.cr-fund-lines` and `.cr-fund-total`.
+- **Utilities:** `.cr-stack` (column gap), `.cr-icon-button` (44px),
+  `.cr-link-button`, `.cr-flip-rtl` (directional icons), `.cr-check`.
+- **Preview only:** `.cr-demo-panel`, `.cr-tour` (amber border). Production
+  bundles drop this code because Vite replaces `import.meta.env.MODE`.

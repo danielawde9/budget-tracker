@@ -1,0 +1,114 @@
+{
+ "plan": {
+  "month": "2026-10-01",
+  "ready": "132000",
+  "funded": "411000",
+  "received": "411000",
+  "revision": 2,
+  "versionId": "2bad784f-9bd7-4f89-b306-7a3f5f33c034",
+  "notPlanned": "0",
+  "groupsTotal": "411000",
+  "otherIncome": "0",
+  "overPlanned": "0",
+  "stillToFund": "0",
+  "planCurrency": "USD",
+  "effectiveMonth": "2026-09-01",
+  "expectedIncome": "411000"
+ },
+ "month": "2026-10-01",
+ "today": "2026-10-03",
+ "alerts": [
+  {
+   "kind": "ready_unassigned",
+   "amount": "132000",
+   "currency": "USD"
+  }
+ ],
+ "currencies": [
+  {
+   "ready": "132000",
+   "wallets": [
+    {
+     "name": "Bank",
+     "balance": "844460",
+     "walletId": "c82256f3-0801-44e1-9bbe-2f6eaa7b7317"
+    },
+    {
+     "name": "Cash",
+     "balance": "26800",
+     "walletId": "3f8f0a65-d122-41e5-88da-3b088212e29f"
+    }
+   ],
+   "cashHeld": "871260",
+   "currency": "USD",
+   "netWorth": {
+    "cash": "871260",
+    "iOwe": "565800",
+    "total": "1622560",
+    "owedToMe": "20000",
+    "investments": "1297100"
+   },
+   "setAside": "739260",
+   "setAsideByGroup": [
+    {
+     "amount": "218300",
+     "nameAr": "الأهداف قصيرة المدى",
+     "nameEn": "Short-term goals",
+     "groupId": "23d529ee-f84a-49e5-9a53-755bbd2c6e14"
+    },
+    {
+     "amount": "367200",
+     "nameAr": "الادخار",
+     "nameEn": "Savings",
+     "groupId": "88278ada-704c-4d9d-979e-77ded61c9689"
+    },
+    {
+     "amount": "23550",
+     "nameAr": "الإنفاق الحر",
+     "nameEn": "Guilt free",
+     "groupId": "9239f259-5c9a-45a2-8cca-f6a3168a19f6"
+    },
+    {
+     "amount": "130210",
+     "nameAr": "الأساسيات",
+     "nameEn": "Essentials",
+     "groupId": "b0b7c81f-6f95-4cd7-8e8d-87a6e9d887b0"
+    }
+   ]
+  },
+  {
+   "ready": "0",
+   "wallets": [
+    {
+     "name": "LBP cash",
+     "balance": "2685000",
+     "walletId": "d11b2283-3f3b-4d98-9677-f93187ada985"
+    }
+   ],
+   "cashHeld": "2685000",
+   "currency": "LBP",
+   "netWorth": {
+    "cash": "2685000",
+    "iOwe": "0",
+    "total": "2685000",
+    "owedToMe": "0",
+    "investments": "0"
+   },
+   "setAside": "2685000",
+   "setAsideByGroup": [
+    {
+     "amount": "2685000",
+     "nameAr": "الأساسيات",
+     "nameEn": "Essentials",
+     "groupId": "b0b7c81f-6f95-4cd7-8e8d-87a6e9d887b0"
+    }
+   ]
+  }
+ ],
+ "planCurrency": "USD",
+ "referenceRate": {
+  "currency": "LBP",
+  "effectiveOn": "2024-02-15",
+  "unitsPerUsd": "89500"
+ }
+}

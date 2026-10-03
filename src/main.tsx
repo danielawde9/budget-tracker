@@ -1,5 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { App } from './app/app.tsx';
 import './styles.css';
 import './control-room.css';
 
@@ -11,6 +12,6 @@ if (!root) {
 
 createRoot(root).render(
   <StrictMode>
-    <main className="cr-main">Budget v2 is being rebuilt on this branch.</main>
+    <App />
   </StrictMode>,
 );

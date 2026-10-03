@@ -1,0 +1,11 @@
+[
+ {
+  "id": "space-1",
+  "name": "Household",
+  "role": "owner",
+  "today": "2026-10-03",
+  "timezone": "Asia/Beirut",
+  "currentMonth": "2026-10-01",
+  "planCurrency": "USD"
+ }
+]

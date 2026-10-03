@@ -1,0 +1,76 @@
+{
+ "wallets": [
+  {
+   "id": "c82256f3-0801-44e1-9bbe-2f6eaa7b7317",
+   "gain": null,
+   "kind": "cash",
+   "name": "Bank",
+   "balance": "844460",
+   "archived": false,
+   "currency": "USD",
+   "contributed": null,
+   "counterparty": null,
+   "loanDirection": null
+  },
+  {
+   "id": "3f8f0a65-d122-41e5-88da-3b088212e29f",
+   "gain": null,
+   "kind": "cash",
+   "name": "Cash",
+   "balance": "26800",
+   "archived": false,
+   "currency": "USD",
+   "contributed": null,
+   "counterparty": null,
+   "loanDirection": null
+  },
+  {
+   "id": "d11b2283-3f3b-4d98-9677-f93187ada985",
+   "gain": null,
+   "kind": "cash",
+   "name": "LBP cash",
+   "balance": "2685000",
+   "archived": false,
+   "currency": "LBP",
+   "contributed": null,
+   "counterparty": null,
+   "loanDirection": null
+  },
+  {
+   "id": "2d5ade75-aae2-410e-b8c0-9f2e6092a991",
+   "gain": "14900",
+   "kind": "investment",
+   "name": "Brokerage",
+   "balance": "1297100",
+   "archived": false,
+   "currency": "USD",
+   "contributed": "1282200",
+   "counterparty": null,
+   "loanDirection": null
+  },
+  {
+   "id": "ac72eeeb-a360-45d8-93e9-7942d3a47a90",
+   "gain": null,
+   "kind": "loan",
+   "name": "Car loan",
+   "balance": "-565800",
+   "archived": false,
+   "currency": "USD",
+   "contributed": null,
+   "counterparty": "Bank",
+   "loanDirection": "i_owe"
+  },
+  {
+   "id": "919bd7f8-ea89-4f3d-b0e6-2fca0ba0ba08",
+   "gain": null,
+   "kind": "loan",
+   "name": "Rami",
+   "balance": "20000",
+   "archived": false,
+   "currency": "USD",
+   "contributed": null,
+   "counterparty": "Rami",
+   "loanDirection": "owed_to_me"
+  }
+ ]
+}
