@@ -140,6 +140,7 @@ export function createBudgetApi(client: RpcClient) {
     billsUpcoming: (spaceId: string, from: string, to: string) =>
       call('bills_upcoming', { p_space: spaceId, p_from: from, p_to: to }, s.billOccurrence.array()),
     billsList: (spaceId: string) => call('bills_list', { p_space: spaceId }, s.bill.array()),
+    expenseSuggestions: (spaceId: string) => call('expense_suggestions', { p_space: spaceId }, s.expenseSuggestions),
 
     // Commands
     createSpace: (input: { requestId: string; name: string; expectedIncome: bigint; timezone?: string }) =>

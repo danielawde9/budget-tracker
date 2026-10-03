@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import type { AccountWallet } from '../api/schemas.ts';
 import { findItem, pickerGroups, type Catalog, type PickerGroup } from '../app/workspace.tsx';
 import { useI18n, type I18n, type MessageKey } from '../lib/i18n.tsx';
@@ -14,6 +14,20 @@ export function WalletSelect({ label, wallets, value, onChange, currency }: {
 }) {
   const { money } = useI18n();
   const choices = currency ? wallets.filter((wallet) => wallet.currency === currency) : wallets;
+  const only = choices.length === 1 ? choices[0] : undefined;
+  // With one possible wallet there is nothing to choose: make sure it is the
+  // value, and show it as text.
+  useEffect(() => {
+    if (only && value !== only.id) onChange(only.id);
+  }, [only?.id, value]);
+  if (only) {
+    return (
+      <div className="cr-field">
+        <span className="cr-label">{label}</span>
+        <p className="cr-field-static"><bdi>{only.name}</bdi>{` — ${money(only.balance, only.currency)}`}</p>
+      </div>
+    );
+  }
   return (
     <SelectField label={label} value={value} required onChange={(event) => onChange(event.target.value)}>
         {choices.map((wallet) => (

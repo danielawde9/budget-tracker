@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { useI18n } from '../lib/i18n.tsx';
 import { CURRENCY_DECIMALS, parseMoney, toInputText, type Currency } from '../lib/money.ts';
 
@@ -33,15 +33,26 @@ export interface MoneyFieldProps {
   readonly name?: string;
   /** Keeps the accessible name but hides the visible label (dense editors). */
   readonly hideLabel?: boolean;
+  /** Selects the whole amount on focus, so typing replaces a filled-in value. */
+  readonly selectOnFocus?: boolean;
 }
 
 /**
  * A text field (not type=number) with a decimal keypad; accepts Latin or
  * Arabic-Indic digits. Validation shows after the person leaves the field.
  */
-export function MoneyField({ label, currency, value, onChange, required = true, autoFocus = false, hint, allowZero = false, name, hideLabel = false }: MoneyFieldProps) {
+export function MoneyField({ label, currency, value, onChange, required = true, autoFocus = false, hint, allowZero = false, name, hideLabel = false, selectOnFocus = false }: MoneyFieldProps) {
   const { t } = useI18n();
   const [text, setText] = useState(value === null ? '' : toInputText(value, currency));
+  // The value this field last showed or sent. When the parent sets another
+  // one (a suggestion filled it in), the text follows it.
+  const [shown, setShown] = useState(value);
+  if (value !== shown) {
+    setShown(value);
+    setText(value === null ? '' : toInputText(value, currency));
+  }
+  // Safari clears a focus-time selection on the mouseup of the same click.
+  const keepSelection = useRef(false);
   const [touched, setTouched] = useState(false);
   const [dirty, setDirty] = useState(false);
   const hintId = useId();
@@ -72,7 +83,18 @@ export function MoneyField({ label, currency, value, onChange, required = true, 
               setText(event.target.value);
               setDirty(true);
               const next = event.target.value.trim() === '' ? null : parseMoney(event.target.value, currency);
-              onChange(next !== null && next === 0n && !allowZero ? null : next);
+              const sent = next !== null && next === 0n && !allowZero ? null : next;
+              setShown(sent);
+              onChange(sent);
+            }}
+            onFocus={(event) => {
+              if (!selectOnFocus) return;
+              event.currentTarget.select();
+              keepSelection.current = true;
+            }}
+            onMouseUp={(event) => {
+              if (keepSelection.current) event.preventDefault();
+              keepSelection.current = false;
             }}
             onBlur={() => setTouched(true)}
           />

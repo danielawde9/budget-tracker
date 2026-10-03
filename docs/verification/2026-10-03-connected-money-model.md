@@ -7,8 +7,8 @@ project.
 | Check | Result | What it covers |
 | --- | --- | --- |
 | `pnpm typecheck` | pass | TypeScript strict across app, tests and preview scripts |
-| `pnpm test:db` | **160/160** in 11 files | See "Database suites" below. |
-| `pnpm test:ui` | **74/74** in 13 files | See "UI suites" below. |
+| `pnpm test:db` | **165/165** in 12 files | See "Database suites" below. |
+| `pnpm test:ui` | **80/80** in 14 files | See "UI suites" below. |
 | `pnpm build` | pass, **0 warnings** | Vendor chunks split; largest chunk 339 kB. Demo code and credentials are absent from `dist/`. |
 | `pnpm test:e2e` | **3/3** | See "End-to-end flows" below. |
 | `pnpm preview:up` | pass | See "Local preview" below. |
@@ -130,3 +130,14 @@ Found while fixing these:
 - The "server could not be reached" message said "Nothing was saved". After a
   timeout that can be false. It now says to retry from the same form, which
   keeps its request id, so the retry cannot record the entry twice.
+
+## Added after the review: expense suggestions
+
+The `expense_suggestions` read and the Description field are covered by
+`tests/db/expense-suggestions.test.ts` (5 tests) and
+`src/record/expense-suggestions.test.tsx` (6 tests). The fresh-account
+end-to-end flow records "Supermarket", then checks that typing it again
+brings back the item and amount, with the only wallet shown as text. One
+mutation check removed the "keep what you set" guard, and the test failed as
+it should.
+

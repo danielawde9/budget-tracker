@@ -270,7 +270,17 @@ the end of `src/control-room.css`; feature code adds no visual language.
 - **Money fields:** `MoneyField` is `type="text"` with `inputmode="decimal"` (or
   `"numeric"` for LBP). It accepts Latin or Arabic-Indic digits. Errors
   (`.cr-field-error`) appear only after the field was edited and left.
-  `hideLabel` keeps the accessible name and hides the visible label.
+  `hideLabel` keeps the accessible name and hides the visible label. The field
+  follows a value its parent sets (a filled-in suggestion), and
+  `selectOnFocus` selects the whole amount so typing replaces it.
+- **One possible choice:** when only one wallet fits, `WalletSelect` shows it as
+  text (`.cr-field` > `.cr-label` + `.cr-field-static`) instead of a select.
+  Nothing to choose means no control.
+- **Suggestions:** a free-text field with remembered values is a native
+  `<input list>` with a `<datalist>` (the browser supplies the dropdown,
+  keyboard and screen-reader support). The hint sits under the field with
+  `aria-describedby`. A pick may fill other fields, but never one the person
+  already set, and focus stays where it is.
 - **Amounts:** `Amount` renders `<bdi dir="ltr" class="cr-amount">`, with the tones
   `--positive`, `--negative`, `--warn` and `--secondary` (a second currency).
   Tone is always paired with a sign or a label.

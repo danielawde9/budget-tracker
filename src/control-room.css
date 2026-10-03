@@ -1621,6 +1621,8 @@
 
 .cr-money-field { display: flex; flex-direction: column; gap: var(--cr-space-1); min-inline-size: 0; }
 .cr-field-error { margin: 0; color: var(--cr-danger); font-size: 13px; }
+/* A field with a single possible value: shown as text, aligned with the 44px controls. */
+.cr-field-static { margin: 0; min-block-size: 44px; display: flex; align-items: center; font-size: 15px; color: var(--cr-ink); }
 .cr-check { display: flex; align-items: center; gap: var(--cr-space-2); min-block-size: 44px; }
 
 /* An explanation or consequence in plain words. */

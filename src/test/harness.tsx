@@ -42,6 +42,7 @@ export function fakeApi(overrides: Partial<Record<keyof BudgetApi, (...args: nev
     activity: vi.fn(async () => fixtures.activity),
     billsUpcoming: vi.fn(async () => fixtures.bills),
     billsList: vi.fn(async () => []),
+    expenseSuggestions: vi.fn(async () => ({ lastWalletId: null, suggestions: [] })),
   };
   for (const name of ['fundingPreview', 'itemStatement', 'createSpace', 'createWallet', 'updateWallet', 'assignMoney', 'recordIncome', 'recordExpense',
     'recordRefund', 'recordTransfer', 'recordExchange', 'recordInvestment', 'recordLoan', 'reverseEntry', 'saveBill', 'skipBill', 'unskipBill', 'setReferenceRate', 'savePlan']) {

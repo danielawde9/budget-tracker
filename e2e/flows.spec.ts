@@ -45,6 +45,7 @@ test('a fresh account: onboarding, income, funding, overspending and taking it b
   // 5 · Spending more than an item holds is covered at once — here from Ready to assign, which goes over.
   await openRecord(page, 'Expense');
   const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Description').fill('Supermarket');
   await dialog.getByLabel('Amount').fill('50');
   await dialog.getByLabel('What was it for?').selectOption({ label: 'Groceries — $0.00' });
   await expect(dialog.getByText('Groceries has $0.00. The other $50.00 will come from:')).toBeVisible();
@@ -76,6 +77,18 @@ test('a fresh account: onboarding, income, funding, overspending and taking it b
   const groups = page.getByRole('region', { name: 'Set aside by group' });
   await expect(groups.getByRole('listitem').filter({ hasText: 'Savings' })).toContainText('$261.00');
   await expect(groups.getByRole('listitem').filter({ hasText: 'Short-term goals' })).toContainText('$766.50');
+
+  // A repeat expense: its description brings back the item and amount. The only wallet is shown, not chosen.
+  await openRecord(page, 'Expense');
+  const repeat = page.getByRole('dialog');
+  await expect(repeat.getByText(/Start typing to reuse a past expense/)).toBeVisible();
+  await expect(repeat.getByRole('combobox', { name: 'Paid from' })).toHaveCount(0);
+  await expect(repeat.getByText('Paid from')).toBeVisible();
+  await repeat.getByLabel('Description').fill('supermarket');
+  await expect(repeat.getByLabel('Amount')).toHaveValue('50');
+  await expect(repeat.getByLabel('What was it for?').locator('option:checked')).toHaveText(/^Groceries/);
+  await repeat.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
 test('existing money: pay a bill, update an investment, repay a loan, read last month', async ({ page }) => {

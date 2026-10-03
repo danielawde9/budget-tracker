@@ -4168,3 +4168,27 @@ real duplicate. The review of `feat/plan-linking` raised this point.
 pending-request store) would also cover retries from a new form. That is not
 built in v2.
 
+## 2026-10-03 — The expense form remembers past expenses
+
+**Decision:** The owner approved this design.
+- The expense form starts with a Description field. It suggests past
+  descriptions in a native dropdown (`<datalist>`).
+- Picking one fills the item, the wallet and the last amount.
+- A pick never overwrites a field you already set yourself, and focus stays
+  where it is.
+- The suggestions come from expenses of the last 366 days, at most 50
+  descriptions, each shown as it was last recorded. Reversed expenses and bill
+  payments are left out.
+- With several wallets, the form starts on the wallet of your latest expense.
+- In every form, a wallet list with only one choice is shown as text instead
+  of a dropdown.
+
+**Why:** Many expenses repeat. Making you pick the item, wallet and amount
+again each time is slow and invites mistakes. A dropdown with nothing to
+choose is noise.
+
+**If changed:** To stop filling the amount, remove that one step in
+`ExpenseForm.changeMemo`. A longer memory is the 366-day window in
+`expense_suggestions`. The amount you were charged is always visible before
+you save, and a mistaken expense is corrected by reversal, as any entry is.
+

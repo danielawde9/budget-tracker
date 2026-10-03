@@ -4,6 +4,7 @@ import { useI18n } from '../lib/i18n.tsx';
 import type { Currency } from '../lib/money.ts';
 import { ErrorNotice, useCommand } from '../ui/async.tsx';
 import { MoneyField } from '../ui/money.tsx';
+import { DescriptionField, matchSuggestion, useExpenseSuggestions } from './expense-suggestions.tsx';
 import { CoverChoice, DateField, Explain, FormActions, ItemSelect, NoteField, READY, shortfallOf, WalletSelect, withCovered } from './fields.tsx';
 
 export interface BillIntent {
@@ -28,6 +29,13 @@ function readyBalance(catalog: Catalog, currency: Currency): bigint {
   return catalog.ready[currency];
 }
 
+/** What the person set themselves; a picked suggestion never overwrites these. */
+interface SetByPerson {
+  readonly wallet: boolean;
+  readonly item: boolean;
+  readonly amount: boolean;
+}
+
 /** Expense: the item pays; a shortfall is covered now from Ready to assign or a chosen item. */
 export function ExpenseForm({ catalog, onDone, onCancel, walletId: initialWallet, itemId: initialItem, bill }: FormProps & {
   readonly walletId?: string;
@@ -37,13 +45,19 @@ export function ExpenseForm({ catalog, onDone, onCancel, walletId: initialWallet
   const i18n = useI18n();
   const { t, money, name } = i18n;
   const { api, space, refresh } = useWorkspace();
+  const suggestions = useExpenseSuggestions();
   const wallets = activeWallets(catalog.accounts, 'cash').filter((wallet) => !bill || wallet.currency === bill.currency);
-  const [walletId, setWalletId] = useState(initialWallet ?? wallets[0]?.id ?? '');
+  const [chosenWallet, setChosenWallet] = useState(initialWallet ?? '');
   const [itemId, setItemId] = useState(bill?.itemId ?? initialItem ?? '');
   const [amount, setAmount] = useState<bigint | null>(bill?.amount ?? null);
+  const [amountFilled, setAmountFilled] = useState(false);
   const [on, setOn] = useState(bill && bill.dueOn <= space.today ? bill.dueOn : space.today);
   const [memo, setMemo] = useState(bill?.name ?? '');
   const [coverFrom, setCoverFrom] = useState(READY);
+  const [setByPerson, setSetByPerson] = useState<SetByPerson>({ wallet: Boolean(initialWallet), item: Boolean(bill ?? initialItem), amount: Boolean(bill) });
+  // Until the person chooses, start on the wallet of their latest expense.
+  const lastWallet = wallets.find((candidate) => candidate.id === suggestions.data?.lastWalletId);
+  const walletId = chosenWallet || lastWallet?.id || wallets[0]?.id || '';
   const wallet = wallets.find((candidate) => candidate.id === walletId);
   const currency: Currency = wallet?.currency ?? 'USD';
   const groups = pickerGroups(catalog.plan);
@@ -54,6 +68,19 @@ export function ExpenseForm({ catalog, onDone, onCancel, walletId: initialWallet
     coverFrom: shortfall > 0n && coverFrom !== READY ? coverFrom : null,
     billId: bill?.billId ?? null, billDue: bill?.dueOn ?? null,
   }));
+
+  function changeMemo(next: string) {
+    setMemo(next);
+    const pick = bill ? null : matchSuggestion(suggestions, next);
+    if (!pick) return;
+    const pickWallet = setByPerson.wallet ? undefined : wallets.find((candidate) => candidate.id === pick.walletId);
+    if (pickWallet) setChosenWallet(pickWallet.id);
+    if (!setByPerson.item && findItem(catalog.plan, pick.itemId)) setItemId(pick.itemId);
+    if (!setByPerson.amount && (pickWallet?.currency ?? currency) === pick.currency) {
+      setAmount(pick.amount);
+      setAmountFilled(true);
+    }
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -68,15 +95,18 @@ export function ExpenseForm({ catalog, onDone, onCancel, walletId: initialWallet
   return (
     <form className="dialog-form cr-stack" onSubmit={(event) => void submit(event)}>
       {bill ? <Explain>{t('record.payingBill', { name: bill.name, date: i18n.date(bill.dueOn) })}</Explain> : null}
-      <MoneyField label={t('common.amount')} currency={currency} value={amount} onChange={setAmount} autoFocus />
-      <WalletSelect label={t('record.paidFrom')} wallets={wallets} value={walletId} onChange={setWalletId} />
-      {bill ? null : <ItemSelect label={t('record.whatFor')} groups={groups} value={itemId} onChange={setItemId} currency={currency} />}
+      <DescriptionField value={memo} onChange={changeMemo} suggestions={bill ? null : suggestions} catalog={catalog} autoFocus={!bill} />
+      <MoneyField label={t('common.amount')} currency={currency} value={amount} autoFocus={Boolean(bill)} selectOnFocus={amountFilled}
+        onChange={(next) => { setAmount(next); setAmountFilled(false); setSetByPerson((was) => ({ ...was, amount: true })); }} />
+      <WalletSelect label={t('record.paidFrom')} wallets={wallets} value={walletId}
+        onChange={(next) => { setChosenWallet(next); setSetByPerson((was) => ({ ...was, wallet: true })); }} />
+      {bill ? null : <ItemSelect label={t('record.whatFor')} groups={groups} value={itemId} currency={currency}
+        onChange={(next) => { setItemId(next); setSetByPerson((was) => ({ ...was, item: true })); }} />}
       {item && shortfall === 0n ? (
         <p className="cr-helper">{t('record.itemHolds', { name: name(item), amount: money(item.balances[currency], currency) })}</p>
       ) : null}
       <CoverChoice catalog={catalog} itemId={itemId} currency={currency} amount={amount} value={coverFrom} onChange={setCoverFrom} />
       <DateField value={on} onChange={setOn} max={space.today} />
-      <NoteField value={memo} onChange={setMemo} />
       {command.error ? <ErrorNotice error={command.error} /> : null}
       <FormActions submitLabel="record.saveExpense" pending={command.pending} onCancel={onCancel} disabled={amount === null || !item} />
     </form>

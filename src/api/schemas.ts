@@ -247,6 +247,22 @@ export const coveredResult = z.object({ entryId: id, covered: minor });
 export const spaceResult = z.object({ spaceId: id });
 export const walletResult = z.object({ walletId: id, entryId: id.nullable() });
 export const billResult = z.object({ billId: id });
+
+/** A past expense description and what it was last recorded with. */
+export const expenseSuggestion = z.object({
+  memo: z.string().min(1),
+  itemId: id,
+  walletId: id,
+  amount: minor,
+  currency,
+  lastOn: isoDate,
+});
+
+export const expenseSuggestions = z.object({
+  /** The wallet of the latest expense, or null when there is none. */
+  lastWalletId: id.nullable(),
+  suggestions: expenseSuggestion.array(),
+});
 export const okResult = z.object({ ok: z.literal(true) });
 export const planResult = z.object({ versionId: id, revision: z.number().int(), effectiveMonth: isoDate });
 
@@ -271,4 +287,6 @@ export type AccountWallet = z.infer<typeof accountWallet>;
 export type Accounts = z.infer<typeof accounts>;
 export type BillOccurrence = z.infer<typeof billOccurrence>;
 export type Bill = z.infer<typeof bill>;
+export type ExpenseSuggestion = z.infer<typeof expenseSuggestion>;
+export type ExpenseSuggestions = z.infer<typeof expenseSuggestions>;
 export type WalletKind = z.infer<typeof walletKind>;
