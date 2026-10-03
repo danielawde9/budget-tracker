@@ -266,6 +266,9 @@ create index item_lines_entry on budget.item_lines (entry_id);
 
 -- ---------------------------------------------------------------------------
 -- Invariant triggers
+--
+-- Trigger functions are SECURITY DEFINER: deferred checks run at COMMIT as
+-- whatever role is current, and they must always see every line.
 -- ---------------------------------------------------------------------------
 
 create function budget.raise_budget(p_code text, p_detail jsonb default '{}'::jsonb)
@@ -281,6 +284,7 @@ $$;
 create function budget.check_entry_balanced()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
 declare
@@ -326,6 +330,7 @@ create constraint trigger item_lines_balanced
 create function budget.check_entry_has_lines()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
 begin
@@ -346,6 +351,7 @@ create constraint trigger entries_have_lines
 create function budget.check_item_nonnegative()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
 declare
@@ -377,6 +383,7 @@ create constraint trigger item_lines_nonnegative
 create function budget.check_wallet_bounds()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
 declare
@@ -408,6 +415,7 @@ create constraint trigger wallet_lines_bounds
 create function budget.check_reversal_mirror()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
 declare
@@ -451,6 +459,7 @@ create constraint trigger entries_reversal_mirror
 create function budget.check_plan_percent_total()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
 declare
@@ -474,6 +483,7 @@ create constraint trigger plan_version_groups_total
 create function budget.check_plan_item_group()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
 begin
@@ -497,6 +507,7 @@ create trigger plan_version_items_group
 create function budget.check_space_timezone()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
 begin
@@ -515,6 +526,7 @@ create trigger spaces_timezone
 create function budget.reject_mutation()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
 begin
