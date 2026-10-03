@@ -1,149 +1,67 @@
-# Budget Tracker
+# Budget Tracker (v2: connected money model)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue.svg)](tsconfig.json)
 
-A bilingual (English/Arabic, RTL-ready), self-hostable personal and household
-budget tracker built on Postgres/Supabase, Cloudflare Workers, and React. Every
-financial mutation goes through auditable, protected Postgres functions
-(never ad-hoc app-level writes), so wallets, loans, categories, and the
-transaction journal stay consistent under row-level security. Open source
-under the MIT license — issues and pull requests are welcome.
+A bilingual (English/Arabic, right-to-left) personal budget built on
+Postgres/Supabase and React. Every dollar has exactly one job. One append-only
+journal records where money is (wallets) and what it is for (plan items) in the
+same entry, so the cash you hold always equals the money set aside plus the
+money ready to assign. The database enforces this; nothing on screen keeps its
+own balance.
 
-**Core concepts:** multi-currency wallets (USD/LBP), derived (never
-hand-edited) balances, an immutable paginated journal, loan lending/borrowing
-with repayments and targets, one-level income/expense categories, and
-household spaces with RLS-scoped membership.
+> This branch replaces the v1 app. `main` and production still run v1. Adopting
+> v2 in production means resetting the hosted database; see `docs/decisions.md`.
 
-## Screenshots
+## Concepts
 
-Captured from the running app on 2026-09-30 against the repository's synthetic
-Playwright fixtures. No real accounts or data are shown.
+| Word | Meaning |
+| --- | --- |
+| **Wallet** | Where spendable money is: a bank account, cash or a card (a card may go negative). |
+| **Investment account / Loan** | Tracked outside spendable cash; counts in net worth only. |
+| **Plan group** | A share of expected income (Essentials 60%, Guilt free 5%, …). |
+| **Plan item** | One purpose inside a group: monthly spending, a reserve, a goal, a loan payment, or the group's flexible item (which gets what the items leave). |
+| **Ready to assign** | Money you hold that has no job yet. |
+| **Fund / Move** | Give ready money a job, or change a job. Funding and moving are never income or spending. |
 
-![Home: net position in USD and LBP, budget versus actual, monthly trend, loans and recent activity](docs/screenshots/2026-09-30/home-desktop.png)
+The rules, with worked examples recomputed in cents, are in
+[the design spec](docs/superpowers/specs/2026-10-03-connected-money-model-design.md).
+The schema and calculation rules are in
+[the plan](docs/superpowers/plans/2026-10-03-connected-money-model.md).
 
-![Plan: planned income, left to allocate, category targets and loan commitments](docs/screenshots/2026-09-30/plan-desktop.png)
+## Run the local preview
 
-![Journal: the immutable event feed with type filters, search and CSV export](docs/screenshots/2026-09-30/journal-desktop.png)
-
-![Home in Arabic, mirrored right-to-left](docs/screenshots/2026-09-30/home-ar-desktop.png)
-
-For future work, give the implementer one file from the
-[SQL-first task index](docs/superpowers/plans/future-planning/00-start-here.md).
-It contains separate database, gateway and UI instructions, a
-[39-item roadmap map](docs/superpowers/plans/future-planning/40-roadmap-coverage.md),
-exact financial rules and required verification. These are plans, not implemented features.
-
-The [future-planning master](docs/product/2026-09-13-future-planning-master.md)
-contains the proposed income-percentage budgets, goals and milestones, daily
-comparisons, technical roadmap, and bounded implementation packets. It is a
-planning document; source existence, tested behavior and deployed status are
-tracked separately.
-
-The current application milestone provides a bilingual authenticated shell
-with verified Loans, Wallets, and Categories workspaces. It supports Supabase
-email/password sessions, safe first-space and first-wallet onboarding, switching
-between the spaces visible through RLS, derived wallet balances, immutable
-paginated journal history, active one-level income/expense category and
-subcategory management, optional categorized income/expense posting, the four
-approved general transaction shapes, and linked corrections. Every financial
-change still goes through the
-protected PostgreSQL commands documented in
-`docs/financial-command-inventory.md`.
-
-## Run the application
-
-Use Node 22.22.0 and pnpm 11.17.0, then copy `.env.example` to `.env.local` and
-replace the anon-key placeholder with the Budget development value. Do not use
-Sandooq or hosted-production credentials.
+Requires Docker, the Supabase CLI, Node 22 and pnpm 11.
 
 ```bash
 pnpm install
-pnpm dev
+pnpm preview:up
+pnpm demo
 ```
 
-The application starts with a sign-in/sign-up screen. An authenticated user
-with no visible space is guided through creating a personal or household space
-with `public.create_space`, then its first USD or LBP wallet with
-`public.create_wallet`. The database now provides six protected Household
-mutations and two bounded owner reads for invitation and membership
-administration. A server-only, Resend-backed delivery boundary exists with
-injected network-free tests, but no Household browser gateway or UI calls it.
-Invitations and member management therefore remain unavailable in the
-application. No real email is sent by repository verification.
+Then open http://127.0.0.1:5173 and pick a demo account. Everything runs on
+this computer; see [the local preview runbook](docs/operations/local-preview.md).
 
-Loans, Wallets, and Categories are active in the application navigation.
-Reports remains a non-interactive preview of a later milestone.
-
-## Verification
+## Verify
 
 ```bash
-pnpm install --frozen-lockfile
 pnpm typecheck
-pnpm test:worker
-pnpm test:ui
-set -a
-source ./.env.test
-set +a
 pnpm test:db
+pnpm test:ui
 pnpm build
 pnpm test:e2e
 ```
 
-`pnpm test:e2e` runs deterministic local HTTP fixtures against the application
-and uses installed Google Chrome; it does not access Ubuntu or any Supabase
-database. Database tests require the ignored `BUDGET_TEST_DATABASE_URL` from
-`.env.test` and target only the dedicated Budget development database described
-in `docs/operations/ubuntu-development-stack.md`.
+- `pnpm test:db` starts its own Postgres 17.6 (Supabase image) with Testcontainers.
+- `pnpm test:e2e` needs the local preview stack.
 
-Backup and recovery tooling is documented in the
-[encrypted backup and scratch-restore runbook](docs/operations/backup-restore-runbook.md).
-Repository tests and dry-runs are not live backup, restore, deployment, or
-real-data-entry evidence.
+## Where things live
 
-Cloudflare build and release boundaries are documented in the
-[Cloudflare deployment runbook](docs/operations/cloudflare-deployment.md).
-Use `pnpm build:cloudflare` only after the protected build variables have been
-provided through the approved release environment; a local build is not a
-deployment.
-
-Household invitation server configuration and the approvals required before any
-live send are documented in the
-[invitation delivery runbook](docs/operations/household-invitation-delivery.md).
-
-The [private synthetic UAT rehearsal](docs/operations/private-synthetic-uat-rehearsal.md)
-reproduces the offline browser acceptance matrix without contacting Supabase or
-any remote host. Its injected session and in-memory HTTP fixtures are explicitly
-not live Auth, RLS, PostgreSQL persistence, backup, restore, or private HTTPS
-evidence.
-
-## Current boundaries
-
-- Loan openings, lending, borrowing, repayments, targets, and corrections use
-  only the approved protected commands.
-- Wallet creation, general postings, and eligible general corrections use only
-  `public.create_wallet`, `public.record_financial_event`, and
-  `public.reverse_financial_event`.
-- Root creation, subcategory creation, and archival use only
-  `public.create_category`, `public.create_subcategory`, and
-  `public.archive_category`. The application exposes one immutable child level;
-  category rows are never renamed, reparented, deleted, or unarchived.
-- Optional income/expense categorization uses only
-  `public.record_categorized_financial_event`; openings, transfers, loans, and
-  reversals never expose category selection.
-- Active category reads include immutable parent identity and remain bounded
-  and keyset-paginated. Roots and children are both exact transaction choices;
-  journal category resolution is bounded to each 20-event history page and
-  preserves archived names read-only.
-- Browser reads remain subject to Supabase authentication and RLS.
-- Space and wallet onboarding use only their protected creation commands and
-  reconcile visible records after ambiguous transport failures before another
-  submission is offered.
-- Wallet and loan balances are derived ledger values and are never editable.
-- Household database administration remains limited to its six protected
-  mutations and two bounded owner reads. Its server delivery adapter is not
-  reachable from the current browser application; Household gateway, UI,
-  provider configuration, deployment, and live sending are not implemented.
-- Budgeting, reporting, recurring transactions, interest, fees, reminders,
-  installments, forgiveness, imports/offline sync, cross-currency settlement,
-  live UAT, deployment, and launch are not part of this milestone.
+- `supabase/migrations/`: the schema, invariant triggers, commands, plan and
+  reads. All writes go through `SECURITY DEFINER` functions. The tables are not
+  reachable from the browser.
+- `src/api/`: the typed client. Every read is validated with zod, and money is
+  `bigint` minor units end to end.
+- `src/screens/`, `src/record/`, `src/ui/`: the screens, the record dialog and
+  shared UI. All of it follows `docs/design-guidelines.md`.
+- `scripts/preview/`: the local stack, the seed, and the ten demonstrations as
+  one shared script.

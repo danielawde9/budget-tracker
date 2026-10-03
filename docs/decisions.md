@@ -3985,3 +3985,130 @@ grant, observes the rejection, restores it, and proves creation succeeds.
 **Why:** The owner granted full freedom to replace the UI, code and schema and asked for a preview on separate data first. The v1 release tooling verifies an exact v1 migration list and production project; on a branch with a new schema it can only fail or mislead. Household invitations are outside the first v2 cut (the owner is the only user); space membership and isolation remain.
 
 **If changed:** Adopting v2 in production is a separate, explicit step: back up, reset the hosted database (the owner authorized resetting app data), apply the v2 migrations with release tooling rebuilt for the v2 journal, then merge and push (Workers Builds deploys on push). Keeping v1 instead means discarding the branch; nothing on `main` changed.
+
+## 2026-10-03 — v2 money model: one two-sided journal (owner-approved)
+
+**Decision:** Every money record is one journal entry with two sides: wallet
+lines (where the money is) and purpose lines (what it is for). For each entry
+and currency, the cash-wallet lines must equal the purpose lines. "Ready to
+assign" is a purpose like any plan item. As a result, cash held = Ready to
+assign + set aside holds by construction, every screen figure is a sum of lines,
+and no feature keeps its own balance. Deferred constraint triggers re-check
+this, plus item ≥ 0 and the investment/loan bounds, at commit. History is
+append-only at statement level, and corrections are mirrored reversals.
+
+**Why:** The owner asked for one authoritative model in which a dollar funds
+one purpose only. The v1 audit found plan values stored in three places, goals
+held as claims on a shared pool, and two "available" formulas. An identity
+enforced by the database cannot drift.
+
+**If changed:** Allowing a wallet line without a purpose line (for example,
+untracked cash) breaks the identity and re-opens double counting. Use an
+investment or loan account for money outside the budget instead.
+
+## 2026-10-03 — Overspending is covered at the moment of the expense (owner-approved)
+
+**Decision:** When an expense, investment contribution, loan repayment or loan
+from an item exceeds that item's balance, the same entry first moves the
+shortfall into the item. The source is Ready to assign by default, or an item
+the person picks that holds enough, always in the same currency. Plan items
+therefore never go below zero. Ready to assign may go below zero
+("over-assigned"); the app says so and offers "Take back".
+
+**Why:** In YNAB and Actual a negative category is only deducted at the month
+change, so Ready to assign overstates the money for the rest of the month. The
+owner chose to cover the shortfall immediately.
+
+**If changed:** A YNAB-style monthly reset would need a month-end job or a
+derived carry rule, plus a second "true ready" figure.
+
+## 2026-10-03 — Funding fills top to bottom; percentages only size the plan (owner-approved)
+
+**Decision:** Group percentages are applied to expected income with exact
+largest-remainder splitting. Items have fixed monthly amounts, and each group's
+flexible item gets whatever the items leave (never below zero). A group whose
+items exceed its share is flagged as "over". "Fund my plan" proposes what each
+item still needs this month (planned − funded, net of releases), in group order,
+then item order, then the flexible item, from money actually in Ready to assign.
+The person can edit any line.
+
+**Why:** Fixed costs do not shrink with a smaller paycheck, and funding from
+forecast income would fund money that does not exist.
+
+**If changed:** Proportional shortfall funding would replace the loop in
+`public.funding_preview`; nothing else depends on the order.
+
+## 2026-10-03 — LBP lives in the same items as its own balance (owner-approved)
+
+**Decision:** Every item and Ready to assign hold one balance per currency.
+Plans are written in the space's plan currency (USD). LBP is assigned by hand
+or arrives through Exchange. Exchange records both amounts actually given and
+received, and keeps the money's purpose. A dated reference rate (LBP 89,500 per
+USD by default; BdL's official rate since 15 Feb 2024) is used only for
+labelled "≈ $" hints and never posted. LBP amounts are whole lira; the ISO
+exponent of 2 is not used, because no sub-lira units circulate.
+
+**Why:** It avoids the revaluation entries a single-currency budget needs, and
+it never adds two currencies together.
+
+**If changed:** Budgeting LBP in a separate pocket would only change the
+pickers. A single-currency budget would need FX revaluation entries.
+
+## 2026-10-03 — v2 assumptions made without the owner
+
+**Decision:** These choices were made without asking:
+
+- Months are calendar months in the space timezone (default Asia/Beirut). v1's
+  payday-anchored periods are not carried over; money that arrives early waits
+  in Ready to assign.
+- Entries cannot be future-dated; bills represent what is coming.
+- Every positive balance carries forward, including spending categories; there
+  is no automatic sweep.
+- Loan interest is recorded when it is paid. There is no accrual and no
+  write-off.
+- Cards are cash wallets that may go negative.
+- Bills hold no money and read their item's balance. Coverage is computed for
+  bills due by the end of the current month.
+- A plan edit applies from its month forward. `save_plan` requires the complete
+  plan, so nothing disappears unless it is archived explicitly.
+- Opening assignments (existing money at setup) are recorded as the items'
+  opening balances, not as funding.
+- Household invitations, category packs, the welcome tour, CSV export and the
+  phone shortcut page are not in the first v2 cut. Space membership and
+  isolation remain and are tested.
+
+**Why:** These are documented defaults, chosen so the preview could be built
+without blocking on questions that do not change the money model.
+
+**If changed:** Each item above is local to its rule: the period helper, the
+`new_entry` date check, the carry rule in `item_month_rows`, `record_loan`,
+wallet bounds, `bill_occurrences`, `save_plan`, and the `opening` flow.
+
+## 2026-10-03 — DB tests run on the Supabase Postgres image via Testcontainers
+
+**Decision:** `pnpm test:db` starts `public.ecr.aws/supabase/postgres:17.6.1.166`
+through Testcontainers and builds a template database from `template0`, a
+two-object auth shim (`auth.users`, `auth.uid()`) and the migrations. Each
+test file gets its own clone. It no longer uses the shared Tailscale dev
+database.
+
+**Why:** The image's own `postgres` database has pg_net and pg_cron sessions
+attached, so it cannot be used as a template. The shim is the only non-real
+part. Real Auth is exercised by the seed and the e2e tests against the local
+Supabase stack.
+
+**If changed:** If the app starts relying on more of `auth.*`, extend the shim or
+point the suite at a local `supabase start` database.
+
+## 2026-10-03 — The v2 UI keeps the selected design without merging feat/plan-linking
+
+**Decision:** The owner chose not to merge `feat/plan-linking`. v2 ports its
+selected design instead: Tahoma for Arabic, flat bordered panels, the green
+rail and mobile tab bar with a central Record button, and the Home/Plan
+hierarchy of the selected screens. That branch and `main` are unchanged.
+
+**Why:** The branch rewrites v1 screens that v2 replaces. Its database side is
+already on `main`.
+
+**If changed:** Merging the branch into `main` is a separate v1 decision. It
+does not affect v2 beyond the shared CSS files.
