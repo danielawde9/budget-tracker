@@ -4,7 +4,7 @@ import { useI18n } from '../lib/i18n.tsx';
 import type { Currency } from '../lib/money.ts';
 import { ErrorNotice, useCommand } from '../ui/async.tsx';
 import { MoneyField } from '../ui/money.tsx';
-import { DateField, Explain, FormActions, ItemSelect, NoteField, READY, WalletSelect } from './fields.tsx';
+import { CoverChoice, DateField, Explain, FormActions, ItemSelect, NoteField, READY, shortfallOf, WalletSelect, withCovered } from './fields.tsx';
 
 export interface BillIntent {
   readonly billId: string;
@@ -25,7 +25,7 @@ export interface FormProps {
 const nullable = (text: string): string | null => (text.trim() === '' ? null : text.trim());
 
 function readyBalance(catalog: Catalog, currency: Currency): bigint {
-  return currency === catalog.plan.planCurrency ? catalog.plan.ready : 0n;
+  return catalog.ready[currency];
 }
 
 /** Expense: the item pays; a shortfall is covered now from Ready to assign or a chosen item. */
@@ -48,9 +48,7 @@ export function ExpenseForm({ catalog, onDone, onCancel, walletId: initialWallet
   const currency: Currency = wallet?.currency ?? 'USD';
   const groups = pickerGroups(catalog.plan);
   const item = itemId ? findItem(catalog.plan, itemId) : null;
-  const available = item ? (item.balances[currency] > 0n ? item.balances[currency] : 0n) : 0n;
-  const shortfall = amount !== null && item && amount > available ? amount - available : 0n;
-  const ready = readyBalance(catalog, currency);
+  const shortfall = shortfallOf(catalog, itemId, currency, amount);
   const command = useCommand((requestId, _: null) => api.recordExpense({
     spaceId: space.id, requestId, walletId, itemId, amount: amount ?? 0n, on, memo: nullable(memo),
     coverFrom: shortfall > 0n && coverFrom !== READY ? coverFrom : null,
@@ -63,7 +61,7 @@ export function ExpenseForm({ catalog, onDone, onCancel, walletId: initialWallet
     const result = await command.submit(null);
     if (!result) return;
     refresh();
-    onDone(t('record.expenseDone', { amount: money(amount, currency), name: name(item) }));
+    onDone(withCovered(i18n, t('record.expenseDone', { amount: money(amount, currency), name: name(item) }), result.covered, currency));
   }
 
   if (wallets.length === 0) return <Explain>{t('record.needWallet')}</Explain>;
@@ -76,26 +74,7 @@ export function ExpenseForm({ catalog, onDone, onCancel, walletId: initialWallet
       {item && shortfall === 0n ? (
         <p className="cr-helper">{t('record.itemHolds', { name: name(item), amount: money(item.balances[currency], currency) })}</p>
       ) : null}
-      {shortfall > 0n && item ? (
-        <div className="cr-cover">
-          <Explain tone="warn">
-            {t('record.shortfall', { name: name(item), available: money(available, currency), shortfall: money(shortfall, currency) })}
-          </Explain>
-          <ItemSelect
-            label={t('record.coverFrom')}
-            groups={groups.map((group) => ({ ...group, items: group.items.filter((candidate) => candidate.balances[currency] >= shortfall) }))}
-            value={coverFrom}
-            onChange={setCoverFrom}
-            currency={currency}
-            includeReady
-            readyBalance={ready}
-            exclude={itemId}
-          />
-          {coverFrom === READY && ready < shortfall ? (
-            <Explain tone="warn">{t('record.willOverAssign', { amount: money(shortfall - (ready > 0n ? ready : 0n), currency) })}</Explain>
-          ) : null}
-        </div>
-      ) : null}
+      <CoverChoice catalog={catalog} itemId={itemId} currency={currency} amount={amount} value={coverFrom} onChange={setCoverFrom} />
       <DateField value={on} onChange={setOn} max={space.today} />
       <NoteField value={memo} onChange={setMemo} />
       {command.error ? <ErrorNotice error={command.error} /> : null}

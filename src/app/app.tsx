@@ -13,9 +13,10 @@ import { HomeScreen } from '../screens/home/home.tsx';
 import { Onboarding } from '../screens/onboarding/onboarding.tsx';
 import { PlanScreen } from '../screens/plan/plan.tsx';
 import { SettingsScreen } from '../screens/settings/settings.tsx';
-import { ErrorNotice, useLoad } from '../ui/async.tsx';
+import { ErrorNotice } from '../ui/async.tsx';
 import { AuthScreen } from './auth-screen.tsx';
 import { useRoute } from './router.ts';
+import { useSpaces } from './use-spaces.ts';
 import { Shell } from './shell.tsx';
 import { useSession } from './use-session.ts';
 import { WorkspaceProvider } from './workspace.tsx';
@@ -88,8 +89,7 @@ function SignedInGate({ client, api, onToggleLocale }: { readonly client: Supaba
 }
 
 function SpacesGate({ api, client, onToggleLocale }: { readonly api: BudgetApi; readonly client: SupabaseClient; readonly onToggleLocale: () => void }) {
-  const [version, setVersion] = useState(0);
-  const spaces = useLoad(() => api.mySpaces(), [api, version]);
+  const { spaces, reload } = useSpaces(api);
   const [selected, setSelected] = useState<string | null>(() => readStored(SPACE_KEY));
   const select = useCallback((spaceId: string) => {
     writeStored(SPACE_KEY, spaceId);
@@ -110,7 +110,7 @@ function SpacesGate({ api, client, onToggleLocale }: { readonly api: BudgetApi; 
         onSignOut={() => void client.auth.signOut()}
         onFinished={(spaceId) => {
           select(spaceId);
-          setVersion((value) => value + 1);
+          reload();
         }}
       />
     );

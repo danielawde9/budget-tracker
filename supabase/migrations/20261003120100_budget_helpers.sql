@@ -86,6 +86,31 @@ as $$
   where l.item_id = p_item and l.currency = p_currency and e.occurred_on <= p_on
 $$;
 
+-- The lowest end-of-day balance an item has from p_from onward (including
+-- the balance on p_from itself). Money taken out on p_from must not exceed it,
+-- or some later day would show the item below zero.
+create function budget.item_min_balance_from(p_item uuid, p_currency budget.currency, p_from date)
+returns bigint
+language sql
+stable
+set search_path = ''
+as $$
+  with daily as (
+    select e.occurred_on as day, sum(l.amount_minor) as delta
+    from budget.item_lines l
+    join budget.entries e on e.id = l.entry_id
+    where l.item_id = p_item and l.currency = p_currency
+    group by e.occurred_on
+  ),
+  running as (
+    select day, sum(delta) over (order by day) as balance from daily
+  )
+  select least(
+    budget.item_balance_on(p_item, p_currency, p_from),
+    coalesce((select min(balance) from running where day >= p_from), budget.item_balance_on(p_item, p_currency, p_from))
+  )::bigint
+$$;
+
 create function budget.wallet_balance(p_wallet uuid)
 returns bigint
 language sql

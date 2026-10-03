@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import type { InvestmentAction, LoanAction } from '../api/budget-api.ts';
 import type { Entry } from '../api/schemas.ts';
-import { activeWallets, findItem, pickerGroups, useWorkspace } from '../app/workspace.tsx';
+import { activeWallets, pickerGroups, useWorkspace } from '../app/workspace.tsx';
 import { useI18n, type MessageKey } from '../lib/i18n.tsx';
 import type { Currency } from '../lib/money.ts';
 import { ErrorNotice, useCommand } from '../ui/async.tsx';
 import { Amount, MoneyField } from '../ui/money.tsx';
-import { DateField, Explain, FormActions, ItemSelect, NoteField, READY, WalletSelect } from './fields.tsx';
+import { CoverChoice, DateField, Explain, FormActions, ItemSelect, NoteField, READY, shortfallOf, WalletSelect, withCovered } from './fields.tsx';
 import { SelectField } from '../ui/select-field.tsx';
 import type { BillIntent, FormProps } from './forms-everyday.tsx';
 
@@ -25,7 +25,8 @@ export function InvestForm({ catalog, onDone, onCancel, action: initialAction, i
   readonly action?: InvestmentAction;
   readonly investmentId?: string;
 }) {
-  const { t, money } = useI18n();
+  const i18n = useI18n();
+  const { t, money } = i18n;
   const { api, space, refresh } = useWorkspace();
   const investments = activeWallets(catalog.accounts, 'investment');
   const [action, setAction] = useState<InvestmentAction>(initialAction ?? 'contribute');
@@ -37,6 +38,7 @@ export function InvestForm({ catalog, onDone, onCancel, action: initialAction, i
   const effectiveCash = cash.some((wallet) => wallet.id === cashId) ? cashId : (cash[0]?.id ?? '');
   const investGroup = catalog.plan.groups.find((group) => group.nameEn === 'Investments');
   const [itemId, setItemId] = useState(investGroup?.flex?.itemId ?? '');
+  const [coverFrom, setCoverFrom] = useState(READY);
   const [amount, setAmount] = useState<bigint | null>(null);
   const [on, setOn] = useState(space.today);
   const [memo, setMemo] = useState('');
@@ -45,13 +47,15 @@ export function InvestForm({ catalog, onDone, onCancel, action: initialAction, i
   const command = useCommand((requestId, _: null) => api.recordInvestment({
     spaceId: space.id, requestId, action, investmentId: accountId, amount: amount ?? 0n, on,
     cashWalletId: needsCash ? effectiveCash : null, itemId: action === 'contribute' ? itemId : null, memo: nullable(memo),
+    coverFrom: action === 'contribute' && shortfallOf(catalog, itemId, currency, amount) > 0n && coverFrom !== READY ? coverFrom : null,
   }));
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (amount === null || !account) return;
-    if (!(await command.submit(null))) return;
+    const result = await command.submit(null);
+    if (!result) return;
     refresh();
-    onDone(t('invest.done', { amount: money(amount, currency), account: account.name }));
+    onDone(withCovered(i18n, t('invest.done', { amount: money(amount, currency), account: account.name }), result.covered, currency));
   }
   if (investments.length === 0) return <Explain>{t('invest.needAccount')}</Explain>;
   return (
@@ -65,7 +69,10 @@ export function InvestForm({ catalog, onDone, onCancel, action: initialAction, i
         hint={action === 'value' && account ? t('invest.currentValue', { amount: money(account.balance, currency) }) : undefined} />
       {needsCash ? <WalletSelect label={action === 'contribute' ? t('record.paidFrom') : t('record.receivedIn')} wallets={cash} value={effectiveCash} onChange={setCashId} /> : null}
       {action === 'contribute' ? (
-        <ItemSelect label={t('invest.fromItem')} groups={pickerGroups(catalog.plan)} value={itemId} onChange={setItemId} currency={currency} />
+        <>
+          <ItemSelect label={t('invest.fromItem')} groups={pickerGroups(catalog.plan)} value={itemId} onChange={setItemId} currency={currency} />
+          <CoverChoice catalog={catalog} itemId={itemId} currency={currency} amount={amount} value={coverFrom} onChange={setCoverFrom} />
+        </>
       ) : null}
       <DateField value={on} onChange={setOn} max={space.today} />
       <NoteField value={memo} onChange={setMemo} />
@@ -87,7 +94,8 @@ export function LoanForm({ catalog, onDone, onCancel, action: initialAction, loa
   readonly loanId?: string;
   readonly bill?: BillIntent;
 }) {
-  const { t, money, name } = useI18n();
+  const i18n = useI18n();
+  const { t, money } = i18n;
   const { api, space, refresh } = useWorkspace();
   const [action, setAction] = useState<LoanAction>(bill ? 'repay' : (initialAction ?? 'repay'));
   const definition = LOAN_ACTIONS.find((candidate) => candidate.action === action) ?? LOAN_ACTIONS[0];
@@ -107,24 +115,27 @@ export function LoanForm({ catalog, onDone, onCancel, action: initialAction, loa
   const [fee, setFee] = useState<bigint | null>(null);
   const [on, setOn] = useState(bill && bill.dueOn <= space.today ? bill.dueOn : space.today);
   const [memo, setMemo] = useState('');
+  const [coverFrom, setCoverFrom] = useState(READY);
   const total = (principal ?? 0n) + (interest ?? 0n) + (fee ?? 0n);
+  const charged = action === 'repay' || (action === 'lend' && itemId !== READY);
   const needsItem = action === 'repay';
   const command = useCommand((requestId, _: null) => api.recordLoan({
     spaceId: space.id, requestId, action, loanId: effectiveLoan, on, principal: principal ?? 0n, interest: interest ?? 0n, fee: fee ?? 0n,
     cashWalletId: effectiveCash, itemId: itemId === READY ? null : itemId, memo: nullable(memo),
+    coverFrom: charged && shortfallOf(catalog, itemId === READY ? '' : itemId, currency, total) > 0n && coverFrom !== READY ? coverFrom : null,
     billId: bill?.billId ?? null, billDue: bill?.dueOn ?? null,
   }));
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (total <= 0n || !loan || (needsItem && itemId === READY)) return;
-    if (!(await command.submit(null))) return;
+    const result = await command.submit(null);
+    if (!result) return;
     refresh();
-    onDone(t('loan.done', { amount: money(total, currency), name: loan.counterparty ?? loan.name }));
+    onDone(withCovered(i18n, t('loan.done', { amount: money(total, currency), name: loan.counterparty ?? loan.name }), result.covered, currency));
   }
-  const item = itemId === READY ? null : findItem(catalog.plan, itemId);
   return (
     <form className="dialog-form cr-stack" onSubmit={(event) => void submit(event)}>
-      {bill ? <Explain>{t('record.payingBill', { name: bill.name, date: bill.dueOn })}</Explain> : (
+      {bill ? <Explain>{t('record.payingBill', { name: bill.name, date: i18n.date(bill.dueOn) })}</Explain> : (
         <SelectField label={t('loan.what')} value={action} onChange={(event) => setAction(event.target.value as LoanAction)}>
             {LOAN_ACTIONS.map((option) => <option key={option.action} value={option.action}>{t(option.label)}</option>)}
           </SelectField>
@@ -145,11 +156,9 @@ export function LoanForm({ catalog, onDone, onCancel, action: initialAction, loa
       <WalletSelect label={action === 'repay' || action === 'lend' ? t('record.paidFrom') : t('record.receivedIn')} wallets={cash} value={effectiveCash} onChange={setCashId} />
       {action === 'repay' || action === 'lend' ? (
         <ItemSelect label={t('loan.fromItem')} groups={pickerGroups(catalog.plan)} value={itemId} onChange={setItemId} currency={currency} includeReady={action === 'lend'}
-          readyBalance={currency === catalog.plan.planCurrency ? catalog.plan.ready : 0n} />
+          readyBalance={catalog.ready[currency]} />
       ) : null}
-      {item && action === 'repay' && item.balances[currency] < total ? (
-        <Explain tone="warn">{t('record.shortfall', { name: name(item), available: money(item.balances[currency] > 0n ? item.balances[currency] : 0n, currency), shortfall: money(total - (item.balances[currency] > 0n ? item.balances[currency] : 0n), currency) })} {t('common.readyToAssign')}</Explain>
-      ) : null}
+      {charged ? <CoverChoice catalog={catalog} itemId={itemId === READY ? '' : itemId} currency={currency} amount={total > 0n ? total : null} value={coverFrom} onChange={setCoverFrom} /> : null}
       <DateField value={on} onChange={setOn} max={space.today} />
       <NoteField value={memo} onChange={setMemo} />
       {command.error ? <ErrorNotice error={command.error} /> : null}

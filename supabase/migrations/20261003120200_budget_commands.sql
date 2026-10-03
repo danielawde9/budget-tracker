@@ -259,7 +259,8 @@ as $$
 declare
   v_item budget.items%rowtype := budget.plan_item(p_space, p_item);
   v_cover uuid := budget.normalize_item(p_space, p_cover_from);
-  v_shortfall bigint := greatest(p_amount - greatest(budget.item_balance(p_item, p_currency), 0), 0);
+  v_on date := (select occurred_on from budget.entries where id = p_entry);
+  v_shortfall bigint := greatest(p_amount - greatest(budget.item_min_balance_from(p_item, p_currency, v_on), 0), 0);
   v_source uuid;
 begin
   if v_shortfall > 0 then
@@ -270,9 +271,9 @@ begin
         perform budget.raise_budget('BUDGET_COVER_INVALID', budget.item_label(v_cover));
       end if;
       perform budget.plan_item(p_space, v_cover);
-      if budget.item_balance(v_cover, p_currency) < v_shortfall then
+      if budget.item_min_balance_from(v_cover, p_currency, v_on) < v_shortfall then
         perform budget.raise_budget('BUDGET_INSUFFICIENT_ITEM', budget.item_label(v_cover) || jsonb_build_object(
-          'currency', p_currency, 'available', budget.item_balance(v_cover, p_currency)::text, 'needed', v_shortfall::text));
+          'currency', p_currency, 'available', greatest(budget.item_min_balance_from(v_cover, p_currency, v_on), 0)::text, 'needed', v_shortfall::text));
       end if;
       v_source := v_cover;
     end if;
@@ -294,19 +295,21 @@ set search_path = ''
 as $$
 declare
   v_ready uuid := budget.ready_item(p_space);
+  v_on date := (select occurred_on from budget.entries where id = p_entry);
   v_currency budget.currency;
+  v_taken bigint;
 begin
-  for v_currency in
-    select currency from budget.item_lines
+  for v_currency, v_taken in
+    select currency, -sum(amount_minor)::bigint from budget.item_lines
     where entry_id = p_entry and item_id = v_ready
     group by currency
     having sum(amount_minor) < 0
   loop
-    if budget.item_balance(v_ready, v_currency) < 0 then
+    -- Lowest day from this entry on, with this entry already applied.
+    if budget.item_min_balance_from(v_ready, v_currency, v_on) < 0 then
       perform budget.raise_budget('BUDGET_INSUFFICIENT_READY', jsonb_build_object(
         'currency', v_currency,
-        'available', (budget.item_balance(v_ready, v_currency) - (
-          select sum(amount_minor) from budget.item_lines where entry_id = p_entry and item_id = v_ready and currency = v_currency))::text));
+        'available', greatest(budget.item_min_balance_from(v_ready, v_currency, v_on) + v_taken, 0)::text));
     end if;
   end loop;
 end;
@@ -671,9 +674,9 @@ begin
     perform budget.require_amount(v_amount);
     if v_from is not null then
       perform budget.plan_item(p_space, v_from);
-      if budget.item_balance(v_from, v_currency) < v_amount then
+      if budget.item_min_balance_from(v_from, v_currency, p_on) < v_amount then
         perform budget.raise_budget('BUDGET_INSUFFICIENT_ITEM', budget.item_label(v_from) || jsonb_build_object(
-          'currency', v_currency, 'available', budget.item_balance(v_from, v_currency)::text, 'needed', v_amount::text));
+          'currency', v_currency, 'available', greatest(budget.item_min_balance_from(v_from, v_currency, p_on), 0)::text, 'needed', v_amount::text));
       end if;
     end if;
     if v_to is not null then
@@ -881,9 +884,9 @@ begin
   v_item := budget.normalize_item(p_space, p_item);
   if v_item is not null then
     perform budget.plan_item(p_space, v_item);
-    if budget.item_balance(v_item, v_from.currency) < p_from_amount then
+    if budget.item_min_balance_from(v_item, v_from.currency, p_on) < p_from_amount then
       perform budget.raise_budget('BUDGET_INSUFFICIENT_ITEM', budget.item_label(v_item) || jsonb_build_object(
-        'currency', v_from.currency, 'available', budget.item_balance(v_item, v_from.currency)::text, 'needed', p_from_amount::text));
+        'currency', v_from.currency, 'available', greatest(budget.item_min_balance_from(v_item, v_from.currency, p_on), 0)::text, 'needed', p_from_amount::text));
     end if;
   end if;
   v_purpose := coalesce(v_item, budget.ready_item(p_space));
@@ -1128,11 +1131,12 @@ begin
   join budget.items i on i.id = l.item_id
   where l.entry_id = p_entry and i.kind <> 'ready'
   group by l.item_id, l.currency
-  having budget.item_balance(l.item_id, l.currency) - sum(l.amount_minor) < 0
+  having budget.item_min_balance_from(l.item_id, l.currency, v_original.occurred_on) - sum(l.amount_minor) < 0
   limit 1;
   if found then
     perform budget.raise_budget('BUDGET_INSUFFICIENT_ITEM', budget.item_label(v_short.item_id) || jsonb_build_object(
-      'currency', v_short.currency, 'available', budget.item_balance(v_short.item_id, v_short.currency)::text,
+      'currency', v_short.currency,
+      'available', greatest(budget.item_min_balance_from(v_short.item_id, v_short.currency, v_original.occurred_on), 0)::text,
       'needed', v_short.total::text));
   end if;
 

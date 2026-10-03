@@ -27,7 +27,7 @@ export function FundForm({ catalog, onDone, onCancel, month }: FormProps & { rea
       {(data) => {
         const lines = data.lines.map((line) => ({ itemId: line.itemId, amount: line.itemId in overrides ? (overrides[line.itemId] ?? 0n) : line.amountMinor }));
         const total = lines.reduce((sum, line) => sum + line.amount, 0n);
-        const tooMuch = total > catalog.plan.ready;
+        const tooMuch = total > catalog.ready[currency];
         async function submit(event: FormEvent) {
           event.preventDefault();
           const moves = lines.filter((line) => line.amount > 0n);
@@ -68,7 +68,7 @@ export function FundForm({ catalog, onDone, onCancel, month }: FormProps & { rea
               <span>{t('fund.total')}</span> <Amount minor={total} currency={currency} tone={tooMuch ? 'negative' : 'plain'} />
             </p>
             {data.unfunded > 0n ? <p className="cr-helper">{t('fund.stillAfter', { amount: money(data.unfunded, currency) })}</p> : null}
-            {tooMuch ? <Explain tone="warn">{t('fund.tooMuch', { amount: money(catalog.plan.ready, currency) })}</Explain> : null}
+            {tooMuch ? <Explain tone="warn">{t('fund.tooMuch', { amount: money(catalog.ready[currency], currency) })}</Explain> : null}
             {command.error ? <ErrorNotice error={command.error} /> : null}
             <FormActions submitLabel="fund.save" pending={command.pending} onCancel={onCancel} disabled={total <= 0n || tooMuch} />
           </form>

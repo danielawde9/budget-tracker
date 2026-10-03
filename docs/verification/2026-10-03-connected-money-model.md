@@ -7,8 +7,8 @@ project.
 | Check | Result | What it covers |
 | --- | --- | --- |
 | `pnpm typecheck` | pass | TypeScript strict across app, tests and preview scripts |
-| `pnpm test:db` | **147/147** in 9 files | See "Database suites" below. |
-| `pnpm test:ui` | **61/61** in 10 files | See "UI suites" below. |
+| `pnpm test:db` | **152/152** in 10 files | See "Database suites" below. |
+| `pnpm test:ui` | **64/64** in 11 files | See "UI suites" below. |
 | `pnpm build` | pass, **0 warnings** | Vendor chunks split; largest chunk 339 kB. Demo code and credentials are absent from `dist/`. |
 | `pnpm test:e2e` | **3/3** | See "End-to-end flows" below. |
 | `pnpm preview:up` | pass | See "Local preview" below. |
@@ -68,3 +68,18 @@ Local preview: migrations applied on a real local Supabase stack, and the story 
 - **Onboarding resume:** if the browser reloads mid-onboarding after the space
   exists, the remaining steps are not resumed. Home then shows "Add a wallet",
   and the plan can be edited from Plan.
+
+## Independent review and fix pass
+
+A fresh reviewer read the whole branch, reproduced findings on a scratch
+Supabase Postgres, and gave the verdict "yes with fixes". One critical and four
+important findings were fixed, each with a test that failed first:
+
+1. A bill first due after the queried range broke Home.
+2. LBP sitting in Ready to assign could not be assigned in the UI.
+3. The space clock was read once per session.
+4. Back-dated entries and reversals could make past statements negative.
+5. Investing or lending from an item silently covered the shortfall.
+
+The suites above are the post-fix runs. Deferred minor findings are listed in
+the final report.

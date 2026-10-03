@@ -4112,3 +4112,21 @@ already on `main`.
 
 **If changed:** Merging the branch into `main` is a separate v1 decision. It
 does not affect v2 beyond the shared CSS files.
+
+## 2026-10-03 — "Never below zero" means on every day, not only today (review fix)
+
+**Decision:** A plan item's running balance must stay at or above zero at the
+end of every day, not just its current total. This applies to back-dated
+expenses (their cover is computed from the balance the item had on that day),
+moves, exchanges, Ready-to-assign funding, reversals of older entries, and the
+deferred trigger itself. The same running check applies to investment accounts
+(≥ 0) and loans (owe ≤ 0, owed ≥ 0).
+
+**Why:** The final review reproduced a negative September statement. A
+forgotten September grocery expense, recorded after October's funding, showed
+Groceries at −$50 in September. Likewise, reversing a September fund that
+later spending relied on was accepted. Current balances were still right; the
+statements the owner reads were not.
+
+**If changed:** Checking current balances only would bring those negative
+past-month statements back.

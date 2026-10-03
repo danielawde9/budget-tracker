@@ -165,6 +165,7 @@ as $$
     from budget.bills b
     cross join lateral budget.bill_due_dates(b.cadence, b.first_due_on, b.end_on, greatest(b.first_due_on, p_from - 92), p_to) as d(due_on)
     where b.space_id = p_space and b.archived_at is null
+      and b.first_due_on <= p_to  -- a bill that starts later has nothing due yet
   ),
   visible as (
     select o.*,

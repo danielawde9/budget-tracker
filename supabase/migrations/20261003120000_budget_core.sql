@@ -347,7 +347,9 @@ create constraint trigger entries_have_lines
   deferrable initially deferred
   for each row execute function budget.check_entry_has_lines();
 
--- Plan items (everything except Ready to assign) never hold less than zero.
+-- Plan items (everything except Ready to assign) never hold less than zero
+-- at the end of ANY day, so a back-dated entry or a reversal cannot make a
+-- past month's statement negative while today's balance looks fine.
 create function budget.check_item_nonnegative()
 returns trigger
 language plpgsql
@@ -356,18 +358,23 @@ set search_path = ''
 as $$
 declare
   v_kind budget.item_kind;
-  v_balance numeric;
+  v_lowest numeric;
 begin
   select kind into v_kind from budget.items where id = new.item_id;
   if v_kind = 'ready' then
     return null;
   end if;
-  select coalesce(sum(amount_minor), 0) into v_balance
-  from budget.item_lines
-  where item_id = new.item_id and currency = new.currency;
-  if v_balance < 0 then
+  select min(balance) into v_lowest
+  from (
+    select sum(sum(l.amount_minor)) over (order by e.occurred_on) as balance
+    from budget.item_lines l
+    join budget.entries e on e.id = l.entry_id
+    where l.item_id = new.item_id and l.currency = new.currency
+    group by e.occurred_on
+  ) running;
+  if v_lowest < 0 then
     perform budget.raise_budget('BUDGET_ITEM_NEGATIVE', jsonb_build_object(
-      'itemId', new.item_id, 'currency', new.currency, 'balance', v_balance));
+      'itemId', new.item_id, 'currency', new.currency, 'lowest', v_lowest));
   end if;
   return null;
 end;
@@ -379,7 +386,8 @@ create constraint trigger item_lines_nonnegative
   for each row execute function budget.check_item_nonnegative();
 
 -- Investments are never negative; a debt I owe never turns positive; money
--- owed to me never turns negative. Spending wallets may go negative (cards).
+-- owed to me never turns negative -- on any day. Spending wallets may go
+-- negative (cards).
 create function budget.check_wallet_bounds()
 returns trigger
 language plpgsql
@@ -389,18 +397,26 @@ as $$
 declare
   v_kind budget.wallet_kind;
   v_direction budget.loan_direction;
-  v_balance numeric;
+  v_lowest numeric;
+  v_highest numeric;
 begin
   select kind, loan_direction into v_kind, v_direction from budget.wallets where id = new.wallet_id;
   if v_kind = 'cash' then
     return null;
   end if;
-  select coalesce(sum(amount_minor), 0) into v_balance from budget.wallet_lines where wallet_id = new.wallet_id;
-  if (v_kind = 'investment' and v_balance < 0)
-     or (v_direction = 'i_owe' and v_balance > 0)
-     or (v_direction = 'owed_to_me' and v_balance < 0) then
+  select min(balance), max(balance) into v_lowest, v_highest
+  from (
+    select sum(sum(l.amount_minor)) over (order by e.occurred_on) as balance
+    from budget.wallet_lines l
+    join budget.entries e on e.id = l.entry_id
+    where l.wallet_id = new.wallet_id
+    group by e.occurred_on
+  ) running;
+  if (v_kind = 'investment' and v_lowest < 0)
+     or (v_direction = 'i_owe' and v_highest > 0)
+     or (v_direction = 'owed_to_me' and v_lowest < 0) then
     perform budget.raise_budget('BUDGET_WALLET_BOUNDS', jsonb_build_object(
-      'walletId', new.wallet_id, 'balance', v_balance));
+      'walletId', new.wallet_id, 'lowest', v_lowest, 'highest', v_highest));
   end if;
   return null;
 end;

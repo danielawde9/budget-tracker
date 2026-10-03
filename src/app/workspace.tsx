@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import type { BudgetApi } from '../api/budget-api.ts';
 import type { AccountWallet, Accounts, PlanGroup, PlanItem, PlanMonth, SpaceSummary } from '../api/schemas.ts';
+import type { Currency } from '../lib/money.ts';
 import { useLoad, type Loaded } from '../ui/async.tsx';
 
 /**
@@ -11,6 +12,8 @@ import { useLoad, type Loaded } from '../ui/async.tsx';
 export interface Catalog {
   readonly plan: PlanMonth;
   readonly accounts: Accounts;
+  /** Ready to assign per currency (LBP is assigned by hand, so it matters too). */
+  readonly ready: Readonly<Record<Currency, bigint>>;
 }
 
 export interface WorkspaceValue {
@@ -36,8 +39,10 @@ export function WorkspaceProvider({ api, space, spaces, selectSpace, children }:
   const refresh = useCallback(() => setVersion((value) => value + 1), []);
   const catalog = useLoad<Catalog>(
     async () => {
-      const [plan, accounts] = await Promise.all([api.planMonth(space.id, space.currentMonth), api.accounts(space.id)]);
-      return { plan, accounts };
+      const [plan, accounts, overview] = await Promise.all([api.planMonth(space.id, space.currentMonth), api.accounts(space.id), api.overview(space.id)]);
+      const ready = { USD: 0n, LBP: 0n };
+      for (const view of overview.currencies) ready[view.currency] = view.ready;
+      return { plan, accounts, ready };
     },
     [api, space.id, space.currentMonth, version],
   );

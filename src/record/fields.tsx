@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { AccountWallet } from '../api/schemas.ts';
-import type { PickerGroup } from '../app/workspace.tsx';
-import { useI18n, type MessageKey } from '../lib/i18n.tsx';
+import { findItem, pickerGroups, type Catalog, type PickerGroup } from '../app/workspace.tsx';
+import { useI18n, type I18n, type MessageKey } from '../lib/i18n.tsx';
 import { SelectField } from '../ui/select-field.tsx';
 import type { Currency } from '../lib/money.ts';
 
@@ -94,4 +94,48 @@ export function FormActions({ submitLabel, pending, onCancel, disabled = false }
 
 export function Explain({ children, tone = 'info' }: { readonly children: ReactNode; readonly tone?: 'info' | 'warn' }) {
   return <p className={tone === 'warn' ? 'cr-explain cr-explain--warn' : 'cr-explain'} role="status">{children}</p>;
+}
+
+/** How much more than an item holds an outflow takes (0 when it fits). */
+export function shortfallOf(catalog: Catalog, itemId: string, currency: Currency, amount: bigint | null): bigint {
+  const item = itemId ? findItem(catalog.plan, itemId) : null;
+  if (!item || amount === null) return 0n;
+  const available = item.balances[currency] > 0n ? item.balances[currency] : 0n;
+  return amount > available ? amount - available : 0n;
+}
+
+/**
+ * The overspending rule, said out loud: when an outflow is bigger than its
+ * item, the difference comes from Ready to assign or an item the person picks,
+ * in the same currency, at the moment it is recorded.
+ */
+export function CoverChoice({ catalog, itemId, currency, amount, value, onChange }: {
+  readonly catalog: Catalog;
+  readonly itemId: string;
+  readonly currency: Currency;
+  readonly amount: bigint | null;
+  readonly value: string;
+  readonly onChange: (itemId: string) => void;
+}) {
+  const { t, money, name } = useI18n();
+  const item = itemId ? findItem(catalog.plan, itemId) : null;
+  const shortfall = shortfallOf(catalog, itemId, currency, amount);
+  if (!item || shortfall === 0n) return null;
+  const available = item.balances[currency] > 0n ? item.balances[currency] : 0n;
+  const ready = catalog.ready[currency];
+  const groups = pickerGroups(catalog.plan).map((group) => ({ ...group, items: group.items.filter((candidate) => candidate.balances[currency] >= shortfall) }));
+  return (
+    <div className="cr-cover">
+      <Explain tone="warn">{t('record.shortfall', { name: name(item), available: money(available, currency), shortfall: money(shortfall, currency) })}</Explain>
+      <ItemSelect label={t('record.coverFrom')} groups={groups} value={value} onChange={onChange} currency={currency} includeReady readyBalance={ready} exclude={itemId} />
+      {value === READY && ready < shortfall ? (
+        <Explain tone="warn">{t('record.willOverAssign', { amount: money(shortfall - (ready > 0n ? ready : 0n), currency) })}</Explain>
+      ) : null}
+    </div>
+  );
+}
+
+/** Appends "X was covered from …" when the database moved money to cover a shortfall. */
+export function withCovered(i18n: I18n, message: string, covered: bigint | undefined, currency: Currency): string {
+  return covered && covered > 0n ? `${message} ${i18n.t('record.coveredNote', { amount: i18n.money(covered, currency) })}` : message;
 }

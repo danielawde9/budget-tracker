@@ -4,7 +4,7 @@ import { BudgetError } from '../api/budget-api.ts';
 import { fakeApi, fixtures, itemId, renderWithWorkspace } from '../test/harness.tsx';
 import { ExpenseForm } from './forms-everyday.tsx';
 
-const catalog = { plan: fixtures.plan, accounts: fixtures.accounts };
+const catalog = { plan: fixtures.plan, accounts: fixtures.accounts, ready: { USD: 132000n, LBP: 0n } };
 
 async function fill(amount: string, item: string) {
   const user = userEvent.setup();
@@ -23,7 +23,7 @@ describe('ExpenseForm and the overspending rule', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Cover the difference from' }), itemId('Fun'));
     await user.click(screen.getByRole('button', { name: 'Record expense' }));
     expect(api.recordExpense).toHaveBeenCalledWith(expect.objectContaining({ itemId: itemId('Eating out'), amount: 15000n, coverFrom: itemId('Fun') }));
-    expect(onDone).toHaveBeenCalledWith('Recorded $150.00 from Eating out.');
+    expect(onDone).toHaveBeenCalledWith('Recorded $150.00 from Eating out. $30.00 was covered from another item or Ready to assign.');
   });
 
   it('warns before over-assigning when Ready to assign cannot cover it', async () => {

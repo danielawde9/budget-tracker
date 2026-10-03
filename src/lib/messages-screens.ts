@@ -178,6 +178,7 @@ export const screenMessages = {
   'record.itemHolds': { en: '{name} holds {amount}.', ar: '{name} يحتوي {amount}.' },
   'record.shortfall': { en: '{name} has {available}. The other {shortfall} will come from:', ar: '{name} فيه {available}. سيأتي الباقي {shortfall} من:' },
   'record.coverFrom': { en: 'Cover the difference from', ar: 'غطِّ الفرق من' },
+  'record.coveredNote': { en: '{amount} was covered from another item or Ready to assign.', ar: 'تمت تغطية {amount} من بند آخر أو من الجاهز للتوزيع.' },
   'record.willOverAssign': { en: 'Ready to assign does not hold enough: you will be over-assigned by {amount}.', ar: 'الجاهز للتوزيع لا يكفي: ستكون موزّعًا أكثر من المتاح بمقدار {amount}.' },
   'record.payingBill': { en: 'Paying {name}, due {date}.', ar: 'دفع {name} المستحقة في {date}.' },
   'record.saveExpense': { en: 'Record expense', ar: 'تسجيل المصروف' },

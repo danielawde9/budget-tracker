@@ -3,7 +3,7 @@ import { userEvent } from '@testing-library/user-event';
 import { fakeApi, fixtures, itemId, renderWithWorkspace } from '../test/harness.tsx';
 import { FundForm } from './forms-plan.tsx';
 
-const catalog = { plan: { ...fixtures.plan, ready: 50000n }, accounts: fixtures.accounts };
+const catalog = { plan: { ...fixtures.plan, ready: 50000n }, accounts: fixtures.accounts, ready: { USD: 50000n, LBP: 0n } };
 
 function preview() {
   return {
