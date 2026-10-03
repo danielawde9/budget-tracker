@@ -4192,3 +4192,25 @@ choose is noise.
 `expense_suggestions`. The amount you were charged is always visible before
 you save, and a mistaken expense is corrected by reversal, as any entry is.
 
+## 2026-10-03 — v2 merged into local `main`, not pushed or deployed
+
+**Decision:** The owner asked for v2 to be merged into `main` but not
+deployed. `main` was fast-forwarded to `redesign/connected-plan` on this
+machine only; `origin/main` and production still run v1. The old
+`feat/plan-linking` branch was archived: a local tag `archive/plan-linking`,
+plus a git bundle, its 17 chosen screen images and its uncommitted docs in
+`~/Desktop/Daniel/budget-tracking-archive/`. The branch and its worktree were
+then deleted. What v2 can still learn from it is filed as GitHub issues
+#3–#9.
+
+**Why:** v2 is the product going forward, and keeping it on a side branch
+made "what is current" unclear. But Workers Builds deploys every push to
+`main`. A push now would ship the v2 frontend against the v1 hosted database,
+which has none of the v2 functions, and every screen would fail.
+
+**If changed:** Going live is still the separate step recorded above: back
+up, reset the hosted database, apply the v2 migrations, then push `main`.
+Until then, do not push `main`. To return `main` to v1, reset it to
+`origin/main` (`e38489a`). v2 stays safe on `redesign/connected-plan` and in
+the bundle.
+

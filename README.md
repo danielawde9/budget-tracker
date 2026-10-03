@@ -9,8 +9,11 @@ same entry, so the cash you hold always equals the money set aside plus the
 money ready to assign. The database enforces this; nothing on screen keeps its
 own balance.
 
-> This branch replaces the v1 app. `main` and production still run v1. Adopting
-> v2 in production means resetting the hosted database; see `docs/decisions.md`.
+> **Do not push `main` yet.** Local `main` holds v2 (merged 2026-10-03, not
+> pushed). Production still runs v1 on the v1 database, and Cloudflare deploys
+> every push to `main`, so a push would ship v2 against a database without its
+> schema. Going live means backing up and resetting the hosted database first;
+> see `docs/decisions.md`.
 
 ## Concepts
 
