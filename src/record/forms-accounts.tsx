@@ -7,6 +7,7 @@ import type { Currency } from '../lib/money.ts';
 import { ErrorNotice, useCommand } from '../ui/async.tsx';
 import { Amount, MoneyField } from '../ui/money.tsx';
 import { DateField, Explain, FormActions, ItemSelect, NoteField, READY, WalletSelect } from './fields.tsx';
+import { SelectField } from '../ui/select-field.tsx';
 import type { BillIntent, FormProps } from './forms-everyday.tsx';
 
 const nullable = (text: string): string | null => (text.trim() === '' ? null : text.trim());
@@ -55,12 +56,9 @@ export function InvestForm({ catalog, onDone, onCancel, action: initialAction, i
   if (investments.length === 0) return <Explain>{t('invest.needAccount')}</Explain>;
   return (
     <form className="dialog-form cr-stack" onSubmit={(event) => void submit(event)}>
-      <label className="cr-field">
-        <span className="cr-label">{t('invest.what')}</span>
-        <select value={action} onChange={(event) => setAction(event.target.value as InvestmentAction)}>
+      <SelectField label={t('invest.what')} value={action} onChange={(event) => setAction(event.target.value as InvestmentAction)}>
           {INVEST_ACTIONS.map((option) => <option key={option.action} value={option.action}>{t(option.label)}</option>)}
-        </select>
-      </label>
+        </SelectField>
       <Explain>{t(explain)}</Explain>
       <WalletSelect label={t('invest.account')} wallets={investments} value={accountId} onChange={setAccountId} />
       <MoneyField key={action} label={action === 'value' ? t('invest.newValue') : t('common.amount')} currency={currency} value={amount} onChange={setAmount} allowZero={action === 'value'} autoFocus
@@ -127,12 +125,9 @@ export function LoanForm({ catalog, onDone, onCancel, action: initialAction, loa
   return (
     <form className="dialog-form cr-stack" onSubmit={(event) => void submit(event)}>
       {bill ? <Explain>{t('record.payingBill', { name: bill.name, date: bill.dueOn })}</Explain> : (
-        <label className="cr-field">
-          <span className="cr-label">{t('loan.what')}</span>
-          <select value={action} onChange={(event) => setAction(event.target.value as LoanAction)}>
+        <SelectField label={t('loan.what')} value={action} onChange={(event) => setAction(event.target.value as LoanAction)}>
             {LOAN_ACTIONS.map((option) => <option key={option.action} value={option.action}>{t(option.label)}</option>)}
-          </select>
-        </label>
+          </SelectField>
       )}
       <Explain>{t(definition?.explain ?? 'loan.repayExplain')}</Explain>
       {loans.length === 0 ? <Explain tone="warn">{t('loan.needAccount')}</Explain> : (

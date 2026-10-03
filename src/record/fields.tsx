@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import type { AccountWallet } from '../api/schemas.ts';
 import type { PickerGroup } from '../app/workspace.tsx';
 import { useI18n, type MessageKey } from '../lib/i18n.tsx';
+import { SelectField } from '../ui/select-field.tsx';
 import type { Currency } from '../lib/money.ts';
 
 export function WalletSelect({ label, wallets, value, onChange, currency }: {
@@ -14,14 +15,11 @@ export function WalletSelect({ label, wallets, value, onChange, currency }: {
   const { money } = useI18n();
   const choices = currency ? wallets.filter((wallet) => wallet.currency === currency) : wallets;
   return (
-    <label className="cr-field">
-      <span className="cr-label">{label}</span>
-      <select value={value} required onChange={(event) => onChange(event.target.value)}>
+    <SelectField label={label} value={value} required onChange={(event) => onChange(event.target.value)}>
         {choices.map((wallet) => (
           <option key={wallet.id} value={wallet.id}>{`${wallet.name} — ${money(wallet.balance, wallet.currency)}`}</option>
         ))}
-      </select>
-    </label>
+      </SelectField>
   );
 }
 
@@ -40,9 +38,7 @@ export function ItemSelect({ label, groups, value, onChange, currency, includeRe
 }) {
   const { t, money, name } = useI18n();
   return (
-    <label className="cr-field">
-      <span className="cr-label">{label}</span>
-      <select value={value} required={!includeReady} onChange={(event) => onChange(event.target.value)}>
+    <SelectField label={label} value={value} required={!includeReady} onChange={(event) => onChange(event.target.value)}>
         {includeReady ? (
           <option value={READY}>{readyBalance === undefined ? t('common.readyToAssign') : `${t('common.readyToAssign')} — ${money(readyBalance, currency)}`}</option>
         ) : (
@@ -55,8 +51,7 @@ export function ItemSelect({ label, groups, value, onChange, currency, includeRe
             ))}
           </optgroup>
         ))}
-      </select>
-    </label>
+      </SelectField>
   );
 }
 

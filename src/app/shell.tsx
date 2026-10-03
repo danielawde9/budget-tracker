@@ -2,6 +2,7 @@ import { ChartPie, House, Languages, Leaf, List, Plus, Settings, Wallet } from '
 import type { ReactNode } from 'react';
 import type { SpaceSummary } from '../api/schemas.ts';
 import { useI18n, type MessageKey } from '../lib/i18n.tsx';
+import { SelectField } from '../ui/select-field.tsx';
 import { navigate, type Route, type RouteName } from './router.ts';
 
 const DESTINATIONS: readonly { readonly name: RouteName; readonly label: MessageKey; readonly Icon: typeof House }[] = [
@@ -26,12 +27,11 @@ function SpaceControl({ space, spaces, onSelectSpace }: Pick<ShellProps, 'space'
   const { t } = useI18n();
   if (spaces.length < 2) return <p className="cr-space-name"><bdi>{space.name}</bdi></p>;
   return (
-    <label className="cr-space-select">
-      <span className="cr-visually-hidden">{t('shell.space')}</span>
-      <select value={space.id} onChange={(event) => onSelectSpace(event.target.value)}>
+    <div className="cr-space-select">
+      <SelectField label={t('shell.space')} hideLabel value={space.id} onChange={(event) => onSelectSpace(event.target.value)}>
         {spaces.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
-      </select>
-    </label>
+      </SelectField>
+    </div>
   );
 }
 

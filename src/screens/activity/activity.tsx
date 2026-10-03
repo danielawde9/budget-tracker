@@ -7,6 +7,7 @@ import type { RecordIntent } from '../../record/record-dialog.tsx';
 import { ErrorNotice, useLoad } from '../../ui/async.tsx';
 import { Dialog } from '../../ui/dialog.tsx';
 import { Amount } from '../../ui/money.tsx';
+import { SelectField } from '../../ui/select-field.tsx';
 import { addMonths, describeEntry, kindLabel } from '../describe.ts';
 
 const FLOW_LABEL = {
@@ -56,31 +57,22 @@ export function ActivityScreen({ onRecord }: { readonly onRecord: (intent: Recor
       <PageHeader title={t('nav.activity')} subtitle={t('activity.intro')} />
       <section className="cr-card">
         <div className="cr-toolbar cr-filters">
-          <label className="cr-field">
-            <span className="cr-label">{t('activity.month')}</span>
-            <select value={month} onChange={(event) => setMonth(event.target.value)}>
+          <SelectField label={t('activity.month')} value={month} onChange={(event) => setMonth(event.target.value)}>
               <option value="">{t('activity.allMonths')}</option>
               {months.map((value) => <option key={value} value={value}>{date(value, 'month')}</option>)}
-            </select>
-          </label>
-          <label className="cr-field">
-            <span className="cr-label">{t('common.wallet')}</span>
-            <select value={walletId} onChange={(event) => setWalletId(event.target.value)}>
+            </SelectField>
+          <SelectField label={t('common.wallet')} value={walletId} onChange={(event) => setWalletId(event.target.value)}>
               <option value="">{t('activity.allWallets')}</option>
               {catalog.data?.accounts.wallets.map((wallet) => <option key={wallet.id} value={wallet.id}>{wallet.name}</option>)}
-            </select>
-          </label>
-          <label className="cr-field">
-            <span className="cr-label">{t('common.item')}</span>
-            <select value={itemId} onChange={(event) => setItemId(event.target.value)}>
+            </SelectField>
+          <SelectField label={t('common.item')} value={itemId} onChange={(event) => setItemId(event.target.value)}>
               <option value="">{t('activity.allItems')}</option>
               {catalog.data ? pickerGroups(catalog.data.plan).map((group) => (
                 <optgroup key={group.groupId} label={i18n.name(group)}>
                   {group.items.map((item) => <option key={item.itemId} value={item.itemId}>{i18n.name(item)}</option>)}
                 </optgroup>
               )) : null}
-            </select>
-          </label>
+            </SelectField>
         </div>
         {first.status === 'error' ? <ErrorNotice error={first.error} onRetry={first.reload} /> : null}
         {first.status === 'loading' && pages.length === 0 ? <p role="status" className="cr-helper">{t('common.loading')}</p> : null}

@@ -6,6 +6,7 @@ import type { Currency } from '../lib/money.ts';
 import { ErrorNotice, LoadState, useCommand, useLoad } from '../ui/async.tsx';
 import { Amount, MoneyField } from '../ui/money.tsx';
 import { Explain, FormActions, ItemSelect } from './fields.tsx';
+import { SelectField } from '../ui/select-field.tsx';
 import type { FormProps } from './forms-everyday.tsx';
 
 /**
@@ -132,13 +133,10 @@ export function BillForm({ catalog, onDone, onCancel, bill }: FormProps & { read
         </label>
       )}
       {item?.kind === 'loan_payment' && loans.length > 0 ? (
-        <label className="cr-field">
-          <span className="cr-label">{t('bill.loan')}</span>
-          <select value={loanId} onChange={(event) => setLoanId(event.target.value)}>
+        <SelectField label={t('bill.loan')} value={loanId} onChange={(event) => setLoanId(event.target.value)}>
             <option value="">{t('common.none')}</option>
             {loans.map((loan) => <option key={loan.id} value={loan.id}>{loan.name}</option>)}
-          </select>
-        </label>
+          </SelectField>
       ) : null}
       {command.error ? <ErrorNotice error={command.error} /> : null}
       {bill ? (

@@ -9,6 +9,7 @@ import { bpsToPercentText, flexPlanned, groupOver, percentTextToBps, splitByBps 
 import { ErrorNotice, useCommand } from '../../ui/async.tsx';
 import { Dialog } from '../../ui/dialog.tsx';
 import { Amount, MoneyField } from '../../ui/money.tsx';
+import { SelectField } from '../../ui/select-field.tsx';
 import { KIND_LABEL } from './plan.tsx';
 
 type EditableKind = 'spending' | 'reserve' | 'goal' | 'loan_payment';
@@ -209,12 +210,9 @@ export function PlanEditorForm({ plan, month, onCancel, onSaved, cancelLabel }: 
                       <input type="text" required maxLength={60} value={localName(item)} onChange={(event) => setItem(group.key, item.key, (current) => withName(current, event.target.value))} />
                     </label>
                     {item.itemId ? <p className="cr-kind">{t(KIND_LABEL[item.kind])}</p> : (
-                      <label className="cr-field">
-                        <span className="cr-label">{t('editor.kind')}</span>
-                        <select value={item.kind} onChange={(event) => setItem(group.key, item.key, (current) => ({ ...current, kind: event.target.value as EditableKind }))}>
+                      <SelectField label={t('editor.kind')} value={item.kind} onChange={(event) => setItem(group.key, item.key, (current) => ({ ...current, kind: event.target.value as EditableKind }))}>
                           {(['spending', 'reserve', 'goal', 'loan_payment'] as const).map((kind) => <option key={kind} value={kind}>{t(KIND_LABEL[kind])}</option>)}
-                        </select>
-                      </label>
+                        </SelectField>
                     )}
                     <MoneyField label={t('editor.monthly')} currency={currency} value={item.monthly} allowZero
                       onChange={(monthly) => setItem(group.key, item.key, (current) => ({ ...current, monthly }))} />
@@ -229,13 +227,10 @@ export function PlanEditorForm({ plan, month, onCancel, onSaved, cancelLabel }: 
                       </>
                     ) : null}
                     {item.kind === 'loan_payment' && loans.length > 0 ? (
-                      <label className="cr-field">
-                        <span className="cr-label">{t('editor.loan')}</span>
-                        <select value={item.walletId ?? ''} required onChange={(event) => setItem(group.key, item.key, (current) => ({ ...current, walletId: event.target.value || null }))}>
+                      <SelectField label={t('editor.loan')} value={item.walletId ?? ''} required onChange={(event) => setItem(group.key, item.key, (current) => ({ ...current, walletId: event.target.value || null }))}>
                           <option value="" disabled>{t('editor.chooseLoan')}</option>
                           {loans.map((loan) => <option key={loan.id} value={loan.id}>{loan.name}</option>)}
-                        </select>
-                      </label>
+                        </SelectField>
                     ) : null}
                     <div className="cr-row">
                       <button type="button" className="cr-icon-button" aria-label={t('editor.itemUp')} disabled={itemIndex === 0}

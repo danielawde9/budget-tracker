@@ -201,7 +201,7 @@ export const screenMessages = {
   'record.moveExplain': { en: 'Changes what money is for. No wallet changes, and it is not new saving or spending.', ar: 'يغيّر غرض المال. لا تتغير أي محفظة، وليس ادخارًا جديدًا أو إنفاقًا.' },
   'record.moveAvailable': { en: '{name} holds {amount}.', ar: '{name} يحتوي {amount}.' },
   'record.moveTooMuch': { en: 'That is more than it holds.', ar: 'هذا أكثر مما يحتويه.' },
-  'record.saveMove': { en: 'Move money', ar: 'نقل المال' },
+  'record.saveMove': { en: 'Move now', ar: 'انقل الآن' },
   'record.moveDone': { en: 'Moved {amount} from {from} to {to}.', ar: 'نُقل {amount} من {from} إلى {to}.' },
   'record.exchangeExplain': { en: 'Enter exactly what you gave and what you got; the rate comes from those two amounts.', ar: 'أدخل بالضبط ما دفعت وما استلمت؛ يُحسب السعر من المبلغين.' },
   'record.youGave': { en: 'You gave', ar: 'دفعت' },

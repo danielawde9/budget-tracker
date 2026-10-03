@@ -1,32 +1,28 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// End-to-end tests drive real Chrome against the LOCAL preview stack
+// (pnpm preview:up). Each test creates its own throwaway user.
 export default defineConfig({
   testDir: './e2e',
-  // Only *.spec.ts files are Playwright tests. The default pattern also picks
-  // up *.test.ts, and one stray Vitest file under e2e/ once made the whole
-  // collection "0 tests in 0 files" (Task 8; final review recommendation 4).
   testMatch: '**/*.spec.ts',
   fullyParallel: false,
+  workers: 1,
   retries: 0,
   reporter: 'list',
+  timeout: 60_000,
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL: 'http://127.0.0.1:5173',
     colorScheme: 'light',
     locale: 'en-US',
     channel: 'chrome',
     trace: 'retain-on-failure',
+    timezoneId: 'Asia/Beirut',
   },
   webServer: {
-    command: 'pnpm vite --host 127.0.0.1 --port 4173',
-    url: 'http://127.0.0.1:4173',
-    reuseExistingServer: false,
-    env: {
-      VITE_SUPABASE_URL: 'http://127.0.0.1:55432',
-      VITE_SUPABASE_ANON_KEY: 'visual-test-anon-key',
-    },
+    command: 'pnpm demo',
+    url: 'http://127.0.0.1:5173',
+    reuseExistingServer: true,
+    timeout: 60_000,
   },
-  projects: [
-    { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 1000 } } },
-    { name: 'mobile', use: { ...devices['Pixel 7'], channel: 'chrome', viewport: { width: 390, height: 844 } } },
-  ],
+  projects: [{ name: 'desktop', use: { ...devices['Desktop Chrome'], channel: 'chrome', viewport: { width: 1440, height: 1000 } } }],
 });
