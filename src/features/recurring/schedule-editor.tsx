@@ -204,8 +204,8 @@ export function ScheduleEditor(props: ScheduleEditorProps) {
       return true;
     }
     if (index === 2) {
-      if (!nameEn.trim() && !nameAr.trim()) {
-        setError(t(props.locale, 'Enter a name in at least one language.', 'أدخل اسمًا بلغة واحدة على الأقل.'));
+      if (!(props.locale === 'ar' ? nameAr : nameEn).trim()) {
+        setError(t(props.locale, 'Enter a name.', 'أدخل اسمًا.'));
         return false;
       }
       if (!validDate(startsOn)) {
@@ -234,21 +234,21 @@ export function ScheduleEditor(props: ScheduleEditorProps) {
   }
 
   function goNext() {
-    if (props.pending) return;
+    if (props.pending || props.ambiguous) return;
     if (!validateStep(step)) return;
     setError(null);
     setStep(step + 1);
   }
 
   function goBack() {
-    if (props.pending) return;
+    if (props.pending || props.ambiguous) return;
     setError(null);
     setStep((current) => Math.max(0, current - 1));
   }
 
   function save() {
     if (savingRef.current) return;
-    if (props.pending) return;
+    if (props.pending || props.ambiguous) return;
     for (let index = 1; index <= 3; index += 1) {
       if (!validateStep(index)) {
         setStep(index);
@@ -278,7 +278,7 @@ export function ScheduleEditor(props: ScheduleEditorProps) {
 
   const stepId = STEPS[step] ?? 'type';
   const stepTitle = stepLabel(props.locale, stepId);
-  const reviewNames = [nameEn.trim(), nameAr.trim()].filter(Boolean);
+  const reviewName = (props.locale === 'ar' ? nameAr : nameEn).trim();
   const reviewCategory = props.referenceOptions.categories.find((item) => item.id === categoryId);
   const reviewLoan = props.referenceOptions.loans.find((item) => item.id === loanId);
   const reviewGoal = props.referenceOptions.goals.find((item) => item.id === fundingGoalId);
@@ -293,7 +293,7 @@ export function ScheduleEditor(props: ScheduleEditorProps) {
       <StepIndicator locale={props.locale} step={step} />
       <h3 className="cr-wizard-step-heading">{stepTitle}</h3>
 
-      <div key={step} className="cr-wizard-content" role="group" aria-label={stepTitle}>
+      <fieldset key={step} className="cr-wizard-content" disabled={props.pending || props.ambiguous} role="group" aria-label={stepTitle} style={{ border: 0, margin: 0, padding: 0, minInlineSize: 0 }}>
         {stepId === 'type' && <>
           <fieldset className="cr-choice">
             <legend>{t(props.locale, 'Kind', 'النوع')}</legend>
@@ -335,10 +335,11 @@ export function ScheduleEditor(props: ScheduleEditorProps) {
 
         {stepId === 'details' && <>
           <div className="form-grid">
-            <label className="full-field">{t(props.locale, 'Name (English)', 'الاسم (إنجليزي)')}
-              <input type="text" autoFocus placeholder={t(props.locale, 'e.g. Internet bill', 'مثال: فاتورة الإنترنت')} value={nameEn} onChange={(event) => { setNameEn(event.target.value); setError(null); }} /></label>
-            <label className="full-field">{t(props.locale, 'Name (Arabic)', 'الاسم (عربي)')}
-              <input type="text" placeholder={t(props.locale, 'مثال: فاتورة الإنترنت', 'مثال: فاتورة الإنترنت')} value={nameAr} onChange={(event) => { setNameAr(event.target.value); setError(null); }} /></label>
+            <label className="full-field">{t(props.locale, 'Name', 'الاسم')}
+              <input type="text" autoFocus name={props.locale === 'ar' ? 'nameAr' : 'nameEn'} dir={props.locale === 'ar' ? 'rtl' : 'ltr'}
+                placeholder={t(props.locale, 'e.g. Internet bill', 'مثال: فاتورة الإنترنت')}
+                value={props.locale === 'ar' ? nameAr : nameEn}
+                onChange={(event) => { (props.locale === 'ar' ? setNameAr : setNameEn)(event.target.value); setError(null); }} /></label>
           </div>
 
           <fieldset className="cr-choice">
@@ -405,25 +406,25 @@ export function ScheduleEditor(props: ScheduleEditorProps) {
           <ReviewRow label={t(props.locale, 'Recurrence', 'التكرار')}>{`${cadenceLabel(props.locale, cadence)} · ${Number(intervalCountText)} ${cadenceUnit(props.locale, cadence)}`}</ReviewRow>
           <ReviewRow label={t(props.locale, 'Starts on', 'يبدأ في')}>{startsOn}</ReviewRow>
           <ReviewRow label={t(props.locale, 'Ends on', 'ينتهي في')}>{endsOn || '—'}</ReviewRow>
-          <ReviewRow label={t(props.locale, 'Name', 'الاسم')}>{reviewNames.map((name, index) => <span key={name}>{index > 0 ? ' · ' : ''}<bdi>{name}</bdi></span>)}</ReviewRow>
+          <ReviewRow label={t(props.locale, 'Name', 'الاسم')}><bdi>{reviewName}</bdi></ReviewRow>
           <ReviewRow label={t(props.locale, 'Category', 'الفئة')}>{reviewCategory ? (props.locale === 'ar' ? reviewCategory.nameAr : reviewCategory.nameEn) : t(props.locale, 'None', 'بدون')}</ReviewRow>
           <ReviewRow label={t(props.locale, 'Loan', 'القرض')}>{reviewLoan ? reviewLoan.name : t(props.locale, 'None', 'بدون')}</ReviewRow>
           <ReviewRow label={t(props.locale, 'Funding goal', 'هدف التمويل')}>{reviewGoal ? (props.locale === 'ar' ? reviewGoal.nameAr : reviewGoal.nameEn) : t(props.locale, 'None', 'بدون')}</ReviewRow>
           <ReviewRow label={t(props.locale, 'Preferred wallet', 'المحفظة المفضّلة')}>{reviewWallet ? `${reviewWallet.name} · ${reviewWallet.currency}` : t(props.locale, 'None', 'بدون')}</ReviewRow>
         </div>}
-      </div>
+      </fieldset>
 
-      {error && <div className="error-notice" role="alert">
-        {error}
-        {props.ambiguous && <div><button type="button" className="button-secondary retry-command" onClick={() => void run(props.onRetry)}>{t(props.locale, 'Retry unchanged request', 'إعادة الطلب دون تغيير')}</button></div>}
+      {(error || props.ambiguous) && <div className="error-notice" role="alert">
+        {error ?? t(props.locale, 'The result is still unknown. Retry only with this unchanged request.', 'ما زالت النتيجة غير معروفة. أعد المحاولة بهذا الطلب نفسه فقط.')}
+        {props.ambiguous && <div><button type="button" className="button-secondary retry-command" disabled={props.pending || savingRef.current} onClick={() => { if (savingRef.current || props.pending) return; savingRef.current = true; void run(props.onRetry); }}>{t(props.locale, 'Retry unchanged request', 'إعادة الطلب دون تغيير')}</button></div>}
       </div>}
       <div className="cr-wizard-footer">
         <button type="button" className="text-button" disabled={props.pending} onClick={props.onClose}>{t(props.locale, 'Cancel', 'إلغاء')}</button>
-        {step > 0 && <button type="button" className="button-secondary" disabled={props.pending} onClick={goBack}>{t(props.locale, 'Back', 'رجوع')}</button>}
+        {step > 0 && <button type="button" className="button-secondary" disabled={props.pending || props.ambiguous} onClick={goBack}>{t(props.locale, 'Back', 'رجوع')}</button>}
         <div className="cr-wizard-footer-end">
           {stepId === 'review'
-            ? <button type="button" className="cr-button cr-button--primary" disabled={props.pending || savingRef.current} onClick={() => save()}>{props.pending || savingRef.current ? t(props.locale, 'Saving…', 'جارٍ الحفظ…') : t(props.locale, 'Save', 'حفظ')}</button>
-            : <button type="button" className="cr-button cr-button--primary" disabled={props.pending} onClick={goNext}>{t(props.locale, 'Next', 'التالي')}</button>}
+            ? <button type="button" className="cr-button cr-button--primary" disabled={props.pending || props.ambiguous || savingRef.current} onClick={() => save()}>{props.pending || savingRef.current ? t(props.locale, 'Saving…', 'جارٍ الحفظ…') : t(props.locale, 'Save', 'حفظ')}</button>
+            : <button type="button" className="cr-button cr-button--primary" disabled={props.pending || props.ambiguous} onClick={goNext}>{t(props.locale, 'Next', 'التالي')}</button>}
         </div>
       </div>
     </form>

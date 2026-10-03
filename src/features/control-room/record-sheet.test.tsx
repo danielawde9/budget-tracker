@@ -715,7 +715,8 @@ describe('RecordSheet', () => {
     expect(screen.queryByRole('button', { name: 'Groceries' })).not.toBeInTheDocument();
     expect(screen.getByText('Create new category')).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText('Name (English)'), 'Transport');
+    expect(screen.queryByLabelText('Name (Arabic)')).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText('Name'), 'Transport');
     await user.click(screen.getByRole('button', { name: 'Create & select' }));
 
     expect(props.onCreateCategory).toHaveBeenCalledWith({ kind: 'expense', nameEn: 'Transport', nameAr: '' });
@@ -735,7 +736,7 @@ describe('RecordSheet', () => {
     // Expand Groceries to signal subcategory intent, then type a non-matching child name.
     await user.click(screen.getByRole('button', { name: 'Expand Groceries' }));
     await user.type(screen.getByPlaceholderText('Type to filter or create'), 'Bakery');
-    await user.type(screen.getByLabelText('Name (English)'), 'Bakery');
+    await user.type(screen.getByLabelText('Name'), 'Bakery');
     await user.click(screen.getByRole('button', { name: 'Create & select' }));
 
     expect(props.onCreateCategory).toHaveBeenCalledWith({
@@ -757,11 +758,11 @@ describe('RecordSheet', () => {
     // Open the create form with a new name.
     await user.type(screen.getByPlaceholderText('Type to filter or create'), 'Transport');
     expect(screen.getByText('Create new category')).toBeInTheDocument();
-    await user.type(screen.getByLabelText('Name (English)'), 'Transport');
+    await user.type(screen.getByLabelText('Name'), 'Transport');
 
     // Then change the name to an existing one.
-    await user.clear(screen.getByLabelText('Name (English)'));
-    await user.type(screen.getByLabelText('Name (English)'), 'Groceries');
+    await user.clear(screen.getByLabelText('Name'));
+    await user.type(screen.getByLabelText('Name'), 'Groceries');
     expect(screen.getByText('A category with this name already exists.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create & select' })).toBeDisabled();
     expect(props.onCreateCategory).not.toHaveBeenCalled();
@@ -819,7 +820,7 @@ describe('RecordSheet', () => {
     await enterAmount(user, '1 0');
     await user.click(screen.getByRole('button', { name: 'Cash USD' }));
     await user.type(screen.getByPlaceholderText('Type to filter or create'), 'Transport');
-    await user.type(screen.getByLabelText('Name (English)'), 'Transport');
+    await user.type(screen.getByLabelText('Name'), 'Transport');
     await user.click(screen.getByRole('button', { name: 'Create & select' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('An active category already uses one of these names.');
     expect(screen.getByRole('button', { name: 'Create & select' })).toBeInTheDocument();

@@ -294,6 +294,7 @@ export function buyItCommands(environment: GoalBuyItEnvironment): BuyItCommands 
       definition: input.definition,
       milestones: input.milestones,
       state: 'closed',
+      stateOnly: true,
     }),
   };
 }

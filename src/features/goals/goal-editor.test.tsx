@@ -31,7 +31,7 @@ describe('GoalEditor: create', () => {
 
     await clickNext(); // Type → Target
     expect(screen.getByRole('heading', { name: 'Target' })).toBeInTheDocument();
-    await userEvent.type(screen.getByRole('textbox', { name: 'Name (English)' }), 'Emergency fund');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Emergency fund');
     await userEvent.type(screen.getByRole('textbox', { name: 'Target amount' }), '6000');
 
     await clickNext(); // Target → Contributions
@@ -74,7 +74,7 @@ describe('GoalEditor: create', () => {
     const onCreate = vi.fn();
     render(<GoalEditor {...baseProps()} onCreate={onCreate} />);
     await clickNext(); // Type → Target
-    await userEvent.type(screen.getByRole('textbox', { name: 'Name (English)' }), 'Laptop');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Laptop');
     await userEvent.type(screen.getByRole('textbox', { name: 'Target amount' }), '0');
     await clickNext();
     expect(screen.getByRole('alert')).toHaveTextContent('Enter a valid positive target amount.');
@@ -86,7 +86,7 @@ describe('GoalEditor: create', () => {
     const onCreate = vi.fn();
     render(<GoalEditor {...baseProps()} onCreate={onCreate} />);
     await clickNext(); // Type → Target
-    await userEvent.type(screen.getByRole('textbox', { name: 'Name (English)' }), 'Laptop');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Laptop');
     await userEvent.type(screen.getByRole('textbox', { name: 'Target amount' }), '1000');
     await clickNext(); // Target → Contributions
     await userEvent.click(screen.getByRole('radio', { name: 'By deadline' }));
@@ -100,12 +100,12 @@ describe('GoalEditor: create', () => {
     const onCreate = vi.fn();
     render(<GoalEditor {...baseProps()} onCreate={onCreate} />);
     await clickNext(); // Type → Target
-    await userEvent.type(screen.getByRole('textbox', { name: 'Name (English)' }), 'Emergency fund');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Emergency fund');
     await userEvent.type(screen.getByRole('textbox', { name: 'Target amount' }), '6000');
     await clickNext(); // Target → Contributions
     await clickNext(); // Contributions → Milestones
     await userEvent.click(screen.getByRole('button', { name: 'Add amount milestone' }));
-    await userEvent.type(screen.getByRole('textbox', { name: 'Milestone name (English)' }), 'Halfway');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Milestone name' }), 'Halfway');
     await clickNext();
     expect(screen.getByRole('alert')).toHaveTextContent('Every amount milestone needs a valid positive threshold.');
     expect(onCreate).not.toHaveBeenCalled();
@@ -126,7 +126,7 @@ describe('GoalEditor: create', () => {
     const onCreate = vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { goalId: 'g1', revisionId: '1' } });
     render(<GoalEditor {...baseProps()} onCreate={onCreate} />);
     await clickNext(); // Type → Target
-    await userEvent.type(screen.getByRole('textbox', { name: 'Name (English)' }), 'Goal');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Goal');
     await userEvent.type(screen.getByRole('textbox', { name: 'Target amount' }), '100');
     await clickNext(); // Target → Contributions
     await clickNext(); // Contributions → Milestones
@@ -143,7 +143,7 @@ describe('GoalEditor: create', () => {
     const onCreate = vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { goalId: 'g1', revisionId: '1' } });
     render(<GoalEditor {...baseProps()} plannedIncomeMinor="150000" onCreate={onCreate} />);
     await clickNext(); // Type → Target
-    await userEvent.type(screen.getByRole('textbox', { name: 'Name (English)' }), 'Emergency fund');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Emergency fund');
     await userEvent.type(screen.getByRole('textbox', { name: 'Target amount' }), '6000');
     await clickNext(); // Target → Contributions
     await userEvent.click(screen.getByRole('radio', { name: 'Planned income' }));
@@ -166,7 +166,7 @@ describe('GoalEditor: create', () => {
   it('blocks the planned-income source with a hint when the plan has none set', async () => {
     render(<GoalEditor {...baseProps()} />);
     await clickNext(); // Type → Target
-    await userEvent.type(screen.getByRole('textbox', { name: 'Name (English)' }), 'Emergency fund');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Emergency fund');
     await userEvent.type(screen.getByRole('textbox', { name: 'Target amount' }), '6000');
     await clickNext(); // Target → Contributions
     const planned = screen.getByRole('radio', { name: 'Planned income' });
@@ -179,7 +179,7 @@ describe('GoalEditor: create', () => {
   it('falls back to a custom amount when the currency changes after linking', async () => {
     render(<GoalEditor {...baseProps()} plannedIncomeMinor="150000" />);
     await clickNext(); // Type → Target
-    await userEvent.type(screen.getByRole('textbox', { name: 'Name (English)' }), 'Emergency fund');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Emergency fund');
     await userEvent.type(screen.getByRole('textbox', { name: 'Target amount' }), '6000');
     await clickNext(); // Target → Contributions
     await userEvent.click(screen.getByRole('radio', { name: 'Planned income' }));
@@ -197,7 +197,7 @@ describe('GoalEditor: create', () => {
   it('renders the amount-source choice and linked hint in Arabic', async () => {
     render(<GoalEditor {...baseProps()} locale="ar" plannedIncomeMinor="150000" />);
     await userEvent.click(screen.getByRole('button', { name: 'التالي' })); // Type → Target
-    await userEvent.type(screen.getByRole('textbox', { name: 'الاسم (إنجليزي)' }), 'Emergency fund');
+    await userEvent.type(screen.getByRole('textbox', { name: 'الاسم' }), 'Emergency fund');
     await userEvent.type(screen.getByRole('textbox', { name: 'مبلغ الهدف' }), '6000');
     await userEvent.click(screen.getByRole('button', { name: 'التالي' })); // Target → Contributions
     expect(screen.getByRole('radio', { name: 'مبلغ مخصص' })).toBeChecked();
@@ -211,7 +211,7 @@ describe('GoalEditor: create', () => {
   it('renders the blocked planned-income hint in Arabic', async () => {
     render(<GoalEditor {...baseProps()} locale="ar" />);
     await userEvent.click(screen.getByRole('button', { name: 'التالي' })); // Type → Target
-    await userEvent.type(screen.getByRole('textbox', { name: 'الاسم (إنجليزي)' }), 'Emergency fund');
+    await userEvent.type(screen.getByRole('textbox', { name: 'الاسم' }), 'Emergency fund');
     await userEvent.type(screen.getByRole('textbox', { name: 'مبلغ الهدف' }), '6000');
     await userEvent.click(screen.getByRole('button', { name: 'التالي' })); // Target → Contributions
     expect(screen.getByRole('radio', { name: 'الدخل المخطط' })).toBeDisabled();
@@ -223,7 +223,7 @@ describe('GoalEditor: create', () => {
     const onCreate = vi.fn(() => new Promise<CommandOutcome>((resolve) => { resolveCreate = resolve; }));
     render(<GoalEditor {...baseProps()} onCreate={onCreate} />);
     await clickNext(); // Type → Target
-    await userEvent.type(screen.getByRole('textbox', { name: 'Name (English)' }), 'Emergency fund');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Emergency fund');
     await userEvent.type(screen.getByRole('textbox', { name: 'Target amount' }), '6000');
     await clickNext(); // → Contributions
     await userEvent.type(screen.getByRole('textbox', { name: 'Monthly amount' }), '500');
@@ -253,6 +253,27 @@ describe('GoalEditor: revise', () => {
     for (let index = 0; index < 4; index += 1) await clickNext();
     expect(screen.getByRole('heading', { name: 'Review' })).toBeInTheDocument();
   }
+
+  it('edits only the active language and preserves hidden goal and milestone translations', async () => {
+    const onRevise = vi.fn().mockResolvedValue({ status: 'success', reconciled: false });
+    const bilingual = { ...existing, definition: { ...existing.definition, nameAr: 'صندوق الطوارئ' },
+      milestones: [{ id: 'm1', kind: 'checklist' as const, labelEn: 'Pick bank', labelAr: 'اختر المصرف', thresholdMinor: null, dueDate: null, ordinal: 0 }] };
+    render(<GoalEditor {...baseProps()} mode="revise" existing={bilingual} onRevise={onRevise} />);
+    await clickNext();
+    expect(screen.queryByRole('textbox', { name: /Arabic/ })).not.toBeInTheDocument();
+    await userEvent.clear(screen.getByRole('textbox', { name: 'Name' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Savings');
+    await clickNext(); await clickNext();
+    expect(screen.getAllByRole('textbox', { name: 'Milestone name' })).toHaveLength(1);
+    await userEvent.clear(screen.getByRole('textbox', { name: 'Milestone name' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Milestone name' }), 'Choose bank');
+    await clickNext();
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(onRevise).toHaveBeenCalledWith(expect.objectContaining({
+      definition: expect.objectContaining({ nameEn: 'Savings', nameAr: 'صندوق الطوارئ' }),
+      milestones: [expect.objectContaining({ labelEn: 'Choose bank', labelAr: 'اختر المصرف' })],
+    })));
+  });
 
   it("keeps an LBP goal's target, monthly amount and milestone exact when paused without edits", async () => {
     const onRevise = vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { goalId: 'g2', revisionId: '8' } });

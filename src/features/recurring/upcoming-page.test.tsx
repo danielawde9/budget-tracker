@@ -76,6 +76,23 @@ describe('UpcomingPage', () => {
     expect(details).toHaveTextContent('Net $700.00');
   });
 
+  it('shows only the viewed month while retaining the longer materialization range', async () => {
+    const recurring = fakeRecurringState({ page: page([
+      row({ id: 'oct', nameEn: 'Monthly bill', dueDate: '2026-10-15' }),
+      row({ id: 'nov', nameEn: 'Monthly bill', dueDate: '2026-11-15' }),
+      row({ id: 'dec', nameEn: 'Monthly bill', dueDate: '2026-12-15' }),
+    ]) });
+    render(<UpcomingPage locale="en" {...editorProps()} recurring={recurring} fromDate="2026-10-01" toDate="2026-10-31"
+      materializeFromDate="2026-10-01" materializeToDate="2026-12-31" />);
+    expect(within(screen.getByRole('table')).getAllByText('Monthly bill')).toHaveLength(1);
+    expect(screen.queryByText('2026-11-15')).not.toBeInTheDocument();
+    expect(screen.queryByText('2026-12-15')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'In this month' })).toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: 'Window summary' })).toHaveTextContent('1 outflow');
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh occurrences' }));
+    expect(recurring.materialize).toHaveBeenCalledWith({ fromDate: '2026-10-01', toDate: '2026-12-31' });
+  });
+
   it('U16-02: renders a February month-end due date verbatim, never shifted by client-side date math', () => {
     // A January-31 monthly schedule's February occurrence -- the DB (task
     // 14) already clamped this to the real month end; this UI never
@@ -177,7 +194,7 @@ describe('UpcomingPage', () => {
     await userEvent.click(within(form).getByRole('button', { name: 'Next' })); // Type → Amount
     await userEvent.type(within(form).getByRole('textbox', { name: 'Expected amount' }), '500');
     await userEvent.click(within(form).getByRole('button', { name: 'Next' })); // → Details
-    await userEvent.type(within(form).getByRole('textbox', { name: 'Name (English)' }), 'Rent');
+    await userEvent.type(within(form).getByRole('textbox', { name: 'Name' }), 'Rent');
     await userEvent.type(within(form).getByLabelText('Starts on'), '2026-10-01');
     await userEvent.click(within(form).getByRole('button', { name: 'Next' })); // → References
     await userEvent.click(within(form).getByRole('button', { name: 'Next' })); // → Review

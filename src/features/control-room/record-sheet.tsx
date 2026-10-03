@@ -748,21 +748,12 @@ export function RecordSheet(props: RecordSheetProps) {
                 : t(locale, 'Create new category', 'إنشاء فئة جديدة')}
             </p>
             <label className="cr-label">
-              {t(locale, 'Name (English)', 'الاسم (إنجليزي)')}
+              {t(locale, 'Name', 'الاسم')}
               <input
                 type="text"
                 placeholder={t(locale, 'e.g. Transport', 'مثال: مواصلات')}
-                value={createNameEn}
-                onChange={(event) => { setCreateNameEn(event.target.value); setCreateError(null); }}
-              />
-            </label>
-            <label className="cr-label">
-              {t(locale, 'Name (Arabic)', 'الاسم (عربي)')}
-              <input
-                type="text"
-                placeholder={t(locale, 'مثال: مواصلات', 'مثال: مواصلات')}
-                value={createNameAr}
-                onChange={(event) => { setCreateNameAr(event.target.value); setCreateError(null); }}
+                value={locale === 'ar' ? createNameAr : createNameEn}
+                onChange={(event) => { (locale === 'ar' ? setCreateNameAr : setCreateNameEn)(event.target.value); setCreateError(null); }}
               />
             </label>
             {createNameExists ? (

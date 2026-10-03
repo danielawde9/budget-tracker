@@ -101,7 +101,7 @@ export function CategoryDialog(props: CategoryDialogProps) {
 
   return <DialogShell title={t(props.locale, 'Create a category', 'إنشاء فئة')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} pending={props.pending || refreshing} descriptionId={descriptionId}>
     <form className="dialog-form cg-form" onSubmit={submit}>
-      <p id={descriptionId} className="dialog-intro dialog-consequence">{t(props.locale, 'Add an income or expense label. Enter either language or both; missing names are never invented.', 'أضف تسمية للدخل أو المصروف. أدخل لغة واحدة أو كلتيهما؛ لا يتم اختلاق الاسم المفقود.')}</p>
+      <p id={descriptionId} className="dialog-intro dialog-consequence">{t(props.locale, 'Add a name for your income or expense category.', 'أضف اسمًا لفئة الدخل أو المصروف.')}</p>
       {error && <div className="error-notice" role="alert">{error}{refreshRequired ? <div><button type="button" className="button-secondary retry-command" disabled={refreshing} onClick={() => void refreshAcceptedCommand()}>{refreshing ? t(props.locale, 'Refreshing…', 'جارٍ التحديث…') : t(props.locale, 'Refresh categories', 'تحديث الفئات')}</button></div> : props.ambiguous && <div><button type="button" className="button-secondary retry-command" disabled={props.pending} onClick={() => void run(props.onRetry)}>{t(props.locale, 'Retry unchanged category', 'إعادة الفئة دون تغيير')}</button></div>}</div>}
       <div className="form-grid category-form-grid cg-form">
         <fieldset className="segmented cg-kind">
@@ -113,9 +113,7 @@ export function CategoryDialog(props: CategoryDialogProps) {
             </label>
           ))}
         </fieldset>
-        <div className="category-name-note cg-name-note">{t(props.locale, 'At least one name is required.', 'مطلوب اسم واحد على الأقل.')}</div>
-        <label>{t(props.locale, 'English name', 'الاسم بالإنجليزية')}<input data-autofocus dir="ltr" maxLength={120} placeholder={t(props.locale, 'e.g. Transport', 'مثال: مواصلات')} value={nameEn} disabled={refreshRequired} onChange={(event) => edit(() => setNameEn(event.target.value))} /></label>
-        <label>{t(props.locale, 'Arabic name', 'الاسم بالعربية')}<input dir="rtl" maxLength={120} placeholder={t(props.locale, 'مثال: مواصلات', 'مثال: مواصلات')} value={nameAr} disabled={refreshRequired} onChange={(event) => edit(() => setNameAr(event.target.value))} /></label>
+        <label className="cg-locale-name">{t(props.locale, 'English name', 'الاسم بالعربية')}<input data-autofocus name={props.locale === 'ar' ? 'nameAr' : 'nameEn'} dir={props.locale === 'ar' ? 'rtl' : 'ltr'} maxLength={120} placeholder={t(props.locale, 'e.g. Transport', 'مثال: مواصلات')} value={props.locale === 'ar' ? nameAr : nameEn} disabled={refreshRequired} onChange={(event) => edit(() => props.locale === 'ar' ? setNameAr(event.target.value) : setNameEn(event.target.value))} /></label>
       </div>
       <div className="dialog-actions"><button type="button" className="button-secondary" disabled={props.pending || refreshing} onClick={props.onClose}>{t(props.locale, refreshRequired ? 'Close' : 'Cancel', refreshRequired ? 'إغلاق' : 'إلغاء')}</button><button type="submit" className="cr-button cr-button--primary" disabled={props.pending || refreshRequired}>{props.pending ? t(props.locale, 'Creating…', 'جارٍ الإنشاء…') : t(props.locale, 'Create category', 'إنشاء الفئة')}</button></div>
     </form>

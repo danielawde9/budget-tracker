@@ -57,6 +57,10 @@
   min-inline-size: 0;
 }
 
+.cr-main .cg-registers > .cg-register {
+  margin-block-start: 0;
+}
+
 /* ---- Category tree rows ----
    Two-track grid rows: the name sits in minmax(0, 1fr) so it wraps (never
    overflows 390px and never pushes actions out), actions sit in an auto
@@ -408,4 +412,35 @@
   .cg-action {
     transition: none;
   }
+}
+
+/* Keep the type choices separate at every breakpoint. */
+.cr-main .categories-workspace .cg-kind-tabs {
+  gap: var(--cr-space-2);
+  padding: 0;
+  border: 0;
+  margin-block: 0;
+}
+
+.cg-form .cg-locale-name { grid-column: 1 / -1; }
+
+.cg-loading-row {
+  display: grid;
+  grid-template-columns: 44px 32px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--cr-space-1) var(--cr-space-2);
+  min-block-size: 112px;
+  padding-block: var(--cr-space-2);
+  border-block-end: 1px solid var(--cr-hairline);
+}
+
+.cg-loading-row:last-child { border-block-end: 0; }
+.cg-loading-icon { inline-size: 32px; block-size: 32px; border-radius: var(--cr-radius-full); }
+.cg-loading-actions { grid-column: 3; display: flex; justify-content: end; gap: var(--cr-space-2); }
+.cg-loading-row > .cr-skeleton--line-short { inline-size: min(100%, 9rem); }
+.cg-loading .cg-register-header > .cr-skeleton--line-short { inline-size: min(60%, 12rem); }
+
+@media (max-width: 800px) {
+  .cr-main .cg-register[data-active="false"] { display: none; }
+  .cg-loading-row { padding-block: var(--cr-space-1); }
 }

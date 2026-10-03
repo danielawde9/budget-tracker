@@ -59,6 +59,7 @@ export function GoalMonthlyTargetDialog(props: GoalMonthlyTargetDialogProps) {
 
   function submit(event: FormEvent) {
     event.preventDefault();
+    if (props.pending || props.ambiguous) return;
     let amountMinor: string;
     try {
       amountMinor = parseNonnegativeMinor(amountText, props.currency);
@@ -86,15 +87,15 @@ export function GoalMonthlyTargetDialog(props: GoalMonthlyTargetDialogProps) {
       <p className="field-note">{t(props.locale, 'This is the amount the monthly plan reserves for this goal. Enter 0 to clear it.', 'هذا هو المبلغ الذي تخصصه الخطة الشهرية لهذا الهدف. أدخل 0 لمسحه.')}</p>
       <label className="full-field">
         {t(props.locale, 'Monthly target', 'الهدف الشهري')}
-        <input data-autofocus type="text" inputMode="decimal" placeholder={props.currency === 'USD' ? '0.00' : '0'} value={amountText} onChange={(event) => { setAmountText(event.target.value); setError(null); }} />
+        <input disabled={props.pending || props.ambiguous} data-autofocus type="text" inputMode="decimal" placeholder={props.currency === 'USD' ? '0.00' : '0'} value={amountText} onChange={(event) => { setAmountText(event.target.value); setError(null); }} />
       </label>
-      {error && <div className="error-notice" role="alert">
-        {error}
+      {(error || props.ambiguous) && <div className="error-notice" role="alert">
+        {error ?? t(props.locale, 'The result is uncertain. Retry the same request before making changes.', 'النتيجة غير مؤكدة. أعد الطلب نفسه قبل إجراء تغييرات.')}
         {props.ambiguous && <div><button type="button" className="button-secondary retry-command" onClick={() => void run(props.onRetry)}>{t(props.locale, 'Retry unchanged request', 'إعادة الطلب دون تغيير')}</button></div>}
       </div>}
       <div className="dialog-actions">
         <button type="button" className="button-secondary" disabled={props.pending} onClick={props.onClose}>{t(props.locale, 'Cancel', 'إلغاء')}</button>
-        <button type="submit" className="cr-button cr-button--primary" disabled={props.pending}>{props.pending ? t(props.locale, 'Saving…', 'جارٍ الحفظ…') : t(props.locale, 'Save', 'حفظ')}</button>
+        <button type="submit" className="cr-button cr-button--primary" disabled={props.pending || props.ambiguous}>{props.pending ? t(props.locale, 'Saving…', 'جارٍ الحفظ…') : t(props.locale, 'Save', 'حفظ')}</button>
       </div>
     </form>
   </DialogShell>;

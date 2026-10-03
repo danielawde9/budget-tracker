@@ -63,7 +63,7 @@ test('the goal editor keeps every radio beside its label in one compact row', as
   await expectCompactRadioRows();
   // Step 3 — Contributions: mode + monthly-amount source groups.
   await dialog.getByRole('button', { name: 'Next' }).click();
-  await dialog.getByLabel('Name (English)').fill('Emergency fund');
+  await dialog.getByLabel('Name').fill('Emergency fund');
   await dialog.getByLabel('Target amount').fill('6000');
   await dialog.getByRole('button', { name: 'Next' }).click();
   await expectCompactRadioRows();
@@ -100,7 +100,7 @@ test('creating a goal shows it in the list afterward', async ({ page }, testInfo
   // Step 1 — Type: the Reserve/USD defaults are fine.
   await form.getByRole('button', { name: 'Next' }).click();
   // Step 2 — Target.
-  await form.getByLabel('Name (English)').fill('Emergency fund');
+  await form.getByLabel('Name').fill('Emergency fund');
   await form.getByLabel('Target amount').fill('6000');
   await expectContainedControls(page, form);
   await page.screenshot({ path: screenshotPath(testInfo, `goal-editor-${testInfo.project.name}.png`) });
@@ -122,9 +122,9 @@ test('the funding dialog reserves an amount against the viewed goal', async ({ p
   const usdSection = page.getByRole('region', { name: 'Goals USD' });
   await usdSection.getByRole('button', { name: 'View' }).click();
   const detail = page.getByRole('region', { name: 'Goal detail' });
-  await detail.getByRole('button', { name: /Manage funding/ }).click();
+  await detail.getByRole('button', { name: /Set money aside/ }).click();
 
-  const dialog = page.getByRole('dialog', { name: 'Manage funding' });
+  const dialog = page.getByRole('dialog', { name: 'Set money aside' });
   await dialog.getByLabel('Amount').fill('100');
   await expectContainedControls(page, dialog);
   await dialog.getByRole('button', { name: 'Save' }).click();
@@ -153,4 +153,22 @@ test('Arabic RTL mirrors the goals overview and detail', async ({ page }, testIn
   await expect(detail.locator('ol').getByText('قارن الطرازات')).toBeVisible();
   await expectContainedControls(page);
   await page.screenshot({ path: screenshotPath(testInfo, `goals-ar-${testInfo.project.name}.png`), fullPage: true });
+});
+
+
+test('Pause, Resume and Close use one confirmation and preserve the goal', async ({ page }) => {
+  await openPlan(page, { seedGoals: [{ ...coreGoal, earmarkedMinor: '0' }], goalMilestones: coreMilestones });
+  const section = page.getByRole('region', { name: 'Goals USD' });
+  await section.getByRole('button', { name: 'View', exact: true }).click();
+  const detail = page.getByRole('region', { name: 'Goal detail' });
+  for (const [opener, action, state] of [['Pause goal', 'Pause', 'Paused'], ['Resume goal', 'Resume', 'Active'], ['Close goal', 'Close goal', 'Closed']] as const) {
+    await detail.getByRole('button', { name: opener, exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: opener, exact: true });
+    await expect(dialog.getByRole('button', { name: 'Next', exact: true })).toHaveCount(0);
+    await dialog.getByRole('button', { name: action, exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(detail.locator('.goal-state-label')).toHaveText(state);
+    await expect(detail.getByRole('heading', { name: 'New laptop' })).toBeVisible();
+    await expect(detail.getByRole('listitem').getByText('Compare models')).toBeVisible();
+  }
 });

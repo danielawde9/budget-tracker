@@ -672,6 +672,62 @@ describe('state machine', () => {
     expect(result.unmaterializedCount).toBe(backlogCount);
   });
 
+  it.each(['active', 'paused', 'closed'] as const)('flags an unsaved positive goal target for a goal in state %s without changing saved cash commitments', async (state) => {
+    const spaceId = await freshSpace(`Unsaved ${state} goal target`);
+    const wallet = await usdWallet(spaceId);
+    await recordIncome(spaceId, wallet, '10000');
+    const templateId = await saveTemplate(spaceId, []);
+    await publishV1({ spaceId, templateRevisionId: templateId, incomeMinor: '10000' });
+    const before = await summary(spaceId);
+    expect(before.needsReview).toBe(false);
+
+    const goal = await createGoal(spaceId);
+    await setGoalMonthlyTarget(spaceId, goal.goalId, '2500');
+    if (state !== 'active') {
+      await withAuthenticatedTransaction(db().client, actor, () => db().client.query(
+        'select public.revise_goal_plan($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7)',
+        [spaceId, randomUUID(), goal.goalId, goal.revisionId, JSON.stringify(goalDefinition()), '[]', state],
+      ));
+    }
+
+    const after = await summary(spaceId);
+    expect(after.needsReview).toBe(true);
+    expect({ ...after, needsReview: false }).toEqual(before);
+  });
+
+  it('does not flag omitted positive targets from another space, currency or month', async () => {
+    const spaceId = await freshSpace('Goal review scope');
+    const templateId = await saveTemplate(spaceId, []);
+    await publishV1({ spaceId, templateRevisionId: templateId, incomeMinor: '0' });
+    const before = await summary(spaceId);
+
+    const otherSpaceId = await freshSpace('Other goal review scope');
+    const otherSpaceGoal = await createGoal(otherSpaceId);
+    await setGoalMonthlyTarget(otherSpaceId, otherSpaceGoal.goalId, '2500');
+    const otherCurrencyGoal = await createGoal(spaceId, { currency: 'LBP' });
+    await setGoalMonthlyTarget(spaceId, otherCurrencyGoal.goalId, '2500');
+    const otherMonthGoal = await createGoal(spaceId);
+    const nextMonth = new Date(`${MONTH}T00:00:00Z`);
+    nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
+    await withAuthenticatedTransaction(db().client, actor, () => db().client.query(
+      'select public.set_goal_monthly_target($1,$2,$3,$4::date,$5,$6)',
+      [spaceId, randomUUID(), otherMonthGoal.goalId, nextMonth.toISOString().slice(0, 10), '2500', null],
+    ));
+
+    expect(await summary(spaceId)).toEqual(before);
+  });
+
+  it('does not flag an omitted goal whose latest monthly target was cleared to zero', async () => {
+    const spaceId = await freshSpace('Cleared unsaved goal target');
+    const templateId = await saveTemplate(spaceId, []);
+    await publishV1({ spaceId, templateRevisionId: templateId, incomeMinor: '0' });
+    const goal = await createGoal(spaceId);
+    await setGoalMonthlyTarget(spaceId, goal.goalId, '2500');
+    await setGoalMonthlyTarget(spaceId, goal.goalId, '0');
+
+    expect((await summary(spaceId)).needsReview).toBe(false);
+  });
+
   it('stays ready and flags needsReview when the live income target has changed since the saved snapshot', async () => {
     const spaceId = await freshSpace('Needs review');
     const wallet = await usdWallet(spaceId);

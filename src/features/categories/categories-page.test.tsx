@@ -56,6 +56,8 @@ describe('CategoriesPage', () => {
     await user.click(screen.getByRole('button', { name: 'Expense' }));
     expect(screen.getByRole('button', { name: 'Income' })).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByRole('button', { name: 'Expense' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('heading', { name: 'Expense categories' }).closest('[data-active]')).toHaveAttribute('data-active', 'true');
+    expect(screen.getByRole('heading', { name: 'Income categories' }).closest('[data-active]')).toHaveAttribute('data-active', 'false');
     expect(screen.getByRole('heading', { name: 'Income categories' }).closest('.cr-card')).not.toBeNull();
     expect(screen.getByRole('heading', { name: 'Expense categories' }).closest('.cr-card')).not.toBeNull();
     expect(screen.getByRole('list', { name: 'Subcategories of Groceries' })).toBeInTheDocument();

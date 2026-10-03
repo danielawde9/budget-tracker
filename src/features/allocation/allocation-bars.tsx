@@ -7,8 +7,6 @@ import type { AllocationGroupRow } from './types.js';
 const t = (locale: Locale, en: string, ar: string) => (locale === 'ar' ? ar : en);
 
 function rowLabel(row: AllocationGroupRow, locale: Locale): string {
-  if (row.rowKind === 'unmapped') return t(locale, 'Unmapped', 'غير مرتبط');
-  if (row.rowKind === 'uncategorized') return t(locale, 'Uncategorized', 'غير مصنّف');
   const name = locale === 'ar' ? row.nameAr : row.nameEn;
   return name ?? (locale === 'ar' ? row.nameEn : row.nameAr) ?? t(locale, 'Group', 'مجموعة');
 }
@@ -55,7 +53,7 @@ export function AllocationBars(props: AllocationBarsProps) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => {
+          {rows.filter(row => row.rowKind !== 'unmapped' && row.rowKind !== 'uncategorized').map((row) => {
             const label = rowLabel(row, locale);
             const rowHasTarget = monthHasPlan && row.hasPlan;
             const target = rowHasTarget ? row.targetMinor : null;

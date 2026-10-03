@@ -945,7 +945,7 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       goalReceipts.set(body.p_request_id, { command: 'create_goal_plan', sequenceId: revisionId, result });
       return json(route, result);
     }
-    if (path.endsWith('/rpc/revise_goal_plan')) {
+    if (path.endsWith('/rpc/revise_goal_plan') || path.endsWith('/rpc/set_goal_state')) {
       const body = request.postDataJSON() as {
         p_request_id: string; p_goal_id: string; p_state: string;
         p_definition: { nameEn: string | null; nameAr: string | null; targetMinor: string; deadline: string | null };
@@ -956,8 +956,10 @@ export async function installLoansApiFixture(page: Page, options: ApplicationFix
       const record = goals.find((row) => row['id'] === body.p_goal_id);
       if (record) {
         record['revisionId'] = revisionId; record['state'] = body.p_state;
-        record['nameEn'] = body.p_definition.nameEn; record['nameAr'] = body.p_definition.nameAr;
-        record['targetMinor'] = body.p_definition.targetMinor; record['dueDate'] = body.p_definition.deadline;
+        if (!path.endsWith('/rpc/set_goal_state')) {
+          record['nameEn'] = body.p_definition.nameEn; record['nameAr'] = body.p_definition.nameAr;
+          record['targetMinor'] = body.p_definition.targetMinor; record['dueDate'] = body.p_definition.deadline;
+        }
       }
       const result = { goalId: body.p_goal_id, revisionId };
       goalReceipts.set(body.p_request_id, { command: 'revise_goal_plan', sequenceId: revisionId, result });

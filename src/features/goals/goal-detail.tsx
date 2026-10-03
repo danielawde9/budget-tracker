@@ -1,3 +1,4 @@
+import type { LinkableEventOption } from '../recurring/linkable-events.js';
 import { useCallback, useEffect, useState } from 'react';
 import type { Currency, Locale } from '../loans/types.js';
 import { formatMinorAmount } from '../wallets/money.js';
@@ -10,12 +11,15 @@ import { GoalFundingDialog } from './goal-funding-dialog.js';
 import { GoalMilestones } from './goal-milestones.js';
 import { GoalMonthlyTargetDialog } from './goal-monthly-target-dialog.js';
 import { GoalPurchaseDialog } from './goal-purchase-dialog.js';
-import { latestMonthlyTargetRevisionId } from './monthly-target.js';
+import { GoalStateDialog } from './goal-state-dialog.js';
+import { loadGoalMonthlyTargetRevisionId } from './monthly-target.js';
 import type { GoalDetail as GoalDetailData, GoalHistoryRow, GoalState, GoalSummary } from './types.js';
 import type { GoalsState } from './use-goals.js';
 import { GoalDetailSkeleton } from '../control-room/skeletons.js';
 
 interface GoalDetailProps {
+  month?: string | undefined;
+  loadExpenses?: (() => Promise<readonly LinkableEventOption[]>) | undefined;
   locale: Locale;
   currency: Currency;
   /** Integer-minor planned income for this goal's currency from the monthly
@@ -30,7 +34,7 @@ interface GoalDetailProps {
   onBack(): void;
 }
 
-type DialogKind = 'funding' | 'purchase' | 'buyIt' | 'edit' | 'monthlyTarget';
+type DialogKind = 'funding' | 'purchase' | 'buyIt' | 'edit' | 'monthlyTarget' | 'state';
 
 const t = (locale: Locale, en: string, ar: string) => locale === 'ar' ? ar : en;
 
@@ -108,7 +112,7 @@ export function GoalDetail(props: GoalDetailProps) {
   const [historyCursor, setHistoryCursor] = useState<{ createdAt: string; sourceKind: string; sourceId: string } | null>(null);
   const [historyHasMore, setHistoryHasMore] = useState(false);
   const [monthlyTargetRevisionId, setMonthlyTargetRevisionId] = useState<string | null>(null);
-  const month = currentMonthStart();
+  const month = props.month ?? currentMonthStart();
 
   const { loadDetail, loadHistory } = props.goals;
   const load = useCallback(async () => {
@@ -116,16 +120,16 @@ export function GoalDetail(props: GoalDetailProps) {
     try {
       const data = await loadDetail({ goalId: props.goalId, month });
       setDetail(data);
-      setStatus('ready');
       const history = await loadHistory({ goalId: props.goalId, beforeCreatedAt: null, beforeSourceKind: null, beforeSourceId: null, limit: 10 });
       setHistoryRows(history.rows);
       // The plan month's monthly-target head is not on goal_detail; it comes
       // from the history feed's `monthly_target` rows (sourceId). This is the
       // value set_goal_monthly_target and publish_allocation_month_v2 must
       // send as the expected revision.
-      setMonthlyTargetRevisionId(latestMonthlyTargetRevisionId(history.rows, month));
+      setMonthlyTargetRevisionId(await loadGoalMonthlyTargetRevisionId(loadHistory, props.goalId, month));
       setHistoryCursor(history.nextCursor);
       setHistoryHasMore(history.hasMore);
+      setStatus('ready');
     } catch (cause) {
       setError(localizeGoalsError(classifyGoalsError(cause), props.locale));
       setStatus('error');
@@ -169,7 +173,7 @@ export function GoalDetail(props: GoalDetailProps) {
 
   function openStateChange(target: GoalState) {
     setPendingState(target);
-    setDialog('edit');
+    setDialog('state');
   }
 
   if (status === 'loading') return <GoalDetailSkeleton locale={props.locale} />;
@@ -192,7 +196,7 @@ export function GoalDetail(props: GoalDetailProps) {
   return <section className="goal-detail" aria-label={t(props.locale, 'Goal detail', 'تفاصيل الهدف')}>
     <div className="goal-row">
       <button type="button" className="cr-button" onClick={props.onBack}>{t(props.locale, 'Back to goals', 'العودة إلى الأهداف')}</button>
-      <h2><bdi>{goalName}</bdi></h2>
+      <h2><bdi>{goalName}</bdi></h2><span className="goal-state-label">{summary.state === 'active' ? t(props.locale, 'Active', 'نشط') : summary.state === 'paused' ? t(props.locale, 'Paused', 'موقوف مؤقتًا') : t(props.locale, 'Closed', 'مغلق')}</span>
       <button type="button" className="cr-button" onClick={() => setDialog('edit')}>{t(props.locale, 'Edit', 'تعديل')}</button>
     </div>
 
@@ -209,7 +213,7 @@ export function GoalDetail(props: GoalDetailProps) {
       <div className="goal-metric"><span className="goal-label-muted">{t(props.locale, 'Earmarked', 'المحجوز')}</span><bdi className="goal-metric-value">{formatMinorAmount(summary.earmarkedMinor, props.currency, props.locale)}</bdi></div>
       <div className="goal-metric"><span className="goal-label-muted">{t(props.locale, 'Cash-covered', 'مُغطّى نقدًا')}</span><bdi className="goal-metric-value">{summary.coveredMinor === null ? t(props.locale, 'Unknown', 'غير معروف') : formatMinorAmount(summary.coveredMinor, props.currency, props.locale)}</bdi></div>
       <div className="goal-metric"><span className="goal-label-muted">{t(props.locale, 'Fulfilled', 'المُنجز')}</span><bdi className="goal-metric-value">{formatMinorAmount(summary.fulfilledMinor, props.currency, props.locale)}</bdi></div>
-      {summary.shortageMinor !== null && <div className="goal-metric"><span className="goal-label-muted">{t(props.locale, 'Shortage before bills', 'العجز قبل الفواتير')}</span><bdi className="goal-metric-value goal-danger-text">{formatMinorAmount(summary.shortageMinor, props.currency, props.locale)}</bdi></div>}
+      {summary.shortageMinor !== null && <div className="goal-metric"><span className="goal-label-muted">{t(props.locale, 'Shortage before bills', 'العجز قبل الفواتير')}</span><bdi className={`goal-metric-value${BigInt(summary.shortageMinor) > 0n ? ' goal-danger-text' : ''}`}>{formatMinorAmount(summary.shortageMinor, props.currency, props.locale)}</bdi></div>}
       <div className="goal-metric"><span className="goal-label-muted">{t(props.locale, 'Monthly target', 'الهدف الشهري')}</span><bdi className="goal-metric-value">{summary.monthlyTargetMinor === null ? t(props.locale, 'None set', 'لم يُحدَّد') : formatMinorAmount(summary.monthlyTargetMinor, props.currency, props.locale)}</bdi></div>
       <div className="goal-metric"><span className="goal-label-muted">{t(props.locale, 'This month’s net contribution', 'صافي المساهمة لهذا الشهر')}</span><bdi className="goal-metric-value">{formatMinorAmount(summary.monthlyNetContributionMinor, props.currency, props.locale)}</bdi></div>
     </div>
@@ -221,9 +225,11 @@ export function GoalDetail(props: GoalDetailProps) {
 
     <div className="goal-row">
       {summary.kind === 'purchase' && summary.state === 'active' && props.buyIt && <button type="button" className="cr-button cr-button--primary" onClick={() => setDialog('buyIt')}>{t(props.locale, 'Buy it', 'اشترِه')}</button>}
-      {(summary.state !== 'closed' || summary.needsReview) && <button type="button" className="cr-button" onClick={() => setDialog('funding')}>{t(props.locale, 'Manage funding (reserve/release/move)', 'إدارة التمويل (حجز/تحرير/نقل)')}</button>}
+      {(summary.state !== 'closed' || summary.needsReview) && <button type="button" className="cr-button" onClick={() => setDialog('funding')}>{t(props.locale, 'Set money aside', 'تخصيص مبلغ')}</button>}
       <button type="button" className="cr-button" onClick={() => setDialog('monthlyTarget')}>{t(props.locale, 'Set monthly target', 'تعيين الهدف الشهري')}</button>
       <button type="button" className="cr-button" onClick={() => setDialog('purchase')}>{t(props.locale, 'Link a purchase', 'ربط عملية شراء')}</button>
+    </div>
+    <div className="goal-row goal-lifecycle-actions">
       {summary.state === 'active' && <button type="button" className="cr-button" onClick={() => openStateChange('paused')}>{t(props.locale, 'Pause goal', 'إيقاف الهدف مؤقتًا')}</button>}
       {summary.state === 'paused' && <button type="button" className="cr-button" onClick={() => openStateChange('active')}>{t(props.locale, 'Resume goal', 'استئناف الهدف')}</button>}
       {summary.state !== 'closed' && <button type="button" className="cr-button" onClick={() => openStateChange('closed')}>{t(props.locale, 'Close goal', 'إغلاق الهدف')}</button>}
@@ -258,7 +264,7 @@ export function GoalDetail(props: GoalDetailProps) {
         goalId: props.goalId, month, amountMinor: input.amountMinor, expectedRevisionId: input.expectedRevisionId,
       })} />}
 
-    {dialog === 'purchase' && <GoalPurchaseDialog locale={props.locale} currency={props.currency} goal={summary} goalHead={detail.earmarkHead}
+    {dialog === 'purchase' && <GoalPurchaseDialog loadExpenses={props.loadExpenses} locale={props.locale} currency={props.currency} goal={summary} goalHead={detail.earmarkHead}
       pending={props.goals.pending} ambiguous={props.goals.ambiguous !== null}
       onClose={closeDialog} onClearAmbiguous={props.goals.clearAmbiguous} onRetry={props.goals.retryAmbiguous}
       onSubmit={(input) => props.goals.linkPurchase({
@@ -272,7 +278,11 @@ export function GoalDetail(props: GoalDetailProps) {
       categoryOptions={props.buyIt.categoryOptions} commands={buyItCommands(props.buyIt)}
       onClose={closeBuyIt} />}
 
-    {dialog === 'edit' && <GoalEditor locale={props.locale} mode="revise" initialState={pendingState ?? undefined} plannedIncomeMinor={props.plannedIncomeMinor}
+    {dialog === 'state' && pendingState && <GoalStateDialog locale={props.locale} goal={summary} target={pendingState}
+      pending={props.goals.pending} ambiguous={props.goals.ambiguous !== null} onClose={closeDialog}
+      onManageFunding={() => { setPendingState(null); setDialog('funding'); }} onRetry={props.goals.retryAmbiguous}
+      onSubmit={() => props.goals.revise({ goalId: props.goalId, ...revision, state: pendingState, stateOnly: true })} />}
+    {dialog === 'edit' && <GoalEditor locale={props.locale} mode="revise" plannedIncomeMinor={props.plannedIncomeMinor}
       existing={{
         goalId: props.goalId, expectedRevisionId: revision.expectedRevisionId, currentState: summary.state,
         definition: revision.definition,

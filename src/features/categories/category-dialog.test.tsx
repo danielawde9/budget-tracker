@@ -5,25 +5,38 @@ import { describe, expect, it, vi } from 'vitest';
 import { CategoryDialog } from './category-dialog.js';
 
 describe('CategoryDialog', () => {
-  it('requires one bounded name and submits independent retained English and Arabic values', async () => {
+  it('requires one bounded name and submits the active language only', async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn(async () => { throw { code: 'P0001', message: 'an active category already uses one of the supplied normalized names' }; });
     render(<CategoryDialog locale="en" initialKind="expense" pending={false} ambiguous={false} onClose={vi.fn()} onClearAmbiguous={vi.fn()} onRetry={vi.fn()} onRefresh={vi.fn()} onSubmit={onSubmit} />);
     const dialog = screen.getByRole('dialog', { name: 'Create a category' });
     expect(within(dialog).getByLabelText('English name')).toHaveFocus();
-    const description = within(dialog).getByText(/Add an income or expense label/);
+    const description = within(dialog).getByText(/Add a name for your income or expense category/);
     expect(description.id).not.toBe('');
     expect(dialog).toHaveAttribute('aria-describedby', description.id);
 
     await user.click(within(dialog).getByRole('button', { name: 'Create category' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('at least one category name');
     await user.type(within(dialog).getByLabelText('English name'), 'Groceries');
-    await user.type(within(dialog).getByLabelText('Arabic name'), 'بقالة');
+    expect(within(dialog).queryByLabelText('Arabic name')).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Create category' }));
-    expect(onSubmit).toHaveBeenCalledWith({ kind: 'expense', nameEn: 'Groceries', nameAr: 'بقالة' });
+    expect(onSubmit).toHaveBeenCalledWith({ kind: 'expense', nameEn: 'Groceries', nameAr: null });
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('already uses one of these names');
     expect(within(dialog).getByDisplayValue('Groceries')).toBeInTheDocument();
-    expect(within(dialog).getByDisplayValue('بقالة')).toBeInTheDocument();
+    expect(within(dialog).queryByDisplayValue('بقالة')).not.toBeInTheDocument();
+  });
+
+  it('submits Arabic only and retains an English draft when the locale changes', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn(async () => ({ status: 'success' as const, reconciled: false }));
+    const props = { initialKind: 'expense' as const, pending: false, ambiguous: false, onClose: vi.fn(), onClearAmbiguous: vi.fn(), onRetry: vi.fn(), onRefresh: vi.fn(), onSubmit };
+    const { rerender } = render(<CategoryDialog {...props} locale="en" />);
+    await user.type(screen.getByLabelText('English name'), 'Transport');
+    rerender(<CategoryDialog {...props} locale="ar" />);
+    expect(screen.queryByLabelText('الاسم بالإنجليزية')).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText('الاسم بالعربية'), 'المواصلات');
+    await user.click(screen.getByRole('button', { name: 'إنشاء الفئة' }));
+    expect(onSubmit).toHaveBeenCalledWith({ kind: 'expense', nameEn: 'Transport', nameAr: 'المواصلات' });
   });
 
   it('announces ambiguity and clears recovery on edit', async () => {
@@ -81,7 +94,7 @@ describe('CategoryDialog', () => {
     const close = vi.fn();
     render(<CategoryDialog locale="ar" initialKind="income" pending={false} ambiguous={false} onClose={close} onClearAmbiguous={vi.fn()} onRetry={vi.fn()} onRefresh={vi.fn()} onSubmit={vi.fn()} />);
     const dialog = screen.getByRole('dialog', { name: 'إنشاء فئة' });
-    expect(within(dialog).getByLabelText('الاسم بالإنجليزية')).toHaveFocus();
+    expect(within(dialog).getByLabelText('الاسم بالعربية')).toHaveFocus();
     await user.tab({ shift: true });
     expect(dialog).toContainElement(document.activeElement as HTMLElement);
     await user.keyboard('{Escape}');

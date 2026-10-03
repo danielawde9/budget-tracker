@@ -304,8 +304,7 @@ export function CategoryPackDialog(props: CategoryPackDialogProps) {
                 <span>{t(props.locale, 'Include', 'تضمين')}</span>
               </label>
               <div className="cg-pack-fields">
-                <label>{t(props.locale, 'English name', 'الاسم بالإنجليزية')}<input dir="ltr" maxLength={120} value={row.nameEn} disabled={running || !row.selected} onChange={(event) => editName(row.key, 'nameEn', event.target.value)} /></label>
-                <label>{t(props.locale, 'Arabic name', 'الاسم بالعربية')}<input dir="rtl" maxLength={120} value={row.nameAr} disabled={running || !row.selected} onChange={(event) => editName(row.key, 'nameAr', event.target.value)} /></label>
+                <label>{t(props.locale, 'English name', 'الاسم بالعربية')}<input name={props.locale === 'ar' ? 'nameAr' : 'nameEn'} dir={props.locale === 'ar' ? 'rtl' : 'ltr'} maxLength={120} value={props.locale === 'ar' ? row.nameAr : row.nameEn} disabled={running || !row.selected} onChange={(event) => editName(row.key, props.locale === 'ar' ? 'nameAr' : 'nameEn', event.target.value)} /></label>
               </div>
             </fieldset>
           </li>)}

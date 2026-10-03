@@ -52,7 +52,7 @@
 
 .goal-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
   gap: var(--cr-space-2);
   list-style: none;
   padding-inline-start: 0;
@@ -83,6 +83,7 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--cr-space-2);
 }
+.goal-card-figures bdi { overflow-wrap: anywhere; }
 .goal-card-figures > div {
   display: flex;
   flex-direction: column;
@@ -293,3 +294,9 @@
     transition: none;
   }
 }
+
+.goal-lifecycle-actions { padding-block-start: var(--cr-space-3); border-block-start: 1px solid var(--cr-hairline); margin-block-start: var(--cr-space-3); }
+.goal-state-label { color: var(--cr-ink-soft); font-size: 14px; }
+.goal-close-guidance { padding-block: var(--cr-space-3); }
+
+.goal-editor-fields { border: 0; padding: 0; margin: 0; min-inline-size: 0; }

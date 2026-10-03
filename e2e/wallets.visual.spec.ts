@@ -22,16 +22,32 @@ async function openWallets(page: Page, options: WalletsFixtureOptions = {}) {
   await expect(page.getByRole('heading', { name: 'Wallets' })).toBeVisible();
 }
 
-async function postTransaction(page: Page, kind: 'income' | 'expense' | 'transfer', amount: string) {
-  await page.getByRole('button', { name: 'Add transaction' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Add a transaction' });
-  await dialog.getByRole('radio', { name: ({ income: 'Income', transfer: 'Transfer', opening_balance: 'Opening balance', expense: 'Expense' } as Record<string, string>)[kind] ?? 'Expense' }).check();
-  await dialog.getByLabel('Amount').fill(amount);
-  if (kind === 'transfer') await dialog.getByLabel('To wallet').selectOption('reserve-usd-wallet');
-  await dialog.getByRole('button', { name: 'Review transaction' }).click();
-  await dialog.getByRole('button', { name: kind === 'income' ? 'Record income' : kind === 'expense' ? 'Record expense' : 'Record transfer' }).click();
-  await expect(dialog.getByRole('status')).toContainText('Transaction recorded');
-  await dialog.getByRole('button', { name: 'Done' }).click();
+async function postTransaction(page: Page, kind: 'income' | 'expense' | 'transfer', amount: string, walletName = 'Daily USD') {
+  const mobile = page.viewportSize()!.width < 600;
+  await page.getByRole('combobox', { name: 'Wallet', exact: true }).selectOption({ label: walletName });
+  await page.getByRole('button', { name: mobile ? 'Record transaction' : 'Record +', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Record', exact: true });
+  const label = { income: 'Income', expense: 'Expense', transfer: 'Transfer' }[kind];
+  await dialog.getByRole('button', { name: label, exact: true }).click();
+  if (mobile && kind !== 'transfer') {
+    await dialog.getByLabel('Amount', { exact: true }).fill(amount);
+    await dialog.getByLabel('Wallet', { exact: true }).selectOption({ label: `${walletName} · USD` });
+    await dialog.getByRole('button', { name: `Save ${kind}`, exact: true }).click();
+  } else {
+    if (!mobile) await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
+    for (const digit of amount) await dialog.getByRole('button', { name: digit, exact: true }).click();
+    await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
+    if (kind === 'transfer') {
+      await dialog.getByRole('button', { name: `${walletName} USD`, exact: true }).click();
+      await dialog.getByRole('button', { name: 'Reserve USD USD', exact: true }).click();
+    } else {
+      await dialog.getByRole('button', { name: 'Skip', exact: true }).click();
+      await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
+    }
+    await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+  }
+  await expect(dialog).toHaveCount(0);
+  await page.getByRole('combobox', { name: 'Wallet', exact: true }).selectOption('');
 }
 
 test('desktop Wallets overview separates balances and immutable history', async ({ page }, testInfo) => {
@@ -86,7 +102,7 @@ test('wallet create, transaction, rename, archive and undo dialogs return focus'
   const mobile = testInfo.project.name === 'mobile';
   for (const [action, title] of [
     [mobile ? 'Add wallet' : 'New wallet', 'Create a wallet'],
-    [mobile ? 'Record transaction' : 'Add transaction', 'Add a transaction'],
+    [mobile ? 'Record transaction' : 'Record +', 'Record'],
     ['Rename Daily USD', 'Rename wallet'],
     ['Archive Daily USD', 'Archive wallet'],
     ['Undo income', 'Undo this transaction'],
@@ -181,17 +197,17 @@ test('space switching clears the prior wallet projection before the next read', 
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-space-switch.png'), fullPage: true });
 });
 
-test('mobile transaction dialog is full-screen and rejects cross-currency transfer', async ({ page }, testInfo) => {
+test('mobile shared Record flow offers only same-currency transfer destinations', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile');
   await openWallets(page);
-  await page.getByRole('button', { name: 'Record transaction' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Add a transaction' });
-  await expect(dialog).toHaveCSS('min-height', '844px');
-  await dialog.getByRole('radio', { name: /^(?:Transfer|تحويل)$/ }).check();
-  await dialog.getByLabel('Amount').fill('10');
-  await dialog.getByLabel('To wallet').selectOption('lbp-wallet');
-  await dialog.getByRole('button', { name: 'Review transaction' }).click();
-  await expect(dialog.getByRole('alert')).toContainText('same currency');
+  await page.getByRole('button', { name: 'Record transaction', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Record', exact: true });
+  await dialog.getByRole('button', { name: 'Transfer', exact: true }).click();
+  for (const digit of '10') await dialog.getByRole('button', { name: digit, exact: true }).click();
+  await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Daily USD USD', exact: true }).click();
+  await expect(dialog.getByRole('button', { name: 'Reserve USD USD', exact: true })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: /LBP/ })).toHaveCount(0);
   await page.screenshot({ path: screenshotPath(testInfo, 'mobile-transfer-rejection.png') });
 });
 
@@ -245,15 +261,7 @@ test('archiving a zero-balance wallet with history gates its Undo actions, and r
   // wallet) so it returns to exactly zero while leaving two still-undoable
   // entries in its history — the only way to observe undo-gating for real.
   for (const kind of ['income', 'expense'] as const) {
-    await page.getByRole('button', { name: 'Add transaction' }).click();
-    const txDialog = page.getByRole('dialog', { name: 'Add a transaction' });
-    await txDialog.getByRole('radio', { name: ({ income: 'Income', transfer: 'Transfer', opening_balance: 'Opening balance', expense: 'Expense' } as Record<string, string>)[kind] ?? 'Expense' }).check();
-    await txDialog.getByLabel('Wallet').selectOption({ label: 'Travel fund · USD' });
-    await txDialog.getByLabel('Amount').fill('10');
-    await txDialog.getByRole('button', { name: 'Review transaction' }).click();
-    await txDialog.getByRole('button', { name: kind === 'income' ? 'Record income' : 'Record expense' }).click();
-    await expect(txDialog.getByRole('status')).toContainText('Transaction recorded');
-    await txDialog.getByRole('button', { name: 'Done' }).click();
+    await postTransaction(page, kind, '10', 'Travel fund');
   }
   // Two "Undo income" buttons now exist: the seeded Daily USD income entry
   // (unrelated to this wallet) plus the one just posted on Travel fund. Only

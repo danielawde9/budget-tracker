@@ -29,6 +29,15 @@ describe('linkableEventKind', () => {
 });
 
 describe('loadLinkableEvents (D4)', () => {
+  it('offers eligible expenses beyond the first journal page', async () => {
+    const searchJournal = vi.fn()
+      .mockResolvedValueOnce({ events: [event({ kind: 'income' })], nextCursor: 'older' })
+      .mockResolvedValueOnce({ events: [event({ id: 'older-expense' })], nextCursor: null });
+    const options = await loadLinkableEvents({ searchJournal }, 'space-1', { kind: 'expense', currency: 'USD' });
+    expect(options.map(option => option.id)).toEqual(['older-expense']);
+    expect(searchJournal).toHaveBeenLastCalledWith('space-1', { limit: 50, cursor: 'older' });
+  });
+
   it('offers an expense event with its positive eligible amount', async () => {
     const { gateway } = wallets([event()]);
     await expect(loadLinkableEvents(gateway, 'space-1', { kind: 'expense', currency: 'USD' })).resolves.toEqual([

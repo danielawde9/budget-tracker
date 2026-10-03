@@ -18,7 +18,7 @@ import { GoalsPage } from '../goals/goals-page.js';
 import type { GoalBuyItEnvironment } from '../goals/buy-it.js';
 import type { GoalsGateway } from '../goals/types.js';
 import { useGoals } from '../goals/use-goals.js';
-import { useGoalMonthlyTargetLines } from '../goals/use-goal-monthly-targets.js';
+import { useGoalMonthlyTargets } from '../goals/use-goal-monthly-targets.js';
 import type { HouseholdGateway } from '../household/types.js';
 import type { RecurringGateway } from '../recurring/types.js';
 import { AutoMaterializeBanner } from '../recurring/auto-materialize-banner.js';
@@ -411,21 +411,24 @@ function AllocationCurrencySection(props: {
   goalsGateway: GoalsGateway | null;
 }) {
   const allocation = useAllocation(props.gateway, props.spaceId, props.month, props.currency, props.onSpaceUnavailable);
-  const goalLines = useGoalMonthlyTargetLines(props.goalsGateway, props.spaceId, props.currency, props.month);
+  const [goalHeadsVersion, setGoalHeadsVersion] = useState(0);
+  const goalTargets = useGoalMonthlyTargets(props.goalsGateway, props.spaceId, props.currency, props.month, goalHeadsVersion);
   return (
     <section className="cr-card" aria-label={`${props.locale === 'ar' ? 'التخصيص' : 'Allocation'} ${props.currency}`}>
+      {goalTargets.status === 'loading' && <p role="status">{props.locale === 'ar' ? 'جارٍ تحميل أهداف الشهر…' : 'Loading this month’s goals…'}</p>}
+      {goalTargets.status === 'error' && <div className="error-notice" role="alert"><p>{props.locale === 'ar' ? 'تعذّر تحميل أهداف الشهر. أعد المحاولة قبل نشر التخصيص.' : 'Could not load this month’s goals. Retry before publishing the allocation.'}</p><button type="button" onClick={() => setGoalHeadsVersion(value => value + 1)}>{props.locale === 'ar' ? 'إعادة المحاولة' : 'Retry goals'}</button></div>}
       <AllocationSetup
         locale={props.locale}
         currency={props.currency}
         month={props.month}
         categories={props.categories}
         categoryTargets={props.categoryTargets}
-        goalLines={goalLines}
+        goalLines={goalTargets.lines}
         monthlyPlanIncomeMinor={props.plannedIncomeMinor}
         monthlyPlanIncomeRevisionId={props.plannedIncomeRevisionId}
-        allocation={allocation}
+        allocation={{ ...allocation, pending: allocation.pending || goalTargets.status !== 'ready' }}
         gateway={props.gateway}
-        onPublished={props.onPublished}
+        onPublished={() => { setGoalHeadsVersion(value => value + 1); props.onPublished(); }}
       />
     </section>
   );
@@ -439,6 +442,7 @@ function GoalsCurrencySection(props: {
   wallets: WalletsGateway;
   categories: CategoriesGateway;
   today: string;
+  month: string;
   walletOptions: readonly { id: string; name: string; currency: string }[];
   categoryOptions: readonly { id: string; nameEn: string | null; nameAr: string | null }[];
   plannedIncomeMinor: string | null;
@@ -448,6 +452,7 @@ function GoalsCurrencySection(props: {
   // fetch of the full relevant set (bounded to 200 goals by the DB layer),
   // rather than re-querying goal_page per filter tab.
   const goals = useGoals(props.gateway, props.spaceId, props.currency, 'all', props.onSpaceUnavailable);
+  const loadExpenses = useCallback(() => loadLinkableEvents(props.wallets, props.spaceId, { kind: 'expense', currency: props.currency }), [props.wallets, props.spaceId, props.currency]);
   // The guided buy-it flow calls the wallets/categories recording command and
   // the goals commands directly (it is one three-step action, not a single
   // useGoals command), so it gets the raw gateways and the reference lists it
@@ -463,7 +468,7 @@ function GoalsCurrencySection(props: {
   };
   return (
     <section className="cr-card" aria-label={`${props.locale === 'ar' ? 'الأهداف' : 'Goals'} ${props.currency}`}>
-      <GoalsPage locale={props.locale} currency={props.currency} goals={goals} plannedIncomeMinor={props.plannedIncomeMinor} buyIt={buyIt} />
+      <GoalsPage month={props.month} loadExpenses={loadExpenses} locale={props.locale} currency={props.currency} goals={goals} plannedIncomeMinor={props.plannedIncomeMinor} buyIt={buyIt} />
     </section>
   );
 }
@@ -486,6 +491,7 @@ function useReloadAfterSettle(settledVersion: number, reload: () => void): void 
 }
 
 function UpcomingBillsSection(props: {
+  month: string;
   locale: Locale;
   spaceId: string;
   currency: Currency;
@@ -497,14 +503,14 @@ function UpcomingBillsSection(props: {
   settledVersion: number;
   onSpaceUnavailable?: (() => void) | undefined;
 }) {
-  // A fixed window, re-derived every render off "today" rather than stored
-  // in state, and shared with the automatic generate in `CashControlSection`
-  // below via the same `occurrenceWindow` helper -- one constant
-  // (`OCCURRENCE_WINDOW_DAYS`) drives the list, its explicit "Refresh
-  // occurrences" (still explicit-refresh only, never on mount here), and the
-  // automatic generate alike.
-  const fromDate = useToday();
-  const { toDate } = occurrenceWindow(fromDate);
+  // Display the selected Plan month. Explicit generation retains the same
+  // rolling forecast horizon as Available cash's automatic generation.
+  const today = useToday();
+  const materializeWindow = occurrenceWindow(today);
+  const fromDate = props.month;
+  const end = new Date(`${props.month}T12:00:00Z`);
+  end.setUTCMonth(end.getUTCMonth() + 1, 0);
+  const toDate = end.toISOString().slice(0, 10);
   const recurring = useRecurring(props.gateway, props.spaceId, fromDate, toDate, props.onSpaceUnavailable);
   useReloadAfterSettle(props.settledVersion, () => { void recurring.refresh(); });
   // The schedule editor's "Funding goal" dropdown lists goals from both
@@ -522,12 +528,12 @@ function UpcomingBillsSection(props: {
   }), [props.referenceOptions, goalsUsd.page.rows, goalsLbp.page.rows]);
   return (
     <section className="cr-card" aria-label={props.locale === 'ar' ? 'الفواتير القادمة' : 'Upcoming bills'}>
-      <UpcomingPage locale={props.locale} currency={props.currency} recurring={recurring} fromDate={fromDate} toDate={toDate}
+      <UpcomingPage materializeFromDate={today} materializeToDate={materializeWindow.toDate} locale={props.locale} currency={props.currency} recurring={recurring} fromDate={fromDate} toDate={toDate}
         referenceOptions={referenceOptions}
         plannedIncomeByCurrency={props.plannedIncomeByCurrency}
         walletOptions={props.referenceOptions.wallets}
         loadLinkableEvents={(query) => loadLinkableEvents(props.walletsGateway, props.spaceId, query)}
-        onUnlink={(eventId) => unlinkSettlementPayment(props.walletsGateway, props.spaceId, eventId, fromDate)} />
+        onUnlink={(eventId) => unlinkSettlementPayment(props.walletsGateway, props.spaceId, eventId, today)} />
     </section>
   );
 }
@@ -753,6 +759,7 @@ function PlanRoutes(props: PlanRoutesProps) {
       )) : null}
       {section === 'goals' ? [planCurrency].map((currency) => (
         <GoalsCurrencySection
+          month={props.month}
           key={currency}
           locale={locale}
           spaceId={spaceId}
@@ -781,6 +788,7 @@ function PlanRoutes(props: PlanRoutesProps) {
       )) : null}
       {section === 'bills' ? (
         <UpcomingBillsSection
+          month={props.month}
           locale={locale}
           spaceId={spaceId}
           currency={planCurrency}
@@ -1002,6 +1010,7 @@ export function ControlRoomRoutes(props: ControlRoomRoutesProps) {
     case 'manage':
       destinationRoutes = (
         <ManageScreen
+          onOpenRecord={walletId => { if (walletId) rememberWallet(walletId); props.onOpenRecord?.(); }}
           key={spaceId}
           locale={locale}
           spaceId={spaceId}

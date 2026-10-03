@@ -65,20 +65,29 @@ export async function loadLinkableEvents(
   query: LinkableEventsQuery,
 ): Promise<readonly LinkableEventOption[]> {
   const wanted = linkableEventKind(query.kind);
-  const page = await wallets.searchJournal(spaceId, { limit: LINKABLE_EVENT_LIMIT });
   const options: LinkableEventOption[] = [];
-  for (const event of page.events) {
-    if (event.kind !== wanted) continue;
-    const amountMinor = eligibleAmountMinor(event, query.currency);
-    if (amountMinor === null) continue;
-    options.push({
-      id: event.id,
-      kind: event.kind,
-      effectiveDate: event.effectiveDate,
-      amountMinor,
-      currency: query.currency,
-      label: labelFor(event),
-    });
-  }
+  const seen = new Set<string>();
+  let cursor: string | null = null;
+  do {
+    const page = await wallets.searchJournal(spaceId, { limit: LINKABLE_EVENT_LIMIT, ...(cursor ? { cursor } : {}) });
+    for (const event of page.events) {
+      if (event.kind !== wanted) continue;
+      const amountMinor = eligibleAmountMinor(event, query.currency);
+      if (amountMinor === null) continue;
+      options.push({
+        id: event.id,
+        kind: event.kind,
+        effectiveDate: event.effectiveDate,
+        amountMinor,
+        currency: query.currency,
+        label: labelFor(event),
+      });
+    }
+    cursor = page.nextCursor;
+    if (cursor) {
+      if (seen.has(cursor)) throw new Error('Journal cursor did not advance.');
+      seen.add(cursor);
+    }
+  } while (cursor);
   return options;
 }

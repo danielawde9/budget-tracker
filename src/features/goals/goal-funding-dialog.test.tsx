@@ -41,7 +41,7 @@ describe('GoalFundingDialog', () => {
   it('switches to release mode and submits with that action', async () => {
     const onReserveOrRelease = vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { eventId: '1' } });
     render(<GoalFundingDialog {...baseProps()} onReserveOrRelease={onReserveOrRelease} />);
-    await userEvent.click(screen.getByRole('radio', { name: 'Release' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Free up' }));
     await userEvent.type(screen.getByRole('textbox', { name: 'Amount' }), '50');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(onReserveOrRelease).toHaveBeenCalledWith(expect.objectContaining({ action: 'release' })));

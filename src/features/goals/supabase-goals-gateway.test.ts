@@ -336,6 +336,21 @@ describe('createSupabaseGoalsGateway: mutations', () => {
   });
 });
 
+describe('createSupabaseGoalsGateway: state-only revision', () => {
+  it('sends only lifecycle fields to the protected server clone', async () => {
+    const { client, calls } = fakeClient(() => ({ data: { goalId: GOAL_ID, revisionId: '2' }, error: null }));
+    await createSupabaseGoalsGateway(client).revise({
+      spaceId: 'space-1', requestId: 'req-1', goalId: GOAL_ID, expectedRevisionId: '1', state: 'paused', stateOnly: true,
+      definition: { kind: 'reserve', currency: 'USD', nameEn: 'Summary name', nameAr: null, note: null,
+        targetMinor: '600000', deadline: null, contributionMode: 'manual_monthly', monthlyAmountMinor: '0', priority: 0 },
+      milestones: [],
+    });
+    expect(calls).toEqual([{ name: 'set_goal_state', signal: expect.anything(), args: {
+      p_space_id: 'space-1', p_request_id: 'req-1', p_goal_id: GOAL_ID, p_expected_revision_id: 1, p_state: 'paused',
+    } }]);
+  });
+});
+
 describe('createSupabaseGoalsGateway: another space\'s stale response', () => {
   it('rejects a detail response whose summary belongs to a different currency shape entirely', async () => {
     const { client } = fakeClient(() => ({ data: { ...detailFixture, summary: { ...summaryFixture, currency: 'EUR' } }, error: null }));

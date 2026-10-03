@@ -12,9 +12,9 @@ import { WalletsPage } from './wallets-page.js';
 
 const onSpaceUnavailable = vi.fn();
 
-function WalletsPageHarness({ gateway, categoriesGateway, initialDialog, locale = 'en', onOpenLoans = vi.fn() }: { gateway: InMemoryWalletsGateway; categoriesGateway?: CategoriesGateway; initialDialog?: 'transaction' | null; locale?: 'en' | 'ar'; onOpenLoans?: () => void }) {
+function WalletsPageHarness({ gateway, categoriesGateway, initialDialog, locale = 'en', onOpenLoans = vi.fn(), onOpenRecord }: { gateway: InMemoryWalletsGateway; categoriesGateway?: CategoriesGateway; initialDialog?: 'transaction' | null; locale?: 'en' | 'ar'; onOpenLoans?: () => void; onOpenRecord?: (walletId?: string) => void }) {
   const walletState = useWallets(gateway, 'personal-space', undefined, undefined, categoriesGateway);
-  return <WalletsPage {...(categoriesGateway ? { categoriesGateway } : {})} {...(initialDialog === undefined ? {} : { initialDialog })} spaceId="personal-space" userId="11111111-1111-4111-8111-111111111111" locale={locale} walletState={walletState} onSpaceUnavailable={onSpaceUnavailable} onOpenLoans={onOpenLoans} openTransaction={false} onTransactionDialogOpened={vi.fn()} />;
+  return <WalletsPage {...(onOpenRecord ? { onOpenRecord } : {})} {...(categoriesGateway ? { categoriesGateway } : {})} {...(initialDialog === undefined ? {} : { initialDialog })} spaceId="personal-space" userId="11111111-1111-4111-8111-111111111111" locale={locale} walletState={walletState} onSpaceUnavailable={onSpaceUnavailable} onOpenLoans={onOpenLoans} openTransaction={false} onTransactionDialogOpened={vi.fn()} />;
 }
 
 function InitialTransactionHarness({ gateway }: { gateway: InMemoryWalletsGateway }) {
@@ -43,7 +43,7 @@ async function renderPage(
 }
 
 async function openArabicCategorizedIncome(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: 'إضافة معاملة' }));
+  await user.click(screen.getByRole('button', { name: 'تسجيل +' }));
   const dialog = screen.getByRole('dialog', { name: 'إضافة معاملة' });
   await user.click(within(dialog).getByRole('radio', { name: 'دخل' }));
   await user.click(within(dialog).getByRole('radio', { name: 'راتب' }));
@@ -53,6 +53,36 @@ async function openArabicCategorizedIncome(user: ReturnType<typeof userEvent.set
 }
 
 describe('WalletsPage', () => {
+  it('opens the shared Record flow from the mobile transaction action', async () => {
+    const onOpenRecord = vi.fn();
+    render(<WalletsPageHarness gateway={new InMemoryWalletsGateway()} onOpenRecord={onOpenRecord} />);
+    const record = await screen.findByRole('button', { name: 'Record transaction' });
+    await waitFor(() => expect(record).toBeEnabled());
+    await userEvent.click(record);
+    expect(onOpenRecord).toHaveBeenCalledWith(undefined);
+    expect(screen.queryByRole('dialog', { name: 'Add a transaction' })).not.toBeInTheDocument();
+  });
+  it.each([['en', 'Record +'], ['ar', 'تسجيل +']] as const)('opens the shared Record flow without the legacy dialog in %s', async (locale, label) => {
+    const onOpenRecord = vi.fn();
+    render(<WalletsPageHarness gateway={new InMemoryWalletsGateway()} locale={locale} onOpenRecord={onOpenRecord} />);
+    const record = await screen.findByRole('button', { name: label });
+    await waitFor(() => expect(record).toBeEnabled());
+    await userEvent.click(record);
+    expect(onOpenRecord).toHaveBeenCalledWith(undefined);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('passes the selected active wallet to the shared Record flow', async () => {
+    const gateway = new InMemoryWalletsGateway();
+    const onOpenRecord = vi.fn();
+    render(<WalletsPageHarness gateway={gateway} onOpenRecord={onOpenRecord} />);
+    const wallet = await screen.findByRole('combobox', { name: 'Wallet' });
+    await userEvent.selectOptions(wallet, gateway.wallets[0]!.id);
+    await userEvent.click(screen.getByRole('button', { name: 'Record +' }));
+    expect(onOpenRecord).toHaveBeenCalledWith(gateway.wallets[0]!.id);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
   it.each([
     ['en', 'View in Loans'],
     ['ar', 'عرض في القروض'],
@@ -79,7 +109,7 @@ describe('WalletsPage', () => {
     await renderPage();
 
     expect(screen.getByText('Balances, transactions and history.')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Add transaction' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Record +' })).toHaveLength(1);
     expect(screen.getByRole('heading', { name: 'Active balances' }).closest('.wallet-context')).not.toBeNull();
     const table = screen.getByRole('table', { name: 'Transaction history entries' });
     const firstRow = within(table).getByText('Income').closest('.journal-movement') as HTMLElement | null;
@@ -268,7 +298,7 @@ describe('WalletsPage', () => {
 
   it('previews and records exact minor-unit movement signs for every general event kind', async () => {
     const { gateway, user } = await renderPage();
-    await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    await user.click(screen.getByRole('button', { name: 'Record +' }));
     let dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
     await user.click(within(dialog).getByRole('radio', { name: 'Opening balance' }));
     await user.type(within(dialog).getByLabelText('Amount'), '20');
@@ -277,7 +307,7 @@ describe('WalletsPage', () => {
     await within(dialog).findByText('Transaction recorded');
     await user.click(within(dialog).getByRole('button', { name: 'Done' }));
 
-    await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    await user.click(screen.getByRole('button', { name: 'Record +' }));
     dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
     await user.click(within(dialog).getByRole('radio', { name: 'Income' }));
     await user.type(within(dialog).getByLabelText('Amount'), '12.50');
@@ -287,7 +317,7 @@ describe('WalletsPage', () => {
     expect(await within(dialog).findByRole('status')).toHaveTextContent('Transaction recorded');
     await user.click(within(dialog).getByRole('button', { name: 'Done' }));
 
-    await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    await user.click(screen.getByRole('button', { name: 'Record +' }));
     dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
     await user.click(within(dialog).getByRole('radio', { name: 'Expense' }));
     await user.type(within(dialog).getByLabelText('Amount'), '3');
@@ -296,7 +326,7 @@ describe('WalletsPage', () => {
     await within(dialog).findByText('Transaction recorded');
     await user.click(within(dialog).getByRole('button', { name: 'Done' }));
 
-    await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    await user.click(screen.getByRole('button', { name: 'Record +' }));
     dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
     await user.click(within(dialog).getByRole('radio', { name: 'Transfer' }));
     await user.type(within(dialog).getByLabelText('Amount'), '10');
@@ -319,7 +349,7 @@ describe('WalletsPage', () => {
   it('preserves safe transaction values after a database rejection', async () => {
     const gateway = new InMemoryWalletsGateway();
     const { user } = await renderPage(gateway);
-    await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    await user.click(screen.getByRole('button', { name: 'Record +' }));
     const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
     await user.click(within(dialog).getByRole('radio', { name: 'Expense' }));
     await user.type(within(dialog).getByLabelText('Amount'), '18.75');
@@ -337,7 +367,7 @@ describe('WalletsPage', () => {
     categoriesGateway.categories = categoriesGateway.categories.map((category) => ({ ...category, spaceId: 'personal-space' }));
     const { user } = await renderPage(walletGateway, 'en', categoriesGateway);
 
-    await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    await user.click(screen.getByRole('button', { name: 'Record +' }));
     const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
     await user.click(within(dialog).getByRole('radio', { name: 'Income' }));
     const picker = within(dialog).getByRole('group', { name: 'Category' });
@@ -386,7 +416,7 @@ describe('WalletsPage', () => {
     });
     const { user } = await renderPage(new InMemoryWalletsGateway(), 'en', categoriesGateway);
 
-    await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    await user.click(screen.getByRole('button', { name: 'Record +' }));
     const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
     await user.click(within(dialog).getByRole('radio', { name: 'Income' }));
     expect(within(dialog).queryByRole('radio', { name: 'Income 51' })).not.toBeInTheDocument();
@@ -418,7 +448,7 @@ describe('WalletsPage', () => {
       };
     });
     const { user } = await renderPage(new InMemoryWalletsGateway(), 'en', categoriesGateway);
-    await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    await user.click(screen.getByRole('button', { name: 'Record +' }));
     const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
     await user.click(within(dialog).getByRole('radio', { name: 'Income' }));
 
@@ -437,7 +467,7 @@ describe('WalletsPage', () => {
     categoriesGateway.categories = categoriesGateway.categories.map((category) => ({ ...category, spaceId: 'personal-space' }));
     const { user } = await renderPage(new InMemoryWalletsGateway(), 'en', categoriesGateway);
 
-    await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    await user.click(screen.getByRole('button', { name: 'Record +' }));
     const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
     await user.click(within(dialog).getByRole('radio', { name: 'Income' }));
     await user.click(within(dialog).getByRole('radio', { name: 'Salary' }));
@@ -452,7 +482,7 @@ describe('WalletsPage', () => {
     categoriesGateway.categories = categoriesGateway.categories.map((category) => ({ ...category, spaceId: 'personal-space' }));
     const { user } = await renderPage(new InMemoryWalletsGateway(), 'en', categoriesGateway);
 
-    await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    await user.click(screen.getByRole('button', { name: 'Record +' }));
     const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
     await user.click(within(dialog).getByRole('radio', { name: 'Expense' }));
     await user.click(within(dialog).getByRole('radio', { name: 'Groceries' }));
@@ -483,7 +513,7 @@ describe('WalletsPage', () => {
       return { eventId: 'event-new' };
     });
     const { user } = await renderPage(walletGateway, 'en', categoriesGateway);
-    await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    await user.click(screen.getByRole('button', { name: 'Record +' }));
     const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
     await user.click(within(dialog).getByRole('radio', { name: 'Income' }));
     await user.click(within(dialog).getByRole('radio', { name: 'Salary' }));
@@ -618,7 +648,7 @@ describe('WalletsPage', () => {
     categoriesGateway.recordCategorizedEvent = recordCategorizedEvent;
     categoriesGateway.findCategorizedEventByRequestId = vi.fn(async () => null);
     const { user } = await renderPage(new InMemoryWalletsGateway(), 'en', categoriesGateway);
-    await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    await user.click(screen.getByRole('button', { name: 'Record +' }));
     const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
     const incomeType = within(dialog).getByRole('radio', { name: 'Income' });
     await user.click(incomeType);
@@ -687,7 +717,7 @@ describe('WalletsPage', () => {
     const label = screen.getByText('Former salary');
     expect(label.closest('bdi')).not.toBeNull();
     expect(label.closest('.journal-category-tag')).toHaveTextContent('Archived');
-    await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    await user.click(screen.getByRole('button', { name: 'Record +' }));
     await user.click(within(screen.getByRole('dialog')).getByRole('radio', { name: 'Income' }));
     expect(within(screen.getByRole('dialog')).getByRole('radio', { name: 'Salary' })).toBeInTheDocument();
     expect(within(screen.getByRole('dialog')).queryByRole('radio', { name: 'Former salary' })).not.toBeInTheDocument();
@@ -717,7 +747,7 @@ describe('WalletsPage', () => {
 
   it('refuses same-wallet and cross-currency transfers before submission', async () => {
     const { gateway, user } = await renderPage();
-    await user.click(screen.getByRole('button', { name: 'Add transaction' }));
+    await user.click(screen.getByRole('button', { name: 'Record +' }));
     const dialog = screen.getByRole('dialog', { name: 'Add a transaction' });
     await user.click(within(dialog).getByRole('radio', { name: 'Transfer' }));
     await user.type(within(dialog).getByLabelText('Amount'), '10');

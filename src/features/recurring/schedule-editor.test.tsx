@@ -45,7 +45,7 @@ async function fillAmount(form: HTMLElement, amount = '500') {
 
 /** The Details-step gates: a name plus a valid start date. */
 async function fillDetails(form: HTMLElement, name = 'Rent') {
-  await userEvent.type(within(form).getByRole('textbox', { name: 'Name (English)' }), name);
+  await userEvent.type(within(form).getByRole('textbox', { name: 'Name' }), name);
   const startsOn = within(form).getByLabelText('Starts on');
   await userEvent.clear(startsOn);
   await userEvent.type(startsOn, '2026-10-01');
@@ -150,10 +150,10 @@ describe('ScheduleEditor', () => {
     await userEvent.clear(startsOn);
     await userEvent.type(startsOn, '2026-10-01');
     await clickNext(form); // blocked: no name
-    expect(screen.getByRole('alert')).toHaveTextContent('Enter a name in at least one language.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter a name.');
     expect(onSave).not.toHaveBeenCalled();
     // Still on Details -- fill the name and the same Next now passes.
-    await userEvent.type(within(form).getByRole('textbox', { name: 'Name (English)' }), 'Rent');
+    await userEvent.type(within(form).getByRole('textbox', { name: 'Name' }), 'Rent');
     await clickNext(form);
     expect(within(form).getByRole('combobox', { name: 'Category' })).toBeInTheDocument();
   });
@@ -238,7 +238,7 @@ describe('ScheduleEditor', () => {
     await userEvent.click(within(form).getByRole('button', { name: 'التالي' })); // → Amount
     await userEvent.type(within(form).getByRole('textbox', { name: 'المبلغ المتوقع' }), '500');
     await userEvent.click(within(form).getByRole('button', { name: 'التالي' })); // → Details
-    await userEvent.type(within(form).getByRole('textbox', { name: 'الاسم (إنجليزي)' }), 'إيجار');
+    await userEvent.type(within(form).getByRole('textbox', { name: 'الاسم' }), 'إيجار');
     const startsOn = within(form).getByLabelText('يبدأ في');
     await userEvent.clear(startsOn);
     await userEvent.type(startsOn, '2026-10-01');
@@ -346,7 +346,7 @@ describe('ScheduleEditor', () => {
     expect(within(form).getByText('حدّد الدخل المخطط لعملة USD في قسم الخطة أولًا.')).toBeInTheDocument();
     await userEvent.type(within(form).getByRole('textbox', { name: 'المبلغ المتوقع' }), '500');
     await userEvent.click(within(form).getByRole('button', { name: 'التالي' })); // → Details
-    await userEvent.type(within(form).getByRole('textbox', { name: 'الاسم (إنجليزي)' }), 'إيجار');
+    await userEvent.type(within(form).getByRole('textbox', { name: 'الاسم' }), 'إيجار');
     const startsOn = within(form).getByLabelText('يبدأ في');
     await userEvent.clear(startsOn);
     await userEvent.type(startsOn, '2026-10-01');
@@ -359,15 +359,39 @@ describe('ScheduleEditor', () => {
     expect(within(form).getByRole('option', { name: 'صندوق الطوارئ' })).toBeInTheDocument();
   });
 
-  it('offers an unchanged retry when ambiguous', async () => {
-    const onRetry = vi.fn().mockResolvedValue({ status: 'success', reconciled: true, result: { scheduleId: 's1', revisionId: '1' } });
-    const onSave = vi.fn().mockRejectedValue(new Error('network timeout'));
-    render(<ScheduleEditor {...baseProps()} ambiguous onRetry={onRetry} onSave={onSave} />);
+  it('shows only the active language name and submits an Arabic name without English', async () => {
+    const onSave = successSave();
+    render(<ScheduleEditor {...baseProps()} locale="ar" onSave={onSave} />);
+    const form = screen.getByRole('form', { name: 'تفاصيل الجدول' });
+    await userEvent.click(within(form).getByRole('button', { name: 'التالي' }));
+    await userEvent.type(within(form).getByRole('textbox', { name: 'المبلغ المتوقع' }), '500');
+    await userEvent.click(within(form).getByRole('button', { name: 'التالي' }));
+    expect(within(form).getAllByRole('textbox')).toHaveLength(1);
+    const nameInput = within(form).getByRole('textbox', { name: 'الاسم' });
+    expect(nameInput).toHaveAttribute('dir', 'rtl');
+    await userEvent.type(nameInput, 'إيجار');
+    await userEvent.type(within(form).getByLabelText('يبدأ في'), '2026-10-01');
+    await userEvent.click(within(form).getByRole('button', { name: 'التالي' }));
+    await userEvent.click(within(form).getByRole('button', { name: 'التالي' }));
+    await userEvent.click(within(form).getByRole('button', { name: 'حفظ' }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ definition: expect.objectContaining({ nameEn: null, nameAr: 'إيجار' }) }));
+  });
+
+  it('offers an unchanged retry after a resolved ambiguous result and blocks fresh edits', async () => {
+    const props = baseProps();
+    const onSave = vi.fn().mockResolvedValue({ status: 'ambiguous' });
+    const onRetry = successSave();
+    const { rerender } = render(<ScheduleEditor {...props} onRetry={onRetry} onSave={onSave} />);
     const form = screen.getByRole('form', { name: 'Schedule details' });
     await walkToReview(form);
     await userEvent.click(within(form).getByRole('button', { name: 'Save' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Retry unchanged request' }));
+    rerender(<ScheduleEditor {...props} ambiguous onRetry={onRetry} onSave={onSave} />);
+    expect(within(form).getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(within(form).getByRole('button', { name: 'Back' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry unchanged request' }));
     expect(onRetry).toHaveBeenCalledTimes(1);
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole('status')).toBeInTheDocument();
   });
 
   it('disables the form while pending', async () => {

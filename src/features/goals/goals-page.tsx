@@ -1,3 +1,4 @@
+import type { LinkableEventOption } from '../recurring/linkable-events.js';
 import { useState } from 'react';
 import type { Currency, Locale } from '../loans/types.js';
 import { formatMinorAmount } from '../wallets/money.js';
@@ -10,6 +11,8 @@ import type { GoalsState } from './use-goals.js';
 import { GoalsSkeleton } from '../control-room/skeletons.js';
 
 interface GoalsPageProps {
+  month?: string | undefined;
+  loadExpenses?: (() => Promise<readonly LinkableEventOption[]>) | undefined;
   locale: Locale;
   currency: Currency;
   /** Integer-minor planned income for this page's currency from the monthly
@@ -49,7 +52,7 @@ export function GoalsPage(props: GoalsPageProps) {
 
   if (selectedGoalId) {
     return <GoalDetail locale={props.locale} currency={props.currency} goals={goals} goalId={selectedGoalId}
-      otherGoals={goals.page.rows} plannedIncomeMinor={props.plannedIncomeMinor} buyIt={props.buyIt} onBack={() => setSelectedGoalId(null)} />;
+      month={props.month} loadExpenses={props.loadExpenses} otherGoals={goals.page.rows} plannedIncomeMinor={props.plannedIncomeMinor} buyIt={props.buyIt} onBack={() => setSelectedGoalId(null)} />;
   }
 
   const visibleGoals = goals.page.rows.filter((goal) =>

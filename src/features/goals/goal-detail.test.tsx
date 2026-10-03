@@ -44,6 +44,19 @@ function fakeGoalsState(overrides: Partial<GoalsState> = {}): GoalsState {
 }
 
 describe('GoalDetail', () => {
+  it('waits for the selected month head before allowing target edits', async () => {
+    let resolveHead!: (value: { rows: []; hasMore: false; nextCursor: null }) => void;
+    const head = new Promise<{ rows: []; hasMore: false; nextCursor: null }>(resolve => { resolveHead = resolve; });
+    const goals = fakeGoalsState({ loadHistory: vi.fn()
+      .mockResolvedValueOnce({ rows: [], hasMore: false, nextCursor: null })
+      .mockReturnValueOnce(head) });
+    render(<GoalDetail month="2027-01-01" locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
+    await waitFor(() => expect(goals.loadHistory).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole('button', { name: 'Set monthly target' })).not.toBeInTheDocument();
+    resolveHead({ rows: [], hasMore: false, nextCursor: null });
+    await screen.findByRole('button', { name: 'Set monthly target' });
+    expect(goals.loadDetail).toHaveBeenCalledWith({ goalId: GOAL_ID, month: '2027-01-01' });
+  });
   it('loads and shows the target/earmarked/covered/fulfilled/shortage figures distinctly', async () => {
     const goals = fakeGoalsState();
     render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
@@ -77,14 +90,14 @@ describe('GoalDetail', () => {
     const goals = fakeGoalsState({ loadDetail: vi.fn().mockResolvedValue(detailData({ summary: summary({ state: 'closed', needsReview: false }) })) });
     render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Emergency fund')).toBeInTheDocument());
-    expect(screen.queryByRole('button', { name: /Manage funding/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Set money aside/ })).not.toBeInTheDocument();
   });
 
   it('opens the funding dialog and reserves against this exact goal', async () => {
     const goals = fakeGoalsState({ reserveOrRelease: vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { eventId: '1', goalId: GOAL_ID } }) });
     render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Emergency fund')).toBeInTheDocument());
-    await userEvent.click(screen.getByRole('button', { name: /Manage funding/ }));
+    await userEvent.click(screen.getByRole('button', { name: /Set money aside/ }));
     await userEvent.type(screen.getByRole('textbox', { name: 'Amount' }), '100');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(goals.reserveOrRelease).toHaveBeenCalledWith(expect.objectContaining({ goalId: GOAL_ID, action: 'reserve', expectedHead: HEAD_A })));
@@ -96,7 +109,7 @@ describe('GoalDetail', () => {
     const goals = fakeGoalsState();
     render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[summary(), other, pausedOther]} onBack={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Emergency fund')).toBeInTheDocument());
-    await userEvent.click(screen.getByRole('button', { name: /Manage funding/ }));
+    await userEvent.click(screen.getByRole('button', { name: /Set money aside/ }));
     await userEvent.click(screen.getByRole('radio', { name: 'Move to another goal' }));
     expect(screen.getByRole('option', { name: 'Laptop' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Paused goal' })).not.toBeInTheDocument();
@@ -104,10 +117,12 @@ describe('GoalDetail', () => {
 
   it('links a purchase against this exact goal', async () => {
     const goals = fakeGoalsState({ linkPurchase: vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { linkIds: ['1'] } }) });
-    render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
+    render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()}
+      loadExpenses={vi.fn(async () => [{ id: '00000000-0000-4000-8000-000000000301', kind: 'expense' as const, currency: 'USD' as const, effectiveDate: '2026-10-02', amountMinor: '40000', label: 'Laptop store' }])} />);
     await waitFor(() => expect(screen.getByText('Emergency fund')).toBeInTheDocument());
     await userEvent.click(screen.getByRole('button', { name: 'Link a purchase' }));
-    await userEvent.type(screen.getByRole('textbox', { name: 'Expense reference id' }), '00000000-0000-4000-8000-000000000301');
+    await screen.findByRole('option', { name: /Laptop store/ });
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Expense' }), '00000000-0000-4000-8000-000000000301');
     await userEvent.type(screen.getByRole('textbox', { name: 'Amount to link' }), '400');
     await userEvent.click(screen.getByRole('button', { name: 'Link purchase' }));
     await waitFor(() => expect(goals.linkPurchase).toHaveBeenCalledWith({
@@ -116,17 +131,14 @@ describe('GoalDetail', () => {
     }));
   });
 
-  it('pauses an active goal via the editor with the state pre-selected', async () => {
+  it('pauses an active goal with one confirmation rather than the edit wizard', async () => {
     const goals = fakeGoalsState({ revise: vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { goalId: GOAL_ID, revisionId: '2' } }) });
     render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Emergency fund')).toBeInTheDocument());
     await userEvent.click(screen.getByRole('button', { name: 'Pause goal' }));
-    expect(screen.getByRole('radio', { name: 'Paused' })).toBeChecked();
-    for (let index = 0; index < 4; index += 1) {
-      await userEvent.click(screen.getByRole('button', { name: 'Next' }));
-    }
-    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(goals.revise).toHaveBeenCalledWith(expect.objectContaining({ goalId: GOAL_ID, expectedRevisionId: '1', state: 'paused' })));
+    expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Pause' }));
+    await waitFor(() => expect(goals.revise).toHaveBeenCalledWith(expect.objectContaining({ goalId: GOAL_ID, expectedRevisionId: '1', state: 'paused', stateOnly: true })));
   });
 
   it('forwards the planned income to the revise editor and saves it as the monthly amount when linked', async () => {
@@ -157,9 +169,10 @@ describe('GoalDetail', () => {
   });
 
   it('loads more history on demand', async () => {
-    const goals = fakeGoalsState({
+    const goals = fakeGoalsState({ loadDetail: vi.fn().mockResolvedValue(detailData({ summary: summary({ monthlyTargetMinor: null }) })),
       loadHistory: vi.fn()
         .mockResolvedValueOnce({ rows: [{ createdAt: '2026-09-01T00:00:00Z', sourceKind: 'definition', sourceId: '1', detail: {} }], hasMore: true, nextCursor: { createdAt: '2026-09-01T00:00:00Z', sourceKind: 'definition', sourceId: '1' } })
+        .mockResolvedValueOnce({ rows: [], hasMore: false, nextCursor: null })
         .mockResolvedValueOnce({ rows: [{ createdAt: '2026-08-01T00:00:00Z', sourceKind: 'earmark', sourceId: '2', detail: { operation: 'reserve', amountMinor: '10000' } }], hasMore: false, nextCursor: null }),
     });
     render(<GoalDetail locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} goalId={GOAL_ID} otherGoals={[]} onBack={vi.fn()} />);

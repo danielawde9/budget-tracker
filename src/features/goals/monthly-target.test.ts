@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { InMemoryGoalsGateway, coreGoalPageFixture } from '../../test/in-memory-goals-gateway.js';
 import { goalMonthlyTargetLine, latestMonthlyTargetRevisionId, loadGoalMonthlyTargetLines } from './monthly-target.js';
 import type { GoalHistoryRow, GoalSummary } from './types.js';
@@ -50,6 +50,31 @@ describe('goalMonthlyTargetLine', () => {
 });
 
 describe('loadGoalMonthlyTargetLines', () => {
+  it('pages goal identities and history to carry buried heads for the selected month', async () => {
+    const gateway = new InMemoryGoalsGateway();
+    const first = summary();
+    const second = summary({ id: 'second' });
+    gateway.loadPage = vi.fn()
+      .mockResolvedValueOnce({ rows: [first], hasMore: true, nextCursor: { createdAt: first.asOf, id: first.id } })
+      .mockResolvedValueOnce({ rows: [second], hasMore: false, nextCursor: null });
+    gateway.loadDetail = vi.fn(async input => ({ ...gateway.detail, summary: summary({ id: input.goalId, monthlyTargetMinor: '123' }) }));
+    gateway.loadHistory = vi.fn(async input => input.beforeSourceId
+      ? { rows: [historyRow({ sourceId: `head-${input.goalId}`, detail: { monthStart: '2027-01-01' } })], hasMore: false, nextCursor: null }
+      : { rows: [historyRow({ sourceId: 'later', sourceKind: 'earmark' })], hasMore: true, nextCursor: { createdAt: '2027-02-01T00:00:00Z', sourceKind: 'earmark' as const, sourceId: 'later' } });
+    const lines = await loadGoalMonthlyTargetLines(gateway, 'space-1', 'USD', '2027-01-01');
+    expect(lines.map(line => [line.goalId, line.amountMinor, line.expectedRevisionId])).toEqual([
+      [first.id, '123', `head-${first.id}`], ['second', '123', 'head-second'],
+    ]);
+    expect(gateway.loadPage).toHaveBeenLastCalledWith(expect.objectContaining({ afterId: first.id }), undefined);
+  });
+  it('uses the selected month detail amount, not the current-month list amount', async () => {
+    const gateway = new InMemoryGoalsGateway();
+    gateway.page = coreGoalPageFixture;
+    gateway.detail = { ...gateway.detail, summary: { ...gateway.detail.summary, monthlyTargetMinor: '12345' } };
+    const lines = await loadGoalMonthlyTargetLines(gateway, 'space-1', 'USD', '2027-01-01');
+    expect(lines[0]?.amountMinor).toBe('12345');
+    expect(gateway.calls.find(call => call.name === 'loadDetail')?.input).toEqual(expect.objectContaining({ month: '2027-01-01' }));
+  });
   it('collects every goal with a monthly target and its current revision head for the month', async () => {
     const gateway = new InMemoryGoalsGateway();
     gateway.page = coreGoalPageFixture; // one goal, monthlyTargetMinor '50000'
@@ -70,6 +95,7 @@ describe('loadGoalMonthlyTargetLines', () => {
   it('omits goals that have no monthly target and does not spend a history call on them', async () => {
     const gateway = new InMemoryGoalsGateway();
     gateway.page = { ...coreGoalPageFixture, rows: [{ ...coreGoalPageFixture.rows[0]!, monthlyTargetMinor: null }] };
+    gateway.detail = { ...gateway.detail, summary: { ...gateway.detail.summary, monthlyTargetMinor: null } };
     const lines = await loadGoalMonthlyTargetLines(gateway, 'space-1', 'USD', '2026-09-01');
     expect(lines).toEqual([]);
     expect(gateway.calls.filter((call) => call.name === 'loadHistory')).toHaveLength(0);

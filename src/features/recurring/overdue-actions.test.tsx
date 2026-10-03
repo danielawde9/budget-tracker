@@ -85,7 +85,7 @@ class ServerLikeGateway extends InMemoryRecurringGateway {
 
 function Harness({ gateway, locale = 'en' }: { gateway: InMemoryRecurringGateway; locale?: 'en' | 'ar' }) {
   const recurring = useRecurring(gateway, 'space-1', TODAY, '2026-12-24');
-  return <UpcomingPage locale={locale} currency="USD" recurring={recurring} fromDate={TODAY} toDate="2026-12-24"
+  return <UpcomingPage locale={locale} currency="USD" recurring={recurring} fromDate="2026-09-01" toDate="2026-09-30" materializeFromDate={TODAY} materializeToDate="2026-12-24"
     referenceOptions={{ categories: [], loans: [], goals: [], wallets: [] }}
     plannedIncomeByCurrency={{ USD: null, LBP: null }} walletOptions={[{ id: 'w1', name: 'Cash', currency: 'USD' }]} />;
 }

@@ -3,27 +3,30 @@ import type { Currency } from '../loans/types.js';
 import { loadGoalMonthlyTargetLines } from './monthly-target.js';
 import type { GoalMonthlyTargetLine, GoalsGateway } from './types.js';
 
-/** Loads the current month's goal monthly targets for a currency, so the
- * allocation setup can carry them on `publishMonthV2` (audit C3/B6). Returns
- * an empty list (never throws) while loading, when the goals service is
- * unavailable, or when a read fails -- publishing then stays on v1, exactly as
- * before this wiring existed. Re-reads when the space, currency or month
- * changes. */
-export function useGoalMonthlyTargetLines(
-  gateway: GoalsGateway | null, spaceId: string, currency: Currency, month: string,
-): readonly GoalMonthlyTargetLine[] {
+/** Loads the selected month's targets and revision heads. Callers must block
+ * publication while loading or on error, so failed reads cannot silently drop
+ * existing goals. Refresh after publication to obtain the new heads. */
+export function useGoalMonthlyTargets(
+  gateway: GoalsGateway | null, spaceId: string, currency: Currency, month: string, refreshVersion = 0,
+): { lines: readonly GoalMonthlyTargetLine[]; status: 'loading' | 'ready' | 'error' } {
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>(gateway ? 'loading' : 'ready');
   const [lines, setLines] = useState<readonly GoalMonthlyTargetLine[]>([]);
   useEffect(() => {
     if (!gateway) {
-      setLines([]);
+      setLines([]); setStatus('ready');
       return;
     }
+    setLines([]); setStatus('loading');
     const controller = new AbortController();
     let active = true;
     void loadGoalMonthlyTargetLines(gateway, spaceId, currency, month, controller.signal)
-      .then((next) => { if (active) setLines(next); })
-      .catch(() => { if (active) setLines([]); });
+      .then((next) => { if (active) { setLines(next); setStatus('ready'); } })
+      .catch(() => { if (active) { setLines([]); setStatus('error'); } });
     return () => { active = false; controller.abort(); };
-  }, [gateway, spaceId, currency, month]);
-  return lines;
+  }, [gateway, spaceId, currency, month, refreshVersion]);
+  return { lines, status };
+}
+
+export function useGoalMonthlyTargetLines(gateway: GoalsGateway | null, spaceId: string, currency: Currency, month: string, refreshVersion = 0): readonly GoalMonthlyTargetLine[] {
+  return useGoalMonthlyTargets(gateway, spaceId, currency, month, refreshVersion).lines;
 }

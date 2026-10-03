@@ -42,6 +42,9 @@ test('desktop category register separates active income and expense labels', asy
   await openCategories(page);
   await expect(page.getByRole('heading', { name: 'Income categories' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Expense categories' })).toBeVisible();
+  const registers = page.locator('.cg-registers > .cg-register');
+  const registerBoxes = await Promise.all([registers.nth(0).boundingBox(), registers.nth(1).boundingBox()]);
+  expect(registerBoxes[0]!.y).toBe(registerBoxes[1]!.y);
   await expect(page.getByText('Salary').locator('xpath=ancestor-or-self::bdi')).toBeVisible();
   await expect(page.getByText('Essentials').locator('xpath=ancestor-or-self::bdi')).toBeVisible();
   await expect(page.getByText('Groceries').locator('xpath=ancestor-or-self::bdi')).toBeVisible();
@@ -77,7 +80,7 @@ test('subcategory create and archive stay beneath the immutable selected root', 
   const createDialog = page.getByRole('dialog', { name: 'Create a subcategory' });
   await expect(createDialog.getByText('Essentials').first()).toBeVisible();
   await createDialog.getByLabel('English name').fill('Transport');
-  await createDialog.getByLabel('Arabic name').fill('مواصلات');
+  await expect(createDialog.getByLabel('Arabic name')).toHaveCount(0);
   await createDialog.getByRole('button', { name: 'Create subcategory' }).click();
   await expect(createDialog.getByRole('status')).toContainText('Subcategory created');
   await createDialog.getByRole('button', { name: 'Done' }).click();
@@ -115,7 +118,7 @@ test('category create and archive refresh only the active register', async ({ pa
   await expect(createDialog.getByLabel('English name')).toBeFocused();
   await createDialog.getByRole('radio', { name: /^(?:Expense|مصروف)$/ }).check();
   await createDialog.getByLabel('English name').fill('Transport');
-  await createDialog.getByLabel('Arabic name').fill('مواصلات');
+  await expect(createDialog.getByLabel('Arabic name')).toHaveCount(0);
   await createDialog.getByRole('button', { name: 'Create category' }).click();
   await expect(createDialog.getByRole('status')).toContainText('Category created');
   await createDialog.getByRole('button', { name: 'Done' }).click();
@@ -142,47 +145,48 @@ test('ambiguous category creation reconciles through its request result', async 
   await expect(page.getByText('Consulting')).toHaveCount(1);
 });
 
-test('category rejection preserves safe bilingual form values', async ({ page }, testInfo) => {
+test('category rejection preserves the active language form value', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop');
   await openCategories(page, { rejectCategoryCreateOnce: true });
   await page.getByRole('button', { name: 'New category' }).click();
   const dialog = page.getByRole('dialog', { name: 'Create a category' });
   await dialog.getByLabel('English name').fill('Salary');
-  await dialog.getByLabel('Arabic name').fill('راتب');
+  await expect(dialog.getByLabel('Arabic name')).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Create category' }).click();
   await expect(dialog.getByRole('alert')).toContainText('already');
   await expect(dialog.getByLabel('English name')).toHaveValue('Salary');
-  await expect(dialog.getByLabel('Arabic name')).toHaveValue('راتب');
+  await expect(dialog.getByLabel('Arabic name')).toHaveCount(0);
 });
+
+async function postCategorized(page: Page, kind: 'income' | 'expense', amount: string, category: string | null, effectiveDate?: string) {
+  await page.getByRole('combobox', { name: 'Wallet', exact: true }).selectOption('usd-wallet');
+  await page.getByRole('button', { name: 'Record +', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Record', exact: true });
+  await dialog.getByRole('button', { name: kind === 'income' ? 'Income' : 'Expense', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
+  for (const digit of amount) await dialog.getByRole('button', { name: digit, exact: true }).click();
+  await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(dialog.getByRole('heading', { name: 'Category', exact: true })).toBeVisible();
+  if (category === 'Groceries') await dialog.getByRole('button', { name: 'Expand Essentials' }).click();
+  await dialog.getByRole('button', { name: category ?? 'Skip', exact: true }).click();
+  if (effectiveDate) await dialog.getByLabel('Date', { exact: true }).fill(effectiveDate);
+  await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(dialog).toContainText(category ?? 'Income');
+  await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await page.getByRole('combobox', { name: 'Wallet', exact: true }).selectOption('');
+}
 
 test('categorized and uncategorized income preserve exact history labels', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop');
   await openCategories(page);
   await chooseWorkspaceDestination(page, 'Wallets');
-  await page.getByRole('button', { name: 'Add transaction' }).click();
-  let dialog = page.getByRole('dialog', { name: 'Add a transaction' });
-  await dialog.getByRole('radio', { name: /^(?:Income|دخل)$/ }).check();
-  await dialog.getByRole('radio', { name: 'Salary' }).check();
-  await dialog.getByLabel('Effective date').fill('2026-09-08');
-  await dialog.getByLabel('Amount').fill('45.25');
-  await dialog.getByRole('button', { name: 'Review transaction' }).click();
-  await expect(dialog.getByRole('region', { name: 'Wallet effect preview' })).toContainText('Category Salary');
-  await dialog.getByRole('button', { name: 'Record income' }).click();
-  await expect(dialog.getByRole('status')).toContainText('Transaction recorded');
-  await dialog.getByRole('button', { name: 'Done' }).click();
+  await postCategorized(page, 'income', '45.25', 'Salary', '2026-09-08');
   await expect(page.getByText('Salary').last()).toBeVisible();
   await page.evaluate(() => scrollTo(0, 0));
   await page.screenshot({ path: screenshotPath(testInfo, 'desktop-categorized-history.png') });
 
-  await page.getByRole('button', { name: 'Add transaction' }).click();
-  dialog = page.getByRole('dialog', { name: 'Add a transaction' });
-  await dialog.getByRole('radio', { name: /^(?:Income|دخل)$/ }).check();
-  await expect(dialog.getByRole('radio', { name: 'Uncategorized' })).toBeChecked();
-  await dialog.getByLabel('Amount').fill('7');
-  await dialog.getByRole('button', { name: 'Review transaction' }).click();
-  await dialog.getByRole('button', { name: 'Record income' }).click();
-  await expect(dialog.getByRole('status')).toContainText('Transaction recorded');
-  await dialog.getByRole('button', { name: 'Done' }).click();
+  await postCategorized(page, 'income', '7', null);
   await expect(page.getByText('Uncategorized').first()).toBeVisible();
 });
 
@@ -190,20 +194,7 @@ test('a child category posts its exact identity without changing signed minor un
   test.skip(testInfo.project.name !== 'desktop');
   await openCategories(page);
   await chooseWorkspaceDestination(page, 'Wallets');
-  await page.getByRole('button', { name: 'Add transaction' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Add a transaction' });
-  await dialog.getByRole('radio', { name: /^(?:Expense|مصروف)$/ }).check();
-  const children = dialog.getByRole('group', { name: 'Subcategories of Essentials' });
-  await children.getByRole('radio', { name: 'Groceries' }).check();
-  await dialog.getByLabel('Effective date').fill('2026-09-10');
-  await dialog.getByLabel('Amount').fill('12.50');
-  await dialog.getByRole('button', { name: 'Review transaction' }).click();
-  await expect(dialog.getByRole('region', { name: 'Wallet effect preview' })).toContainText('Category Groceries');
-  await expect(dialog.getByRole('region', { name: 'Wallet effect preview' })).toContainText('$12.50');
-  await page.screenshot({ path: screenshotPath(testInfo, 'desktop-subcategory-picker.png') });
-  await dialog.getByRole('button', { name: 'Record expense' }).click();
-  await expect(dialog.getByRole('status')).toContainText('Transaction recorded');
-  await dialog.getByRole('button', { name: 'Done' }).click();
+  await postCategorized(page, 'expense', '12.50', 'Groceries', '2026-09-10');
   await expect(page.getByText('Groceries').last()).toBeVisible();
   await expect(page.getByRole('table', { name: 'Transaction history entries' }).getByText('-$12.50')).toBeVisible();
 });
@@ -214,15 +205,7 @@ test('archived historical label remains while ambiguity reconciles without dupli
   await chooseWorkspaceDestination(page, 'Wallets');
   await expect(page.getByText('Archived travel')).toBeVisible();
   await expect(page.getByText('Archived', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Add transaction' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Add a transaction' });
-  await dialog.getByRole('radio', { name: /^(?:Income|دخل)$/ }).check();
-  await dialog.getByRole('radio', { name: 'Salary' }).check();
-  await dialog.getByLabel('Amount').fill('9');
-  await dialog.getByRole('button', { name: 'Review transaction' }).click();
-  await dialog.getByRole('button', { name: 'Record income' }).click();
-  await expect(dialog.getByRole('status')).toContainText('Transaction recorded');
-  await dialog.getByRole('button', { name: 'Done' }).click();
+  await postCategorized(page, 'income', '9', 'Salary');
   await expect(page.getByRole('table', { name: 'Transaction history entries' }).getByText('$9.00')).toHaveCount(1);
 });
 
@@ -268,7 +251,7 @@ test('mobile category tabs and dialog remain contained with accessible targets',
   await page.keyboard.press('Escape');
   await chooseWorkspaceDestination(page, 'Wallets');
   await page.getByRole('button', { name: 'Record transaction', exact: true }).click();
-  const transactionDialog = page.getByRole('dialog', { name: 'Add a transaction' });
+  const transactionDialog = page.getByRole('dialog', { name: 'Record', exact: true });
   await expectMinimumControlSize(transactionDialog);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });

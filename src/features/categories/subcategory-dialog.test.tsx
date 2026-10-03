@@ -11,7 +11,7 @@ const parent: Category = {
 };
 
 describe('SubcategoryDialog', () => {
-  it('keeps the parent immutable and retains bilingual values after rejection', async () => {
+  it('keeps the parent immutable and retains the active language value after rejection', async () => {
     const user = userEvent.setup();
     const submit = vi.fn(async () => {
       throw { code: 'P0001', message: 'an active category already uses one of the supplied normalized names' };
@@ -25,13 +25,13 @@ describe('SubcategoryDialog', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Create subcategory' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('at least one subcategory name');
     await user.type(within(dialog).getByLabelText('English name'), 'Groceries');
-    await user.type(within(dialog).getByLabelText('Arabic name'), 'بقالة');
+    expect(within(dialog).queryByLabelText('Arabic name')).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Create subcategory' }));
 
-    expect(submit).toHaveBeenCalledWith({ nameEn: 'Groceries', nameAr: 'بقالة' });
+    expect(submit).toHaveBeenCalledWith({ nameEn: 'Groceries', nameAr: null });
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('already uses one of these names');
     expect(within(dialog).getByLabelText('English name')).toHaveValue('Groceries');
-    expect(within(dialog).getByLabelText('Arabic name')).toHaveValue('بقالة');
+    expect(within(dialog).queryByLabelText('Arabic name')).not.toBeInTheDocument();
   });
 
   it('offers only an unchanged retry and announces server-refetched success', async () => {
@@ -57,7 +57,7 @@ describe('SubcategoryDialog', () => {
     render(<SubcategoryDialog locale="ar" parent={parent} pending={false} ambiguous={false} onClose={close} onClearAmbiguous={vi.fn()} onRetry={vi.fn()} onRefresh={vi.fn()} onSubmit={vi.fn()} />);
     const dialog = screen.getByRole('dialog', { name: 'إنشاء فئة فرعية' });
     expect(within(dialog).getAllByText('الأساسيات').every((value) => value.closest('bdi') !== null)).toBe(true);
-    expect(within(dialog).getByLabelText('الاسم بالإنجليزية')).toHaveFocus();
+    expect(within(dialog).getByLabelText('الاسم بالعربية')).toHaveFocus();
     await user.tab({ shift: true });
     expect(dialog).toContainElement(document.activeElement as HTMLElement);
     await user.keyboard('{Escape}');

@@ -155,6 +155,8 @@ export interface CreateGoalResult {
 }
 
 export interface ReviseGoalInput {
+  /** Lifecycle-only command: the server preserves the expected definition. */
+  readonly stateOnly?: boolean;
   readonly spaceId: string;
   readonly requestId: string;
   readonly goalId: string;

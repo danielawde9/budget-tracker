@@ -4,77 +4,66 @@ import { describe, expect, it, vi } from 'vitest';
 import { GoalPurchaseDialog } from './goal-purchase-dialog.js';
 import type { GoalSummary } from './types.js';
 
-const HEAD_A = 'a'.repeat(64);
-const EXPENSE_ID = '00000000-0000-4000-8000-000000000301';
+const expense = { id: 'expense-1', kind: 'expense' as const, currency: 'USD' as const, effectiveDate: '2026-10-02', amountMinor: '4500', label: 'Cedar Market' };
+const base = {
+  locale: 'en' as const, currency: 'USD' as const,
+  goal: { nameEn: 'Laptop', fulfilledMinor: '0' } as GoalSummary, goalHead: 'head',
+  pending: false, ambiguous: false, onClose: vi.fn(), onClearAmbiguous: vi.fn(),
+  onRetry: vi.fn(async () => ({ status: 'success' as const, reconciled: true })),
+  onSubmit: vi.fn(async () => ({ status: 'success' as const, reconciled: false })),
+};
 
-function goal(overrides: Partial<GoalSummary> = {}): GoalSummary {
-  return {
-    id: '00000000-0000-4000-8000-000000000101', revisionId: '1', currency: 'USD', kind: 'purchase', state: 'active',
-    nameEn: 'New laptop', nameAr: null, targetMinor: '600000', earmarkedMinor: '600000',
-    coveredMinor: '600000', fulfilledMinor: '0', shortageMinor: '0', monthlyTargetMinor: null,
-    monthlyNetContributionMinor: '0', dueDate: null, horizon: 'open', needsReview: false,
-    suggestedMonthlyMinor: null, forecastMonth: null, forecastState: 'insufficient_history', asOf: '2026-09-14T12:00:00Z',
-    ...overrides,
-  };
-}
-
-function baseProps() {
-  return {
-    locale: 'en' as const, currency: 'USD' as const, goal: goal(), goalHead: HEAD_A,
-    pending: false, ambiguous: false, onClose: vi.fn(), onClearAmbiguous: vi.fn(),
-    onRetry: vi.fn(), onSubmit: vi.fn(),
-  };
-}
-
-describe('GoalPurchaseDialog', () => {
-  it('links a purchase with the exact expense id, amount, and current head', async () => {
-    const onSubmit = vi.fn().mockResolvedValue({ status: 'success', reconciled: false, result: { linkIds: ['1'] } });
-    render(<GoalPurchaseDialog {...baseProps()} onSubmit={onSubmit} />);
-    await userEvent.type(screen.getByRole('textbox', { name: 'Expense reference id' }), EXPENSE_ID);
-    await userEvent.type(screen.getByRole('textbox', { name: 'Amount to link' }), '400');
+describe('goal expense dropdown', () => {
+  it('selects a readable expense without typing an ID and sends the selected ID internally', async () => {
+    const onSubmit = vi.fn(base.onSubmit);
+    render(<GoalPurchaseDialog {...base} onSubmit={onSubmit} loadExpenses={vi.fn(async () => [expense])} />);
+    expect(screen.queryByRole('textbox', { name: /reference id/i })).not.toBeInTheDocument();
+    const picker = screen.getByRole('combobox', { name: 'Expense' });
+    await screen.findByRole('option', { name: /Cedar Market.*\$45.00/ });
+    await userEvent.selectOptions(picker, expense.id);
+    await userEvent.type(screen.getByRole('textbox', { name: 'Amount to link' }), '45');
     await userEvent.click(screen.getByRole('button', { name: 'Link purchase' }));
-    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith({ expenseEventId: EXPENSE_ID, amountMinor: '40000', expectedHead: HEAD_A }));
-    expect(await screen.findByRole('status')).toBeInTheDocument();
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith({ expenseEventId: expense.id, amountMinor: '4500', expectedHead: 'head' }));
   });
 
-  it('rejects a malformed expense id before calling the gateway', async () => {
+  it('keeps submission disabled when there are no eligible expenses', async () => {
+    render(<GoalPurchaseDialog {...base} loadExpenses={vi.fn(async () => [])} />);
+    await screen.findByText(/No eligible expenses/);
+    expect(screen.getByRole('button', { name: 'Link purchase' })).toBeDisabled();
+  });
+
+  it('retries a failed read without exposing a manual ID fallback', async () => {
+    const loadExpenses = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue([expense]);
+    render(<GoalPurchaseDialog {...base} loadExpenses={loadExpenses} />);
+    await screen.findByText(/Could not load expenses/);
+    await userEvent.click(screen.getByRole('button', { name: 'Retry expenses' }));
+    await screen.findByRole('option', { name: /Cedar Market/ });
+    expect(loadExpenses).toHaveBeenCalledTimes(2);
+  });
+
+  it('locks a resolved uncertain result and exposes unchanged retry', async () => {
+    render(<GoalPurchaseDialog {...base} ambiguous loadExpenses={vi.fn(async () => [expense])} />);
+    expect(screen.getByRole('button', { name: 'Retry unchanged request' })).toBeEnabled();
+    expect(screen.getByRole('combobox', { name: 'Expense' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Link purchase' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry unchanged request' }));
+    expect(base.onRetry).toHaveBeenCalled();
+  });
+
+  it('rejects a blank amount before sending a command', async () => {
     const onSubmit = vi.fn();
-    render(<GoalPurchaseDialog {...baseProps()} onSubmit={onSubmit} />);
-    await userEvent.type(screen.getByRole('textbox', { name: 'Expense reference id' }), 'not-a-uuid');
-    await userEvent.type(screen.getByRole('textbox', { name: 'Amount to link' }), '400');
+    render(<GoalPurchaseDialog {...base} onSubmit={onSubmit} loadExpenses={vi.fn(async () => [expense])} />);
+    await screen.findByRole('option', { name: /Cedar Market/ });
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Expense' }), expense.id);
     await userEvent.click(screen.getByRole('button', { name: 'Link purchase' }));
-    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter a valid positive amount');
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it('rejects a blank amount before calling the gateway', async () => {
-    const onSubmit = vi.fn();
-    render(<GoalPurchaseDialog {...baseProps()} onSubmit={onSubmit} />);
-    await userEvent.type(screen.getByRole('textbox', { name: 'Expense reference id' }), EXPENSE_ID);
-    await userEvent.click(screen.getByRole('button', { name: 'Link purchase' }));
-    expect(screen.getByRole('alert')).toHaveTextContent('Enter a valid positive amount.');
-    expect(onSubmit).not.toHaveBeenCalled();
-  });
-
-  it('shows the already-fulfilled amount for context', () => {
-    render(<GoalPurchaseDialog {...baseProps()} goal={goal({ fulfilledMinor: '40000' })} />);
+  it('shows fulfillment context and disables inputs while posting', () => {
+    render(<GoalPurchaseDialog {...base} goal={{ ...base.goal, fulfilledMinor: '40000' }} pending />);
     expect(screen.getByText('$400.00')).toBeInTheDocument();
-  });
-
-  it('offers an unchanged retry when ambiguous', async () => {
-    const onRetry = vi.fn().mockResolvedValue({ status: 'success', reconciled: true, result: { linkIds: ['1'] } });
-    const onSubmit = vi.fn().mockRejectedValue(new Error('network timeout'));
-    render(<GoalPurchaseDialog {...baseProps()} ambiguous onRetry={onRetry} onSubmit={onSubmit} />);
-    await userEvent.type(screen.getByRole('textbox', { name: 'Expense reference id' }), EXPENSE_ID);
-    await userEvent.type(screen.getByRole('textbox', { name: 'Amount to link' }), '400');
-    await userEvent.click(screen.getByRole('button', { name: 'Link purchase' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Retry unchanged request' }));
-    await waitFor(() => expect(onRetry).toHaveBeenCalledTimes(1));
-  });
-
-  it('disables the form while pending', () => {
-    render(<GoalPurchaseDialog {...baseProps()} pending />);
     expect(screen.getByRole('button', { name: 'Linking…' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    expect(screen.getByRole('textbox', { name: 'Amount to link' })).toBeDisabled();
   });
 });

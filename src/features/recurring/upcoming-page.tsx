@@ -14,12 +14,12 @@ interface UpcomingPageProps {
   locale: Locale;
   currency: Currency;
   recurring: RecurringState;
-  /** The same bounded window `useRecurring` was constructed with -- reused
-   * verbatim for the explicit "Refresh occurrences" materialize call so the
-   * button never silently generates a different range than the one on
-   * screen. */
+  /** Inclusive window shown in the occurrence list and summary. */
   fromDate: string;
   toDate: string;
+  /** Generation can retain a longer forecast horizon than the viewed month. */
+  materializeFromDate?: string;
+  materializeToDate?: string;
   /** Named lists for the schedule editor's reference dropdowns. */
   referenceOptions: ScheduleReferenceOptions;
   /** Planned income per currency from the monthly plan (integer-minor). */
@@ -89,7 +89,8 @@ export function UpcomingPage(props: UpcomingPageProps) {
       {...(props.onUnlink ? { onUnlink: props.onUnlink } : {})} />;
   }
 
-  const rows = recurring.page.rows.filter((row) => row.currency === props.currency);
+  const rows = recurring.page.rows.filter((row) => row.currency === props.currency && row.dueDate >= props.fromDate && row.dueDate <= props.toDate);
+  const isMonthWindow = props.fromDate.endsWith('-01') && props.fromDate.slice(0, 7) === props.toDate.slice(0, 7);
   const filteredRows = rows.filter((row) => filter === 'all' || occurrenceBucket(row) === filter);
   const totals = windowTotals(rows, props.fromDate, props.toDate);
   const busy = recurring.status === 'saving';
@@ -104,7 +105,7 @@ export function UpcomingPage(props: UpcomingPageProps) {
       <h2>{t(props.locale, 'Upcoming bills', 'الفواتير القادمة')}</h2>
       <div className="rec-actions">
         <button type="button" className="cr-button" disabled={busy}
-          onClick={() => void recurring.materialize({ fromDate: props.fromDate, toDate: props.toDate })}>
+          onClick={() => void recurring.materialize({ fromDate: props.materializeFromDate ?? props.fromDate, toDate: props.materializeToDate ?? props.toDate })}>
           {t(props.locale, 'Refresh occurrences', 'تحديث الدفعات')}
         </button>
         <button type="button" className="cr-button cr-button--primary" onClick={() => setCreating(true)}>{t(props.locale, 'New schedule', 'جدول جديد')}</button>
@@ -199,7 +200,7 @@ export function UpcomingPage(props: UpcomingPageProps) {
 
     </div>
     {(recurring.status === 'ready' || recurring.status === 'saving') && <aside className="cr-card rec-window-summary" aria-label={t(props.locale, 'Window summary', 'ملخص الفترة')}>
-      <h3>{t(props.locale, 'In this window', 'خلال هذه الفترة')}</h3>
+      <h3>{isMonthWindow ? t(props.locale, 'In this month', 'خلال هذا الشهر') : t(props.locale, 'In this window', 'خلال هذه الفترة')}</h3>
       <dl>
         <div><dt><bdi>{new Intl.NumberFormat(props.locale === 'ar' ? 'ar-LB' : 'en-US').format(totals.outflowCount)}</bdi> {t(props.locale, totals.outflowCount === 1 ? 'outflow' : 'outflows', 'مدفوعات خارجة')}</dt><dd><bdi>{formatMinorAmount(totals.outflowMinor.toString(), props.currency, props.locale)}</bdi></dd></div>
         <div><dt><bdi>{new Intl.NumberFormat(props.locale === 'ar' ? 'ar-LB' : 'en-US').format(totals.inflowCount)}</bdi> {t(props.locale, totals.inflowCount === 1 ? 'inflow' : 'inflows', 'مدفوعات واردة')}</dt><dd><bdi>{formatMinorAmount(totals.inflowMinor.toString(), props.currency, props.locale)}</bdi></dd></div>

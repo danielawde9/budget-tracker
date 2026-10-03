@@ -46,7 +46,7 @@ describe('AllocationBars', () => {
 
   it('does not claim an over or under target when the row is unplanned or exactly on target', () => {
     render(<AllocationBars locale="en" currency="USD" monthHasPlan rows={[
-      group({ groupId: null, rowKind: 'unmapped', hasPlan: false, targetMinor: '0', actualMinor: '0', varianceMinor: '0', basisPoints: null, actualShareOfIncomeBps: '0' }),
+      group({ groupId: 'no-plan', rowKind: 'spending', hasPlan: false, targetMinor: '0', actualMinor: '0', varianceMinor: '0', basisPoints: null, actualShareOfIncomeBps: '0' }),
       group({ groupId: 'exact', targetMinor: '10000', actualMinor: '10000', varianceMinor: '0' }),
     ]} />);
     const rows = screen.getAllByRole('row').slice(1);
@@ -67,7 +67,7 @@ describe('AllocationBars', () => {
   });
 
   it('U08-03 shows "No target" for a zero-target row without a plan, and an explicit numeric zero when planned', () => {
-    const noPlanRow = group({ rowKind: 'unmapped', groupId: null, targetMinor: '0', actualMinor: '500', hasPlan: false, basisPoints: null, nameEn: null, nameAr: null });
+    const noPlanRow = group({ rowKind: 'spending', groupId: 'no-plan', targetMinor: '0', actualMinor: '500', hasPlan: false, basisPoints: null, nameEn: null, nameAr: null });
     const { rerender } = render(<AllocationBars locale="en" currency="USD" monthHasPlan={false} rows={[noPlanRow]} />);
     expect(screen.getByText('No target')).toBeInTheDocument();
 
@@ -94,12 +94,20 @@ describe('AllocationBars', () => {
     expect(actualText.className).toContain('alloc-danger-text');
   });
 
-  it('renders no target bar for the uncategorized synthetic row (targetMinor null, not zero)', () => {
-    render(<AllocationBars locale="en" currency="USD" monthHasPlan rows={[
-      group({ rowKind: 'uncategorized', groupId: null, targetMinor: null, actualMinor: '750', varianceMinor: null, hasPlan: false, basisPoints: null, nameEn: null, nameAr: null }),
-    ]} />);
-    expect(screen.getByText('No target')).toBeInTheDocument();
-    expect(screen.getByText('Uncategorized')).toBeInTheDocument();
+  it('always hides unmapped and uncategorized rows even with nonzero actuals, in both languages', () => {
+    const rows = [
+      group({ rowKind: 'uncategorized', groupId: null, targetMinor: null, actualMinor: '750', varianceMinor: null, hasPlan: false }),
+      group({ rowKind: 'unmapped', groupId: null, targetMinor: '0', actualMinor: '900', hasPlan: false }),
+      group(),
+    ];
+    const { rerender } = render(<AllocationBars locale="en" currency="USD" monthHasPlan rows={rows} />);
+    expect(screen.queryByText('Uncategorized')).not.toBeInTheDocument();
+    expect(screen.queryByText('Unmapped')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('row')).toHaveLength(2);
+    rerender(<AllocationBars locale="ar" currency="USD" monthHasPlan rows={rows} />);
+    expect(screen.queryByText('غير مصنّف')).not.toBeInTheDocument();
+    expect(screen.queryByText('غير مرتبط')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('row')).toHaveLength(2);
   });
 
   it('renders Arabic labels via bdi and translated copy', () => {

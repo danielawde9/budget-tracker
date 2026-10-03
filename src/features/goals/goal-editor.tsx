@@ -349,7 +349,7 @@ export function GoalEditor(props: GoalEditorProps) {
   </GoalSheetFrame>;
 
   return <GoalSheetFrame locale={props.locale} title={props.mode === 'create' ? t(props.locale, 'New goal', 'هدف جديد') : t(props.locale, 'Edit goal', 'تعديل الهدف')}
-    closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} pending={props.pending}>
+    closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} pending={props.pending || props.ambiguous}>
     <form aria-label={t(props.locale, 'Goal details', 'تفاصيل الهدف')} onSubmit={submit}>
       <p id={descriptionId} className="dialog-intro">{t(props.locale, 'Reserve saves toward a general amount; purchase tracks a specific thing you plan to buy.', 'يوفر الحجز لمبلغ عام؛ يتتبع الشراء شيئًا معينًا تخطط لشرائه.')}</p>
 
@@ -371,7 +371,7 @@ export function GoalEditor(props: GoalEditorProps) {
 
       <h3 className="cr-wizard-step-heading">{stepLabel(props.locale, step)}</h3>
 
-      <div key={step} className="cr-wizard-content" role="group" aria-label={stepLabel(props.locale, step)}>
+      <fieldset className="goal-editor-fields" disabled={props.pending || props.ambiguous}><div key={step} className="cr-wizard-content" role="group" aria-label={stepLabel(props.locale, step)}>
         {step === 'type' && <>
           <fieldset className="cr-choice" disabled={props.mode === 'revise'}>
             <legend>{t(props.locale, 'Kind', 'النوع')}</legend>
@@ -393,10 +393,8 @@ export function GoalEditor(props: GoalEditorProps) {
 
         {step === 'target' && <>
           <div className="form-grid">
-            <label className="full-field">{t(props.locale, 'Name (English)', 'الاسم (إنجليزي)')}
-              <input data-autofocus type="text" placeholder={t(props.locale, 'e.g. Emergency fund', 'مثال: صندوق الطوارئ')} value={nameEn} onChange={(event) => { setNameEn(event.target.value); setError(null); }} /></label>
-            <label className="full-field">{t(props.locale, 'Name (Arabic)', 'الاسم (عربي)')}
-              <input type="text" placeholder={t(props.locale, 'مثال: صندوق الطوارئ', 'مثال: صندوق الطوارئ')} value={nameAr} onChange={(event) => { setNameAr(event.target.value); setError(null); }} /></label>
+            <label className="full-field">{t(props.locale, 'Name', 'الاسم')}
+              <input data-autofocus type="text" placeholder={t(props.locale, 'e.g. Emergency fund', 'مثال: صندوق الطوارئ')} value={props.locale === 'ar' ? nameAr : nameEn} onChange={event => { if (props.locale === 'ar') setNameAr(event.target.value); else setNameEn(event.target.value); setError(null); }} /></label>
             <label className="full-field">{t(props.locale, 'Note', 'ملاحظة')}
               <textarea placeholder={t(props.locale, 'Optional', 'اختياري')} value={note} onChange={(event) => setNote(event.target.value)} /></label>
             <label className="full-field">{t(props.locale, 'Target amount', 'مبلغ الهدف')}
@@ -442,10 +440,8 @@ export function GoalEditor(props: GoalEditorProps) {
               <button type="button" className="text-button" onClick={() => removeMilestone(row.id)}>{t(props.locale, 'Remove', 'إزالة')}</button>
             </div>
             <div className="form-grid">
-              <label>{t(props.locale, 'Milestone name (English)', 'اسم المعلم (إنجليزي)')}
-                <input type="text" placeholder={t(props.locale, 'e.g. Halfway there', 'مثال: منتصف الطريق')} value={row.labelEn} onChange={(event) => updateMilestone(row.id, { labelEn: event.target.value })} /></label>
-              <label>{t(props.locale, 'Milestone name (Arabic)', 'اسم المعلم (عربي)')}
-                <input type="text" placeholder={t(props.locale, 'بالعربية', 'بالعربية')} value={row.labelAr} onChange={(event) => updateMilestone(row.id, { labelAr: event.target.value })} /></label>
+              <label>{t(props.locale, 'Milestone name', 'اسم المعلم')}
+                <input type="text" placeholder={t(props.locale, 'e.g. Halfway there', 'مثال: منتصف الطريق')} value={props.locale === 'ar' ? row.labelAr : row.labelEn} onChange={event => updateMilestone(row.id, props.locale === 'ar' ? { labelAr: event.target.value } : { labelEn: event.target.value })} /></label>
               {row.kind === 'amount' ? (
                 <label className="full-field">{t(props.locale, 'Amount for this milestone', 'مبلغ هذا المعلم')}
                   <input type="text" inputMode="decimal" placeholder={currency === 'USD' ? '0.00' : '0'} value={row.thresholdMajor} onChange={(event) => updateMilestone(row.id, { thresholdMajor: event.target.value })} /></label>
@@ -501,16 +497,17 @@ export function GoalEditor(props: GoalEditorProps) {
         </div>}
       </div>
 
-      {error && <div className="error-notice" role="alert">
-        {error}
+      </fieldset>
+      {(error || props.ambiguous) && <div className="error-notice" role="alert">
+        {error ?? t(props.locale, 'The result is uncertain. Retry the same request before making changes.', 'النتيجة غير مؤكدة. أعد الطلب نفسه قبل إجراء تغييرات.')}
         {props.ambiguous && <div><button type="button" className="button-secondary retry-command" onClick={() => void run(props.onRetry)}>{t(props.locale, 'Retry unchanged request', 'إعادة الطلب دون تغيير')}</button></div>}
       </div>}
       <div className="cr-wizard-footer">
-        <button type="button" className="text-button" disabled={props.pending} onClick={props.onClose}>{t(props.locale, 'Cancel', 'إلغاء')}</button>
+        <button type="button" className="text-button" disabled={props.pending || props.ambiguous} onClick={props.onClose}>{t(props.locale, 'Cancel', 'إلغاء')}</button>
         <div className="cr-wizard-footer-end">
-          {stepIndex > 0 && <button type="button" className="button-secondary" onClick={goBack}>{t(props.locale, 'Back', 'رجوع')}</button>}
+          {stepIndex > 0 && <button type="button" className="button-secondary" disabled={props.pending || props.ambiguous} onClick={goBack}>{t(props.locale, 'Back', 'رجوع')}</button>}
           {step === 'review'
-            ? <button type="submit" className="cr-button cr-button--primary" disabled={props.pending || savingRef.current}>{props.pending || savingRef.current ? t(props.locale, 'Saving…', 'جارٍ الحفظ…') : t(props.locale, 'Save', 'حفظ')}</button>
+            ? <button type="submit" className="cr-button cr-button--primary" disabled={props.pending || props.ambiguous || savingRef.current}>{props.pending || savingRef.current ? t(props.locale, 'Saving…', 'جارٍ الحفظ…') : t(props.locale, 'Save', 'حفظ')}</button>
             : <button type="submit" className="cr-button cr-button--primary">{t(props.locale, 'Next', 'التالي')}</button>}
         </div>
       </div>

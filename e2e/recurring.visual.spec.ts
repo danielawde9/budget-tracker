@@ -35,8 +35,12 @@ const internetOccurrence: Record<string, unknown> = {
   asOf: '2026-02-14',
 };
 
-async function openPlan(page: import('@playwright/test').Page, options: Parameters<typeof installApplicationFixture>[1] = {}) {
+async function openPlan(page: import('@playwright/test').Page, options: Parameters<typeof installApplicationFixture>[1] = {}, today = '2026-09-14') {
   await installApplicationFixture(page, options);
+  await page.route('**/rest/v1/rpc/space_clock', route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ timezone: 'UTC', today, currentMonth: `${today.slice(0, 7)}-01` }),
+  }));
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible();
   await chooseWorkspaceDestination(page, 'Plan');
@@ -44,11 +48,11 @@ async function openPlan(page: import('@playwright/test').Page, options: Paramete
   await openPlanSection(page, 'Upcoming bills');
 }
 
-test('U16-01/U16-02 shows expected/settled/remaining distinctly and a February month-end due date verbatim', async ({ page }, testInfo) => {
+test('U16-01 shows expected, settled and remaining distinctly for the viewed month', async ({ page }, testInfo) => {
   await openPlan(page, { seedOccurrences: [rentOccurrence, internetOccurrence] });
   const section = page.getByRole('region', { name: 'Upcoming bills' });
-  await expect(section.getByText('Internet')).toBeVisible();
-  await expect(section.getByText('2026-02-28')).toBeVisible();
+  await expect(section.getByText('Internet')).toHaveCount(0);
+  await expect(section.getByText('2026-02-28')).toHaveCount(0);
   await section.getByRole('button', { name: 'Review Rent' }).click();
   const detail = page.getByRole('region', { name: 'Occurrence detail' });
   await expect(detail).toContainText('$500.00'); // expected
@@ -56,6 +60,14 @@ test('U16-01/U16-02 shows expected/settled/remaining distinctly and a February m
   await expect(detail).toContainText('$300.00'); // remaining
   await expectContainedControls(page);
   await page.screenshot({ path: screenshotPath(testInfo, `occurrence-detail-${testInfo.project.name}.png`), fullPage: true });
+});
+
+test('U16-02 shows a February month-end date when viewing February', async ({ page }) => {
+  await openPlan(page, { seedOccurrences: [internetOccurrence, rentOccurrence] }, '2026-02-14');
+  const section = page.getByRole('region', { name: 'Upcoming bills' });
+  await expect(section.getByText('Internet')).toBeVisible();
+  await expect(section.getByRole('cell', { name: /2026-02-28/ })).toBeVisible();
+  await expect(section.getByText('Rent', { exact: true })).toHaveCount(0);
 });
 
 test('an empty occurrence list shows New schedule, not a crash', async ({ page }) => {
@@ -121,8 +133,8 @@ test('U16-03: creating a schedule never posts an occurrence by itself -- only th
   await form.getByLabel('Expected amount').fill('120');
   await form.getByRole('button', { name: 'Next' }).click();
   // Step 3 (Details).
-  await form.getByLabel('Name (English)').fill('Water');
-  const startsOn = new Date().toISOString().slice(0, 10);
+  await form.getByLabel('Name', { exact: true }).fill('Water');
+  const startsOn = '2026-09-14';
   await form.getByLabel('Starts on').fill(startsOn);
   await expectContainedControls(page, form);
   await page.screenshot({ path: screenshotPath(testInfo, `schedule-editor-${testInfo.project.name}.png`) });

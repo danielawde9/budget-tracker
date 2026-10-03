@@ -102,23 +102,22 @@ export function PlanSkeleton({ locale }: { locale: Locale }) {
   );
 }
 
-/** Mirrors the categories page: an income register and an expense register side by side. */
-export function CategoriesSkeleton({ locale }: { locale: Locale }) {
-  return (
-    <>
-      <SkeletonStatus locale={locale} text={t(locale, 'Loading this space’s categories…', 'جارٍ تحميل فئات هذه المساحة…')} label={t(locale, 'Loading categories', 'تحميل الفئات')} />
-      <div className="category-registers">
-        <SkeletonCard>
+/** Uses the same register grid and row rhythm as the loaded categories. */
+export function CategoriesSkeleton({ locale, activeKind = 'income' }: { locale: Locale; activeKind?: 'income' | 'expense' }) {
+  return <>
+    <SkeletonStatus locale={locale} text={t(locale, 'Loading this space’s categories…', 'جارٍ تحميل فئات هذه المساحة…')} label={t(locale, 'Loading categories', 'تحميل الفئات')} />
+    <div className="category-registers cg-registers cg-loading">
+      {(['income', 'expense'] as const).map((kind) => <div key={kind} className="category-register cg-register cr-card" data-active={activeKind === kind} aria-hidden="true">
+        <div className="cg-register-header cr-section-header"><Skeleton shape="line-short" /><Skeleton shape="chip" /></div>
+        <div className="cg-list">{Array.from({ length: 4 }, (_, index) => <div key={index} className="cg-loading-row">
+          <span className="cg-toggle-spacer" />
+          <span className="cr-skeleton cg-loading-icon" />
           <Skeleton shape="line-short" />
-          <SkeletonRows count={4} />
-        </SkeletonCard>
-        <SkeletonCard>
-          <Skeleton shape="line-short" />
-          <SkeletonRows count={4} />
-        </SkeletonCard>
-      </div>
-    </>
-  );
+          <div className="cg-loading-actions"><Skeleton shape="chip" /><Skeleton shape="chip" /></div>
+        </div>)}</div>
+      </div>)}
+    </div>
+  </>;
 }
 
 /** Mirrors the loans page: summary strip + two direction columns. */

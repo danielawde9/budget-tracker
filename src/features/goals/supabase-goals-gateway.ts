@@ -329,6 +329,12 @@ export function createSupabaseGoalsGateway(client: GoalsDataClient): GoalsGatewa
     },
 
     async revise(input: ReviseGoalInput): Promise<ReviseGoalResult> {
+      if (input.stateOnly) {
+        return reviseGoalResult(await planningRpc(client, 'set_goal_state', {
+          p_space_id: input.spaceId, p_request_id: input.requestId, p_goal_id: input.goalId,
+          p_expected_revision_id: bigIntArg(input.expectedRevisionId, 'expectedRevisionId'), p_state: input.state,
+        }));
+      }
       if (input.milestones.length > MAX_MILESTONES) throw new Error('Too many milestones.');
       const data = await planningRpc(client, 'revise_goal_plan', {
         p_space_id: input.spaceId,

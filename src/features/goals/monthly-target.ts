@@ -23,31 +23,55 @@ export function goalMonthlyTargetLine(goal: GoalSummary, expectedRevisionId: str
   return { goalId: goal.id, nameEn: goal.nameEn, nameAr: goal.nameAr, amountMinor: goal.monthlyTargetMinor, expectedRevisionId };
 }
 
-/** The current month's goal monthly targets for a currency, as the allocation
- * publish needs them. `goal_page`/`goal_detail` return each goal's
- * `monthlyTargetMinor` for the *current UTC month* (the same month
- * `GoalDetail` edits), so this loader's `month` is expected to be that month.
- * Only goals with a target are returned; goals without one are omitted so the
- * publish's complete-set rule is satisfied without inventing zero revisions. */
+/** Finds the month head even when later funding/checklist entries bury it. */
+export async function loadGoalMonthlyTargetRevisionId(
+  loadHistory: (input: Omit<import('./types.js').LoadGoalHistoryInput, 'spaceId'>) => Promise<import('./types.js').GoalHistoryPage>,
+  goalId: string, month: string,
+): Promise<string | null> {
+  let cursor: import('./types.js').GoalHistoryCursor | null = null;
+  const seen = new Set<string>();
+  do {
+    const history = await loadHistory({ goalId,
+      beforeCreatedAt: cursor?.createdAt ?? null, beforeSourceKind: cursor?.sourceKind ?? null,
+      beforeSourceId: cursor?.sourceId ?? null, limit: 100 });
+    const head = latestMonthlyTargetRevisionId(history.rows, month);
+    if (head !== null) return head;
+    cursor = history.hasMore ? history.nextCursor : null;
+    if (cursor) {
+      const key = JSON.stringify(cursor);
+      if (seen.has(key)) throw new Error('Goal history cursor did not advance.');
+      seen.add(key);
+    }
+  } while (cursor);
+  return null;
+}
+
+/** Enumerate goals, but obtain each amount from the selected month detail.
+ * List projections describe the current month and must not supply amounts
+ * for a historical or future allocation. Page both identities and heads. */
 export async function loadGoalMonthlyTargetLines(
   gateway: GoalsGateway, spaceId: string, currency: Currency, month: string, signal?: AbortSignal,
 ): Promise<readonly GoalMonthlyTargetLine[]> {
-  const page = await gateway.loadPage(
-    { spaceId, currency, stateFilter: 'all', afterCreatedAt: null, afterId: null, limit: 100 }, signal,
-  );
   const lines: GoalMonthlyTargetLine[] = [];
-  for (const goal of page.rows) {
-    if (goal.monthlyTargetMinor === null) continue;
-    const history = await gateway.loadHistory(
-      { spaceId, goalId: goal.id, beforeCreatedAt: null, beforeSourceKind: null, beforeSourceId: null, limit: 100 }, signal,
-    );
-    lines.push({
-      goalId: goal.id,
-      nameEn: goal.nameEn,
-      nameAr: goal.nameAr,
-      amountMinor: goal.monthlyTargetMinor,
-      expectedRevisionId: latestMonthlyTargetRevisionId(history.rows, month),
-    });
-  }
+  let cursor: import('./types.js').GoalPageCursor | null = null;
+  const seen = new Set<string>();
+  do {
+    const page = await gateway.loadPage({ spaceId, currency, stateFilter: 'all',
+      afterCreatedAt: cursor?.createdAt ?? null, afterId: cursor?.id ?? null, limit: 100 }, signal);
+    for (const identity of page.rows) {
+      const detail = await gateway.loadDetail({ spaceId, goalId: identity.id, month }, signal);
+      const goal = detail.summary;
+      if (goal.monthlyTargetMinor === null) continue;
+      const expectedRevisionId = await loadGoalMonthlyTargetRevisionId(input => gateway.loadHistory({ ...input, spaceId }, signal), goal.id, month);
+      lines.push({ goalId: goal.id, nameEn: goal.nameEn, nameAr: goal.nameAr,
+        amountMinor: goal.monthlyTargetMinor, expectedRevisionId });
+    }
+    cursor = page.hasMore ? page.nextCursor : null;
+    if (cursor) {
+      const key = JSON.stringify(cursor);
+      if (seen.has(key)) throw new Error('Goal page cursor did not advance.');
+      seen.add(key);
+    }
+  } while (cursor);
   return lines;
 }

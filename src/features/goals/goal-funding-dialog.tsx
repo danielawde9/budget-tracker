@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from 'react';
+import { useId, useRef, useState, type FormEvent } from 'react';
 import type { Currency, Locale } from '../loans/types.js';
 import { formatMinorAmount, parsePositiveMinorAmount } from '../wallets/money.js';
 import { DialogShell } from '../wallets/dialog-shell.js';
@@ -44,8 +44,13 @@ export function GoalFundingDialog(props: GoalFundingDialogProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  const busy = useRef(false);
+  const [saving, setSaving] = useState(false);
+  const locked = props.pending || props.ambiguous || saving;
+
   async function run(action: () => Promise<CommandOutcome>) {
-    setError(null);
+    if (busy.current) return;
+    busy.current = true; setSaving(true); setError(null);
     try {
       const outcome = await action();
       if (outcome.status === 'success' || outcome.status === 'refresh-required') setSuccess(true);
@@ -58,11 +63,12 @@ export function GoalFundingDialog(props: GoalFundingDialogProps) {
         return;
       }
       setError(`${view.message} ${view.recovery}`);
-    }
+    } finally { busy.current = false; setSaving(false); }
   }
 
   function submit(event: FormEvent) {
     event.preventDefault();
+    if (locked) return;
     setUnderfundedPrompt(null);
     let amountMinor: string;
     try {
@@ -94,7 +100,7 @@ export function GoalFundingDialog(props: GoalFundingDialogProps) {
 
   const goalName = props.locale === 'ar' ? (props.goal.nameAr ?? props.goal.nameEn) : (props.goal.nameEn ?? props.goal.nameAr);
 
-  if (success) return <DialogShell title={t(props.locale, 'Manage funding', 'إدارة التمويل')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} descriptionId={descriptionId} focusVersion="success">
+  if (success) return <DialogShell title={t(props.locale, 'Set money aside', 'تخصيص مبلغ')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} descriptionId={descriptionId} focusVersion="success">
     <div className="dialog-result" role="status">
       <strong>{t(props.locale, 'Saved', 'تم الحفظ')}</strong>
       <p id={descriptionId}>{t(props.locale, 'The goal’s funding has been updated.', 'تم تحديث تمويل الهدف.')}</p>
@@ -102,15 +108,16 @@ export function GoalFundingDialog(props: GoalFundingDialogProps) {
     </div>
   </DialogShell>;
 
-  return <DialogShell title={t(props.locale, 'Manage funding', 'إدارة التمويل')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} pending={props.pending} descriptionId={descriptionId}>
+  return <DialogShell title={t(props.locale, 'Set money aside', 'تخصيص مبلغ')} closeLabel={t(props.locale, 'Close', 'إغلاق')} onClose={props.onClose} pending={props.pending || saving} descriptionId={descriptionId}>
     <form onSubmit={submit}>
       <p id={descriptionId} className="dialog-intro">
-        <bdi>{goalName}</bdi> — {t(props.locale, 'currently reserved', 'المحجوز حاليًا')}: <bdi>{formatMinorAmount(props.goal.earmarkedMinor, props.currency, props.locale)}</bdi>
+        <bdi>{goalName}</bdi> — {t(props.locale, 'currently set aside', 'المخصص حاليًا')}: <bdi>{formatMinorAmount(props.goal.earmarkedMinor, props.currency, props.locale)}</bdi>
       </p>
+      <fieldset className="goal-editor-fields" disabled={locked}>
       <fieldset className="cr-choice">
         <legend>{t(props.locale, 'Action', 'الإجراء')}</legend>
-        <label><input type="radio" name="goal-funding-mode" checked={mode === 'reserve'} onChange={() => { setMode('reserve'); setError(null); }} />{t(props.locale, 'Reserve', 'حجز')}</label>
-        <label><input type="radio" name="goal-funding-mode" checked={mode === 'release'} onChange={() => { setMode('release'); setError(null); }} />{t(props.locale, 'Release', 'تحرير')}</label>
+        <label><input type="radio" name="goal-funding-mode" checked={mode === 'reserve'} onChange={() => { setMode('reserve'); setError(null); }} />{t(props.locale, 'Set aside', 'تخصيص')}</label>
+        <label><input type="radio" name="goal-funding-mode" checked={mode === 'release'} onChange={() => { setMode('release'); setError(null); }} />{t(props.locale, 'Free up', 'تحرير')}</label>
         {props.moveTargets.length > 0 && <label><input type="radio" name="goal-funding-mode" checked={mode === 'move'} onChange={() => { setMode('move'); setError(null); }} />{t(props.locale, 'Move to another goal', 'نقل إلى هدف آخر')}</label>}
       </fieldset>
       {mode === 'move' && <label className="full-field">
@@ -125,8 +132,10 @@ export function GoalFundingDialog(props: GoalFundingDialogProps) {
         {t(props.locale, 'Amount', 'المبلغ')}
         <input data-autofocus type="text" inputMode="decimal" placeholder={props.currency === 'USD' ? '0.00' : '0'} value={amountText} onChange={(event) => { setAmountText(event.target.value); setError(null); }} />
       </label>
-      {error && <div className="error-notice" role="alert">
-        {error}
+      <p className="field-note">{mode === 'reserve' ? t(props.locale, 'Mark money as set aside for this goal. It stays in your wallets and reduces cash available for other spending.', 'خصص مبلغًا لهذا الهدف. يبقى في محافظك ويقلل النقد المتاح للمصروف الآخر.') : mode === 'release' ? t(props.locale, 'Free up money previously set aside for this goal.', 'حرّر مبلغًا سبق تخصيصه لهذا الهدف.') : t(props.locale, 'Reassign money set aside here to another goal. Your wallet balances stay the same.', 'انقل المبلغ المخصص هنا إلى هدف آخر. تبقى أرصدة المحافظ كما هي.')}</p>
+      </fieldset>
+      {(error || props.ambiguous) && <div className="error-notice" role="alert">
+        {error ?? t(props.locale, 'The result is uncertain. Retry the same request before making changes.', 'النتيجة غير مؤكدة. أعد الطلب نفسه قبل إجراء تغييرات.')}
         {props.ambiguous && <div><button type="button" className="button-secondary retry-command" onClick={() => void run(props.onRetry)}>{t(props.locale, 'Retry unchanged request', 'إعادة الطلب دون تغيير')}</button></div>}
       </div>}
       {underfundedPrompt && <div className="error-notice" role="alert">
@@ -134,8 +143,8 @@ export function GoalFundingDialog(props: GoalFundingDialogProps) {
         <div><button type="button" className="button-secondary" onClick={confirmUnderfunded}>{t(props.locale, 'Reserve anyway', 'احجز على أي حال')}</button></div>
       </div>}
       <div className="dialog-actions">
-        <button type="button" className="button-secondary" disabled={props.pending} onClick={props.onClose}>{t(props.locale, 'Cancel', 'إلغاء')}</button>
-        <button type="submit" className="cr-button cr-button--primary" disabled={props.pending}>{props.pending ? t(props.locale, 'Saving…', 'جارٍ الحفظ…') : t(props.locale, 'Save', 'حفظ')}</button>
+        <button type="button" className="button-secondary" disabled={props.pending || saving} onClick={props.onClose}>{t(props.locale, 'Cancel', 'إلغاء')}</button>
+        <button type="submit" className="cr-button cr-button--primary" disabled={locked}>{props.pending || saving ? t(props.locale, 'Saving…', 'جارٍ الحفظ…') : t(props.locale, 'Save', 'حفظ')}</button>
       </div>
     </form>
   </DialogShell>;

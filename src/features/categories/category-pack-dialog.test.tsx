@@ -68,25 +68,23 @@ describe('CategoryPackDialog', () => {
     await user.click(within(dialog).getByRole('checkbox', { name: 'Include Food' }));
     await user.clear(group('Food').getByLabelText('English name'));
     await user.type(group('Food').getByLabelText('English name'), '   Food   ');
-    await user.clear(group('Food').getByLabelText('Arabic name'));
-    await user.type(group('Food').getByLabelText('Arabic name'), '  الطعام  ');
+    expect(group('Food').queryByLabelText('Arabic name')).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Add selected categories' }));
 
     await waitFor(() => expect(within(dialog).getByRole('status')).toHaveTextContent('1 created'));
     expect(onCreateCategory).toHaveBeenCalledWith({ kind: 'expense', nameEn: 'Food', nameAr: 'الطعام' }, 'req-food');
   });
 
-  it('requires at least one name and does not run on an empty selection', async () => {
+  it('does not run on an empty selection and retains the hidden translation when the visible name is cleared', async () => {
     const { user, dialog, group, onCreateCategory } = renderDialog();
     await user.click(within(dialog).getByRole('button', { name: 'Add selected categories' }));
     expect(within(dialog).getByRole('alert')).toHaveTextContent('Select at least one suggestion');
 
     await user.click(within(dialog).getByRole('checkbox', { name: 'Include Dining' }));
     await user.clear(group('Dining').getByLabelText('English name'));
-    await user.clear(group('Dining').getByLabelText('Arabic name'));
+    expect(group('Dining').queryByLabelText('Arabic name')).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Add selected categories' }));
-    expect(within(dialog).getByRole('alert')).toHaveTextContent('at least one category name');
-    expect(onCreateCategory).not.toHaveBeenCalled();
+    await waitFor(() => expect(onCreateCategory).toHaveBeenCalledWith({ kind: 'expense', nameEn: null, nameAr: 'المطاعم' }, expect.any(String)));
   });
 
   it('reports created and failed, then retries only the unresolved entry with its same request UUID', async () => {
@@ -195,6 +193,16 @@ describe('CategoryPackDialog', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Add selected categories' }));
     await waitFor(() => expect(within(dialog).getByRole('status')).toHaveTextContent('10 created'));
     expect(onCreateCategory).toHaveBeenCalledTimes(10);
+  });
+
+  it('edits the Arabic name while preserving the hidden English suggestion', async () => {
+    const { user, dialog, group, onCreateCategory } = renderDialog({ locale: 'ar', createRequestId: () => 'req-ar' });
+    await user.click(within(dialog).getByRole('checkbox', { name: 'تضمين السكن' }));
+    expect(group('السكن').queryByLabelText('الاسم بالإنجليزية')).not.toBeInTheDocument();
+    await user.clear(group('السكن').getByLabelText('الاسم بالعربية'));
+    await user.type(group('السكن').getByLabelText('الاسم بالعربية'), 'الإيجار');
+    await user.click(within(dialog).getByRole('button', { name: 'إضافة الفئات المحددة' }));
+    await waitFor(() => expect(onCreateCategory).toHaveBeenCalledWith({ kind: 'expense', nameEn: 'Housing', nameAr: 'الإيجار' }, 'req-ar'));
   });
 
   it('provides equivalent Arabic controls with safe Escape close', async () => {

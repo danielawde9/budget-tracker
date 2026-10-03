@@ -27,6 +27,7 @@ interface WalletsPageProps {
   locale?: Locale;
   onSpaceUnavailable(): void;
   onOpenLoans(): void;
+  onOpenRecord?: ((walletId?: string) => void) | undefined;
   initialDialog?: 'transaction' | null;
   openTransaction?: boolean;
   onTransactionDialogOpened?(): void;
@@ -97,7 +98,7 @@ function WalletsWorkspaceSkeleton({ locale }: { locale: Locale }) {
   );
 }
 
-export function WalletsPage({ categoriesGateway, spaceId, userId, walletState, locale = 'en', onSpaceUnavailable, onOpenLoans, initialDialog = null, openTransaction = false, onTransactionDialogOpened }: WalletsPageProps) {
+export function WalletsPage({ categoriesGateway, spaceId, userId, walletState, locale = 'en', onSpaceUnavailable, onOpenLoans, onOpenRecord, initialDialog = null, openTransaction = false, onTransactionDialogOpened }: WalletsPageProps) {
   const categoryState = useCategories(categoriesGateway ?? emptyCategoriesGateway, spaceId, onSpaceUnavailable);
   const categoryError = categoryState.error ? localizeCategoryError(categoryState.error, locale) : null;
   const categoryPaginationError = categoryState.paginationError
@@ -155,7 +156,12 @@ export function WalletsPage({ categoriesGateway, spaceId, userId, walletState, l
       subtitle={t(locale, 'Balances, transactions and history.', 'الأرصدة والمعاملات والسجل.')}
       actions={<>
         <button type="button" className="cr-button button-secondary" onClick={() => setDialog('wallet')}>{t(locale, 'New wallet', 'محفظة جديدة')}</button>
-        <button type="button" className="cr-button cr-button--primary wl-action-grow" disabled={walletState.wallets.length === 0 || walletState.status !== 'ready'} onClick={() => openQuickEntry()}>{t(locale, 'Add transaction', 'إضافة معاملة')}</button>
+        <button type="button" className="cr-button cr-button--primary wl-action-grow" disabled={walletState.wallets.length === 0 || walletState.status !== 'ready'} onClick={() => {
+          if (onOpenRecord) {
+            const selectedWallet = walletState.wallets.find((wallet) => wallet.id === filters.walletId);
+            onOpenRecord(selectedWallet?.id);
+          } else openQuickEntry();
+        }}>{t(locale, 'Record +', 'تسجيل +')}</button>
       </>}
     />
 
@@ -208,7 +214,10 @@ export function WalletsPage({ categoriesGateway, spaceId, userId, walletState, l
           </div>}
         </div>}
       </aside>
-      <button type="button" className="cr-button button-secondary wl-mobile-transaction" disabled={walletState.wallets.length === 0} onClick={() => openQuickEntry()}>{t(locale, 'Record transaction', 'تسجيل معاملة')}</button>
+      <button type="button" className="cr-button button-secondary wl-mobile-transaction" disabled={walletState.wallets.length === 0 || walletState.status !== 'ready'} onClick={() => {
+        if (onOpenRecord) onOpenRecord(walletState.wallets.find(wallet => wallet.id === filters.walletId)?.id);
+        else openQuickEntry();
+      }}>{t(locale, 'Record transaction', 'تسجيل معاملة')}</button>
 
       <section className="journal data-list wl-journal cr-card" aria-labelledby="journal-heading">
         <div className="section-heading"><div><span className="section-kicker">{t(locale, 'Immutable journal', 'سجل غير قابل للتعديل')}</span><h2 id="journal-heading">{t(locale, 'Transaction history', 'سجل المعاملات')}</h2></div><button type="button" className="button-secondary" disabled={filteredEvents.length === 0} onClick={exportCsv}>{t(locale, 'Export CSV', 'تصدير CSV')}</button></div>

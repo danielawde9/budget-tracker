@@ -34,6 +34,7 @@ export interface ManageScreenProps {
   onPendingSectionConsumed?: (() => void) | undefined;
   onLocaleChange(): void;
   onOpenLoans(): void;
+  onOpenRecord?: ((walletId?: string) => void) | undefined;
   onSignOut(): void;
   /** Manage > Preferences: replays the welcome tour. Present whenever the
    *  app wires it (always, in `app.tsx`). */
@@ -163,6 +164,7 @@ export function ManageScreen(props: ManageScreenProps) {
       </button>
       {section === 'wallets' ? (
         <WalletsPage
+              onOpenRecord={props.onOpenRecord}
           categoriesGateway={props.gateways.categories}
           spaceId={spaceId}
           userId={props.userId}

@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Archive, ChevronDown, Plus, Sparkles, Tags } from 'lucide-react';
+import { Archive, ChevronDown, Plus, Sparkles } from 'lucide-react';
 
 import type { Locale } from '../loans/types.js';
 import { ArchiveCategoryDialog } from './archive-category-dialog.js';
+import { categoryIcon } from './category-icons.js';
 import { CategoryDialog } from './category-dialog.js';
 import { CategoryPackDialog } from './category-pack-dialog.js';
 import { localizeCategoryError } from './errors.js';
@@ -37,6 +38,7 @@ interface RegisterProps {
   kind: CategoryKind;
   categories: readonly Category[];
   nextCursor: string | null;
+  active: boolean;
   loadingMore: boolean;
   onCreate(): void;
   onArchive(category: Category): void;
@@ -56,6 +58,7 @@ function CategoryTree({ props }: { props: RegisterProps }) {
     const children = props.categories.filter((category) => category.parentCategoryId === root.id);
     const rootName = primaryName(root, props.locale);
     const expanded = !collapsed.has(root.id);
+    const Icon = categoryIcon(root);
     return <li key={root.id} className="category-tree-root cg-tree-root">
       <div className="category-row category-root-row cg-row cg-row-root">
         {children.length > 0 ? <button type="button" className="text-button cg-toggle" aria-label={t(props.locale, `${expanded ? 'Collapse' : 'Expand'} ${rootName} subcategories`, `${expanded ? 'طي' : 'عرض'} الفئات الفرعية ضمن ${rootName}`)} aria-expanded={expanded} onClick={() => setCollapsed((current) => {
@@ -63,7 +66,7 @@ function CategoryTree({ props }: { props: RegisterProps }) {
           if (expanded) next.add(root.id); else next.delete(root.id);
           return next;
         })}><ChevronDown aria-hidden size={17} /></button> : <span className="cg-toggle-spacer" aria-hidden="true" />}
-        <span className="cg-root-icon" aria-hidden="true"><Tags size={19} /></span>
+        <span className="cg-root-icon" aria-hidden="true"><Icon size={19} /></span>
         <CategoryName category={root} locale={props.locale} />
         {children.length > 0 ? <span className="cr-helper cg-child-count">{children.length}</span> : null}
         <div className="category-actions cg-actions">
@@ -89,7 +92,7 @@ function CategoryTree({ props }: { props: RegisterProps }) {
 function CategoryRegister(props: RegisterProps) {
   const income = props.kind === 'income';
   const rootCount = props.categories.filter((category) => category.parentCategoryId === null).length;
-  return <section className="category-register register-section cg-register cr-card" data-category-kind={props.kind} aria-labelledby={`${props.kind}-categories-heading`}>
+  return <section className="category-register register-section cg-register cr-card" data-category-kind={props.kind} data-active={props.active} aria-labelledby={`${props.kind}-categories-heading`}>
     <header className="cg-register-header cr-section-header"><h2 id={`${props.kind}-categories-heading`}>{income ? t(props.locale, 'Income categories', 'فئات الدخل') : t(props.locale, 'Expense categories', 'فئات المصروف')}</h2><span className="cr-helper cg-count">{props.nextCursor ? t(props.locale, `${rootCount} loaded`, `تم تحميل ${rootCount}`) : t(props.locale, `${rootCount} ${rootCount === 1 ? 'category' : 'categories'}`, `${rootCount} فئة`)}</span></header>
     {props.categories.length === 0 ? <div className="empty category-empty cg-empty"><strong>{income ? t(props.locale, 'No income categories yet', 'لا توجد فئات دخل بعد') : t(props.locale, 'No expense categories yet', 'لا توجد فئات مصروف بعد')}</strong><p>{t(props.locale, 'Create a label when this space needs one.', 'أنشئ تسمية عندما تحتاج إليها هذه المساحة.')}</p><button type="button" className="cr-button cr-button--primary cg-empty-action" onClick={props.onCreate}>{t(props.locale, 'New category', 'فئة جديدة')}</button></div> : <CategoryTree props={props} />}
     {props.nextCursor && <button type="button" className="button-secondary load-more" disabled={props.loadingMore} onClick={props.onLoadMore}>{props.loadingMore ? t(props.locale, 'Loading…', 'جارٍ التحميل…') : t(props.locale, 'Load more', 'تحميل المزيد')}</button>}
@@ -120,11 +123,11 @@ export function CategoriesPage({ gateway, spaceId, locale = 'en', onSpaceUnavail
       </div>
     </div>
 
-    {state.status === 'loading' && <CategoriesSkeleton locale={locale} />}
+    {state.status === 'loading' && <CategoriesSkeleton locale={locale} activeKind={activeKind} />}
     {state.status === 'error' && <div className="state-panel error-notice" role="alert"><strong>{t(locale, 'Categories are unavailable', 'الفئات غير متاحة')}</strong><p>{loadError?.message}</p><p>{loadError?.recovery}</p><button type="button" onClick={() => void state.refresh()}>{t(locale, 'Try again', 'المحاولة مجددًا')}</button></div>}
     {state.status === 'ready' && <div className="category-registers cg-registers">
-      <CategoryRegister locale={locale} kind="income" categories={state.incomeCategories} nextCursor={state.incomeNextCursor} loadingMore={state.loadingMore === 'income'} onCreate={() => setDialog({ create: 'income' })} onArchive={(category) => setDialog({ archive: category })} onCreateSubcategory={(category) => setDialog({ createSubcategory: category })} onLoadMore={() => void state.loadMore('income')} />
-      <CategoryRegister locale={locale} kind="expense" categories={state.expenseCategories} nextCursor={state.expenseNextCursor} loadingMore={state.loadingMore === 'expense'} onCreate={() => setDialog({ create: 'expense' })} onArchive={(category) => setDialog({ archive: category })} onCreateSubcategory={(category) => setDialog({ createSubcategory: category })} onLoadMore={() => void state.loadMore('expense')} />
+      <CategoryRegister locale={locale} active={activeKind === 'income'} kind="income" categories={state.incomeCategories} nextCursor={state.incomeNextCursor} loadingMore={state.loadingMore === 'income'} onCreate={() => setDialog({ create: 'income' })} onArchive={(category) => setDialog({ archive: category })} onCreateSubcategory={(category) => setDialog({ createSubcategory: category })} onLoadMore={() => void state.loadMore('income')} />
+      <CategoryRegister locale={locale} active={activeKind === 'expense'} kind="expense" categories={state.expenseCategories} nextCursor={state.expenseNextCursor} loadingMore={state.loadingMore === 'expense'} onCreate={() => setDialog({ create: 'expense' })} onArchive={(category) => setDialog({ archive: category })} onCreateSubcategory={(category) => setDialog({ createSubcategory: category })} onLoadMore={() => void state.loadMore('expense')} />
     </div>}
     {state.status === 'ready' && paginationError && <div className="state-panel error-notice" role="alert"><strong>{t(locale, 'More categories could not be loaded', 'تعذّر تحميل المزيد من الفئات')}</strong><p>{paginationError.error.message}</p><p>{paginationError.error.recovery}</p><button type="button" onClick={() => void state.loadMore(paginationError.kind)}>{t(locale, `Retry loading ${paginationError.kind} categories`, `إعادة محاولة تحميل فئات ${paginationError.kind === 'income' ? 'الدخل' : 'المصروف'}`)}</button></div>}
 

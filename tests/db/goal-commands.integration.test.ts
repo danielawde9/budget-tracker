@@ -77,6 +77,28 @@ async function createGoalPlan(input: {
   });
 }
 
+describe('state-only goal changes', () => {
+  it('preserves the full definition and milestones and reconciles a repeated request', async () => {
+    const spaceId = await freshSpace('State-only goal');
+    const original = definition({ note: 'Keep this note', priority: 17, monthlyAmountMinor: '12345' });
+    const milestones = [milestone()];
+    const goal = await createGoalPlan({ spaceId, definition: original, milestones });
+    const requestId = randomUUID();
+    const change = () => withAuthenticatedTransaction(db().client, actor, async () => {
+      const result = await db().client.query('select public.set_goal_state($1,$2,$3,$4,$5)', [spaceId, requestId, goal.goalId, goal.revisionId, 'paused']);
+      return result.rows[0]!.set_goal_state;
+    });
+    const saved = await change();
+    expect(await change()).toEqual(saved);
+    const rows = await db().client.query('select note, priority, monthly_minor::text, state from public.goal_revisions where id=$1', [saved.revisionId]);
+    expect(rows.rows[0]).toEqual({ note: 'Keep this note', priority: 17, monthly_minor: '12345', state: 'paused' });
+    const ms = await db().client.query('select milestone_id::text from public.goal_revision_milestones where revision_id=$1', [saved.revisionId]);
+    expect(ms.rows[0]!.milestone_id).toBe(milestones[0]!.id);
+    await expect(withAuthenticatedTransaction(db().client, outsider, () => db().client.query('select public.set_goal_state($1,$2,$3,$4,$5)', [spaceId, randomUUID(), goal.goalId, saved.revisionId, 'closed']))).rejects.toThrow();
+    await expect(withAuthenticatedTransaction(db().client, actor, () => db().client.query('select public.set_goal_state($1,$2,$3,$4,$5)', [spaceId, randomUUID(), goal.goalId, goal.revisionId, 'closed']))).rejects.toThrow();
+  });
+});
+
 async function reviseGoalPlan(input: {
   spaceId: string; requestId?: string; goalId: string; expectedRevisionId: number | string;
   definition?: unknown; milestones?: unknown[]; state?: string; asActor?: string;

@@ -113,7 +113,7 @@ describe('GoalsPage', () => {
     render(<GoalsPage locale="en" currency="USD" plannedIncomeMinor={null} goals={goals} />);
     await userEvent.click(screen.getByRole('button', { name: 'New goal' }));
     await userEvent.click(screen.getByRole('button', { name: 'Next' }));
-    await userEvent.type(screen.getByRole('textbox', { name: 'Name (English)' }), 'Laptop');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Laptop');
     await userEvent.type(screen.getByRole('textbox', { name: 'Target amount' }), '1000');
     for (let index = 0; index < 3; index += 1) {
       await userEvent.click(screen.getByRole('button', { name: 'Next' }));
@@ -128,7 +128,7 @@ describe('GoalsPage', () => {
     render(<GoalsPage locale="en" currency="USD" plannedIncomeMinor="150000" goals={goals} />);
     await userEvent.click(screen.getByRole('button', { name: 'New goal' }));
     await userEvent.click(screen.getByRole('button', { name: 'Next' }));
-    await userEvent.type(screen.getByRole('textbox', { name: 'Name (English)' }), 'Laptop');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Laptop');
     await userEvent.type(screen.getByRole('textbox', { name: 'Target amount' }), '1000');
     await userEvent.click(screen.getByRole('button', { name: 'Next' }));
     await userEvent.click(screen.getByRole('radio', { name: 'Planned income' }));
