@@ -83,3 +83,34 @@ important findings were fixed, each with a test that failed first:
 
 The suites above are the post-fix runs. Deferred minor findings are listed in
 the final report.
+
+## Rulings made during execution
+
+Each ruling states what was decided, why, and its cost if wrong. Owner decisions are recorded in `docs/decisions.md`.
+
+- test DBs clone a template built from template0 + auth shim (auth.users id/email, auth.uid() reading request.jwt.claim.sub or request.jwt.claims) — Supabase image's postgres DB has pg_net/pg_cron workers attached so it cannot be a template — cost if wrong: auth.users column drift only; real auth exercised in e2e
+- RPC privilege tests (anon execute, cross-space) move to Task 3 where the first RPCs exist — Task 2 has no public functions yet — cost if wrong: none
+- split_by_bps planned share = floor(total × Σbps / 10000); the rounding cent of an under-100% plan stays 'not planned' (test expectation 51/40 corrected to 50/40) — cost if wrong: one cent shown as not planned
+- invariant trigger functions are SECURITY DEFINER — deferred checks fire at COMMIT under the caller role (authenticated), which has no schema usage — cost if wrong: none (definer functions only read budget tables and raise)
+- defaulted params moved after required ones (record_exchange p_item after p_on; save_bill p_bill/p_archived last) — Postgres requires defaults last; clients use named args — cost if wrong: none
+- create_space seeds LBP reference rate 89,500 effective 2024-02-15 (BdL official rate) — display only — cost if wrong: one editable row
+- plan SQL lives in its own migration 20261003120250_budget_plan.sql instead of being appended to commands/helpers — one responsibility per file; nothing applied anywhere yet — cost if wrong: none
+- plan_month item rows expose balances as {USD, LBP} map instead of lbpAvailable — no hard-coded plan currency — cost if wrong: none
+- added public.clock_today(timezone) (authenticated only) so the story/onboarding read the server clock without creating a probe space — cost if wrong: one extra read RPC
+- Task 12's local stack (config, up.sh, seed, demo accounts) is built before the UI tasks so each screen is verified against real seeded data — cost if wrong: none (same deliverable, earlier)
+- PlanEditorForm extracted from PlanEditorDialog so onboarding step 2 embeds the same editor — one plan editor — cost if wrong: none
+- shell/auth/onboarding (T8), Home+Accounts (T9), Plan (T10), record/bills/activity/settings (T11) landed as one UI commit — they share the record dialog host, workspace context and dictionary, so separate commits would not each build — cost if wrong: coarser history only
+- hash routes are #/home #/plan[/YYYY-MM] #/activity #/accounts #/settings; Bills live in Plan (section) + Home (upcoming), not a separate destination — cost if wrong: one nav item
+- double-submit guard proven by mutation (removing inFlight check → test fails 2≠1) — the button's disabled state alone does not cover a same-batch double submit
+- label-wrapped <select> folded the selected option into its accessible name — fixed at source with SelectField (for/id), not by loosening test selectors — cost if wrong: none
+- fixes edit the v2 migration files in place — they have only ever been applied to disposable databases (Testcontainers, the local preview which up.sh resets); forward-only applies once a shared/prod DB has them — cost if wrong: none today
+
+## Deferred minor findings (final review)
+
+- unpaid occurrences older than 92 days drop out of lists/alerts
+- create_space replay ignores payload and takes no lock (concurrent identical calls can surface 23505)
+- plan_month before the first plan version returns no groups; past months label current Ready to assign
+- skip_bill is irreversible
+- BUDGET_WALLET_BOUNDS has no message; Activity "load more" errors not shown; InvestForm finds Investments group by English name
+- save_plan first save at a new month accepts a stale client expecting rev 1 of the earlier version
+- no ratchet that every public function is revoked from anon on the real stack (Testcontainers lacks Supabase default privileges)
