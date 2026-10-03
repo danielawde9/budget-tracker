@@ -19,7 +19,7 @@ export function createBrowserDataClient(): BudgetDataClient | null {
 }
 
 /**
- * Reads the current session bearer token for same-origin API boundaries
+ * Reads the current session bearer token for authenticated API boundaries
  * (household invitation delivery). Returns null when no usable token exists;
  * the token is only ever sent as an Authorization header, never logged.
  */

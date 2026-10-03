@@ -396,6 +396,8 @@ export function App({ householdInvitationBootstrap = null, authGateway, categori
     if (householdGateway) return householdGateway;
     if (!client) return null;
     return createDeliveringHouseholdGateway(createSupabaseHouseholdGateway(client), createHttpInvitationDelivery({
+      endpoint: `${import.meta.env['VITE_SUPABASE_URL']}/functions/v1/household-invitations`,
+      apiKey: import.meta.env['VITE_SUPABASE_ANON_KEY'],
       getAccessToken: async () => {
         const token = await readBrowserAccessToken(client);
         if (!token) throw new Error('not_authenticated');

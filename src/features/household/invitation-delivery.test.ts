@@ -15,6 +15,7 @@ interface RecordedRequest {
   readonly method: string;
   readonly authorization: string | null;
   readonly contentType: string | null;
+  readonly apiKey: string | null;
   readonly body: unknown;
   readonly signal: AbortSignal | null;
 }
@@ -28,6 +29,7 @@ function recordingFetch(response: Response) {
       method: init?.method ?? 'GET',
       authorization: headers.get('authorization'),
       contentType: headers.get('content-type'),
+      apiKey: headers.get('apikey'),
       body: init?.body ? JSON.parse(String(init.body)) : null,
       signal: init?.signal instanceof AbortSignal ? init.signal : null,
     });
@@ -95,6 +97,22 @@ describe('HTTP invitation delivery', () => {
       locale: 'ar',
     });
     expect(requests[0]?.url).toBe('https://worker.example.test/api/household-invitations/deliver');
+  });
+
+  it('calls the Supabase function with the publishable key and the current user token', async () => {
+    const { fetch, requests } = recordingFetch(jsonResponse(200, {
+      invitationId: INVITATION_ID, expiresAt: EXPIRES_AT, delivery: 'accepted',
+    }));
+    const client = createHttpInvitationDelivery({
+      fetch, getAccessToken: async () => 'user-jwt',
+      endpoint: 'https://budget.supabase.co/functions/v1/household-invitations',
+      apiKey: 'sb_publishable_public_key',
+    });
+    await client.deliverInvitation({ spaceId: SPACE_ID, requestId: REQUEST_ID, email: 'person@example.com', locale: 'en' });
+    expect(requests[0]).toMatchObject({
+      url: 'https://budget.supabase.co/functions/v1/household-invitations',
+      authorization: 'Bearer user-jwt', apiKey: 'sb_publishable_public_key',
+    });
   });
 
   it.each([

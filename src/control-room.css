@@ -316,17 +316,6 @@
 }
 .cr-brand svg { color: var(--cr-rail-indicator); flex: none; }
 
-/* Filled navigation glyphs. The approved concepts draw the rail/tab-bar
-   navigation, the brand mark, and the space-switcher house as solid glyphs,
-   while Lucide ships outline paths. Fill the matched glyphs so the treatment
-   matches the source (design-qa.md — image quality: "a few concept icons have
-   different filled treatments (P3)"). The Record FAB's bare plus and the
-   space-switcher chevron are deliberately excluded — a filled plus/chevron
-   would read as a different badge, not the concept's glyph. */
-.cr-shell .cr-brand svg,
-.cr-shell .cr-tab svg,
-.cr-shell .cr-rail .space-switcher-icon { fill: currentColor; }
-
 @media (min-width: 1024px) {
   .cr-shell { flex-direction: row; }
   .cr-rail {

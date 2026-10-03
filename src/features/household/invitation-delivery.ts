@@ -79,12 +79,14 @@ interface HttpInvitationDeliveryOptions {
   readonly fetch?: InvitationFetch;
   readonly getAccessToken: () => Promise<string>;
   readonly baseUrl?: string;
+  readonly endpoint?: string;
+  readonly apiKey?: string;
   readonly timeoutMs?: number;
 }
 
 const DELIVERY_PATH = '/api/household-invitations/deliver';
 const RESPONSE_MAX_BYTES = 8_192;
-const DEFAULT_TIMEOUT_MS = 15_000;
+const DEFAULT_TIMEOUT_MS = 75_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 async function readBoundedBody(response: Response): Promise<string> {
@@ -149,7 +151,7 @@ function parseDeliveredInvitation(body: string, status: number): DeliveredInvita
 export function createHttpInvitationDelivery(options: HttpInvitationDeliveryOptions): InvitationDelivery {
   const fetchImpl = options.fetch ?? ((input: RequestInfo | URL, init?: RequestInit) => globalThis.fetch(input, init));
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const baseUrl = options.baseUrl ?? '';
+  const endpoint = options.endpoint ?? `${options.baseUrl ?? ''}${DELIVERY_PATH}`;
   return {
     async deliverInvitation(input) {
       let token: string;
@@ -164,10 +166,11 @@ export function createHttpInvitationDelivery(options: HttpInvitationDeliveryOpti
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
       let response: Response;
       try {
-        response = await fetchImpl(`${baseUrl}${DELIVERY_PATH}`, {
+        response = await fetchImpl(endpoint, {
           method: 'POST',
           headers: {
             authorization: `Bearer ${token}`,
+            ...(options.apiKey ? { apikey: options.apiKey } : {}),
             'content-type': 'application/json',
             accept: 'application/json',
           },

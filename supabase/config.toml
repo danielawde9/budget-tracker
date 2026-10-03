@@ -411,3 +411,7 @@ enabled = true
 # declarative_schema_path = "./schemas"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# Signed-in users only; the handler also verifies identity with Supabase Auth.
+[functions.household-invitations]
+verify_jwt = true

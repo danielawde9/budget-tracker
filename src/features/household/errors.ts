@@ -65,8 +65,8 @@ const english: Record<HouseholdErrorKind, Omit<HouseholdErrorView, 'kind'>> = {
     recovery: 'An invitation may already be pending for this address. Cancel the pending invitation, then create it again.',
   },
   'delivery-unavailable': {
-    message: 'Invitation delivery is not available in this environment.',
-    recovery: 'Use the deployed application to send household invitations.',
+    message: 'Household invitations are not enabled for this deployment.',
+    recovery: 'Ask the app operator to enable the invitation service and its email configuration.',
   },
 };
 
@@ -108,8 +108,8 @@ const arabic: Record<HouseholdErrorKind, Omit<HouseholdErrorView, 'kind'>> = {
     recovery: 'قد تكون دعوة معلّقة موجودة لهذا العنوان بالفعل. ألغِ الدعوة المعلّقة ثم أنشئها من جديد.',
   },
   'delivery-unavailable': {
-    message: 'إرسال الدعوات غير متاح في هذه البيئة.',
-    recovery: 'استخدم التطبيق المنشور لإرسال دعوات المنزل.',
+    message: 'دعوات المنزل غير مفعّلة في هذا الإصدار.',
+    recovery: 'اطلب من مشغّل التطبيق تفعيل خدمة الدعوات وإعداد البريد الإلكتروني.',
   },
 };
 

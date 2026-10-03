@@ -1,4 +1,9 @@
-# Household invitation delivery runbook
+# Legacy Cloudflare invitation delivery runbook
+
+The active invitation endpoint now runs in Supabase. Use
+[`supabase-household-invitations.md`](supabase-household-invitations.md) for the
+current release. The Worker boundary below is retained for compatibility.
+
 
 This runbook covers the server-side Resend boundary for existing protected
 Household invitations. Repository tests use injected adapters and do not contact

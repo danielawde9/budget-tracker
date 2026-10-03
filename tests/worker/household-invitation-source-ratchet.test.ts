@@ -10,6 +10,11 @@ import {
 const runtimeFiles = [
   'worker/handler.ts',
   'worker/index.ts',
+  'supabase/functions/household-invitations/handler.ts',
+  'supabase/functions/household-invitations/index.ts',
+  ...['contracts', 'deliver', 'resend', 'supabase-invitations', 'templates', 'validation'].map(
+    (name) => `supabase/functions/_shared/household-invitations/${name}.ts`,
+  ),
   'worker/household-invitations/contracts.ts',
   'worker/household-invitations/deliver.ts',
   'worker/household-invitations/resend.ts',

@@ -69,6 +69,19 @@ repository can produce `dist/`;
 it does not prove a deployed route, Auth session, RLS decision, persistence,
 backup, or recovery operation.
 
+## Current invitation delivery (2026-10-03)
+
+Household invitations now call the authenticated Supabase Edge Function
+`household-invitations` directly. The static Cloudflare release is sufficient
+for the frontend; it does not remove or replace this Supabase endpoint. Deploy
+the function and its rate-limit migration first, then publish the browser.
+The current Budget project is `dfuxxzlhmxscgvxdmwti`; the earlier
+`hqblhzqitrbvpyoxtmew` project has been deleted.
+
+Follow [the Supabase invitation runbook](supabase-household-invitations.md)
+for configuration, verification, and the function release. The combined
+Cloudflare invitation Worker below describes the legacy alternative.
+
 ## Deployment sequence
 
 ### Frontend-only release before invitation delivery

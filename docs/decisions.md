@@ -3955,3 +3955,20 @@ This supersedes the "remaining-amount match only" reading of "Auto-settle pays t
 **Why:** The person asked for a forced, editable default so groups, categories, goals and loans are linked without manual wiring. The percentages are the set already used in their own space. The old production project was deleted, so no deployed database depends on the migration history.
 
 **If changed:** Different default groups or percentages change only the seed function. A different default loan group changes one setting. If a deployed database that depends on the old history reappears, the baseline must not be applied to it; it would need the original 61 migrations.
+
+## 2026-10-03 — Household invitation delivery moves to Supabase
+
+The browser calls `household-invitations` on the same Supabase project used for
+its data. Cloudflare remains the static frontend host. The email provider,
+seven-day fragment links, idempotency keys, bounded provider retries, 23-hour
+replay cutoff, and protected invitation RPC remain shared delivery rules.
+The Edge Function verifies the user with Auth and forwards that user's token;
+it does not use privileged credentials for invitations.
+
+Durable PostgreSQL counters allow three attempts per owner and household per
+minute, plus twenty across all households for an owner. This replaces the
+Worker's IP bucket with an authenticated identity bucket. Advisory locks make
+both counters atomic across isolates. Only active household owners can consume
+a bucket; only authenticated callers can execute the command; counter storage
+is private. A new forward migration adds this operational state without changing
+financial records. The currently active project is `dfuxxzlhmxscgvxdmwti`.
