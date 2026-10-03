@@ -4,15 +4,33 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "allowImportingTsExtensions": true,
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "jsx": "react-jsx",
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "noImplicitOverride": true,
     "skipLibCheck": true,
-    "types": ["node", "vite/client", "vitest/globals", "@testing-library/jest-dom"]
+    "types": [
+      "node",
+      "vite/client",
+      "vitest/globals",
+      "@testing-library/jest-dom"
+    ]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "worker/**/*.ts", "tests/**/*.ts", "vite.config.ts", "vitest.config.ts", "vitest.ui.config.ts", "playwright.config.ts", "e2e/**/*.ts"],
-  "exclude": ["worker/index.ts"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "tests/**/*.ts",
+    "scripts/preview/**/*.ts",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "vitest.ui.config.ts",
+    "playwright.config.ts",
+    "e2e/**/*.ts"
+  ]
 }

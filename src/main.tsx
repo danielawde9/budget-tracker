@@ -1,15 +1,8 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { App } from './app.js';
-import { createHouseholdInvitationBootstrap, takeHouseholdInvitation } from './features/household/invitation-fragment.js';
 import './styles.css';
 import './control-room.css';
-import './features/allocation/allocation.css';
-import './features/goals/goals.css';
-import './features/recurring/recurring.css';
-import './features/cash-control/cash-control.css';
 
-const householdInvitationBootstrap = createHouseholdInvitationBootstrap(takeHouseholdInvitation(window.location, window.history));
 const root = document.querySelector('#root');
 
 if (!root) {
@@ -18,6 +11,6 @@ if (!root) {
 
 createRoot(root).render(
   <StrictMode>
-    <App householdInvitationBootstrap={householdInvitationBootstrap} />
+    <main className="cr-main">Budget v2 is being rebuilt on this branch.</main>
   </StrictMode>,
 );

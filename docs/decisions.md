@@ -3977,3 +3977,11 @@ Live verification also exposed a missing `USAGE` grant on `extensions` for
 `household_command_owner`. A second forward migration restores the grant from
 the original household foundation; a database regression reproduces the missing
 grant, observes the rejection, restores it, and proves creation succeeds.
+
+## 2026-10-03 — v2 connected money model is rebuilt on a branch; v1 release tooling retired there
+
+**Decision:** The approved connected money model (`docs/superpowers/specs/2026-10-03-connected-money-model-design.md`) is built on `redesign/connected-plan` as a replacement, not a patch. On that branch the v1 feature code, its 26-migration release journal, the v1 DB/worker/ops/e2e tests, the household-invitation Worker and Edge Function, the live-migration and UAT tooling pinned to source SHA `2e278cb`, and the v1 design-QA artifacts are removed (git history keeps them). The design system (`src/styles.css`, `src/control-room.css`, `docs/design-guidelines.md`), the frontend-only Cloudflare deploy scripts and `wrangler.frontend.jsonc` stay. `main` and production keep running v1 untouched.
+
+**Why:** The owner granted full freedom to replace the UI, code and schema and asked for a preview on separate data first. The v1 release tooling verifies an exact v1 migration list and production project; on a branch with a new schema it can only fail or mislead. Household invitations are outside the first v2 cut (the owner is the only user); space membership and isolation remain.
+
+**If changed:** Adopting v2 in production is a separate, explicit step: back up, reset the hosted database (the owner authorized resetting app data), apply the v2 migrations with release tooling rebuilt for the v2 journal, then merge and push (Workers Builds deploys on push). Keeping v1 instead means discarding the branch; nothing on `main` changed.
