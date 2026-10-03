@@ -13,7 +13,7 @@ source "${DRIFT_SCRIPT_DIR}/budget-common.sh"
 # writing anything. Same exact-project verification, same credential
 # handling; no backup, no dry-run, no push, no confirmation phrase, because
 # nothing here can change the database.
-readonly DRIFT_PROJECT_REF='hqblhzqitrbvpyoxtmew'
+readonly DRIFT_PROJECT_REF='dfuxxzlhmxscgvxdmwti'
 readonly DRIFT_MAX_PROJECT_LIST_BYTES=1048576
 readonly DRIFT_SUPABASE_BIN="${BUDGET_SUPABASE_BIN:-$(command -v supabase || true)}"
 readonly DRIFT_NODE_BIN="$(command -v node || true)"

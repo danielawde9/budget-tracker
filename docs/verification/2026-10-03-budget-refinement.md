@@ -1,6 +1,6 @@
 # Budget refinement verification — 2026-10-03
 
-The requested refinement is implemented locally. No commit, push, deployment, or production migration was performed in this pass.
+The requested refinement is committed on `codex/budget-refinement-release`. Release checks are aligned with the active Supabase project; the two goal migrations are pending application.
 
 ## Behavior verified
 
@@ -24,7 +24,7 @@ Commands used Node 22 from `/opt/homebrew/opt/node@22/bin`.
 | `pnpm test:ui` | 131 files, 1,591 tests passed | `/private/tmp/budget-final-ui.log` |
 | `pnpm typecheck` | Passed, including worker type checks | `/private/tmp/budget-final-typecheck.log` |
 | `pnpm build` | Passed | `/private/tmp/budget-final-build.log` |
-| Goal-command and Available-cash DB integration suites | 2 files, 82 tests passed against disposable local PostgreSQL | `/private/tmp/budget-final-db.log` |
+| Goal-command and Available-cash DB integration suites | 2 files, 82 tests passed against the dedicated disposable Budget dev PostgreSQL server | `/private/tmp/budget-final-db.log` |
 | Goals, categories, wallets, recurring Playwright suites | 62 passed, 28 scope-based skips | `/private/tmp/budget-final-browser-confirm.log` |
 | Allocation/cash and selected goal/category browser checks | 29 applicable checks passed; two lifecycle selector failures subsequently corrected and rerun | `/private/tmp/budget-final-integration-browser.log` |
 | Pause/Resume/Close browser rerun | 2 passed, desktop and mobile | `/private/tmp/budget-final-lifecycle-browser.log` |
@@ -39,11 +39,13 @@ Both disposable PostgreSQL clusters were stopped after testing. Production data 
 
 ## 2026-10-03 release readiness audit
 
-Before merging or deploying, a read-only check found that the active app target is Supabase project `dfuxxzlhmxscgvxdmwti` (`Budget Tracker`). The release scripts still pin the retired target `hqblhzqitrbvpyoxtmew`. The active project reports 22 remote baseline migration versions, while this `main` checkout has the older 61-migration journal plus these two new files. The `set_goal_state` RPC is not present on the active project, and both new migration versions are pending.
+The active Supabase project is `dfuxxzlhmxscgvxdmwti` (`Budget Tracker`, `ap-northeast-2`). Its migration history now matches the release journal: 24 migrations are already applied, including the two household-delivery migrations from current `origin/main`; the two goal migrations below are the only pending entries. Read-only checks show that `set_goal_state` and the goal-target review update are not present yet.
 
-This checkout cannot be safely deployed yet. A standard `supabase db push` would attempt to apply the old migration files against a database initialized from a different baseline. The release journal and guarded migration runner need to be aligned with the active baseline first; no SQL was applied. The frontend-only Cloudflare build and dry-run passed, but no asset was published. The Worker has no invitation secrets, so only its static frontend release path is configured.
+The release migration runner checks the exact project, verifies a private pre-migration backup, dry-runs the two pending migrations, asks for an exact confirmation phrase, applies them, and checks the resulting schema. It has not been run because the operator still needs to enter the Supabase access token and database password in its secure prompts.
 
-The source changes and report remain uncommitted. Merge and deployment are paused until the release branch and active database baseline are reconciled.
+The frontend-only Cloudflare build and dry run pass. The live Worker has no secrets configured, so the release uses the static frontend path. Pushing to `main` triggers Cloudflare's automatic frontend deployment.
+
+The database tests use a separate 65-file historical fixture so the existing upgrade tests remain intact while the production release journal contains only its current 26 files. The goal-command and Available-cash integration suites pass against the dedicated disposable Budget dev database.
 
 ## Deployment prerequisites
 
@@ -52,6 +54,6 @@ Apply these migrations through the normal production migration process before de
 1. `supabase/migrations/20261002170000_goal_state_only.sql`
 2. `supabase/migrations/20261002171000_cash_goal_target_review.sql`
 
-The first provides the lifecycle-only RPC. The second updates goal-target review handling for Available cash. These changes were exercised by the local DB integration suites.
+The first provides the lifecycle-only RPC. The second updates goal-target review handling for Available cash. These changes passed the goal-command and Available-cash integration suites against the dedicated disposable Budget dev database.
 
 Unrelated existing changes in `.claude-flow/daemon-state.json`, `.claude-flow/logs/daemon.log`, and `supabase/.temp/cli-latest` were preserved and should be excluded from a refinement commit.

@@ -8,8 +8,8 @@ readonly LIVE_REPO_ROOT="$(cd "${LIVE_SCRIPT_DIR}/../.." && pwd -P)"
 # shellcheck source=./budget-common.sh
 source "${LIVE_SCRIPT_DIR}/budget-common.sh"
 
-readonly LIVE_PROJECT_REF='hqblhzqitrbvpyoxtmew'
-readonly LIVE_MANIFEST_SOURCE_SHA='5229fb55da7a16a2c0973895743aabac4b656d30'
+readonly LIVE_PROJECT_REF='dfuxxzlhmxscgvxdmwti'
+readonly LIVE_MANIFEST_SOURCE_SHA='2e278cb6258af1561652847c22ef28aced80e9cc'
 readonly LIVE_CONFIRMATION="APPLY LIVE MIGRATIONS TO ${LIVE_PROJECT_REF}"
 readonly LIVE_MAX_PROJECT_LIST_BYTES=1048576
 readonly LIVE_SUPABASE_BIN="${BUDGET_SUPABASE_BIN:-$(command -v supabase || true)}"
@@ -31,6 +31,17 @@ readonly LIVE_VERIFY_SQL="select case when
   and to_regprocedure('public.publish_allocation_month(uuid,uuid,date,public.currency_code,bigint,bigint,bigint,text,jsonb,uuid)') is not null
   and to_regprocedure('public.allocation_month_state(uuid,date,public.currency_code,bigint)') is not null
   and to_regclass('public.goals') is not null
+  and to_regprocedure('public.consume_household_invitation_delivery_limit(uuid)') is not null
+  and has_function_privilege('authenticated','public.consume_household_invitation_delivery_limit(uuid)','EXECUTE')
+  and not has_function_privilege('anon','public.consume_household_invitation_delivery_limit(uuid)','EXECUTE')
+  and not has_function_privilege('service_role','public.consume_household_invitation_delivery_limit(uuid)','EXECUTE')
+  and to_regclass('private.household_invitation_delivery_limits') is not null
+  and not has_table_privilege('authenticated','private.household_invitation_delivery_limits','SELECT')
+  and has_schema_privilege('household_command_owner','extensions','USAGE')
+  and to_regprocedure('public.set_goal_state(uuid,uuid,uuid,bigint,text)') is not null
+  and has_function_privilege('authenticated','public.set_goal_state(uuid,uuid,uuid,bigint,text)','EXECUTE')
+  and not has_function_privilege('anon','public.set_goal_state(uuid,uuid,uuid,bigint,text)','EXECUTE')
+  and not has_function_privilege('service_role','public.set_goal_state(uuid,uuid,uuid,bigint,text)','EXECUTE')
   and to_regclass('public.goal_earmark_events') is not null
   and to_regclass('public.goal_purchase_links') is not null
   and to_regprocedure('public.create_goal_plan(uuid,uuid,uuid,jsonb,jsonb)') is not null
@@ -57,29 +68,114 @@ readonly LIVE_VERIFY_SQL="select case when
   and to_regprocedure('public.allocation_template_head(uuid,public.currency_code)') is not null
   and to_regprocedure('public.monthly_budget_category_page_v3(uuid,date,public.currency_code,text,uuid,integer)') is not null
   and to_regprocedure('public.scheduled_overdue_page(uuid,date,uuid,integer)') is not null
+  and to_regprocedure('public.unlink_scheduled_payment(uuid,uuid,uuid,bigint,text)') is not null
+  and to_regprocedure('public.confirm_scheduled_occurrence_v2(uuid,uuid,uuid,text,text,date,uuid)') is not null
+  and to_regprocedure('public.link_scheduled_payment_v2(uuid,uuid,uuid,uuid,text,text)') is not null
+  and to_regprocedure('public.set_occurrence_state_v2(uuid,uuid,uuid,text,text)') is not null
+  and to_regclass('public.scheduled_payment_unlinks') is not null
+  and to_regclass('public.scheduled_payment_goal_links') is not null
+  and to_regclass('public.goal_purchase_unlinks') is not null
+  and to_regclass('public.space_schedule_revisions') is not null
+  and to_regclass('public.space_period_definitions') is not null
+  and to_regprocedure('public.space_period_context(uuid,date)') is not null
+  and to_regprocedure('public.loan_period_balances(uuid,date)') is not null
+  and to_regprocedure('public.goal_period_target_page(uuid,date,public.currency_code,uuid,integer)') is not null
+  and to_regprocedure('private.ensure_space_period_definition(uuid,date)') is not null
+  and to_regprocedure('public.set_space_schedule(uuid,uuid,text,integer,bigint)') is not null
+  and to_regprocedure('public.allocation_template_defaults(uuid,public.currency_code)') is not null
+  and has_function_privilege('authenticated','public.allocation_template_defaults(uuid,public.currency_code)','EXECUTE')
+  and not has_function_privilege('anon','public.allocation_template_defaults(uuid,public.currency_code)','EXECUTE')
+  and not has_function_privilege('service_role','public.allocation_template_defaults(uuid,public.currency_code)','EXECUTE')
+  and exists (select 1 from pg_proc where oid=to_regprocedure('public.allocation_template_defaults(uuid,public.currency_code)') and provolatile='s')
+  and to_regprocedure('public.preview_default_period_plan(uuid,date,public.currency_code)') is not null
+  and to_regprocedure('public.initialize_period_plan(uuid,uuid,date,public.currency_code,text,jsonb)') is not null
+  and has_function_privilege('authenticated','public.preview_default_period_plan(uuid,date,public.currency_code)','EXECUTE')
+  and has_function_privilege('authenticated','public.initialize_period_plan(uuid,uuid,date,public.currency_code,text,jsonb)','EXECUTE')
+  and not has_function_privilege('anon','public.preview_default_period_plan(uuid,date,public.currency_code)','EXECUTE')
+  and not has_function_privilege('service_role','public.preview_default_period_plan(uuid,date,public.currency_code)','EXECUTE')
+  and not has_function_privilege('anon','public.initialize_period_plan(uuid,uuid,date,public.currency_code,text,jsonb)','EXECUTE')
+  and not has_function_privilege('service_role','public.initialize_period_plan(uuid,uuid,date,public.currency_code,text,jsonb)','EXECUTE')
+  and not has_function_privilege('authenticated','private.resolve_default_plan_reference(jsonb,jsonb,boolean)','EXECUTE')
+  and exists (select 1 from pg_proc where oid=to_regprocedure('public.preview_default_period_plan(uuid,date,public.currency_code)') and provolatile='s')
+  and to_regprocedure('public.purchase_goal(uuid,uuid,jsonb)') is not null
+  and has_function_privilege('authenticated','public.purchase_goal(uuid,uuid,jsonb)','EXECUTE')
+  and not has_function_privilege('anon','public.purchase_goal(uuid,uuid,jsonb)','EXECUTE')
+  and not has_function_privilege('service_role','public.purchase_goal(uuid,uuid,jsonb)','EXECUTE')
+  and to_regprocedure('public.record_and_settle(uuid,uuid,jsonb)') is not null
+  and has_function_privilege('authenticated','public.record_and_settle(uuid,uuid,jsonb)','EXECUTE')
+  and not has_function_privilege('anon','public.record_and_settle(uuid,uuid,jsonb)','EXECUTE')
+  and not has_function_privilege('service_role','public.record_and_settle(uuid,uuid,jsonb)','EXECUTE')
+  and to_regprocedure('public.record_settlement_context(uuid,uuid)') is not null
+  and has_function_privilege('authenticated','public.record_settlement_context(uuid,uuid)','EXECUTE')
+  and not has_function_privilege('anon','public.record_settlement_context(uuid,uuid)','EXECUTE')
+  and not has_function_privilege('service_role','public.record_settlement_context(uuid,uuid)','EXECUTE')
+  and exists (select 1 from pg_proc where oid=to_regprocedure('public.record_settlement_context(uuid,uuid)') and provolatile='s')
+  and to_regprocedure('public.save_period_plan(uuid,uuid,date,public.currency_code,jsonb)') is not null
+  and to_regprocedure('public.period_plan_legacy_review(uuid,date,public.currency_code)') is not null
+  and to_regprocedure('public.approved_budget_summary(uuid,date,public.currency_code)') is not null
+  and to_regprocedure('public.approved_category_budget_page(uuid,date,public.currency_code,uuid,integer)') is not null
+  and to_regprocedure('public.approved_loan_monthly_plan(uuid,date)') is not null
+  and to_regprocedure('public.approved_loan_monthly_currency_summary(uuid,date)') is not null
+  and to_regclass('private.period_plan_save_evidence') is not null
+  and exists (select 1 from pg_class where oid=to_regclass('private.period_plan_save_evidence') and relrowsecurity)
+  and not has_table_privilege('authenticated','private.period_plan_save_evidence','SELECT,INSERT,UPDATE,DELETE')
+  and not has_function_privilege('authenticated','private.publish_period_plan(uuid,uuid,date,public.currency_code,bigint,bigint,bigint,text,jsonb,uuid,jsonb,boolean,jsonb)','EXECUTE')
+  and exists (select 1 from pg_trigger where tgname='period_plan_save_evidence_valid' and tgenabled in ('O','A') and tgdeferrable and tginitdeferred)
+  and to_regprocedure('public.period_plan_page(uuid,date,public.currency_code)') is not null
+  and to_regclass('public.period_plan_loan_sets') is not null
+  and to_regclass('public.period_plan_loan_lines') is not null
+  and to_regclass('private.loan_target_acceptance_order') is not null
+  and to_regprocedure('public.save_allocation_group_roles(uuid,uuid,public.currency_code,bigint,uuid,uuid)') is not null
+  and to_regprocedure('public.set_goal_default_group(uuid,uuid,uuid,uuid,bigint)') is not null
+  and to_regprocedure('public.goal_period_target_defaults_page(uuid,date,public.currency_code,uuid,integer)') is not null
+  and to_regprocedure('private.resolve_goal_plan_group(uuid,public.currency_code,uuid,uuid)') is not null
+  and to_regprocedure('private.resolve_debt_plan_group(uuid,public.currency_code,uuid)') is not null
+  and to_regclass('public.allocation_group_role_revisions') is not null
+  and to_regclass('public.goal_default_group_revisions') is not null
+  and to_regprocedure('private.current_loan_period_targets(uuid,date)') is not null
   and to_regprocedure('public.space_clock(uuid)') is not null
   and to_regprocedure('public.space_today(uuid)') is not null
   and to_regprocedure('public.space_period_bounds(uuid,date)') is not null
   and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'spaces' and column_name = 'payday_day')
   and exists (select 1 from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace where n.nspname = 'private' and p.proname = 'check_goal_earmark_event' and p.prosrc like '%goal_financing_state%')
+  and to_regprocedure('public.wallet_balance_as_of(uuid,uuid,date)') is not null
+  and has_function_privilege('authenticated','public.wallet_balance_as_of(uuid,uuid,date)','EXECUTE')
+  and not has_function_privilege('anon','public.wallet_balance_as_of(uuid,uuid,date)','EXECUTE')
+  and not has_function_privilege('service_role','public.wallet_balance_as_of(uuid,uuid,date)','EXECUTE')
+  and to_regprocedure('private.save_period_plan_with_carry(uuid,uuid,date,public.currency_code,jsonb,jsonb)') is not null
+  and not has_function_privilege('authenticated','private.save_period_plan_with_carry(uuid,uuid,date,public.currency_code,jsonb,jsonb)','EXECUTE')
+  and to_regprocedure('public.daily_control_summary(uuid,date,public.currency_code)') is not null
+  and has_function_privilege('authenticated','public.daily_control_summary(uuid,date,public.currency_code)','EXECUTE')
+  and not has_function_privilege('anon','public.daily_control_summary(uuid,date,public.currency_code)','EXECUTE')
+  and not has_function_privilege('service_role','public.daily_control_summary(uuid,date,public.currency_code)','EXECUTE')
+  and to_regprocedure('public.daily_control_obligations(uuid,date,public.currency_code,integer)') is not null
+  and has_function_privilege('authenticated','public.daily_control_obligations(uuid,date,public.currency_code,integer)','EXECUTE')
+  and not has_function_privilege('anon','public.daily_control_obligations(uuid,date,public.currency_code,integer)','EXECUTE')
+  and not has_function_privilege('service_role','public.daily_control_obligations(uuid,date,public.currency_code,integer)','EXECUTE')
+  and to_regprocedure('private.daily_cash_commitments(uuid,public.currency_code,date,date)') is not null
+  and not has_function_privilege('authenticated','private.daily_cash_commitments(uuid,public.currency_code,date,date)','EXECUTE')
+  and to_regprocedure('private.daily_expense_buckets(uuid,public.currency_code,date,date,date,date)') is not null
+  and not has_function_privilege('authenticated','private.daily_expense_buckets(uuid,public.currency_code,date,date,date,date)','EXECUTE')
+  and to_regclass('public.workspace_setup_receipts') is not null
+  and exists (select 1 from pg_class where oid=to_regclass('public.workspace_setup_receipts') and relrowsecurity)
+  and not has_table_privilege('anon','public.workspace_setup_receipts','SELECT,INSERT,UPDATE,DELETE,TRUNCATE')
+  and not has_table_privilege('authenticated','public.workspace_setup_receipts','SELECT,INSERT,UPDATE,DELETE,TRUNCATE')
+  and not has_table_privilege('service_role','public.workspace_setup_receipts','SELECT,INSERT,UPDATE,DELETE,TRUNCATE')
+  and to_regprocedure('public.create_onboarding_space(uuid,text,public.space_kind,text,integer)') is not null
+  and has_function_privilege('authenticated','public.create_onboarding_space(uuid,text,public.space_kind,text,integer)','EXECUTE')
+  and not has_function_privilege('anon','public.create_onboarding_space(uuid,text,public.space_kind,text,integer)','EXECUTE')
+  and not has_function_privilege('service_role','public.create_onboarding_space(uuid,text,public.space_kind,text,integer)','EXECUTE')
+  and to_regprocedure('public.create_onboarding_wallet(uuid,uuid,text,public.currency_code)') is not null
+  and has_function_privilege('authenticated','public.create_onboarding_wallet(uuid,uuid,text,public.currency_code)','EXECUTE')
+  and not has_function_privilege('anon','public.create_onboarding_wallet(uuid,uuid,text,public.currency_code)','EXECUTE')
+  and not has_function_privilege('service_role','public.create_onboarding_wallet(uuid,uuid,text,public.currency_code)','EXECUTE')
+  and to_regprocedure('public.find_workspace_setup_receipt(uuid,uuid)') is not null
+  and has_function_privilege('authenticated','public.find_workspace_setup_receipt(uuid,uuid)','EXECUTE')
+  and not has_function_privilege('anon','public.find_workspace_setup_receipt(uuid,uuid)','EXECUTE')
+  and not has_function_privilege('service_role','public.find_workspace_setup_receipt(uuid,uuid)','EXECUTE')
   and (select array_agg(version order by version) from supabase_migrations.schema_migrations)
     = array[
-      '20260907100000','20260907110000','20260907120000','20260907130000',
-      '20260907140000','20260907141000','20260907142000','20260907143000',
-      '20260907144000','20260907145000','20260907146000','20260907147000',
-      '20260907148000','20260907149000','20260908100000','20260908101000',
-      '20260908102000','20260908103000','20260908170000','20260908171000',
-      '20260908171100','20260908172000','20260908173000','20260908173100',
-      '20260908174000','20260908175000','20260908176000','20260908177000',
-      '20260908178000','20260908179000','20260908180000','20260910100000',
-      '20260911100000','20260912090000','20260912100000','20260912101000',
-      '20260912101500','20260912102000','20260914090000','20260914100000',
-      '20260914110000','20260914120000','20260914130000','20260914140000',
-      '20260914150000','20260914160000','20260914170000','20260914180000',
-      '20260916100000','20260919100000','20260925100000','20260925101000',
-      '20260925102000','20260925103000','20260925104000','20260927100000',
-      '20260928100000','20260929100000','20260929110000','20260929120000',
-      '20260929130000'
+      '20260929140000','20260929140050','20260929140100','20260929140200','20260929140300','20260929140400','20260929140500','20260929140600','20260929140700','20260930100000','20260930100100','20260930100200','20260930100300','20260930100400','20260930100500','20260930100550','20260930100600','20260930100700','20260930100800','20260930100900','20260930101000','20260930101100','20261002170000','20261002171000','20261003120000','20261003121000'
     ]::text[]
   then 'budget_schema_ready'
   else 'budget_schema_incomplete'
@@ -126,6 +222,9 @@ if ! git -C "${LIVE_REPO_ROOT}" diff --quiet -- \
   supabase/migrations ops/budget-migrations.sha256 scripts/ops/migrate-budget.sh; then
   live_fail 'migration files or their verification boundary have tracked changes'
 fi
+
+"${LIVE_SCRIPT_DIR}/migrate-budget.sh" verify-source-tree \
+  "${LIVE_REPO_ROOT}/supabase/migrations" "${LIVE_MANIFEST_SOURCE_SHA}"
 
 if [[ -z "${SUPABASE_ACCESS_TOKEN:-}" ]]; then
   read -r -s -p 'Supabase personal access token: ' SUPABASE_ACCESS_TOKEN

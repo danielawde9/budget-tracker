@@ -335,7 +335,7 @@ actual encrypted off-site backup, measured scratch restore, or launch approval.
 This is **measured drill evidence**, not the encrypted off-site recovery point
 this runbook requires, and it does not change the real-data gate above. The
 tooling above targets a self-hosted `budget-live` PostgreSQL; live Budget runs on
-hosted Supabase project `hqblhzqitrbvpyoxtmew` (`ap-south-1`, image
+hosted Supabase project `dfuxxzlhmxscgvxdmwti` (`ap-northeast-2`, image
 `17.6.1.166`), which those scripts do not cover. The drill used Supabase CLI
 `2.109.1` directly plus throwaway scripts that are not committed.
 

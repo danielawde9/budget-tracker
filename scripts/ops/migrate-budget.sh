@@ -321,7 +321,49 @@ migration_verify_manifest() {
     "${#MIGRATION_FILENAMES[@]}" "${applied_count}"
 }
 
+# Compare names and bytes against a committed candidate, including untracked SQL.
+migration_verify_source_tree() {
+  local directory="${1:-}" source_sha="${2:-}" position=0 path filename blob_hash
+  migration_validate_source_sha "${source_sha}"
+  git -C "${BUDGET_OPS_REPO_ROOT}" cat-file -e "${source_sha}^{commit}" 2>/dev/null || {
+    budget_error 'candidate source must identify a committed tree' 79; return; }
+  migration_collect_files "${directory}"
+  while IFS= read -r path; do
+    filename="${path##*/}"
+    if (( position >= ${#MIGRATION_FILENAMES[@]} )) ||       [[ "${filename}" != "${MIGRATION_FILENAMES[position]}" ]]; then
+      budget_error 'candidate migration names differ from local tree' 79; return
+    fi
+    blob_hash="$(git -C "${BUDGET_OPS_REPO_ROOT}" show "${source_sha}:${path}" | "${MIGRATION_SHA256_BIN}" -a 256)"
+    [[ "${blob_hash%% *}" == "${MIGRATION_HASHES[position]}" ]] || {
+      budget_error 'candidate migration bytes differ from local tree' 79; return; }
+    position=$((position + 1))
+  done < <(git -C "${BUDGET_OPS_REPO_ROOT}" ls-tree -r --name-only "${source_sha}" -- supabase/migrations)
+  (( position == ${#MIGRATION_FILENAMES[@]} )) || {
+    budget_error 'candidate migration count differs from local tree' 79; return; }
+}
+
+migration_refresh_manifests() {
+  local directory="${1:-}" source_sha="${2:-}" temporary
+  migration_verify_source_tree "${directory}" "${source_sha}"
+  temporary="$(mktemp -d "${BUDGET_OPS_REPO_ROOT}/ops/.manifest-refresh.XXXXXX")"
+  trap 'rm -f -- "${temporary}/live" "${temporary}/uat" "${temporary}/applied"; rmdir -- "${temporary}"' EXIT
+  bash "${MIGRATE_SCRIPT_DIR}/migrate-budget.sh" create-manifest     "${directory}" "${temporary}/live" "${source_sha}"
+  sed '1s/budget_migration_manifest_version/budget_uat_migration_manifest_version/'     "${temporary}/live" > "${temporary}/uat"
+  : > "${temporary}/applied"
+  migration_verify_manifest "${directory}" "${temporary}/live" "${temporary}/applied" "${source_sha}"
+  cmp -s <(tail -n +2 "${temporary}/live") <(tail -n +2 "${temporary}/uat") || {
+    budget_error 'manifest formats disagree' 79; return; }
+  mv -- "${temporary}/live" "${BUDGET_OPS_REPO_ROOT}/ops/budget-migrations.sha256"
+  mv -- "${temporary}/uat" "${BUDGET_OPS_REPO_ROOT}/ops/uat/budget-uat-18-migrations.sha256"
+  rm -- "${temporary}/applied"
+  rmdir -- "${temporary}"
+  trap - EXIT
+  printf 'refreshed both manifests from committed candidate %s\n' "${source_sha}"
+}
+
 case "${1:-}" in
+  verify-source-tree) migration_verify_source_tree "${2:-}" "${3:-}" ;;
+  refresh-manifests) migration_refresh_manifests "${2:-}" "${3:-}" ;;
   create-manifest) migration_create_manifest "${2:-}" "${3:-}" "${4:-}" ;;
   verify-manifest) migration_verify_manifest "${2:-}" "${3:-}" "${4:-}" "${5:-}" ;;
   *) budget_error 'usage: migrate-budget.sh {create-manifest DIR OUTPUT SOURCE_SHA|verify-manifest DIR EXPECTED APPLIED ACTUAL_SOURCE_SHA}' 64 ;;

@@ -17,7 +17,7 @@ readonly UAT_MAX_HEALTH_POLLS=60
 readonly UAT_HEALTH_POLL_SECONDS=5
 readonly UAT_DOCKER_WALL_SECONDS=30
 readonly UAT_MIN_FREE_KIB=20971520
-readonly UAT_EXPECTED_RELEASE='6af62c1b0105b75a9796cfb299791f4c26a7dd2e'
+readonly UAT_EXPECTED_RELEASE='2e278cb6258af1561652847c22ef28aced80e9cc'
 readonly UAT_EXPECTED_DEV_SYSTEM_ID='7683090997378195493'
 readonly UAT_EXPECTED_DEV_MIGRATION_COUNT='31'
 readonly UAT_EXPECTED_DEV_LAST_MIGRATION='20260908180000'
@@ -198,9 +198,9 @@ verify_migration_bundle() {
     previous_version="${version}"
     migration_count=$((migration_count + 1))
   done < <(tail -n +3 "${UAT_ROOT}/${UAT_MANIFEST}")
-  [[ "${migration_count}" -eq 18 ]] || uat_remote_error 'remote UAT manifest must contain 18 rows' 74
-  [[ "$(find "${UAT_ROOT}/migrations" -maxdepth 1 -type f -name '*.sql' | wc -l)" -eq 18 ]] || uat_remote_error 'remote UAT migration directory must contain 18 SQL files' 74
-  printf 'MIGRATION_BUNDLE|count=18|source=%s|hash_mismatches=0\n' "${UAT_EXPECTED_RELEASE}"
+  [[ "${migration_count}" -eq 26 ]] || uat_remote_error 'remote UAT manifest must contain 26 rows' 74
+  [[ "$(find "${UAT_ROOT}/migrations" -maxdepth 1 -type f -name '*.sql' | wc -l)" -eq 26 ]] || uat_remote_error 'remote UAT migration directory must contain 26 SQL files' 74
+  printf 'MIGRATION_BUNDLE|count=%s|source=%s|hash_mismatches=0\n' "${migration_count}" "${UAT_EXPECTED_RELEASE}"
 }
 
 generate_secret_environment() {
@@ -297,11 +297,12 @@ apply_migrations() {
 }
 
 verify_journal() {
-  local actual expected
+  local actual expected migration_count
   actual="$(docker exec "${UAT_DB_CONTAINER}" psql -XAt -U postgres -d postgres -v ON_ERROR_STOP=1 -c 'select version from supabase_migrations.schema_migrations order by version;')"
   expected="$(tail -n +3 "${UAT_ROOT}/${UAT_MANIFEST}" | cut -d '|' -f 1)"
   [[ "${actual}" == "${expected}" ]] || uat_remote_error 'UAT migration journal differs from manifest' 77
-  printf 'UAT_JOURNAL|count=18|first=%s|last=%s\n' "${actual%%$'\n'*}" "${actual##*$'\n'}"
+  migration_count="$(printf '%s\n' "${actual}" | wc -l | tr -d ' ')"
+  printf 'UAT_JOURNAL|count=%s|first=%s|last=%s\n' "${migration_count}" "${actual%%$'\n'*}" "${actual##*$'\n'}"
 }
 
 verify_stack_base() {
@@ -333,17 +334,17 @@ verify_stack_base() {
 verify_catalog() {
   local rls_count writable_count function_acl
   rls_count="$(docker exec "${UAT_DB_CONTAINER}" psql -XAt -U postgres -d postgres -v ON_ERROR_STOP=1 -c \
-    "select count(*) from pg_class as relation join pg_namespace as namespace on namespace.oid = relation.relnamespace where namespace.nspname = 'public' and relation.relname = any (array['spaces','space_memberships','wallets','financial_events','wallet_movements','loans','loan_postings','loan_monthly_target_revisions','categories','category_command_requests','financial_event_categories']) and relation.relrowsecurity;")"
-  [[ "${rls_count}" == '11' ]] || uat_remote_error 'UAT RLS catalog mismatch' 80
+    "select count(*) from pg_class as relation join pg_namespace as namespace on namespace.oid = relation.relnamespace where namespace.nspname = 'public' and relation.relname = any (array['spaces','space_memberships','wallets','financial_events','wallet_movements','loans','loan_postings','loan_monthly_target_revisions','categories','category_command_requests','financial_event_categories','period_plan_loan_sets','period_plan_loan_lines','allocation_group_role_revisions','goal_default_group_revisions','workspace_setup_receipts']) and relation.relrowsecurity;")"
+  [[ "${rls_count}" == '16' ]] || uat_remote_error 'UAT RLS catalog mismatch' 80
   writable_count="$(docker exec "${UAT_DB_CONTAINER}" psql -XAt -U postgres -d postgres -v ON_ERROR_STOP=1 -c \
-    "with roles(role_name) as (values ('anon'),('authenticated'),('service_role')), relations(relation_name) as (values ('spaces'),('space_memberships'),('wallets'),('financial_events'),('wallet_movements'),('loans'),('loan_postings'),('loan_monthly_target_revisions'),('categories'),('category_command_requests'),('financial_event_categories')) select count(*) from roles cross join relations where has_table_privilege(role_name, format('public.%I', relation_name), 'insert') or has_table_privilege(role_name, format('public.%I', relation_name), 'update') or has_table_privilege(role_name, format('public.%I', relation_name), 'delete') or has_table_privilege(role_name, format('public.%I', relation_name), 'truncate');")"
+    "with roles(role_name) as (values ('anon'),('authenticated'),('service_role')), relations(relation_name) as (values ('spaces'),('space_memberships'),('wallets'),('financial_events'),('wallet_movements'),('loans'),('loan_postings'),('loan_monthly_target_revisions'),('categories'),('category_command_requests'),('financial_event_categories'),('period_plan_loan_sets'),('period_plan_loan_lines'),('allocation_group_role_revisions'),('goal_default_group_revisions'),('workspace_setup_receipts')) select count(*) from roles cross join relations where has_table_privilege(role_name, format('public.%I', relation_name), 'insert') or has_table_privilege(role_name, format('public.%I', relation_name), 'update') or has_table_privilege(role_name, format('public.%I', relation_name), 'delete') or has_table_privilege(role_name, format('public.%I', relation_name), 'truncate');")"
   [[ "${writable_count}" == '0' ]] || uat_remote_error 'UAT direct-write privilege mismatch' 80
   function_acl="$(docker exec "${UAT_DB_CONTAINER}" psql -XAt -U postgres -d postgres -v ON_ERROR_STOP=1 -c \
     "select has_function_privilege('anon', 'public.reverse_financial_event(uuid,uuid,uuid,date)', 'execute') || '|' || has_function_privilege('authenticated', 'public.reverse_financial_event(uuid,uuid,uuid,date)', 'execute') || '|' || has_function_privilege('service_role', 'public.reverse_financial_event(uuid,uuid,uuid,date)', 'execute');")"
   [[ "${function_acl}" == 'false|true|false' || "${function_acl}" == 'f|t|f' ]] || \
     uat_remote_error 'UAT reversal function privilege mismatch' 80
-  printf '%s\n' 'RLS_CATALOG|scoped=11|enabled=11'
-  printf '%s\n' 'DIRECT_WRITE_CATALOG|roles=3|relations=11|writable=0'
+  printf '%s\n' 'RLS_CATALOG|scoped=16|enabled=16'
+  printf '%s\n' 'DIRECT_WRITE_CATALOG|roles=3|relations=16|writable=0'
   printf '%s\n' 'FUNCTION_ACL|reverse=authenticated_only'
 }
 
@@ -509,7 +510,7 @@ if len(entries) > len(allowed) or any(entry not in allowed for entry in entries)
 migrations = os.path.join(root, "migrations")
 if os.path.isdir(migrations):
     names = os.listdir(migrations)
-    if len(names) != 18 or any(re.fullmatch(r"[0-9]{14}_[a-z0-9_]+\.sql", name) is None for name in names):
+    if len(names) != 9 or any(re.fullmatch(r"[0-9]{14}_[a-z0-9_]+\.sql", name) is None for name in names):
         raise SystemExit("unexpected UAT migration entry")
     for name in names:
         path = os.path.join(migrations, name)

@@ -1,10 +1,12 @@
-import { readFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { basename, join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
 
 import { describe, expect, it } from 'vitest';
 
-const releaseHead = '6af62c1b0105b75a9796cfb299791f4c26a7dd2e';
+const releaseHead = '2e278cb6258af1561652847c22ef28aced80e9cc';
 const scriptPath = 'scripts/ops/budget-uat-18.sh';
 const remoteScriptPath = 'ops/uat/remote-budget-uat-18.sh';
 const composePath = 'ops/uat/docker-compose.yml';
@@ -23,6 +25,62 @@ function parseMigrationManifestRow(row: string): readonly [string, string, strin
 function trackedText(path: string): string {
   return readFileSync(path, 'utf8');
 }
+
+function shellFunction(path: string, name: string): string {
+  const definition = trackedText(path).match(new RegExp(`^${name}\\(\\) \\{\\n[\\s\\S]*?^\\}`, 'm'))?.[0];
+  if (!definition) throw new Error(`Missing shell function ${name}`);
+  return definition;
+}
+
+describe('UAT migration bundle validation', () => {
+  it('reports the verified journal count and rejects a missing applied migration', () => {
+    const root = mkdtempSync(join(tmpdir(), 'budget-uat-journal-'));
+    try {
+      copyFileSync(manifestPath, join(root, 'budget-uat-18-migrations.sha256'));
+      const versions = trackedText(manifestPath).trimEnd().split('\n').slice(2).map(row => row.split('|')[0]).join('\n');
+      const script = `${shellFunction(remoteScriptPath, 'uat_remote_error')}\n${shellFunction(remoteScriptPath, 'verify_journal')}\n# Isolate the external database boundary; retain real journal comparison/output.\ndocker() { printf '%s\\n' "$JOURNAL_ROWS"; }\nUAT_ROOT="$1"; UAT_MANIFEST=budget-uat-18-migrations.sha256; UAT_DB_CONTAINER=fixture; JOURNAL_ROWS="$2"; verify_journal`;
+      const run = (rows: string) => spawnSync('bash', ['-euc', script, '--', root, rows], { encoding: 'utf8', timeout: 10_000 });
+      const accepted = run(versions);
+      expect(accepted.status).toBe(0);
+      expect(accepted.stdout).toBe('UAT_JOURNAL|count=26|first=20260929140000|last=20261003121000\n');
+      expect(run(versions.split('\n').slice(0, -1).join('\n')).status).toBe(77);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  for (const location of ['local', 'remote'] as const) {
+    it(`${location} accepts the exact 26 migrations and rejects extra or incomplete bundles`, () => {
+      const root = mkdtempSync(join(tmpdir(), 'budget-uat-bundle-'));
+      const migrations = join(root, 'migrations');
+      const manifest = join(root, 'budget-uat-18-migrations.sha256');
+      try {
+        mkdirSync(migrations);
+        const names = readdirSync('supabase/migrations').filter(name => name.endsWith('.sql')).sort();
+        expect(names).toHaveLength(26);
+        for (const name of names) copyFileSync(join('supabase/migrations', name), join(migrations, name));
+        copyFileSync(manifestPath, manifest);
+        for (const name of ['docker-compose.yml', 'kong.yml']) copyFileSync(join('ops/uat', name), join(root, name));
+        const script = location === 'local'
+          ? `${shellFunction(scriptPath, 'uat_error')}\n${shellFunction(scriptPath, 'validate_local_manifest')}\nUAT_MANIFEST="$1"; UAT_MIGRATIONS="$2"; UAT_RELEASE_HEAD="$3"; validate_local_manifest`
+          : `${shellFunction(remoteScriptPath, 'uat_remote_error')}\n${shellFunction(remoteScriptPath, 'verify_migration_bundle')}\n# Host marker policy is separate; exercise only the real bundle validator locally.\nrequire_exact_marker() { :; }\nsha256sum() { shasum -a 256 "$@"; }\nUAT_ROOT="$4"; UAT_MANIFEST=budget-uat-18-migrations.sha256; UAT_EXPECTED_RELEASE="$3"; verify_migration_bundle`;
+        const run = () => spawnSync('bash', ['-euc', script, '--', manifest, migrations, releaseHead, root], { encoding: 'utf8', timeout: 10_000 });
+        const accepted = run();
+        expect(accepted.stderr).toBe('');
+        expect(accepted.status).toBe(0);
+        if (location === 'remote') expect(accepted.stdout).toContain(`MIGRATION_BUNDLE|count=26|source=${releaseHead}|hash_mismatches=0`);
+        const extra = join(migrations, '20261001000000_unlisted.sql');
+        writeFileSync(extra, '-- unlisted migration');
+        expect(run().status).toBe(location === 'local' ? 66 : 74);
+        const extraHash = createHash('sha256').update(readFileSync(extra)).digest('hex');
+        writeFileSync(manifest, trackedText(manifestPath) + `20261001000000|20261001000000_unlisted.sql|${extraHash}\n`);
+        expect(run().status).toBe(location === 'local' ? 66 : 74);
+        rmSync(extra);
+        rmSync(join(migrations, names.at(-1)!));
+        writeFileSync(manifest, trackedText(manifestPath).trimEnd().split('\n').slice(0, -1).join('\n') + '\n');
+        expect(run().status).toBe(location === 'local' ? 66 : 74);
+      } finally { rmSync(root, { recursive: true, force: true }); }
+    });
+  }
+});
 
 describe('Budget exact-schema UAT static contract', () => {
   it('pins the one approved host, release, root, project, and marker', () => {
@@ -138,7 +196,7 @@ describe('Budget exact-schema UAT static contract', () => {
 
     expect(rows[0]).toBe('budget_uat_migration_manifest_version=1');
     expect(rows[1]).toBe(`source_sha=${releaseHead}`);
-    expect(migrationRows).toHaveLength(18);
+    expect(migrationRows).toHaveLength(26);
     expect(localMigrationNames).toEqual([...localMigrationNames].sort());
 
     for (const [version, filename, expectedHash] of parsedMigrationRows) {
@@ -181,7 +239,9 @@ describe('Budget exact-schema UAT static contract', () => {
     expect(localScript).toContain('validate_local_manifest');
     expect(localScript).toContain('run_remote verify-sync');
     expect(remoteScript).toContain('verify_migration_bundle');
-    expect(remoteScript).toContain('[[ "${migration_count}" -eq 18 ]]');
+    expect(remoteScript).toContain('[[ "${migration_count}" -eq 26 ]]');
+    expect(remoteScript).toContain("MIGRATION_BUNDLE|count=%s|source=%s|hash_mismatches=0");
+    expect(remoteScript).toContain('"${migration_count}" "${UAT_EXPECTED_RELEASE}"');
     expect(remoteScript).toContain('apply_migrations');
     expect(remoteScript).toContain("printf '%s\\n' 'begin;'");
     expect(remoteScript).toContain('supabase_migrations.schema_migrations');
@@ -236,7 +296,10 @@ describe('Budget exact-schema UAT static contract', () => {
     expect(remoteScript).toContain('has_function_privilege');
     expect(remoteScript).toContain('verify_file_permissions');
     expect(remoteScript).toContain('SECRETS|env_mode=0600|root_mode=0700|values_printed=no');
-    expect(remoteScript).toContain('RLS_CATALOG|scoped=11|enabled=11');
+    expect(remoteScript).toContain('RLS_CATALOG|scoped=16|enabled=16');
+    expect(remoteScript).toContain('DIRECT_WRITE_CATALOG|roles=3|relations=16|writable=0');
+    expect(remoteScript).toContain("'allocation_group_role_revisions','goal_default_group_revisions','workspace_setup_receipts'");
+    expect(remoteScript).toContain("('allocation_group_role_revisions'),('goal_default_group_revisions'),('workspace_setup_receipts')");
   });
 
   it('compares Budget development before and after every full verification', () => {

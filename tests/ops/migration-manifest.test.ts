@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 
 const script = join(process.cwd(), 'scripts/ops/migrate-budget.sh');
 const sourceSha = '41504561b7f6fdf3f1321fa38a025673eb0d9f0d';
-const liveReleaseHead = '5229fb55da7a16a2c0973895743aabac4b656d30';
+const liveReleaseHead = '2e278cb6258af1561652847c22ef28aced80e9cc';
 const liveManifest = join(process.cwd(), 'ops/budget-migrations.sha256');
 
 function fixture() {
@@ -84,7 +84,7 @@ function run(args: string[]) {
 }
 
 describe('forward-only migration manifest gate', () => {
-  it('pins the schedule-cadence release as 61 immutable migrations', () => {
+  it('pins the exact baseline and rejects changed migration bytes', () => {
     const rows = readFileSync(liveManifest, 'utf8').trimEnd().split('\n');
     const migrationRows = rows.slice(2);
     const localMigrationNames = readdirSync(join(process.cwd(), 'supabase/migrations'))
@@ -93,13 +93,7 @@ describe('forward-only migration manifest gate', () => {
 
     expect(rows[0]).toBe('budget_migration_manifest_version=1');
     expect(rows[1]).toBe(`source_sha=${liveReleaseHead}`);
-    expect(migrationRows).toHaveLength(61);
-    expect(migrationRows.some((row) =>
-      row.startsWith('20260908170000|20260908170000_household_membership_schema.sql|'),
-    )).toBe(true);
-    expect(migrationRows.at(-1)).toMatch(
-      /^20260929130000\|20260929130000_recurring_schedule_cadences\.sql\|[a-f0-9]{64}$/,
-    );
+    expect(migrationRows).toHaveLength(26);
     expect(migrationRows.map((row) => row.split('|')[1])).toEqual(localMigrationNames);
 
     for (const row of migrationRows) {
@@ -110,6 +104,23 @@ describe('forward-only migration manifest gate', () => {
         .update(readFileSync(join(process.cwd(), 'supabase/migrations', filename!), 'utf8'))
         .digest('hex')).toBe(expectedHash);
     }
+  });
+
+  it('refreshes both formats only from the exact committed migration tree', () => {
+    const result = run(['refresh-manifests', join(process.cwd(), 'supabase/migrations'), liveReleaseHead]);
+    expect(result.status).toBe(0);
+    expect(readFileSync(liveManifest, 'utf8').split('\n').slice(1)).toEqual(
+      readFileSync(join(process.cwd(), 'ops/uat/budget-uat-18-migrations.sha256'), 'utf8').split('\n').slice(1),
+    );
+    const { migrations } = fixture();
+    expect(run(['refresh-manifests', migrations, liveReleaseHead]).status).not.toBe(0);
+  });
+
+  it.each(['61-file', '18-file'])('rejects incompatible historical %s applied journals', (history) => {
+    const { applied } = fixture();
+    const historical = history === '61-file' ? '20260907100000' : '20260908100000';
+    writeFileSync(applied, `${historical}\n`);
+    expect(run(['verify-manifest', join(process.cwd(), 'supabase/migrations'), liveManifest, applied, liveReleaseHead]).status).not.toBe(0);
   });
 
   it('creates a deterministic version/name/SHA-256 manifest', () => {

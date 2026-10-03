@@ -3,7 +3,7 @@ set -euo pipefail
 umask 077
 export PATH='/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin'
 
-readonly UAT_RELEASE_HEAD='6af62c1b0105b75a9796cfb299791f4c26a7dd2e'
+readonly UAT_RELEASE_HEAD='2e278cb6258af1561652847c22ef28aced80e9cc'
 readonly UAT_REMOTE_HOST='lelabo@100.76.160.91'
 readonly UAT_REMOTE_NAME='lelabo'
 readonly UAT_REMOTE_IP='100.76.160.91'
@@ -84,9 +84,9 @@ validate_local_manifest() {
     previous_version="${version}"
     migration_count=$((migration_count + 1))
   done < <(tail -n +3 "${UAT_MANIFEST}")
-  [[ "${migration_count}" -eq 18 ]] || uat_error 'UAT manifest must contain exactly 18 migrations' 66
-  [[ "$(find "${UAT_MIGRATIONS}" -maxdepth 1 -type f -name '*.sql' | wc -l | tr -d ' ')" -eq 18 ]] || \
-    uat_error 'release migration directory must contain exactly 18 SQL files' 66
+  [[ "${migration_count}" -eq 26 ]] || uat_error 'UAT manifest must contain exactly 26 migrations' 66
+  [[ "$(find "${UAT_MIGRATIONS}" -maxdepth 1 -type f -name '*.sql' | wc -l | tr -d ' ')" -eq 26 ]] || \
+    uat_error 'release migration directory must contain exactly 26 SQL files' 66
 }
 
 run_remote() {
