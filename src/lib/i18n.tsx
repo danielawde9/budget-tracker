@@ -49,7 +49,7 @@ export const messages = {
 
   // Errors (codes come from the database)
   'error.UNKNOWN': { en: 'Something went wrong. Nothing was saved. Try again.', ar: 'حدث خطأ. لم يُحفظ شيء. أعد المحاولة.' },
-  'error.NETWORK': { en: 'The server could not be reached. Nothing was saved. Try again.', ar: 'تعذّر الوصول إلى الخادم. لم يُحفظ شيء. أعد المحاولة.' },
+  'error.NETWORK': { en: 'The server could not be reached, so this may or may not have been saved. Try again from this same form: it will not be recorded twice.', ar: 'تعذّر الوصول إلى الخادم، لذا قد يكون هذا قد حُفظ أو لا. أعد المحاولة من النموذج نفسه: لن يُسجَّل مرتين.' },
   'error.BAD_RESPONSE': { en: 'The server sent an unexpected answer.', ar: 'أرسل الخادم ردًا غير متوقع.' },
   'error.BUDGET_NOT_MEMBER': { en: 'You no longer have access to this space.', ar: 'لم يعد لديك وصول إلى هذه المساحة.' },
   'error.BUDGET_NOT_AUTHENTICATED': { en: 'Please sign in again.', ar: 'يرجى تسجيل الدخول مجددًا.' },
@@ -94,6 +94,8 @@ export const messages = {
   'error.BUDGET_INVALID_TIMEZONE': { en: 'Choose a valid timezone.', ar: 'اختر منطقة زمنية صحيحة.' },
   'error.BUDGET_INVALID_RANGE': { en: 'That date range is too long.', ar: 'نطاق التواريخ هذا طويل جدًا.' },
   'error.BUDGET_INVALID_FILTER': { en: 'Those filters can’t be used together.', ar: 'لا يمكن استخدام هذه المرشحات معًا.' },
+  'error.BUDGET_WALLET_BOUNDS': { en: 'That would take a loan past zero on some day. A loan you owe can’t go above zero, and money owed to you can’t go below it.', ar: 'هذا سيجعل رصيد القرض يتجاوز الصفر في أحد الأيام. القرض الذي عليك لا يتجاوز الصفر، والمال المستحق لك لا ينزل تحته.' },
+  'error.BUDGET_BILL_NOT_SKIPPED': { en: 'That bill was not skipped for that date.', ar: 'لم يتم تخطي هذه الفاتورة في ذلك التاريخ.' },
   'error.BUDGET_NOT_FOUND': { en: 'This space no longer exists.', ar: 'هذه المساحة لم تعد موجودة.' },
   ...screenMessages,
 } as const satisfies Record<string, { readonly en: string; readonly ar: string }>;

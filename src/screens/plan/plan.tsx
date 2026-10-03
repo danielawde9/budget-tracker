@@ -72,6 +72,8 @@ function PlanSummary({ plan }: { readonly plan: PlanMonth }) {
   const { t, money, name, digits } = useI18n();
   const currency = plan.planCurrency;
   const plannedBps = plan.groups.reduce((sum, group) => sum + group.percentBps, 0);
+  // A past month shows what was left unassigned when it ended, not today's figure.
+  const ready = plan.isPast ? plan.readyAtMonthEnd : plan.ready;
   return (
     <section className="cr-card" aria-labelledby="plan-summary-heading">
       <h2 id="plan-summary-heading">{plan.isPast ? t('plan.summaryPast') : t('plan.summary')}</h2>
@@ -80,7 +82,7 @@ function PlanSummary({ plan }: { readonly plan: PlanMonth }) {
         <div><dt>{t('plan.received')}</dt><dd><Amount minor={plan.received} currency={currency} /></dd></div>
         <div><dt>{t('plan.funded')}</dt><dd><Amount minor={plan.funded} currency={currency} /></dd></div>
         <div><dt>{t('plan.stillToFund')}</dt><dd><Amount minor={plan.stillToFund} currency={currency} tone={plan.stillToFund > 0n ? 'warn' : 'plain'} /></dd></div>
-        <div><dt>{t('common.readyToAssign')}</dt><dd><Amount minor={plan.ready} currency={currency} tone={plan.ready < 0n ? 'negative' : 'plain'} /></dd></div>
+        <div><dt>{plan.isPast ? t('plan.readyAtMonthEnd') : t('common.readyToAssign')}</dt><dd><Amount minor={ready} currency={currency} tone={ready < 0n ? 'negative' : 'plain'} /></dd></div>
       </dl>
       <div className="cr-stack-bar" role="img" aria-label={t('plan.barLabel')}>
         {plan.groups.map((group, index) => (

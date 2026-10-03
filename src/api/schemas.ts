@@ -37,6 +37,8 @@ export const planTotals = z.object({
   funded: minor,
   stillToFund: minor,
   ready: minor,
+  /** Ready to assign at the end of the viewed month (equals today's for the current month). */
+  readyAtMonthEnd: minor,
 });
 
 export const alert = z.object({

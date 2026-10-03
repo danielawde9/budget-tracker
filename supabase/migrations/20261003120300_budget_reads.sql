@@ -68,6 +68,29 @@ as $$
     'LBP', budget.item_balance_on(p_item, 'LBP', p_on)::text)
 $$;
 
+-- Plan lines for showing a month: a month before the space's first plan
+-- shows the first plan's groups and items with nothing planned.
+create function budget.plan_lines_for_view(p_space uuid, p_month date)
+returns table (
+  group_id uuid,
+  group_position integer,
+  percent_bps integer,
+  group_amount bigint,
+  item_id uuid,
+  item_kind budget.item_kind,
+  item_order integer,
+  planned_minor bigint)
+language sql
+stable
+set search_path = ''
+as $$
+  select * from budget.plan_lines(p_space, p_month)
+  union all
+  select l.group_id, l.group_position, l.percent_bps, 0::bigint, l.item_id, l.item_kind, l.item_order, 0::bigint
+  from budget.plan_lines(p_space, (select min(v.effective_month) from budget.plan_versions v where v.space_id = p_space)) l
+  where budget.plan_version_for(p_space, p_month) is null
+$$;
+
 -- The plan-month headline figures (plan currency).
 create function budget.plan_totals(p_space uuid, p_month date)
 returns jsonb
@@ -128,11 +151,12 @@ begin
     'otherIncome', v_other_income::text,
     'funded', v_funded::text,
     'stillToFund', v_still::text,
-    'ready', budget.item_balance(v_ready, v_currency)::text);
+    'ready', budget.item_balance(v_ready, v_currency)::text,
+    'readyAtMonthEnd', budget.item_balance_on(v_ready, v_currency, (v_month + interval '1 month' - interval '1 day')::date)::text);
 end;
 $$;
 
--- Bill occurrences in [p_from, p_to] plus unpaid ones up to 92 days overdue,
+-- Bill occurrences in [p_from, p_to] plus unpaid ones up to a year overdue,
 -- with coverage for unpaid occurrences due by the end of the current month.
 create function budget.bill_occurrences(p_space uuid, p_from date, p_to date)
 returns table (
@@ -161,9 +185,9 @@ as $$
     select b.id as bill_id, b.name, b.item_id, b.currency, b.amount_minor as expected, d.due_on,
            b.loan_wallet_id, b.cadence, b.created_at,
            budget.bill_paid_entry(b.id, d.due_on) as entry_id,
-           exists (select 1 from budget.bill_skips s where s.bill_id = b.id and s.due_on = d.due_on) as skipped
+           budget.bill_is_skipped(b.id, d.due_on) as skipped
     from budget.bills b
-    cross join lateral budget.bill_due_dates(b.cadence, b.first_due_on, b.end_on, greatest(b.first_due_on, p_from - 92), p_to) as d(due_on)
+    cross join lateral budget.bill_due_dates(b.cadence, b.first_due_on, b.end_on, greatest(b.first_due_on, p_from - 366), p_to) as d(due_on)
     where b.space_id = p_space and b.archived_at is null
       and b.first_due_on <= p_to  -- a bill that starts later has nothing due yet
   ),
@@ -410,7 +434,7 @@ begin
   select plan_currency into v_currency from budget.spaces where id = p_space;
 
   with lines as (
-    select * from budget.plan_lines(p_space, v_month)
+    select * from budget.plan_lines_for_view(p_space, v_month)
   ),
   rows as (
     select * from budget.item_month_rows(p_space, v_month) r where r.currency = v_currency

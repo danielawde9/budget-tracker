@@ -36,8 +36,7 @@ export function InvestForm({ catalog, onDone, onCancel, action: initialAction, i
   const cash = activeWallets(catalog.accounts, 'cash').filter((wallet) => wallet.currency === currency);
   const [cashId, setCashId] = useState('');
   const effectiveCash = cash.some((wallet) => wallet.id === cashId) ? cashId : (cash[0]?.id ?? '');
-  const investGroup = catalog.plan.groups.find((group) => group.nameEn === 'Investments');
-  const [itemId, setItemId] = useState(investGroup?.flex?.itemId ?? '');
+  const [itemId, setItemId] = useState(() => defaultInvestItem(catalog, accountId));
   const [coverFrom, setCoverFrom] = useState(READY);
   const [amount, setAmount] = useState<bigint | null>(null);
   const [on, setOn] = useState(space.today);
@@ -263,4 +262,15 @@ export function CorrectForm({ entry, onDone, onCancel }: Omit<FormProps, 'catalo
       <FormActions submitLabel="correct.save" pending={command.pending} onCancel={onCancel} disabled={!reason.trim()} />
     </form>
   );
+}
+
+/**
+ * The item a contribution comes out of by default: one tied to this
+ * investment account, else the last group's flexible item (plans list
+ * long-term money last). Never matched by name, so renaming is safe.
+ */
+function defaultInvestItem(catalog: FormProps['catalog'], accountId: string): string {
+  const groups = pickerGroups(catalog.plan);
+  const linked = groups.flatMap((group) => group.items).find((item) => item.walletId !== null && item.walletId === accountId);
+  return linked?.itemId ?? catalog.plan.groups.at(-1)?.flex?.itemId ?? '';
 }

@@ -44,7 +44,7 @@ export function fakeApi(overrides: Partial<Record<keyof BudgetApi, (...args: nev
     billsList: vi.fn(async () => []),
   };
   for (const name of ['fundingPreview', 'itemStatement', 'createSpace', 'createWallet', 'updateWallet', 'assignMoney', 'recordIncome', 'recordExpense',
-    'recordRefund', 'recordTransfer', 'recordExchange', 'recordInvestment', 'recordLoan', 'reverseEntry', 'saveBill', 'skipBill', 'setReferenceRate', 'savePlan']) {
+    'recordRefund', 'recordTransfer', 'recordExchange', 'recordInvestment', 'recordLoan', 'reverseEntry', 'saveBill', 'skipBill', 'unskipBill', 'setReferenceRate', 'savePlan']) {
     api[name] = unstubbed(name);
   }
   for (const [name, implementation] of Object.entries(overrides)) api[name] = vi.fn(implementation as (...args: unknown[]) => unknown);

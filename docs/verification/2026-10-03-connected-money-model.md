@@ -7,8 +7,8 @@ project.
 | Check | Result | What it covers |
 | --- | --- | --- |
 | `pnpm typecheck` | pass | TypeScript strict across app, tests and preview scripts |
-| `pnpm test:db` | **152/152** in 10 files | See "Database suites" below. |
-| `pnpm test:ui` | **64/64** in 11 files | See "UI suites" below. |
+| `pnpm test:db` | **160/160** in 11 files | See "Database suites" below. |
+| `pnpm test:ui` | **74/74** in 13 files | See "UI suites" below. |
 | `pnpm build` | pass, **0 warnings** | Vendor chunks split; largest chunk 339 kB. Demo code and credentials are absent from `dist/`. |
 | `pnpm test:e2e` | **3/3** | See "End-to-end flows" below. |
 | `pnpm preview:up` | pass | See "Local preview" below. |
@@ -81,8 +81,8 @@ important findings were fixed, each with a test that failed first:
 4. Back-dated entries and reversals could make past statements negative.
 5. Investing or lending from an item silently covered the shortfall.
 
-The suites above are the post-fix runs. Deferred minor findings are listed in
-the final report.
+The suites above are the post-fix runs, including the minor findings below,
+which were fixed afterwards at the owner's request.
 
 ## Rulings made during execution
 
@@ -105,12 +105,28 @@ Each ruling states what was decided, why, and its cost if wrong. Owner decisions
 - label-wrapped <select> folded the selected option into its accessible name — fixed at source with SelectField (for/id), not by loosening test selectors — cost if wrong: none
 - fixes edit the v2 migration files in place — they have only ever been applied to disposable databases (Testcontainers, the local preview which up.sh resets); forward-only applies once a shared/prod DB has them — cost if wrong: none today
 
-## Deferred minor findings (final review)
+## Minor findings from the final review: fixed
 
-- unpaid occurrences older than 92 days drop out of lists/alerts
-- create_space replay ignores payload and takes no lock (concurrent identical calls can surface 23505)
-- plan_month before the first plan version returns no groups; past months label current Ready to assign
-- skip_bill is irreversible
-- BUDGET_WALLET_BOUNDS has no message; Activity "load more" errors not shown; InvestForm finds Investments group by English name
-- save_plan first save at a new month accepts a stale client expecting rev 1 of the earlier version
-- no ratchet that every public function is revoked from anon on the real stack (Testcontainers lacks Supabase default privileges)
+Each one has a test that failed first. The database fixes are in
+`tests/db/minor-fixes.test.ts`. The screen fixes are in
+`src/screens/minor-fixes.test.tsx` and `src/ui/async.test.tsx`.
+
+| Finding | Fix |
+| --- | --- |
+| Unpaid occurrences older than 92 days dropped out of lists and alerts | Look back 366 days. A bill unpaid for a year is still overdue. |
+| `create_space` replay ignored the payload and two identical concurrent calls could raise 23505 | `insert … on conflict do nothing`. A replay with the same name returns the space; a different name is `BUDGET_REQUEST_CONFLICT`. |
+| Months before the first plan showed no groups; past months showed today's Ready to assign | The earliest plan's structure is shown with 0 planned. Past months show "Ready to assign at month end". |
+| `skip_bill` could not be undone | Skips are an append-only event log. `unskip_bill` and an Undo skip button in Bills. |
+| No message for `BUDGET_WALLET_BOUNDS`; Activity "Show more" swallowed errors; the investment form found its item by the English group name | Messages added (EN/AR). The error is shown under the list. The default is the item tied to the account, else the last group's flexible item. |
+| A stale client could save a plan's first version at a new month | Revisions count up per space, never per month. |
+| No check that every public function is closed to `anon` on the real stack | The test database now has Supabase's default privileges, and a ratchet fails on any public function `anon` can run. |
+
+Found while fixing these:
+
+- `useLoad` returned a new object on every render. Activity's "reset to the
+  first page" effect therefore ran after every render, so a second page
+  vanished as soon as it loaded. `useLoad` now returns one object per state,
+  and `src/ui/async.test.tsx` pins this.
+- The "server could not be reached" message said "Nothing was saved". After a
+  timeout that can be false. It now says to retry from the same form, which
+  keeps its request id, so the retry cannot record the entry twice.

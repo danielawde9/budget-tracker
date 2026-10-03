@@ -4130,3 +4130,41 @@ statements the owner reads were not.
 
 **If changed:** Checking current balances only would bring those negative
 past-month statements back.
+
+## 2026-10-03 — Final-review minors fixed; bill skips can be undone
+
+**Decision:** The owner chose to fix the seven minor findings from the final
+review rather than defer them.
+- A bill skip is now an append-only event, and the latest event for an
+  occurrence wins. "Undo skip" adds an event; it never edits a row.
+- Overdue bills stay visible for 366 days, not 92.
+- Months before the first plan show the plan's groups with 0 planned.
+- A past month shows Ready to assign as it stood at that month's end.
+- Plan revisions count up across the whole space.
+- Repeating `create_space` with the same request returns the same space, even
+  when the two calls run at once.
+
+**Why:** Each of these either hid money facts (an old unpaid bill, an empty
+past month) or showed the wrong one (today's Ready to assign on a past month).
+The rest let a mistake stand: a skip could not be undone, and a stale plan
+editor could win.
+
+**If changed:** A shorter overdue window brings back the dropped bills. Making
+skips final again only means removing the Undo skip button; the event log
+stays valid either way.
+
+## 2026-10-03 — A lost reply is not reported as "nothing saved"
+
+**Decision:** When the server cannot be reached, the app says the record may or
+may not have been saved and asks you to retry from the same form. The form
+keeps its request id, so the retry is recognised as a repeat and the entry is
+not recorded twice.
+
+**Why:** A timeout can happen after the database has committed. "Nothing was
+saved" then pushes you to record it again from a new form, which creates a
+real duplicate. The review of `feat/plan-linking` raised this point.
+
+**If changed:** Keeping the request id after the dialog closes (an account-level
+pending-request store) would also cover retries from a new form. That is not
+built in v2.
+

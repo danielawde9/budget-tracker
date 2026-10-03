@@ -365,6 +365,18 @@ begin
 end;
 $$;
 
+create function budget.bill_is_skipped(p_bill uuid, p_due date)
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce((
+    select s.skipped from budget.bill_skips s
+    where s.bill_id = p_bill and s.due_on = p_due
+    order by s.id desc limit 1), false)
+$$;
+
 create function budget.bill_paid_entry(p_bill uuid, p_due date)
 returns uuid
 language sql
@@ -401,7 +413,7 @@ begin
   if p_due is null or not exists (select 1 from budget.bill_due_dates(v_bill.cadence, v_bill.first_due_on, v_bill.end_on, p_due, p_due)) then
     perform budget.raise_budget('BUDGET_BILL_NOT_DUE', jsonb_build_object('billId', p_bill, 'dueOn', p_due));
   end if;
-  if exists (select 1 from budget.bill_skips where bill_id = p_bill and due_on = p_due) then
+  if budget.bill_is_skipped(p_bill, p_due) then
     perform budget.raise_budget('BUDGET_BILL_SKIPPED', jsonb_build_object('billId', p_bill, 'dueOn', p_due));
   end if;
   if budget.bill_paid_entry(p_bill, p_due) is not null then
@@ -497,18 +509,24 @@ begin
   if p_request is null then
     perform budget.raise_budget('BUDGET_REQUEST_REQUIRED');
   end if;
-  select id into v_space from budget.spaces where created_by = v_user and request_id = p_request;
-  if found then
-    return jsonb_build_object('spaceId', v_space);
-  end if;
   if v_name is null then
     perform budget.raise_budget('BUDGET_INVALID_NAME');
   end if;
   perform budget.require_amount(coalesce(p_expected_income_minor, 0), true);
 
+  -- A repeated request returns the first space; concurrent repeats wait on
+  -- the unique key and then find it. A reused id with another name is refused.
   insert into budget.spaces (name, timezone, created_by, request_id)
   values (v_name, coalesce(nullif(btrim(p_timezone), ''), 'Asia/Beirut'), v_user, p_request)
+  on conflict (created_by, request_id) do nothing
   returning id into v_space;
+  if v_space is null then
+    select id into v_space from budget.spaces where created_by = v_user and request_id = p_request and name = v_name;
+    if v_space is null then
+      perform budget.raise_budget('BUDGET_REQUEST_CONFLICT', jsonb_build_object('requestId', p_request));
+    end if;
+    return jsonb_build_object('spaceId', v_space);
+  end if;
   insert into budget.space_members (space_id, user_id, role) values (v_space, v_user, 'owner');
   insert into budget.items (space_id, group_id, kind, name_en, name_ar)
   values (v_space, null, 'ready', 'Ready to assign', 'جاهز للتوزيع');
@@ -1233,10 +1251,37 @@ begin
   if budget.bill_paid_entry(p_bill, p_due) is not null then
     perform budget.raise_budget('BUDGET_BILL_ALREADY_PAID', jsonb_build_object('billId', p_bill, 'dueOn', p_due));
   end if;
-  insert into budget.bill_skips (bill_id, space_id, due_on, created_by)
-  values (p_bill, p_space, p_due, (select auth.uid()))
-  on conflict (bill_id, due_on) do nothing;
+  if not budget.bill_is_skipped(p_bill, p_due) then
+    insert into budget.bill_skips (bill_id, space_id, due_on, skipped, created_by)
+    values (p_bill, p_space, p_due, true, (select auth.uid()));
+  end if;
   return budget.finish_command(p_space, p_request, 'skip_bill', v_payload, jsonb_build_object('billId', p_bill));
+end;
+$$;
+
+-- Undoes a skip: the occurrence is due (and payable) again.
+create function public.unskip_bill(p_space uuid, p_request uuid, p_bill uuid, p_due date)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_payload jsonb := jsonb_build_object('bill', p_bill, 'due', p_due);
+  v_replay jsonb := budget.begin_command(p_space, p_request, 'unskip_bill', v_payload);
+begin
+  if v_replay is not null then
+    return v_replay;
+  end if;
+  if not exists (select 1 from budget.bills where id = p_bill and space_id = p_space) then
+    perform budget.raise_budget('BUDGET_BILL_NOT_FOUND', jsonb_build_object('billId', p_bill));
+  end if;
+  if not budget.bill_is_skipped(p_bill, p_due) then
+    perform budget.raise_budget('BUDGET_BILL_NOT_SKIPPED', jsonb_build_object('billId', p_bill, 'dueOn', p_due));
+  end if;
+  insert into budget.bill_skips (bill_id, space_id, due_on, skipped, created_by)
+  values (p_bill, p_space, p_due, false, (select auth.uid()));
+  return budget.finish_command(p_space, p_request, 'unskip_bill', v_payload, jsonb_build_object('billId', p_bill));
 end;
 $$;
 
@@ -1284,6 +1329,7 @@ revoke all on function public.record_loan(uuid, uuid, text, uuid, date, bigint, 
 revoke all on function public.reverse_entry(uuid, uuid, uuid, text) from public, anon, service_role;
 revoke all on function public.save_bill(uuid, uuid, text, uuid, bigint, text, text, date, date, uuid, uuid, boolean) from public, anon, service_role;
 revoke all on function public.skip_bill(uuid, uuid, uuid, date) from public, anon, service_role;
+revoke all on function public.unskip_bill(uuid, uuid, uuid, date) from public, anon, service_role;
 revoke all on function public.set_reference_rate(uuid, uuid, text, numeric, date) from public, anon, service_role;
 
 grant execute on function public.create_space(uuid, text, bigint, text, boolean, date) to authenticated;
@@ -1300,4 +1346,5 @@ grant execute on function public.record_loan(uuid, uuid, text, uuid, date, bigin
 grant execute on function public.reverse_entry(uuid, uuid, uuid, text) to authenticated;
 grant execute on function public.save_bill(uuid, uuid, text, uuid, bigint, text, text, date, date, uuid, uuid, boolean) to authenticated;
 grant execute on function public.skip_bill(uuid, uuid, uuid, date) to authenticated;
+grant execute on function public.unskip_bill(uuid, uuid, uuid, date) to authenticated;
 grant execute on function public.set_reference_rate(uuid, uuid, text, numeric, date) to authenticated;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type DependencyList, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type DependencyList, type ReactNode } from 'react';
 import { BudgetError, toBudgetError } from '../api/budget-api.ts';
 import { newRequestId } from '../api/request-id.ts';
 import { isMessageKey, useI18n, type I18n } from '../lib/i18n.tsx';
@@ -28,9 +28,13 @@ export function useLoad<T>(load: () => Promise<T>, deps: DependencyList): Loaded
     );
     // Callers pass the real dependencies of `load`; `nonce` forces a reload.
   }, [...deps, nonce]);
-  if (state.status === 'ready' && state.data !== null) return { status: 'ready', data: state.data, reload };
-  if (state.status === 'error' && state.error) return { status: 'error', data: state.data, error: state.error, reload };
-  return { status: 'loading', data: state.data, reload };
+  // One object per state: screens key effects and memos on it, so a fresh
+  // object on every render would re-run them after every render.
+  return useMemo<Loaded<T>>(() => {
+    if (state.status === 'ready' && state.data !== null) return { status: 'ready', data: state.data, reload };
+    if (state.status === 'error' && state.error) return { status: 'error', data: state.data, error: state.error, reload };
+    return { status: 'loading', data: state.data, reload };
+  }, [state, reload]);
 }
 
 /** A readable sentence for an error code, with its detail filled in. */

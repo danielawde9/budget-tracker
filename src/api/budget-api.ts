@@ -196,6 +196,8 @@ export function createBudgetApi(client: RpcClient) {
       }, s.billResult),
     skipBill: (input: Command & { billId: string; due: string }) =>
       call('skip_bill', { ...cmd(input), p_bill: input.billId, p_due: input.due }, s.billResult),
+    unskipBill: (input: Command & { billId: string; due: string }) =>
+      call('unskip_bill', { ...cmd(input), p_bill: input.billId, p_due: input.due }, s.billResult),
     setReferenceRate: (input: Command & { unitsPerUsd: string; effective: string }) =>
       call('set_reference_rate', { ...cmd(input), p_currency: 'LBP', p_units_per_usd: input.unitsPerUsd, p_effective: input.effective }, s.okResult),
     savePlan: (input: Command & { month: string; expectedRevision: number | null; plan: PlanInput }) =>

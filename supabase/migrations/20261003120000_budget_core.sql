@@ -200,15 +200,19 @@ create table budget.bills (
 );
 create index bills_space on budget.bills (space_id);
 
+-- Skip / un-skip events for one bill occurrence (append-only; the latest
+-- event for a due date decides whether it is skipped).
 create table budget.bill_skips (
+  id bigint generated always as identity primary key,
   bill_id uuid not null,
   space_id uuid not null,
   due_on date not null,
+  skipped boolean not null,
   created_by uuid not null,
   created_at timestamptz not null default now(),
-  primary key (bill_id, due_on),
   foreign key (bill_id, space_id) references budget.bills (id, space_id)
 );
+create index bill_skips_occurrence on budget.bill_skips (bill_id, due_on, id desc);
 
 -- ---------------------------------------------------------------------------
 -- The journal (append-only)

@@ -65,7 +65,7 @@ describe('createBudgetApi', () => {
       data: {
         month: '2026-10-01', planCurrency: 'USD', versionId: 'v', revision: 2, effectiveMonth: '2026-09-01',
         expectedIncome: '411000', groupsTotal: '411000', notPlanned: '0', overPlanned: '0', received: '411000',
-        otherIncome: '0', funded: '411000', stillToFund: '0', ready: '132000', today: '2026-10-03', isCurrent: true, isPast: false,
+        otherIncome: '0', funded: '411000', stillToFund: '0', ready: '132000', readyAtMonthEnd: '120000', today: '2026-10-03', isCurrent: true, isPast: false,
         groups: [{ groupId: 'g', nameEn: 'Essentials', nameAr: 'الأساسيات', percentBps: 6000, planned: '246600', itemsPlanned: '245000',
           over: '0', funded: '246600', spent: '100000', otherOut: '0', available: '146600', items: [item], flex: { ...item, itemId: 'f', kind: 'flex' } }],
       },
@@ -73,5 +73,6 @@ describe('createBudgetApi', () => {
     const plan = await createBudgetApi(client).planMonth('s', '2026-10-01');
     expect(plan.groups[0]?.items[0]?.planned).toBe(100000n);
     expect(plan.ready).toBe(132000n);
+    expect(plan.readyAtMonthEnd).toBe(120000n);
   });
 });

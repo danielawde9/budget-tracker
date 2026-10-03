@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { toBudgetError, type BudgetError } from '../../api/budget-api.ts';
 import type { ActivityCursor, Entry } from '../../api/schemas.ts';
 import { PageHeader } from '../../app/shell.tsx';
 import { activeWallets, pickerGroups, useWorkspace } from '../../app/workspace.tsx';
@@ -37,16 +38,21 @@ export function ActivityScreen({ onRecord }: { readonly onRecord: (intent: Recor
     if (first.status === 'ready') {
       setPages(first.data.entries);
       setCursor(first.data.next);
+      setMoreError(null);
     }
   }, [first]);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [moreError, setMoreError] = useState<BudgetError | null>(null);
   async function more() {
     if (!cursor || loadingMore) return;
     setLoadingMore(true);
+    setMoreError(null);
     try {
       const page = await api.activity(space.id, { limit: 30, before: cursor, filter });
       setPages((current) => [...current, ...page.entries]);
       setCursor(page.next);
+    } catch (error) {
+      setMoreError(toBudgetError(error));
     } finally {
       setLoadingMore(false);
     }
@@ -100,6 +106,7 @@ export function ActivityScreen({ onRecord }: { readonly onRecord: (intent: Recor
             );
           })}
         </ul>
+        {moreError ? <ErrorNotice error={moreError} /> : null}
         {cursor ? <button type="button" className="cr-button cr-button--block" disabled={loadingMore} onClick={() => void more()}>{t('activity.more')}</button> : null}
       </section>
       {selected ? (

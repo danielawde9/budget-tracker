@@ -369,17 +369,19 @@ begin
     perform budget.archive_group(p_space, v_id, v_month);
   end loop;
 
+  -- Revisions increase across the whole space, so a client holding an
+  -- earlier month's revision can never match a newly created version.
+  v_revision := (select coalesce(max(revision), 0) + 1 from budget.plan_versions where space_id = p_space);
   if v_effective.id is not null and v_effective.effective_month = v_month then
     v_version := v_effective.id;
-    v_revision := v_effective.revision + 1;
     delete from budget.plan_version_groups where version_id = v_version;
     update budget.plan_versions
        set expected_income_minor = v_income, revision = v_revision, updated_by = v_user, updated_at = now()
      where id = v_version;
   else
-    insert into budget.plan_versions (space_id, effective_month, expected_income_minor, updated_by)
-    values (p_space, v_month, v_income, v_user)
-    returning id, revision into v_version, v_revision;
+    insert into budget.plan_versions (space_id, effective_month, expected_income_minor, revision, updated_by)
+    values (p_space, v_month, v_income, v_revision, v_user)
+    returning id into v_version;
   end if;
 
   for v_group in select value from jsonb_array_elements(p_plan -> 'groups') loop

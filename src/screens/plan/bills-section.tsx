@@ -1,7 +1,8 @@
 import { useWorkspace } from '../../app/workspace.tsx';
 import { useI18n, type MessageKey } from '../../lib/i18n.tsx';
 import type { RecordIntent } from '../../record/record-dialog.tsx';
-import { LoadState, useLoad } from '../../ui/async.tsx';
+import type { Bill, BillOccurrence } from '../../api/schemas.ts';
+import { ErrorNotice, LoadState, useCommand, useLoad } from '../../ui/async.tsx';
 import { Amount } from '../../ui/money.tsx';
 import { addDays } from '../describe.ts';
 import { billIntent, CoveragePill } from '../home/home.tsx';
@@ -35,6 +36,7 @@ export function BillsSection({ onRecord }: { readonly onRecord: (intent: RecordI
             {list.map((bill) => {
               const next = upcoming.find((occurrence) => occurrence.billId === bill.billId && (occurrence.status === 'due' || occurrence.status === 'overdue'));
               const lastPaid = [...upcoming].reverse().find((occurrence) => occurrence.billId === bill.billId && occurrence.status === 'paid');
+              const lastSkipped = [...upcoming].reverse().find((occurrence) => occurrence.billId === bill.billId && occurrence.status === 'skipped');
               return (
                 <li key={bill.billId} className="cr-register-row">
                   <div className="cr-register-main">
@@ -49,6 +51,7 @@ export function BillsSection({ onRecord }: { readonly onRecord: (intent: RecordI
                   {next ? <CoveragePill occurrence={next} /> : null}
                   <Amount minor={bill.amount} currency={bill.currency} />
                   {next ? <button type="button" className="cr-button cr-button--sm" onClick={() => onRecord(billIntent(next))}>{t('bill.pay')}</button> : null}
+                  <SkipActions bill={bill} next={next} lastSkipped={lastSkipped} />
                 </li>
               );
             })}
@@ -56,5 +59,32 @@ export function BillsSection({ onRecord }: { readonly onRecord: (intent: RecordI
         )}
       </LoadState>
     </section>
+  );
+}
+
+/**
+ * Skipping says "this occurrence will not be paid"; it moves no money.
+ * Undo skip brings back the most recently skipped occurrence.
+ */
+function SkipActions({ bill, next, lastSkipped }: {
+  readonly bill: Bill;
+  readonly next: BillOccurrence | undefined;
+  readonly lastSkipped: BillOccurrence | undefined;
+}) {
+  const { t } = useI18n();
+  const { api, space, refresh } = useWorkspace();
+  const skip = useCommand((requestId, due: string) => api.skipBill({ spaceId: space.id, requestId, billId: bill.billId, due }));
+  const unskip = useCommand((requestId, due: string) => api.unskipBill({ spaceId: space.id, requestId, billId: bill.billId, due }));
+  const pending = skip.pending || unskip.pending;
+  const run = async (command: typeof skip, due: string) => {
+    if (await command.submit(due)) refresh();
+  };
+  const error = skip.error ?? unskip.error;
+  return (
+    <>
+      {next ? <button type="button" className="cr-link-button" disabled={pending} onClick={() => void run(skip, next.dueOn)}>{t('bill.skip')}</button> : null}
+      {lastSkipped ? <button type="button" className="cr-link-button" disabled={pending} onClick={() => void run(unskip, lastSkipped.dueOn)}>{t('bill.unskip')}</button> : null}
+      {error ? <ErrorNotice error={error} /> : null}
+    </>
   );
 }

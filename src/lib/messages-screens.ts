@@ -56,6 +56,7 @@ export const screenMessages = {
 
   'plan.summary': { en: 'This month', ar: 'هذا الشهر' },
   'plan.summaryPast': { en: 'That month', ar: 'ذلك الشهر' },
+  'plan.readyAtMonthEnd': { en: 'Ready to assign at month end', ar: 'الجاهز للتوزيع في نهاية الشهر' },
   'plan.expectedIncome': { en: 'Expected income', ar: 'الدخل المتوقع' },
   'plan.received': { en: 'Received', ar: 'المستلم' },
   'plan.funded': { en: 'Funded', ar: 'المموَّل' },
@@ -150,6 +151,10 @@ export const screenMessages = {
   'bill.saved': { en: '{name} saved ({amount}).', ar: 'تم حفظ {name} ({amount}).' },
   'bill.removed': { en: '{name} removed.', ar: 'تم حذف {name}.' },
   'bill.pay': { en: 'Pay', ar: 'دفع' },
+  'bill.skip': { en: 'Skip', ar: 'تخطي' },
+  'bill.unskip': { en: 'Undo skip', ar: 'تراجع عن التخطي' },
+  'bill.skipped': { en: '{name} skipped for {date}.', ar: 'تم تخطي {name} عن {date}.' },
+  'bill.unskipped': { en: '{name} is due again for {date}.', ar: '{name} مستحقة مجددًا عن {date}.' },
   'bill.nextDue': { en: 'next due {date}', ar: 'الاستحقاق التالي {date}' },
   'bill.lastPaid': { en: 'last paid for {date}', ar: 'آخر دفع عن {date}' },
   'bill.status.paid': { en: 'Paid {amount}', ar: 'مدفوعة {amount}' },

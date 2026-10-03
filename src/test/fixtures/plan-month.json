@@ -495,5 +495,6 @@
  "stillToFund": "0",
  "planCurrency": "USD",
  "effectiveMonth": "2026-09-01",
- "expectedIncome": "411000"
+ "expectedIncome": "411000",
+ "readyAtMonthEnd": "132000"
 }

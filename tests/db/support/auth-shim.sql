@@ -18,3 +18,7 @@ as $$
     nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'
   )::uuid
 $$;
+
+-- Supabase grants EXECUTE on every new public function to the API roles by
+-- default; reproduce that so the migrations' explicit revokes are tested.
+alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
