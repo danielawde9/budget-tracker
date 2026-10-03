@@ -15,9 +15,11 @@ The current production Budget project is `dfuxxzlhmxscgvxdmwti`. Confirm that
 `supabase/.temp/project-ref` may still name a deleted project; always pass this
 project ref explicitly to the CLI.
 
-Apply only `supabase/migrations/20261003120000_household_invitation_delivery_limits.sql`
-through the approved SQL migration process and record its version in the
-migration journal. Avoid applying unrelated pending migrations. The migration
+Apply `supabase/migrations/20261003120000_household_invitation_delivery_limits.sql`
+and `supabase/migrations/20261003121000_restore_household_extension_usage.sql`
+through the approved SQL migration process and record their versions in the
+migration journal. The second restores the invitation command role’s existing
+extension-schema access needed by UUID generation after hosted permission drift. Avoid applying unrelated pending migrations. The migration
 adds a private counter table and an authenticated, owner-scoped command. Counters
 reset each minute and are serialized per user, allowing three attempts per
 household and twenty across all households. Unauthenticated callers, members,

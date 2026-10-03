@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { bootstrapCompatibilityObjects, createDisposableDatabase, disposeDisposableDatabase, migrationFiles, replayMigrations, withAuthenticatedTransaction, orderedAuthenticatedRace, type DisposableDatabase } from './disposable-database.js';
+import { bootstrapCompatibilityObjects, createDisposableDatabase, disposeDisposableDatabase, migrationFiles, replayMigrations, withAuthenticatedTransaction, orderedAuthenticatedRace, withRollback, expectSavepointRejection, type DisposableDatabase } from './disposable-database.js';
 
 let database: DisposableDatabase;
 beforeAll(async () => {
@@ -21,6 +22,27 @@ async function consume(owner: string, spaceId: string) {
   return withAuthenticatedTransaction(database.client, owner, async () => (await database.client.query('select public.consume_household_invitation_delivery_limit($1) as allowed', [spaceId])).rows[0]!.allowed as boolean);
 }
 describe('durable household invitation delivery limits', () => {
+  it('keeps protected invitation creation usable by the authenticated owner', async () => {
+    const owner = await newOwner(); const household = await space(owner);
+    const result = await withAuthenticatedTransaction(database.client, owner, () => database.client.query(
+      'select invitation_id from public.create_household_invitation($1,$2,$3)', [household, randomUUID(), 'delivered@resend.dev'],
+    ));
+    expect(result.rows).toHaveLength(1);
+  });
+  it('reproduces a missing extension grant and restores protected invitation creation', async () => {
+    const owner = await newOwner(); const household = await space(owner);
+    await withRollback(database.client, async () => {
+      await database.client.query('revoke usage on schema extensions from household_command_owner');
+      await database.client.query("select set_config('request.jwt.claim.sub', $1, true)", [owner]);
+      await database.client.query('set local role authenticated');
+      const create = () => database.client.query('select invitation_id from public.create_household_invitation($1,$2,$3)', [household, randomUUID(), 'delivered@resend.dev']);
+      await expectSavepointRejection(database.client, create, { code: '42501', message: 'permission denied for schema extensions' });
+      await database.client.query('reset role');
+      await database.client.query(readFileSync('supabase/migrations/20261003121000_restore_household_extension_usage.sql', 'utf8'));
+      await database.client.query('set local role authenticated');
+      expect((await create()).rows).toHaveLength(1);
+    });
+  });
   it('allows three attempts per owner and household and rejects the fourth', async () => {
     const owner = await newOwner(); const household = await space(owner);
     expect(await consume(owner, household)).toBe(true);

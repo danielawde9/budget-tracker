@@ -3972,3 +3972,8 @@ both counters atomic across isolates. Only active household owners can consume
 a bucket; only authenticated callers can execute the command; counter storage
 is private. A new forward migration adds this operational state without changing
 financial records. The currently active project is `dfuxxzlhmxscgvxdmwti`.
+
+Live verification also exposed a missing `USAGE` grant on `extensions` for
+`household_command_owner`. A second forward migration restores the grant from
+the original household foundation; a database regression reproduces the missing
+grant, observes the rejection, restores it, and proves creation succeeds.
