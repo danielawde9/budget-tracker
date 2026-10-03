@@ -679,3 +679,26 @@ grant execute on function public.activity_page(uuid, integer, jsonb, jsonb) to a
 grant execute on function public.accounts_overview(uuid) to authenticated;
 grant execute on function public.bills_upcoming(uuid, date, date) to authenticated;
 grant execute on function public.bills_list(uuid) to authenticated;
+
+-- Today in a timezone, for screens that run before any space exists
+-- (onboarding, the preview seed). Spaces use budget.space_today.
+create function public.clock_today(p_timezone text default 'Asia/Beirut')
+returns date
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if (select auth.uid()) is null then
+    raise exception using errcode = '42501', message = 'BUDGET_NOT_AUTHENTICATED';
+  end if;
+  if not exists (select 1 from pg_catalog.pg_timezone_names where name = p_timezone) then
+    perform budget.raise_budget('BUDGET_INVALID_TIMEZONE', jsonb_build_object('timezone', p_timezone));
+  end if;
+  return (now() at time zone p_timezone)::date;
+end;
+$$;
+
+revoke all on function public.clock_today(text) from public, anon, service_role;
+grant execute on function public.clock_today(text) to authenticated;
