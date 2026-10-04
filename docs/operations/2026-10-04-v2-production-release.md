@@ -51,14 +51,16 @@ reapplying these six files. The old journal remains as historical evidence.
 `pnpm deploy:cloudflare:frontend` completed successfully after the production
 build and dry run. Worker: `budget-tracker`.
 
-- Address: https://budget-tracker.danielawde9.workers.dev
+- Existing custom domain: https://budget.danielawde9.com (HTTP 200 and correct branding verified).
+- Worker address: https://budget-tracker.danielawde9.workers.dev
 - Version: `d05db49a-179e-4fb3-af99-8457d025e8be`
 - Product title, sign-in branding and installed-app name: `openbudgetracker.app`.
 - Live Chrome check: HTTP 200, correct title/branding, visible Sign in action,
   no page errors.
 
-The product rename does not itself configure custom-domain DNS or TLS.
-The tested public endpoint is the workers.dev address above.
+Cloudflare lists budget.danielawde9.com on this Worker and no zone named
+openbudgetracker.app. The product rename does not register or configure that
+hostname. Both existing HTTPS addresses were tested.
 
 ## Validation and limits
 
