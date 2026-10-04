@@ -57,7 +57,12 @@ export function Dialog({ title, onClose, children, pending = false, wide = false
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !pendingRef.current) closeRef.current();
+        if (event.target === event.currentTarget && !pendingRef.current) {
+          // Closing restores focus; cancel the pointer default so it cannot
+          // move focus away again after the dialog unmounts.
+          event.preventDefault();
+          closeRef.current();
+        }
       }}
     >
       <header className="dialog-header">

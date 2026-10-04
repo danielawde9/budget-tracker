@@ -8,7 +8,7 @@ import { formatMoney, type Currency, type Locale } from './money.ts';
  */
 export const messages = {
   // Navigation and shell
-  'app.name': { en: 'Budget', ar: 'الميزانية' },
+  'app.name': { en: 'openbudgetracker.app', ar: 'openbudgetracker.app' },
   'nav.home': { en: 'Home', ar: 'الرئيسية' },
   'nav.plan': { en: 'Plan', ar: 'الخطة' },
   'nav.activity': { en: 'Activity', ar: 'النشاط' },

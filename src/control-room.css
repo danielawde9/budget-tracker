@@ -1772,3 +1772,50 @@
 .cr-demo-panel { border-color: var(--cr-warn); }
 .cr-demo-accounts { display: grid; gap: var(--cr-space-2); }
 .cr-tour li { padding-block: var(--cr-space-2); }
+
+/* Shared confirmation after a successful money action. */
+.cr-success-result {
+  display: grid;
+  gap: var(--cr-space-5);
+  padding-block: var(--cr-space-4) var(--cr-space-2);
+}
+.cr-success-result-copy {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cr-space-4);
+  min-inline-size: 0;
+}
+.cr-success-result-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  block-size: 44px;
+  border-radius: var(--cr-radius-full);
+  background: var(--cr-accent-soft);
+  color: var(--cr-accent-strong);
+}
+.cr-success-result-copy h3 {
+  margin: 0 0 var(--cr-space-2);
+  font-size: 1.1875rem;
+  font-weight: 800;
+  color: var(--cr-ink);
+}
+.cr-success-result-copy p {
+  margin: 0;
+  color: var(--cr-ink-soft);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.cr-success-result .dialog-actions {
+  inline-size: 100%;
+  margin: 0;
+  padding-block-start: var(--cr-space-5);
+  gap: var(--cr-space-3);
+  flex-wrap: wrap;
+}
+@media (max-width: 480px) {
+  .cr-success-result .dialog-actions .cr-button { flex: 1 1 auto; }
+}
+
+/* Domain branding remains readable in narrow rails and RTL layouts. */
+.cr-brand-name { min-inline-size: 0; overflow-wrap: anywhere; }

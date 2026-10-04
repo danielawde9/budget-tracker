@@ -59,7 +59,7 @@ export function Shell({ route, space, spaces, onSelectSpace, onRecord, onToggleL
   return (
     <div className="cr-shell">
       <nav className="cr-rail" aria-label={t('nav.main')}>
-        <div className="cr-brand"><Leaf aria-hidden size={22} /><span>{t('app.name')}</span></div>
+        <div className="cr-brand"><Leaf aria-hidden size={22} /><bdi className="cr-brand-name" dir="ltr">{t('app.name')}</bdi></div>
         <SpaceControl space={space} spaces={spaces} onSelectSpace={onSelectSpace} />
         <button type="button" className="cr-rail-record" onClick={onRecord}>
           <Plus aria-hidden size={18} />

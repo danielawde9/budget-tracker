@@ -1,3 +1,4 @@
+import { Check } from 'lucide-react';
 import { useState } from 'react';
 import type { InvestmentAction, LoanAction } from '../api/budget-api.ts';
 import type { Bill, Entry } from '../api/schemas.ts';
@@ -55,13 +56,19 @@ export function RecordDialog({ intent: initial, onClose }: { readonly intent: Re
   return (
     <Dialog title={t(TITLES[intent.kind])} onClose={onClose} wide={intent.kind === 'fund'}>
       {result ? (
-        <div className="dialog-result" role="status">
-          <p>{result}</p>
+        <div className="cr-success-result">
+          <div className="cr-success-result-copy" role="status" aria-atomic="true">
+            <span className="cr-success-result-icon" aria-hidden="true"><Check size={24} /></span>
+            <div>
+              <h3>{t(intent.kind === 'exchange' ? 'record.exchangeSaved' : 'record.saved')}</h3>
+              <p>{result}</p>
+            </div>
+          </div>
           <div className="dialog-actions">
             {everyday ? (
               <button type="button" className="cr-button" onClick={() => { setResult(null); setFormKey((value) => value + 1); }}>{t('record.another')}</button>
             ) : null}
-            <button type="button" className="cr-button cr-button--primary" data-autofocus="" onClick={onClose}>{t('common.done')}</button>
+            <button type="button" className="cr-button cr-button--primary" data-autofocus="" ref={(button) => { button?.focus(); }} onClick={onClose}>{t('common.done')}</button>
           </div>
         </div>
       ) : (

@@ -1,4 +1,4 @@
-# Budget Tracker (v2: connected money model)
+# openbudgetracker.app (v2: connected money model)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 

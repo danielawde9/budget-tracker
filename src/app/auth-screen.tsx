@@ -29,7 +29,7 @@ export function AuthScreen({ client, onToggleLocale }: { readonly client: Supaba
   return (
     <main className="auth-page">
       <header className="auth-topbar">
-        <span className="auth-brand"><span className="auth-brand-mark" aria-hidden="true" />{t('app.name')}</span>
+        <span className="auth-brand"><span className="auth-brand-mark" aria-hidden="true" /><bdi className="cr-brand-name" dir="ltr">{t('app.name')}</bdi></span>
         <button type="button" className="text-button auth-language" onClick={onToggleLocale}>{t('shell.language')}</button>
       </header>
       <section className="auth-boundary">

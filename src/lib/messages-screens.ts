@@ -174,6 +174,8 @@ export const screenMessages = {
   'record.kind.invest': { en: 'Investments', ar: 'الاستثمارات' },
   'record.kind.loan': { en: 'Loan', ar: 'قرض' },
   'record.kind.refund': { en: 'Refund', ar: 'استرداد' },
+  'record.saved': { en: 'Saved successfully', ar: 'تم الحفظ بنجاح' },
+  'record.exchangeSaved': { en: 'Exchange recorded', ar: 'تم تسجيل التصريف' },
   'record.another': { en: 'Record another', ar: 'تسجيل آخر' },
   'record.chooseItem': { en: 'Choose…', ar: 'اختر…' },
   'record.needWallet': { en: 'Add a wallet first (Accounts → Add).', ar: 'أضف محفظة أولًا (الحسابات ← إضافة).' },

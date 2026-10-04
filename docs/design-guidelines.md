@@ -309,3 +309,20 @@ the end of `src/control-room.css`; feature code adds no visual language.
   `.cr-link-button`, `.cr-flip-rtl` (directional icons), `.cr-check`.
 - **Preview only:** `.cr-demo-panel`, `.cr-tour` (amber border). Production
   bundles drop this code because Vite replaces `import.meta.env.MODE`.
+
+## 18. Money action confirmations
+
+`RecordDialog` uses `.cr-success-result`: an accent-tinted check beside a
+localized confirmation heading and the original transaction summary. The
+copy alone is a polite, atomic status announcement; actions are outside it.
+The full-width `.dialog-actions` row places the primary Done action at the
+inline end and Record another before it. Done receives focus after saving.
+Record another remounts the form. Buttons wrap and grow on small phones.
+Use logical properties and existing tokens; do not introduce feature colors.
+
+## 19. Product name
+
+The visible product name is `openbudgetracker.app` in both locales. Domain
+branding uses `<bdi dir="ltr" class="cr-brand-name">` to preserve direction
+and allow wrapping inside the narrow rail. Browser and installed-app titles
+use the same name. The deployment worker identifier remains `budget-tracker`.
