@@ -9,11 +9,12 @@ same entry, so the cash you hold always equals the money set aside plus the
 money ready to assign. The database enforces this; nothing on screen keeps its
 own balance.
 
-> **Do not push `main` yet.** Local `main` holds v2 (merged 2026-10-03, not
-> pushed). Production still runs v1 on the v1 database, and Cloudflare deploys
-> every push to `main`, so a push would ship v2 against a database without its
-> schema. Going live means backing up and resetting the hosted database first;
-> see `docs/decisions.md`.
+> **v2 is live as of 2026-10-04.** The owner authorized a fresh start:
+> old Budget application data was backed up, restored in a local rehearsal,
+> and cleared from production. Existing login accounts were preserved.
+> Live address: https://budget-tracker.danielawde9.workers.dev.
+> The visible product name is openbudgetracker.app; custom-domain hosting is
+> separate. See `docs/operations/2026-10-04-v2-production-release.md`.
 
 ## Concepts
 

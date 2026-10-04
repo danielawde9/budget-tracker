@@ -14,13 +14,13 @@ async function fill(amount: string, item: string) {
 }
 
 describe('ExpenseForm and the overspending rule', () => {
-  it('says where a shortfall will come from and sends the chosen cover', async () => {
+  it('says where a shortfall from and sends the chosen cover', async () => {
     const api = fakeApi({ recordExpense: async () => ({ entryId: 'e1', covered: 3000n }) });
     const onDone = vi.fn();
     renderWithWorkspace(<ExpenseForm catalog={catalog} onDone={onDone} onCancel={vi.fn()} />, api);
     const user = await fill('150', 'Eating out');
-    expect(screen.getByText('Eating out has $120.00. The other $30.00 will come from:')).toBeInTheDocument();
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Cover the difference from' }), itemId('Fun'));
+    expect(screen.getByText('Eating out has $120.00. Take the missing $30.00 from:')).toBeInTheDocument();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Take the missing money from' }), itemId('Fun'));
     await user.click(screen.getByRole('button', { name: 'Record expense' }));
     expect(api.recordExpense).toHaveBeenCalledWith(expect.objectContaining({ itemId: itemId('Eating out'), amount: 15000n, coverFrom: itemId('Fun') }));
     expect(onDone).toHaveBeenCalledWith('Recorded $150.00 from Eating out. $30.00 was covered from another item or Ready to assign.');

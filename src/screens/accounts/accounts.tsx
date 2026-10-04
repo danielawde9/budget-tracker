@@ -1,3 +1,5 @@
+import { MoreHorizontal } from 'lucide-react';
+import { useUiCopy } from '../../lib/ui-copy.ts';
 import type { AccountWallet } from '../../api/schemas.ts';
 import { PageHeader } from '../../app/shell.tsx';
 import { activeWallets, useWorkspace } from '../../app/workspace.tsx';
@@ -56,6 +58,7 @@ function WalletList({ titleKey, introKey, wallets, onAdd, actions }: {
   readonly actions: (wallet: AccountWallet) => readonly { readonly label: string; readonly run: () => void }[];
 }) {
   const { t } = useI18n();
+  const c = useUiCopy();
   return (
     <section className="cr-card" aria-labelledby={titleKey}>
       <div className="cr-section-header">
@@ -74,9 +77,9 @@ function WalletList({ titleKey, introKey, wallets, onAdd, actions }: {
                 <WalletFacts wallet={wallet} />
               </div>
               <Amount minor={wallet.loanDirection === 'i_owe' ? -wallet.balance : wallet.balance} currency={wallet.currency} />
-              <div className="cr-row cr-account-actions">
-                {actions(wallet).map((action) => <button key={action.label} type="button" className="cr-button cr-button--sm" onClick={action.run}>{action.label}</button>)}
-              </div>
+              <details className="cr-account-menu"><summary><MoreHorizontal size={20} aria-hidden /><span className="cr-visually-hidden">{c('accountActions')}</span></summary><div className="cr-account-actions">
+                {actions(wallet).map((action) => <button key={action.label} type="button" className="cr-button cr-button--sm" onClick={(event) => { const menu = event.currentTarget.closest('details'); if (menu) { menu.open = false; menu.querySelector('summary')?.focus(); } action.run(); }}>{action.label}</button>)}
+              </div></details>
             </li>
           ))}
         </ul>

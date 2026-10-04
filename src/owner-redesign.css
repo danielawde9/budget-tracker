@@ -1,0 +1,118 @@
+/* Approved owner walkthrough: quieter hierarchy, shared form rhythm, logical RTL layout. */
+:root { --cr-rail-w: 220px; }
+.cr-shell { min-inline-size: 0; }
+.cr-workspace-main { flex: 1; min-inline-size: 0; position: relative; }
+.cr-global-record { display: none; }
+.cr-home { gap: 24px; }
+.cr-home .cr-money-card { background: #eaf5f0; border-color: #cfe2d9; gap: 20px; padding: 28px; }
+.cr-home .cr-money-card h2 { font-size: clamp(23px, 3vw, 32px); font-weight: 750; }
+.cr-money-card .cr-label { display: flex; align-items: center; gap: 8px; }
+.cr-home .cr-hero { gap: 10px; }
+.cr-home .cr-hero .cr-amount--hero { color: var(--cr-accent-strong); font-size: clamp(40px, 5vw, 62px); }
+.cr-home .cr-hero .cr-amount--negative { color: var(--cr-danger); }
+.cr-hero-actions { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+.cr-hero-actions .cr-button { padding-inline: 24px; min-block-size: 48px; }
+.cr-wallet-section .cr-register { background: var(--cr-surface); margin-block-start: 16px; border-radius: 12px; padding-inline: 16px; }
+.cr-wallet-section .cr-register-title { flex: 1; }
+.cr-wallet-section .text-button { display: inline-flex; align-items: center; gap: 8px; }
+.cr-wallet-section h2 { font-size: 22px; }
+.cr-wallet-section .cr-register-row { min-block-size: 64px; }
+.cr-wallet-section .cr-register-row > svg { color: var(--cr-ink-soft); }
+.cr-disclosure { background: white; border: 1px solid var(--cr-border); border-radius: 12px; }
+.cr-disclosure > summary { padding: 16px 20px; cursor: pointer; font-weight: 650; min-block-size: 56px; }
+.cr-disclosure > summary .cr-helper { margin-inline-start: 12px; font-weight: 400; }
+.cr-disclosure[open] > summary { border-block-end: 1px solid var(--cr-hairline); }
+.cr-disclosure > .cr-card { margin: 0; border: 0; }
+.cr-disclosure .cr-home-columns { padding: 16px; }
+.cr-money-breakdown { border-block-start: 1px solid #cfe2d9; }
+.cr-money-breakdown > summary { padding-block: 12px; cursor: pointer; font-size: 14px; color: var(--cr-accent-strong); }
+.cr-money-breakdown .cr-equation { padding-block: 12px; border: 0; }
+.cr-money-breakdown .cr-net-worth { padding-block: 12px; }
+.cr-alert-month { display: block; margin-block-end: 4px; }
+.cr-term-help { position: relative; display: inline-block; vertical-align: middle; color: var(--cr-ink-soft); font-size: 14px; font-weight: 400; }
+.cr-term-help > summary { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; list-style: none; min-inline-size: 28px; min-block-size: 28px; border-radius: 6px; }
+.cr-term-help > summary::-webkit-details-marker { display: none; }
+.cr-term-help[open] > summary { background: var(--cr-accent-soft); }
+.cr-term-help > p { position: absolute; z-index: 6; inset-block-start: 100%; inset-inline-end: 0; inline-size: min(240px, 65vw); padding: 12px; background: #fff; border: 1px solid var(--cr-border); border-radius: 10px; box-shadow: 0 8px 24px #1216141a; color: var(--cr-ink); line-height: 1.5; white-space: normal; text-align: start; text-transform: none; letter-spacing: normal; }
+.cr-glossary { margin: 0; display: grid; }
+.cr-glossary > div { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 16px; padding-block: 16px; border-block-end: 1px solid var(--cr-hairline); }
+.cr-glossary dt { font-weight: 700; }
+.cr-glossary dd { margin: 0; color: var(--cr-ink-soft); line-height: 1.5; }
+.cr-account-row { flex-wrap: nowrap; }
+.cr-account-menu { position: relative; flex-shrink: 0; }
+.cr-account-menu > summary { display: grid; place-items: center; cursor: pointer; inline-size: 48px; block-size: 48px; border-radius: 8px; list-style: none; }
+.cr-account-menu > summary::-webkit-details-marker { display: none; }
+.cr-account-menu[open] > summary { background: var(--cr-accent-soft); }
+.cr-account-menu .cr-account-actions { display: flex; flex-direction: column; position: absolute; z-index: 3; inset-inline-end: 0; inset-block-start: 100%; min-inline-size: 210px; max-inline-size: 80vw; padding: 8px; background: white; border: 1px solid var(--cr-border); border-radius: 12px; box-shadow: 0 8px 24px #12161414; }
+.cr-account-menu .cr-account-actions button { min-block-size: 48px; inline-size: 100%; justify-content: start; border: 0; white-space: normal; }
+.cr-accounts .cr-card { margin: 0; }
+.cr-activity-toolbar { display: grid; grid-template-columns: minmax(0, 2fr) minmax(140px, 1fr); gap: 16px; align-items: end; }
+.cr-activity-toolbar input { inline-size: 100%; }
+.cr-filter-details > summary { cursor: pointer; min-block-size: 48px; padding-block: 14px; font-size: 14px; color: var(--cr-ink-soft); }
+.cr-filter-details .cr-filters { padding-block: 12px; }
+.cr-settings { max-inline-size: 780px; margin-block-start: 8px; }
+.cr-settings-section { display: flex; flex-direction: column; gap: 16px; padding-block: 28px; border-block-end: 1px solid var(--cr-border); }
+.cr-settings-section > button, .cr-help-section button { align-self: start; }
+.cr-settings-section .cr-stack { max-inline-size: 440px; }
+.cr-settings-section p { max-inline-size: 65ch; }
+.cr-help-section { display: flex; }
+.cr-tour-invite { display: flex; align-items: center; gap: 16px; border: 1px solid var(--cr-border); background: #f0f7f3; border-radius: 12px; padding: 12px 16px; }
+.cr-tour-invite p { flex: 1; font-size: 14px; }
+.cr-tour-panel { position: fixed; z-index: 10; inset-block-end: calc(84px + env(safe-area-inset-bottom, 0px)); inset-inline-end: 24px; inline-size: min(420px, calc(100vw - 32px)); max-block-size: 60dvh; overflow: auto; padding: 20px; border: 1px solid var(--cr-accent); border-radius: 16px; background: #fff; box-shadow: 0 12px 40px #123f342b; }
+.cr-tour-panel p { margin-block: 12px; line-height: 1.5; font-size: 14px; }
+.cr-tour-actions { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; margin-block-start: 20px; }
+.cr-tour-actions .text-button { margin-inline-end: auto; }
+/* Header/footer stay visible while the dialog body scrolls. Native dialog keeps focus and Esc. */
+.cr-dialog.dialog { padding: 0; overflow: auto; inline-size: min(580px, calc(100vw - 40px)); max-block-size: calc(100dvh - 48px); border-radius: 16px; }
+.cr-dialog.dialog-wide { inline-size: min(920px, calc(100vw - 40px)); }
+.cr-dialog .dialog-header { position: sticky; inset-block-start: 0; z-index: 4; padding: 20px 24px; background: white; border-block-end: 1px solid var(--cr-hairline); }
+.cr-dialog .dialog-header h2 { font-size: 24px; line-height: 1.25; }
+.cr-dialog .dialog-intro { margin: 0; padding: 16px 24px 0; }
+.cr-dialog .dialog-body { padding: 24px; }
+.cr-dialog .dialog-actions { position: sticky; inset-block-end: 0; z-index: 3; background: #fff; margin-inline: -24px; padding: 16px 24px; margin-block-end: -24px; border-block-start: 1px solid var(--cr-border); gap: 12px; flex-wrap: wrap; }
+.cr-dialog .dialog-actions button { min-block-size: 48px; }
+.cr-dialog input:not([type="radio"]):not([type="checkbox"]), .cr-dialog select, .cr-dialog textarea { font-size: 16px; min-block-size: 48px; }
+.cr-dialog .cr-field, .cr-dialog .cr-money-field { inline-size: 100%; }
+.cr-dialog .cr-field > input, .cr-dialog .cr-field > select { inline-size: 100%; }
+.cr-dialog fieldset { min-inline-size: 0; }
+.cr-dialog .cr-stack { gap: 20px; }
+.cr-dialog .cr-button { white-space: normal; }
+.cr-dialog p { line-height: 1.5; }
+.cr-shell .cr-field > input, .cr-shell .cr-field > select { font-size: 16px; min-block-size: 48px; }
+summary:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 3px; border-radius: 6px; }
+@media (min-width: 1024px) {
+  .cr-shell .cr-main { padding: 36px 48px 56px; }
+  .cr-shell h1 { font-size: 38px; }
+  .cr-shell .cr-header { min-block-size: 56px; padding-inline-end: 130px; margin-block-end: 28px; }
+  .cr-global-record { display: block; position: absolute; z-index: 2; inset-block-start: 38px; inset-inline-end: 48px; }
+  .cr-global-record .cr-button { gap: 8px; min-block-size: 48px; color: var(--cr-accent-strong); }
+  .cr-rail { padding: 28px 16px; gap: 20px; }
+  .cr-rail-destinations { display: flex; flex-direction: column; gap: 12px; margin-block-start: 20px; }
+  .cr-rail-footer { margin-block-start: auto; display: flex; flex-direction: column; gap: 16px; }
+  .cr-shell .cr-rail .cr-tab { min-block-size: 52px; font-size: 16px; }
+  .cr-rail-language { border: 0; font-size: 14px; }
+  .cr-tour-panel { inset-block-end: 24px; }
+}
+@media (max-width: 680px) {
+  .cr-home .cr-money-card { padding: 20px; }
+  .cr-hero-actions { gap: 16px; }
+  .cr-tour-invite { flex-wrap: wrap; gap: 8px; }
+  .cr-tour-invite p { flex-basis: calc(100% - 48px); }
+  .cr-activity-toolbar { grid-template-columns: minmax(0, 1fr); }
+  .cr-account-row { flex-wrap: wrap; }
+  .cr-account-row .cr-register-main { flex-basis: 55%; }
+  .cr-glossary > div { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .cr-dialog.dialog, .cr-dialog.dialog-wide { margin: 0; inline-size: 100%; max-inline-size: 100%; block-size: 100dvh; max-block-size: 100dvh; border-radius: 0; }
+  .cr-dialog .dialog-header { padding: 16px; }
+  .cr-dialog .dialog-body { padding: 20px 16px; }
+  .cr-dialog .dialog-intro { padding-inline: 16px; }
+  .cr-dialog .dialog-actions { inset-block-end: 0; margin-inline: -16px; margin-block-end: -20px; padding: 16px; padding-block-end: calc(16px + env(safe-area-inset-bottom, 0px)); }
+  .cr-dialog .dialog-actions > button { flex: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .cr-shell *, .cr-dialog * { scroll-behavior: auto; } }
+
+.cr-dialog .cr-affix { display: flex; flex-wrap: nowrap; align-items: center; min-inline-size: 0; gap: 8px; }
+.cr-dialog .cr-affix > input { flex: 1; inline-size: 100%; min-inline-size: 0; }
+.cr-dialog .cr-affix-suffix { padding-block-end: 0; }
+.cr-header-actions { max-inline-size: 100%; min-inline-size: 0; }
+.cr-glossary dd { white-space: normal; font-weight: 400; overflow-wrap: anywhere; }

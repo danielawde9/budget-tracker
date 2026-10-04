@@ -3,6 +3,7 @@ import { toBudgetError, type BudgetError } from '../../api/budget-api.ts';
 import type { ActivityCursor, Entry } from '../../api/schemas.ts';
 import { PageHeader } from '../../app/shell.tsx';
 import { activeWallets, pickerGroups, useWorkspace } from '../../app/workspace.tsx';
+import { useUiCopy } from '../../lib/ui-copy.ts';
 import { useI18n } from '../../lib/i18n.tsx';
 import type { RecordIntent } from '../../record/record-dialog.tsx';
 import { ErrorNotice, useLoad } from '../../ui/async.tsx';
@@ -21,6 +22,9 @@ const FLOW_LABEL = {
 export function ActivityScreen({ onRecord }: { readonly onRecord: (intent: RecordIntent) => void }) {
   const i18n = useI18n();
   const { t, date } = i18n;
+  const c = useUiCopy();
+  const [search, setSearch] = useState('');
+  const [kind, setKind] = useState('');
   const { api, space, version, catalog } = useWorkspace();
   const [month, setMonth] = useState('');
   const [walletId, setWalletId] = useState('');
@@ -58,11 +62,13 @@ export function ActivityScreen({ onRecord }: { readonly onRecord: (intent: Recor
     }
   }
   const months = Array.from({ length: 12 }, (_, index) => addMonths(space.currentMonth, -index));
+  const visible = pages.filter((entry) => { const line = describeEntry(i18n, entry); const haystack = [line.title, line.detail, entry.memo, kindLabel(i18n, entry.kind), ...entry.wallets.map((wallet) => wallet.name)].join(' ').toLocaleLowerCase(i18n.locale); return (!kind || entry.kind === kind) && haystack.includes(search.trim().toLocaleLowerCase(i18n.locale)); });
   return (
     <>
       <PageHeader title={t('nav.activity')} subtitle={t('activity.intro')} />
       <section className="cr-card">
-        <div className="cr-toolbar cr-filters">
+        <div className="cr-activity-toolbar"><label className="cr-field"><span className="cr-label">{c('search')}</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} /></label><SelectField label={c('allTypes')} value={kind} onChange={(event) => setKind(event.target.value)}><option value="">{c('allTypes')}</option>{Array.from(new Set(pages.map((entry) => entry.kind))).map((value) => <option key={value} value={value}>{kindLabel(i18n, value)}</option>)}</SelectField></div>
+        <details className="cr-filter-details"><summary>{c('moreFilters')}</summary><div className="cr-toolbar cr-filters">
           <SelectField label={t('activity.month')} value={month} onChange={(event) => setMonth(event.target.value)}>
               <option value="">{t('activity.allMonths')}</option>
               {months.map((value) => <option key={value} value={value}>{date(value, 'month')}</option>)}
@@ -80,11 +86,13 @@ export function ActivityScreen({ onRecord }: { readonly onRecord: (intent: Recor
               )) : null}
             </SelectField>
         </div>
+        </details>
         {first.status === 'error' ? <ErrorNotice error={first.error} onRetry={first.reload} /> : null}
         {first.status === 'loading' && pages.length === 0 ? <p role="status" className="cr-helper">{t('common.loading')}</p> : null}
         {first.status === 'ready' && pages.length === 0 ? <p className="cr-helper">{t('activity.empty')}</p> : null}
+        {pages.length > 0 && visible.length === 0 ? <p role="status" className="cr-helper">{c('noSearch')}</p> : null}
         <ul className="cr-register">
-          {pages.map((entry) => {
+          {visible.map((entry) => {
             const line = describeEntry(i18n, entry);
             return (
               <li key={entry.entryId} className="cr-register-row">

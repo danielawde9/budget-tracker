@@ -1,0 +1,206 @@
+[
+  {
+    "name": "01-home-expanded",
+    "note": "Home equation correct; all disclosures work. Cash/Set aside terms lack one-tap help in breakdown despite glossary. Primary Fund shown even though month fully funded; test next."
+  },
+  {
+    "name": "02-home-funding-dead-end",
+    "note": "Confirmed logical issue: Home primary Fund my plan opens Everything planned for this month is funded; only Done. Alert correctly offers Change purpose."
+  },
+  {
+    "name": "03-wallet-added",
+    "note": "USD audit wallet $500 added; have/owe preview correctly flipped sign."
+  },
+  {
+    "name": "04-negative-wallet-confirmation",
+    "note": "Saved UI audit card -$100; confirmation preserved negative sign."
+  },
+  {
+    "name": "05-income-preview",
+    "note": "Income $50 to audit cash and Ready +$50; preview clear. Note disclosure repeats Note (optional) label."
+  },
+  {
+    "name": "06-income-saved",
+    "note": "Income saved. Confirmation should provide clear next action."
+  },
+  {
+    "name": "06b-direct-income",
+    "note": "Direct $5 income to Rent saved and correct Ready remains unchanged. Success read next."
+  },
+  {
+    "name": "07-expense-shortfall",
+    "note": "Expense $20 on Rent $5 shows missing $15 and cover source Ready. Clear reason but no final wallet/item balances preview."
+  },
+  {
+    "name": "08-change-purpose-preview",
+    "note": "Ready $1690.80 -> Rent $50; no wallets change. Defaults From/To both Ready; button disabled with no explanation until destination changed."
+  },
+  {
+    "name": "08b-purpose-save",
+    "note": "Purpose save applied Ready -50 and Rent +50, closes popup immediately without same confirmation used Income/Expense."
+  },
+  {
+    "name": "09-transfer-preview",
+    "note": "Transfer $10 from audit cash $535 to card -100 previews $525 and -90; plan purposes unchanged."
+  },
+  {
+    "name": "10-exchange-preview",
+    "note": "USD $10 -> LBP895000 at89500; wallet and purpose currencies shown separately."
+  },
+  {
+    "name": "10b-rate-error",
+    "note": "Confirmed Exchange display error: $10 -> LBP895000 should rate89500 but preview shows Rate895 LBP per USD (100x too small). Wallet amounts correct."
+  },
+  {
+    "name": "11-refund-preview",
+    "note": "Refund $5 to audit cash and Rent item; not income. Preview correct."
+  },
+  {
+    "name": "12-investment-contribution",
+    "note": "Investment100 +50 shows150 before save, cash leaving; missing50 from To invest covered from Ready."
+  },
+  {
+    "name": "13-investment-loss",
+    "note": "150 recorded ->100 new total gives50 loss and no cash change; unambiguous."
+  },
+  {
+    "name": "14-overwithdrawal-error",
+    "note": "Record150 from100 investment allowed submit; backend should reject. Captured actual result."
+  },
+  {
+    "name": "15-investment-cash-return",
+    "note": "Cash return5 keeps investment48, adds5 cash and Ready; correct distinction from withdrawal."
+  },
+  {
+    "name": "16-investment-reinvested",
+    "note": "Return kept invested3 raises value48->51, cash unchanged; all six investment actions now exercised."
+  },
+  {
+    "name": "16-investment-reinvested",
+    "note": "Confirmed saved3 reinvested return; investment51, cash525. Earlier filled-state screenshot stale; replaced with actual confirmation."
+  },
+  {
+    "name": "17-loan-borrow",
+    "note": "Borrow50 adds cash/Ready50 and debt100->150, net worth same. Labels Principal/Outstanding clear."
+  },
+  {
+    "name": "17-loan-borrow",
+    "note": "Saved borrowed50; debt150 and audit cash575. Filled preview capture was stale and replaced with actual result."
+  },
+  {
+    "name": "18-loan-repayment",
+    "note": "Repay principal20 + interest2 fee1 -> total23; loan150->130, hidden optional fee values retained."
+  },
+  {
+    "name": "19-loan-lending",
+    "note": "Lend30 from auditcash552 and Ready -> owedtoyou30; networth unchanged, clear model."
+  },
+  {
+    "name": "20-loan-collection",
+    "note": "Collect10principal+1interest -> cash11, outstanding30->20. All four loan actions exercised."
+  },
+  {
+    "name": "21-plan-editor",
+    "note": "Plan group and item draft; investigate second-item visibility."
+  },
+  {
+    "name": "22-item-statement",
+    "note": "Item statement reconciles funded1055, spent1018 and principal20 to available32 after prior carry/flows."
+  },
+  {
+    "name": "23-future-plan",
+    "note": "November plan still labels summary This month; no funding button, funding scoped to actual current month."
+  },
+  {
+    "name": "24-bill-payment",
+    "note": "Create/edit monthly bill, skip/undo, payment4 shifts nextdueNov4 and lastpaidOct4."
+  },
+  {
+    "name": "25-correction",
+    "note": "Correction preserved original and exactly reverses20cash,15coverage,20expense; wording still says spent next to plus20."
+  },
+  {
+    "name": "26-invalid-reference-rate",
+    "note": "Typingabc and Save produces no error or explanation; current persistedrate remains89500."
+  },
+  {
+    "name": "tour-3",
+    "note": "3 / 10\n3 · Receive income and fund the groups\n\n$4,110 arrived and funded every group exactly: 2,466 / 205.50 / 616.50 / 411 / 411.\n\nSkip tour\nBack\nNext"
+  },
+  {
+    "name": "tour-4",
+    "note": "4 / 10\n4 · Essentials broken down, insurance reserved\n\nEssentials holds Rent, Bills, Groceries, Transport, the Insurance reserve and the car loan payment; Other essentials gets the $16 remainder.\n\nSkip tour\nBack\nNext"
+  },
+  {
+    "name": "tour-5",
+    "note": "5 / 10\n5 · Groceries and guilt-free spending\n\nGroceries spent in USD and LBP side by side; an eating-out overspend was covered from Fun at the moment it happened.\n\nSkip tour\nBack\nNext"
+  },
+  {
+    "name": "tour-6",
+    "note": "6 / 10\n6 · Carry forward\n\nThis month every item starts with what it held last month (“carried in”), then this month’s funding.\n\nSkip tour\nBack\nNext"
+  },
+  {
+    "name": "tour-7",
+    "note": "7 / 10\n7 · Savings reassigned to a goal\n\n$150 moved from General savings to Holiday: no wallet changed and it is not new saving.\n\nSkip tour\nBack\nNext"
+  },
+  {
+    "name": "tour-8",
+    "note": "8 / 10\n8 · Insurance paid from its reserve\n\nThe $780 premium emptied the reserve once; Ready to assign did not move.\n\nSkip tour\nBack\nNext"
+  },
+  {
+    "name": "tour-9",
+    "note": "9 / 10\n9 · Investments\n\nBrokerage shows contributions apart from the $149 market gain; contributions are invested, not spent.\n\nSkip tour\nBack\nNext"
+  },
+  {
+    "name": "tour-10",
+    "note": "10 / 10\n10 · A bill and a loan repayment\n\nUpcoming bills show as covered by Bills; the car loan installment split $172 principal from $28 interest.\n\nSkip tour\nBack\nFinish tour"
+  },
+  {
+    "name": "27-funding-preview",
+    "note": "Partialfunding10 fromReady1681.80 ->1671.80, still90; overavailableproposal blockedwithclearerror."
+  },
+  {
+    "name": "28-mobile-plan",
+    "note": "390px Englishplan readable stackeditemcards, navigation usable."
+  },
+  {
+    "name": "29-mobile-arabic-editor",
+    "note": "390px Arabic editor header/footer reachable and groupnavigation scrolls; no visible overflow."
+  },
+  {
+    "name": "30-mobile-arabic-saved",
+    "note": "Arabicdigit١ accepted as1USD and saved, successArabic, footerreachable."
+  },
+  {
+    "name": "31-identical-purpose",
+    "note": "DefaultFromTobothReady;1amountcontradictorypreviewReadydecreasesandincreases,save disabled withoutreason."
+  },
+  {
+    "name": "32-reverse-exchange",
+    "note": "Reverse89500LBP->1USD also incorrectly labelsrate895;cashpreviewcorrect."
+  },
+  {
+    "name": "edit-Guilt free",
+    "note": "Plan for October 2026\n\nChanges apply from this month on. Earlier months keep their plan.\n\nExpected income\nUSD\n\nOnly sizes the plan. Nothing is funded until money arrives.\n\n100% planned · $0.00 not planned stays in Ready to assign\n\nEssentials\nGuilt free\nShort-term goals\nSavings\nInvestments\nUI audit group\nGUILT FREE\nGroup name\nShare of income\n%\n\n$205.50\n\nItem amounts are optional. Leave zero to keep money in this group’s flexible item.\n\nItem name\nEach month\nUSD\nItem details and options\nItem name\nEach month\nUSD\nItem details and options\n\nOther guilt-free gets $0.00\n\n Add item\nGroup options\n Add group\nCancel\nSave plan"
+  },
+  {
+    "name": "edit-Short-term goals",
+    "note": "Plan for October 2026\n\nChanges apply from this month on. Earlier months keep their plan.\n\nExpected income\nUSD\n\nOnly sizes the plan. Nothing is funded until money arrives.\n\n100% planned · $0.00 not planned stays in Ready to assign\n\nEssentials\nGuilt free\nShort-term goals\nSavings\nInvestments\nUI audit group\nSHORT-TERM GOALS\nGroup name\nShare of income\n%\n\n$616.50\n\nItem amounts are optional. Leave zero to keep money in this group’s flexible item.\n\nItem name\nEach month\nUSD\nItem details and options\nItem name\nEach month\nUSD\nItem details and options\n\nGoals money gets $0.00\n\n Add item\nGroup options\n Add group\nCancel\nSave plan"
+  },
+  {
+    "name": "edit-Savings",
+    "note": "Plan for October 2026\n\nChanges apply from this month on. Earlier months keep their plan.\n\nExpected income\nUSD\n\nOnly sizes the plan. Nothing is funded until money arrives.\n\n100% planned · $0.00 not planned stays in Ready to assign\n\nEssentials\nGuilt free\nShort-term goals\nSavings\nInvestments\nUI audit group\nSAVINGS\nGroup name\nShare of income\n%\n\n$411.00\n\nItem amounts are optional. Leave zero to keep money in this group’s flexible item.\n\nGeneral savings gets $411.00\n\n Add item\nGroup options\n Add group\nCancel\nSave plan"
+  },
+  {
+    "name": "edit-Investments",
+    "note": "Plan for October 2026\n\nChanges apply from this month on. Earlier months keep their plan.\n\nExpected income\nUSD\n\nOnly sizes the plan. Nothing is funded until money arrives.\n\n100% planned · $0.00 not planned stays in Ready to assign\n\nEssentials\nGuilt free\nShort-term goals\nSavings\nInvestments\nUI audit group\nINVESTMENTS\nGroup name\nShare of income\n%\n\n$411.00\n\nItem amounts are optional. Leave zero to keep money in this group’s flexible item.\n\nTo invest gets $411.00\n\n Add item\nGroup options\n Add group\nCancel\nSave plan"
+  },
+  {
+    "name": "edit-UI audit group",
+    "note": "Plan for October 2026\n\nChanges apply from this month on. Earlier months keep their plan.\n\nExpected income\nUSD\n\nOnly sizes the plan. Nothing is funded until money arrives.\n\n100% planned · $0.00 not planned stays in Ready to assign\n\nEssentials\nGuilt free\nShort-term goals\nSavings\nInvestments\nUI audit group\nUI AUDIT GROUP\nGroup name\nShare of income\n%\n\n$0.00\n\nItem amounts are optional. Leave zero to keep money in this group’s flexible item.\n\nItem name\nEach month\nUSD\nItem details and options\n\nOther UI audit group gets $0.00\n\n Add item\nGroup options\n Add group\nCancel\nSave plan"
+  },
+  {
+    "name": "33-final-demo-balances",
+    "note": "Final syntheticdemo balances afterallsubmittedflows;wallet549,card-90,LBP3490500,Ready1672.80."
+  }
+]

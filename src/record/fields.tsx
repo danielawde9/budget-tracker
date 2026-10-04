@@ -79,18 +79,24 @@ export function DateField({ value, onChange, max, label }: { readonly value: str
   );
 }
 
+export function Preview({ children }: { readonly children: ReactNode }) {
+  const { locale } = useI18n();
+  return <section className="cr-record-preview" aria-label={locale === 'ar' ? 'معاينة' : 'Preview'}><strong>{locale === 'ar' ? 'معاينة' : 'Preview'}</strong>{children}</section>;
+}
+
 export function NoteField({ value, onChange }: { readonly value: string; readonly onChange: (note: string) => void }) {
   const { t } = useI18n();
   return (
-    <label className="cr-field">
+    <details className="cr-record-details"><summary>{t('common.note')}</summary><label className="cr-field">
       <span className="cr-label">{t('common.note')}</span>
       <input type="text" maxLength={200} value={value} onChange={(event) => onChange(event.target.value)} />
-    </label>
+    </label></details>
   );
 }
 
-export function FormActions({ submitLabel, pending, onCancel, disabled = false }: {
+export function FormActions({ submitLabel, submitText, pending, onCancel, disabled = false }: {
   readonly submitLabel: MessageKey;
+  readonly submitText?: string | undefined;
   readonly pending: boolean;
   readonly onCancel: () => void;
   readonly disabled?: boolean;
@@ -100,7 +106,7 @@ export function FormActions({ submitLabel, pending, onCancel, disabled = false }
     <div className="dialog-actions">
       <button type="button" className="cr-button" onClick={onCancel} disabled={pending}>{t('common.cancel')}</button>
       <button type="submit" className="cr-button cr-button--primary" disabled={pending || disabled}>
-        {pending ? t('common.saving') : t(submitLabel)}
+        {pending ? t('common.saving') : (submitText ?? t(submitLabel))}
       </button>
     </div>
   );

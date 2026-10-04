@@ -1,3 +1,5 @@
+import { usePlanCopy } from './plan-copy.ts';
+import './plan-redesign.css';
 import { useWorkspace } from '../../app/workspace.tsx';
 import { useI18n, type MessageKey } from '../../lib/i18n.tsx';
 import type { RecordIntent } from '../../record/record-dialog.tsx';
@@ -16,6 +18,7 @@ const CADENCE: Readonly<Record<'monthly' | 'yearly' | 'once', MessageKey>> = {
 /** Bills read their item's balance; they never hold money of their own. */
 export function BillsSection({ onRecord }: { readonly onRecord: (intent: RecordIntent) => void }) {
   const { t, date, name } = useI18n();
+  const copy = usePlanCopy();
   const { api, space, version } = useWorkspace();
   const bills = useLoad(async () => {
     const [list, upcoming] = await Promise.all([api.billsList(space.id), api.billsUpcoming(space.id, addDays(space.today, -31), addDays(space.today, 62))]);
@@ -51,7 +54,11 @@ export function BillsSection({ onRecord }: { readonly onRecord: (intent: RecordI
                   {next ? <CoveragePill occurrence={next} /> : null}
                   <Amount minor={bill.amount} currency={bill.currency} />
                   {next ? <button type="button" className="cr-button cr-button--sm" onClick={() => onRecord(billIntent(next))}>{t('bill.pay')}</button> : null}
-                  <SkipActions bill={bill} next={next} lastSkipped={lastSkipped} />
+                  <details className="plan-bill-actions">
+                    <summary aria-label={`${copy.actions}: ${bill.name}`}>···</summary>
+                    <button type="button" className="cr-link-button" onClick={() => onRecord({ kind: 'bill', bill })}>{copy.editBill}</button>
+                    <SkipActions bill={bill} next={next} lastSkipped={lastSkipped} />
+                  </details>
                 </li>
               );
             })}

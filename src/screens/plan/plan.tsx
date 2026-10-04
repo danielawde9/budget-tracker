@@ -12,6 +12,9 @@ import { Amount } from '../../ui/money.tsx';
 import { addMonths } from '../describe.ts';
 import { BillsSection } from './bills-section.tsx';
 import { ItemStatementDialog } from './item-statement.tsx';
+import { MoneyHelp } from '../../ui/money-help.tsx';
+import { usePlanCopy } from './plan-copy.ts';
+import './plan-redesign.css';
 import { PlanEditorDialog } from './plan-editor.tsx';
 
 export const KIND_LABEL: Readonly<Record<PlanItem['kind'], MessageKey>> = {
@@ -27,7 +30,7 @@ export function PlanScreen({ month, onRecord }: { readonly month: string; readon
   const { t, date } = useI18n();
   const { api, space, version } = useWorkspace();
   const plan = useLoad(() => api.planMonth(space.id, month), [api, space.id, month, version]);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
   const [statement, setStatement] = useState<PlanItem | null>(null);
   const isCurrent = month === space.currentMonth;
   const goTo = (offset: number) => navigate({ name: 'plan', month: addMonths(month, offset) });
@@ -46,7 +49,7 @@ export function PlanScreen({ month, onRecord }: { readonly month: string; readon
         actions={
           <>
             <button type="button" className="cr-button" onClick={() => onRecord({ kind: 'move' })}>{t('plan.move')}</button>
-            <button type="button" className="cr-button" onClick={() => setEditing(true)}>{t('plan.edit')}</button>
+            <button type="button" className="cr-button" onClick={() => setEditing('')}>{t('plan.edit')}</button>
             {isCurrent ? <button type="button" className="cr-button cr-button--primary" onClick={() => onRecord({ kind: 'fund', month })}>{t('plan.fund')}</button> : null}
           </>
         }
@@ -56,10 +59,10 @@ export function PlanScreen({ month, onRecord }: { readonly month: string; readon
           <div className="cr-plan">
             <PlanSummary plan={data} />
             {data.groups.map((group, index) => (
-              <GroupCard key={group.groupId} group={group} index={index} currency={data.planCurrency} today={data.today} onOpen={setStatement} />
+              <GroupCard key={group.groupId} group={group} index={index} currency={data.planCurrency} today={data.today} onOpen={setStatement} onEdit={() => setEditing(group.groupId)} />
             ))}
             <BillsSection onRecord={onRecord} />
-            {editing ? <PlanEditorDialog plan={data} month={month} onClose={() => setEditing(false)} /> : null}
+            {editing !== null ? <PlanEditorDialog plan={data} month={month} groupId={editing || undefined} onClose={() => setEditing(null)} /> : null}
             {statement ? <ItemStatementDialog item={statement} month={month} onClose={() => setStatement(null)} onRecord={(intent) => { setStatement(null); onRecord(intent); }} /> : null}
           </div>
         )}
@@ -78,11 +81,11 @@ function PlanSummary({ plan }: { readonly plan: PlanMonth }) {
     <section className="cr-card" aria-labelledby="plan-summary-heading">
       <h2 id="plan-summary-heading">{plan.isPast ? t('plan.summaryPast') : t('plan.summary')}</h2>
       <dl className="cr-figures">
-        <div><dt>{t('plan.expectedIncome')}</dt><dd><Amount minor={plan.expectedIncome} currency={currency} /></dd></div>
-        <div><dt>{t('plan.received')}</dt><dd><Amount minor={plan.received} currency={currency} /></dd></div>
-        <div><dt>{t('plan.funded')}</dt><dd><Amount minor={plan.funded} currency={currency} /></dd></div>
-        <div><dt>{t('plan.stillToFund')}</dt><dd><Amount minor={plan.stillToFund} currency={currency} tone={plan.stillToFund > 0n ? 'warn' : 'plain'} /></dd></div>
-        <div><dt>{plan.isPast ? t('plan.readyAtMonthEnd') : t('common.readyToAssign')}</dt><dd><Amount minor={ready} currency={currency} tone={ready < 0n ? 'negative' : 'plain'} /></dd></div>
+        <div><dt>{t('plan.expectedIncome')}<MoneyHelp term="expected" /></dt><dd><Amount minor={plan.expectedIncome} currency={currency} /></dd></div>
+        <div><dt>{t('plan.received')}<MoneyHelp term="received" /></dt><dd><Amount minor={plan.received} currency={currency} /></dd></div>
+        <div><dt>{t('plan.funded')}<MoneyHelp term="funded" /></dt><dd><Amount minor={plan.funded} currency={currency} /></dd></div>
+        <div><dt>{t('plan.stillToFund')}<MoneyHelp term="stillToFund" /></dt><dd><Amount minor={plan.stillToFund} currency={currency} tone={plan.stillToFund > 0n ? 'warn' : 'plain'} /></dd></div>
+        <div><dt>{plan.isPast ? t('plan.readyAtMonthEnd') : t('common.readyToAssign')}<MoneyHelp term="ready" /></dt><dd><Amount minor={ready} currency={currency} tone={ready < 0n ? 'negative' : 'plain'} /></dd></div>
       </dl>
       <div className="cr-stack-bar" role="img" aria-label={t('plan.barLabel')}>
         {plan.groups.map((group, index) => (
@@ -99,14 +102,16 @@ function PlanSummary({ plan }: { readonly plan: PlanMonth }) {
   );
 }
 
-function GroupCard({ group, index, currency, today, onOpen }: {
+function GroupCard({ group, index, currency, today, onOpen, onEdit }: {
   readonly group: PlanGroup;
   readonly index: number;
   readonly currency: PlanMonth['planCurrency'];
   readonly today: string;
   readonly onOpen: (item: PlanItem) => void;
+  readonly onEdit: () => void;
 }) {
   const { t, money, name, digits } = useI18n();
+  const copy = usePlanCopy();
   const rows = [...group.items, ...(group.flex ? [group.flex] : [])];
   return (
     <details className="cr-card cr-group" open={index === 0}>
@@ -115,19 +120,18 @@ function GroupCard({ group, index, currency, today, onOpen }: {
         <span className="cr-group-name"><bdi>{name(group)}</bdi> <span className="cr-helper">{digits(bpsToPercentText(group.percentBps))}%</span></span>
         <span className="cr-group-figures">
           <span><span className="cr-label">{t('plan.planned')}</span><Amount minor={group.planned} currency={currency} /></span>
-          <span><span className="cr-label">{t('plan.spent')}</span><Amount minor={group.spent} currency={currency} /></span>
-          <span><span className="cr-label">{t('plan.available')}</span><Amount minor={group.available} currency={currency} /></span>
         </span>
       </summary>
+      <div className="plan-group-toolbar"><button type="button" className="text-button" onClick={onEdit}>{copy.editGroup}</button></div>
       {group.over > 0n ? <p className="cr-explain cr-explain--warn">{t('plan.groupOver', { amount: money(group.over, currency) })}</p> : null}
       <table className="cr-plan-table">
         <thead>
           <tr>
             <th scope="col">{t('common.item')}</th>
             <th scope="col">{t('plan.planned')}</th>
-            <th scope="col">{t('plan.funded')}</th>
-            <th scope="col">{t('plan.spent')}</th>
-            <th scope="col">{t('plan.available')}</th>
+            <th scope="col">{t('plan.funded')}<MoneyHelp term="funded" /></th>
+            <th scope="col">{t('plan.spent')}<MoneyHelp term="spent" /></th>
+            <th scope="col">{t('plan.available')}<MoneyHelp term="available" /></th>
           </tr>
         </thead>
         <tbody>
@@ -153,7 +157,6 @@ function ItemRow({ item, currency, today, onOpen }: { readonly item: PlanItem; r
         <button type="button" className="cr-link-button" onClick={onOpen}>
           <bdi>{name(item)}</bdi>
         </button>
-        <span className="cr-kind">{t(KIND_LABEL[item.kind])}</span>
         {item.broughtForward !== 0n ? <span className="cr-helper">{t('plan.broughtForward', { amount: money(item.broughtForward, currency) })}</span> : null}
         {item.opening !== 0n ? <span className="cr-helper">{t('plan.openingLine', { amount: money(item.opening, currency) })}</span> : null}
         {progress !== null && item.targetMinor ? (

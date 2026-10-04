@@ -54,7 +54,7 @@ export async function storyUser(): Promise<TestUser> {
 export async function signIn(page: Page, user: TestUser): Promise<void> {
   await page.goto('/');
   await page.getByLabel('Email').fill(user.email);
-  await page.getByLabel('Password').fill(user.password);
+  await page.getByLabel('Password', { exact: true }).fill(user.password);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 }
 
@@ -62,7 +62,7 @@ export async function signUp(page: Page, user: TestUser): Promise<void> {
   await page.goto('/');
   await page.getByRole('button', { name: 'Create account' }).click();
   await page.getByLabel('Email').fill(user.email);
-  await page.getByLabel('Password').fill(user.password);
+  await page.getByLabel('Password', { exact: true }).fill(user.password);
   await page.getByRole('button', { name: 'Create account' }).first().click();
 }
 
@@ -72,6 +72,8 @@ export function moneyCard(page: Page) {
 
 export async function expectEquation(page: Page, cash: string, setAside: string, ready: string): Promise<void> {
   const card = moneyCard(page);
+  const disclosure = card.locator('details.cr-money-breakdown');
+  if (!(await disclosure.evaluate(element => (element as HTMLDetailsElement).open))) await disclosure.locator('summary').click();
   const equation = card.getByLabel('Cash you hold equals money set aside plus ready to assign');
   await expect(equation).toContainText(cash);
   await expect(equation).toContainText(setAside);

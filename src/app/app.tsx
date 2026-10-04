@@ -5,6 +5,7 @@ import type { SpaceSummary } from '../api/schemas.ts';
 import { I18nProvider, useI18n } from '../lib/i18n.tsx';
 import type { Locale } from '../lib/money.ts';
 import { createBrowserBackend } from '../lib/supabase.ts';
+import { DemoTourProvider, DemoTourPanel } from '../preview/tour.tsx';
 import { IS_DEMO, isLoopbackUrl } from '../preview/demo-mode.ts';
 import { RecordDialog, type RecordIntent } from '../record/record-dialog.tsx';
 import { AccountsScreen } from '../screens/accounts/accounts.tsx';
@@ -133,14 +134,15 @@ function Routes({ space, spaces, onSelectSpace, onToggleLocale, onSignOut }: {
   const [record, setRecord] = useState<RecordIntent | null>(() => quickAddIntent());
   const openRecord = useCallback((intent: RecordIntent) => setRecord(intent), []);
   return (
-    <Shell route={route} space={space} spaces={spaces} onSelectSpace={onSelectSpace} onRecord={() => openRecord({ kind: 'expense' })} onToggleLocale={onToggleLocale}>
+    <DemoTourProvider key={space.id}><Shell route={route} space={space} spaces={spaces} onSelectSpace={onSelectSpace} onRecord={() => openRecord({ kind: 'expense' })} onToggleLocale={onToggleLocale}>
       {route.name === 'home' ? <HomeScreen onRecord={openRecord} /> : null}
       {route.name === 'plan' ? <PlanScreen month={route.month ?? space.currentMonth} onRecord={openRecord} /> : null}
       {route.name === 'activity' ? <ActivityScreen onRecord={openRecord} /> : null}
       {route.name === 'accounts' ? <AccountsScreen onRecord={openRecord} /> : null}
       {route.name === 'settings' ? <SettingsScreen onToggleLocale={onToggleLocale} onSignOut={onSignOut} /> : null}
+      {IS_DEMO ? <DemoTourPanel /> : null}
       {record ? <RecordDialog intent={record} onClose={() => setRecord(null)} /> : null}
-    </Shell>
+    </Shell></DemoTourProvider>
   );
 }
 

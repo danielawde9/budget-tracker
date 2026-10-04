@@ -28,8 +28,8 @@ describe('investing more than To invest holds says where the rest comes from (re
     const user = userEvent.setup();
     renderWithWorkspace(<InvestForm catalog={catalog} onDone={onDone} onCancel={vi.fn()} />, api);
     await user.type(screen.getByRole('textbox', { name: /Amount/ }), '250');
-    expect(screen.getByText('To invest has $0.00. The other $250.00 will come from:')).toBeInTheDocument();
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Cover the difference from' }), itemId('Holiday'));
+    expect(screen.getByText('To invest has $0.00. Take the missing $250.00 from:')).toBeInTheDocument();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Take the missing money from' }), itemId('Holiday'));
     await user.click(screen.getByRole('button', { name: 'Record' }));
     expect(api.recordInvestment).toHaveBeenCalledWith(expect.objectContaining({ action: 'contribute', amount: 25000n, coverFrom: itemId('Holiday') }));
     expect(onDone).toHaveBeenCalledWith(expect.stringContaining('$250.00 was covered from another item'));

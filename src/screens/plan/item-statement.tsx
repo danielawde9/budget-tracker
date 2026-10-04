@@ -1,3 +1,6 @@
+import { usePlanCopy } from './plan-copy.ts';
+import { MoneyHelp } from '../../ui/money-help.tsx';
+import './plan-redesign.css';
 import type { PlanItem, StatementRow } from '../../api/schemas.ts';
 import { useWorkspace } from '../../app/workspace.tsx';
 import { useI18n, type MessageKey } from '../../lib/i18n.tsx';
@@ -27,6 +30,7 @@ export function ItemStatementDialog({ item, month, onClose, onRecord }: {
   readonly onClose: () => void;
   readonly onRecord: (intent: RecordIntent) => void;
 }) {
+  const copy = usePlanCopy();
   const i18n = useI18n();
   const { t, name, date } = i18n;
   const { api, space, version } = useWorkspace();
@@ -37,6 +41,16 @@ export function ItemStatementDialog({ item, month, onClose, onRecord }: {
         {(data) => (
           <div className="cr-stack">
             {data.statement.length === 0 ? <p className="cr-helper">{t('statement.empty')}</p> : null}
+            {data.statement.map((row) => <section className="plan-statement-summary" key={row.currency}>
+              <h3>{t('statement.available')} <MoneyHelp term="available" /></h3>
+              <Amount minor={row.available} currency={row.currency} />
+              <dl className="cr-figures">
+                <div><dt>{t('plan.funded')}</dt><dd><Amount minor={row.funded} currency={row.currency} sign /></dd></div>
+                <div><dt>{copy.spent}</dt><dd><Amount minor={-row.spent} currency={row.currency} sign /></dd></div>
+              </dl>
+            </section>)}
+            <details className="plan-item-options">
+            <summary>{copy.breakdown}</summary>
             {data.statement.map((row) => (
               <table key={row.currency} className="cr-statement">
                 <caption>{row.currency}</caption>
@@ -54,6 +68,7 @@ export function ItemStatementDialog({ item, month, onClose, onRecord }: {
                 </tbody>
               </table>
             ))}
+            </details>
             <h3>{t('statement.entries')}</h3>
             {data.entries.length === 0 ? <p className="cr-helper">{t('activity.empty')}</p> : (
               <ul className="cr-register">

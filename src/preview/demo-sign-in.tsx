@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { useState } from 'react';
 import { DEMO_ACCOUNTS } from '../../scripts/preview/demo-accounts.ts';
 import { useI18n } from '../lib/i18n.tsx';
+import { setupCopy } from '../screens/onboarding/setup-copy.ts';
 
 /** Preview only: one-click sign-in to the seeded local demo accounts. */
 export default function DemoSignIn({ client }: { readonly client: SupabaseClient }) {
@@ -9,8 +10,8 @@ export default function DemoSignIn({ client }: { readonly client: SupabaseClient
   const [error, setError] = useState<string | null>(null);
   return (
     <section className="cr-card cr-demo-panel" aria-labelledby="demo-heading">
-      <h2 id="demo-heading">{t('demo.title')}</h2>
-      <p className="cr-helper">{t('demo.intro')}</p>
+      <h2 id="demo-heading">{setupCopy(locale, 'sample')}</h2>
+      <p className="cr-helper">{setupCopy(locale, 'sampleIntro')}</p>
       <div className="cr-demo-accounts">
         {DEMO_ACCOUNTS.map((account) => (
           <button

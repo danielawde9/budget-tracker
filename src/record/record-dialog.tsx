@@ -9,6 +9,8 @@ import { Dialog } from '../ui/dialog.tsx';
 import { LoadState } from '../ui/async.tsx';
 import { CorrectForm, InvestForm, LoanForm, WalletForm } from './forms-accounts.tsx';
 import { ExchangeForm, ExpenseForm, IncomeForm, MoveForm, RefundForm, TransferForm, type BillIntent } from './forms-everyday.tsx';
+import './record-redesign.css';
+import { useRecordCopy } from './record-copy.ts';
 import { BillForm, FundForm } from './forms-plan.tsx';
 
 export type RecordIntent =
@@ -46,7 +48,9 @@ const TITLES: Readonly<Record<RecordIntent['kind'], MessageKey>> = {
 
 /** One host for every money action, so screens only describe intent. */
 export function RecordDialog({ intent: initial, onClose }: { readonly intent: RecordIntent; readonly onClose: () => void }) {
-  const { t } = useI18n();
+  const { t, date } = useI18n();
+  const copy = useRecordCopy();
+  const [choosing, setChoosing] = useState(initial.kind === 'expense' && !initial.walletId && !initial.itemId && !initial.bill);
   const { catalog, space } = useWorkspace();
   const [intent, setIntent] = useState<RecordIntent>(initial);
   const [result, setResult] = useState<string | null>(null);
@@ -54,7 +58,7 @@ export function RecordDialog({ intent: initial, onClose }: { readonly intent: Re
   const everyday = EVERYDAY.some((option) => option.kind === intent.kind) && !('bill' in intent && intent.bill);
   const done = (message: string) => setResult(message);
   return (
-    <Dialog title={t(TITLES[intent.kind])} onClose={onClose} wide={intent.kind === 'fund'}>
+    <Dialog title={intent.kind === 'fund' ? `${t('fund.title')} · ${date(intent.month ?? space.currentMonth, 'month')}` : intent.kind === 'bill' ? copy(intent.bill ? 'Edit bill' : 'Add a bill', intent.bill ? 'تعديل فاتورة' : 'إضافة فاتورة') : everyday && !choosing ? t(EVERYDAY.find(option => option.kind === intent.kind)!.label) : t(TITLES[intent.kind])} onClose={onClose} wide={false}>
       {result ? (
         <div className="cr-success-result">
           <div className="cr-success-result-copy" role="status" aria-atomic="true">
@@ -73,21 +77,16 @@ export function RecordDialog({ intent: initial, onClose }: { readonly intent: Re
         </div>
       ) : (
         <>
-          {everyday ? (
-            <div className="cr-chips cr-record-kinds" role="group" aria-label={t('record.kind')}>
-              {EVERYDAY.map((option) => (
-                <button
-                  key={option.kind}
-                  type="button"
-                  className={intent.kind === option.kind ? 'cr-chip cr-chip--active' : 'cr-chip'}
-                  aria-pressed={intent.kind === option.kind}
-                  onClick={() => setIntent({ kind: option.kind } as RecordIntent)}
-                >
-                  {t(option.label)}
-                </button>
-              ))}
-            </div>
-          ) : null}
+            {everyday ? choosing ? (
+            <section className="cr-record-chooser" aria-label={t('record.kind')}>
+              <p className="cr-helper">{copy('What happened to your money?', 'ماذا حدث لمالك؟')}</p>
+              {(['expense', 'income', 'move'] as const).map(kind => <button key={kind} type="button" className="cr-record-option" onClick={() => { if (kind !== intent.kind) setIntent({ kind }); setChoosing(false); }}><strong>{t(`record.kind.${kind}`)}</strong>{' '}<span>{copy(kind === 'expense' ? 'Money you spent.' : kind === 'income' ? 'Money you received.' : 'Move money between plan items.', kind === 'expense' ? 'مال أنفقته.' : kind === 'income' ? 'مال استلمته.' : 'نقل المال بين بنود الخطة.')}</span></button>)}
+              <details className="cr-record-details"><summary>{copy('More actions', 'إجراءات أخرى')}</summary>
+                {EVERYDAY.filter(option => !['expense', 'income', 'move'].includes(option.kind)).map(option => <button key={option.kind} type="button" className="cr-record-option" onClick={() => { if (option.kind !== intent.kind) setIntent({ kind: option.kind }); setChoosing(false); }}><strong>{t(option.label)}</strong>{' '}<span>{copy(option.kind === 'transfer' ? 'Move real money between your wallets.' : option.kind === 'exchange' ? 'Convert between USD and LBP.' : option.kind === 'invest' ? 'Record investment money, returns or value.' : option.kind === 'loan' ? 'Borrow, lend or repay money.' : 'Money returned from an earlier expense.', option.kind === 'transfer' ? 'نقل المال الفعلي بين محافظك.' : option.kind === 'exchange' ? 'التحويل بين الدولار والليرة.' : option.kind === 'invest' ? 'تسجيل أموال الاستثمار والعوائد والقيمة.' : option.kind === 'loan' ? 'اقتراض أو إقراض أو سداد المال.' : 'مال مسترجع من مصروف سابق.')}</span></button>)}
+              </details>
+            </section>
+          ) : <button type="button" className="cr-record-back" onClick={() => setChoosing(true)}>{copy('All actions', 'كل الإجراءات')}</button> : null}
+          <div hidden={choosing}>
           <LoadState loaded={catalog}>
             {(data) => {
               const key = `${intent.kind}-${formKey}`;
@@ -108,6 +107,7 @@ export function RecordDialog({ intent: initial, onClose }: { readonly intent: Re
               }
             }}
           </LoadState>
+          </div>
         </>
       )}
     </Dialog>

@@ -3,11 +3,12 @@ import type { InvestmentAction, LoanAction } from '../api/budget-api.ts';
 import type { Entry } from '../api/schemas.ts';
 import { activeWallets, pickerGroups, useWorkspace } from '../app/workspace.tsx';
 import { useI18n, type MessageKey } from '../lib/i18n.tsx';
-import type { Currency } from '../lib/money.ts';
+import { parseMoney, type Currency } from '../lib/money.ts';
 import { ErrorNotice, useCommand } from '../ui/async.tsx';
 import { Amount, MoneyField } from '../ui/money.tsx';
-import { CoverChoice, DateField, Explain, FormActions, ItemSelect, NoteField, READY, shortfallOf, WalletSelect, withCovered } from './fields.tsx';
+import { CoverChoice, DateField, Explain, Preview, FormActions, ItemSelect, NoteField, READY, shortfallOf, WalletSelect, withCovered } from './fields.tsx';
 import { SelectField } from '../ui/select-field.tsx';
+import { useRecordCopy } from './record-copy.ts';
 import type { BillIntent, FormProps } from './forms-everyday.tsx';
 
 const nullable = (text: string): string | null => (text.trim() === '' ? null : text.trim());
@@ -26,6 +27,7 @@ export function InvestForm({ catalog, onDone, onCancel, action: initialAction, i
   readonly investmentId?: string;
 }) {
   const i18n = useI18n();
+  const copy = useRecordCopy();
   const { t, money } = i18n;
   const { api, space, refresh } = useWorkspace();
   const investments = activeWallets(catalog.accounts, 'investment');
@@ -64,8 +66,9 @@ export function InvestForm({ catalog, onDone, onCancel, action: initialAction, i
         </SelectField>
       <Explain>{t(explain)}</Explain>
       <WalletSelect label={t('invest.account')} wallets={investments} value={accountId} onChange={setAccountId} />
-      <MoneyField key={action} label={action === 'value' ? t('invest.newValue') : t('common.amount')} currency={currency} value={amount} onChange={setAmount} allowZero={action === 'value'} autoFocus
-        hint={action === 'value' && account ? t('invest.currentValue', { amount: money(account.balance, currency) }) : undefined} />
+      <MoneyField key={action} label={action === 'value' ? copy('New total value', 'القيمة الإجمالية الجديدة') : t('common.amount')} currency={currency} value={amount} onChange={setAmount} allowZero={action === 'value'} autoFocus />
+      {account ? <p className="cr-helper">{t('invest.currentValue', { amount: money(account.balance, currency) })}</p> : null}
+      {amount !== null && account ? <Preview><p><bdi>{account.name}</bdi> {money(account.balance, currency)} → {money(action === 'value' ? amount : action === 'income_cash' ? account.balance : account.balance + (action === 'withdraw' || action === 'fee' ? -amount : amount), currency)}</p>{action === 'value' ? <p>{amount < account.balance ? copy(`This records a ${money(account.balance - amount, currency)} loss.`, `يسجّل هذا خسارة ${money(account.balance - amount, currency)}.`) : amount > account.balance ? copy(`This records a ${money(amount - account.balance, currency)} gain.`, `يسجّل هذا ربحاً ${money(amount - account.balance, currency)}.`) : copy('The value is unchanged.', 'القيمة لم تتغير.')}</p> : null}{needsCash ? <p>{cash.find(wallet => wallet.id === effectiveCash)?.name}: {money(action === 'contribute' ? -amount : amount, currency)}</p> : <p>{copy('No cash wallet changes.', 'لا تتغير المحافظ النقدية.')}</p>}</Preview> : null}
       {needsCash ? <WalletSelect label={action === 'contribute' ? t('record.paidFrom') : t('record.receivedIn')} wallets={cash} value={effectiveCash} onChange={setCashId} /> : null}
       {action === 'contribute' ? (
         <>
@@ -94,6 +97,7 @@ export function LoanForm({ catalog, onDone, onCancel, action: initialAction, loa
   readonly bill?: BillIntent;
 }) {
   const i18n = useI18n();
+  const copy = useRecordCopy();
   const { t, money } = i18n;
   const { api, space, refresh } = useWorkspace();
   const [action, setAction] = useState<LoanAction>(bill ? 'repay' : (initialAction ?? 'repay'));
@@ -115,11 +119,13 @@ export function LoanForm({ catalog, onDone, onCancel, action: initialAction, loa
   const [on, setOn] = useState(bill && bill.dueOn <= space.today ? bill.dueOn : space.today);
   const [memo, setMemo] = useState('');
   const [coverFrom, setCoverFrom] = useState(READY);
-  const total = (principal ?? 0n) + (interest ?? 0n) + (fee ?? 0n);
+  const effectiveInterest = action === 'repay' || action === 'collect' ? interest ?? 0n : 0n;
+  const effectiveFee = action === 'repay' ? fee ?? 0n : 0n;
+  const total = (principal ?? 0n) + effectiveInterest + effectiveFee;
   const charged = action === 'repay' || (action === 'lend' && itemId !== READY);
   const needsItem = action === 'repay';
   const command = useCommand((requestId, _: null) => api.recordLoan({
-    spaceId: space.id, requestId, action, loanId: effectiveLoan, on, principal: principal ?? 0n, interest: interest ?? 0n, fee: fee ?? 0n,
+    spaceId: space.id, requestId, action, loanId: effectiveLoan, on, principal: principal ?? 0n, interest: effectiveInterest, fee: effectiveFee,
     cashWalletId: effectiveCash, itemId: itemId === READY ? null : itemId, memo: nullable(memo),
     coverFrom: charged && shortfallOf(catalog, itemId === READY ? '' : itemId, currency, total) > 0n && coverFrom !== READY ? coverFrom : null,
     billId: bill?.billId ?? null, billDue: bill?.dueOn ?? null,
@@ -133,7 +139,7 @@ export function LoanForm({ catalog, onDone, onCancel, action: initialAction, loa
     onDone(withCovered(i18n, t('loan.done', { amount: money(total, currency), name: loan.counterparty ?? loan.name }), result.covered, currency));
   }
   return (
-    <form className="dialog-form cr-stack" onSubmit={(event) => void submit(event)}>
+    <form className="dialog-form cr-stack" onChangeCapture={event => { const input = event.target as HTMLInputElement; if (input.closest('.cr-money-field') && input.type === 'text') input.setCustomValidity(input.value.trim() && parseMoney(input.value, currency) === null ? t('error.BUDGET_INVALID_AMOUNT') : ''); }} onInvalidCapture={event => { const details = (event.target as HTMLElement).closest('details'); if (details) details.open = true; }} onSubmit={(event) => void submit(event)}>
       {bill ? <Explain>{t('record.payingBill', { name: bill.name, date: i18n.date(bill.dueOn) })}</Explain> : (
         <SelectField label={t('loan.what')} value={action} onChange={(event) => setAction(event.target.value as LoanAction)}>
             {LOAN_ACTIONS.map((option) => <option key={option.action} value={option.action}>{t(option.label)}</option>)}
@@ -146,12 +152,12 @@ export function LoanForm({ catalog, onDone, onCancel, action: initialAction, loa
       <MoneyField key={`p-${action}`} label={t('loan.principal')} currency={currency} value={principal} onChange={setPrincipal} autoFocus required={action !== 'repay'} allowZero={action === 'repay'}
         hint={loan ? t('loan.balance', { amount: money(loan.balance < 0n ? -loan.balance : loan.balance, currency) }) : undefined} />
       {action === 'repay' || action === 'collect' ? (
-        <MoneyField key={`i-${action}`} label={action === 'repay' ? t('loan.interestPaid') : t('loan.interestReceived')} currency={currency} value={interest} onChange={setInterest} required={false} allowZero />
+        <details className="cr-record-details"><summary>{copy('Interest and fees (optional)', 'الفائدة والرسوم (اختيارية)')}</summary><MoneyField key={`i-${action}`} label={action === 'repay' ? t('loan.interestPaid') : t('loan.interestReceived')} currency={currency} value={interest} onChange={setInterest} required={false} allowZero />{action === 'repay' ? <MoneyField label={t('loan.fee')} currency={currency} value={fee} onChange={setFee} required={false} allowZero /> : null}</details>
       ) : null}
-      {action === 'repay' ? <MoneyField label={t('loan.fee')} currency={currency} value={fee} onChange={setFee} required={false} allowZero /> : null}
       {total > 0n && action === 'repay' ? (
-        <p className="cr-helper">{t('loan.repaySplit', { total: money(total, currency), principal: money(principal ?? 0n, currency), cost: money((interest ?? 0n) + (fee ?? 0n), currency) })}</p>
+        <p className="cr-helper">{t('loan.repaySplit', { total: money(total, currency), principal: money(principal ?? 0n, currency), cost: money(effectiveInterest + effectiveFee, currency) })}</p>
       ) : null}
+      {loan && total > 0n ? <Preview><p>{copy('Principal', 'أصل الدين')}: {money(principal ?? 0n, currency)}</p><p>{copy('Interest and fees', 'الفائدة والرسوم')}: {money(effectiveInterest + effectiveFee, currency)}</p><p>{copy('Total paid or received', 'إجمالي المدفوع أو المستلم')}: {money(total, currency)}</p><p>{loan.name}: {money(loan.balance < 0n ? -loan.balance : loan.balance, currency)} → {money((loan.balance < 0n ? -loan.balance : loan.balance) + (action === 'repay' || action === 'collect' ? -(principal ?? 0n) : principal ?? 0n), currency)}</p></Preview> : null}
       <WalletSelect label={action === 'repay' || action === 'lend' ? t('record.paidFrom') : t('record.receivedIn')} wallets={cash} value={effectiveCash} onChange={setCashId} />
       {action === 'repay' || action === 'lend' ? (
         <ItemSelect label={t('loan.fromItem')} groups={pickerGroups(catalog.plan)} value={itemId} onChange={setItemId} currency={currency} includeReady={action === 'lend'}
@@ -166,8 +172,9 @@ export function LoanForm({ catalog, onDone, onCancel, action: initialAction, loa
   );
 }
 
-export function WalletForm({ onDone, onCancel, kind: initialKind }: Omit<FormProps, 'catalog'> & { readonly kind?: 'cash' | 'investment' | 'loan' }) {
+export function WalletForm({ onDone, onCancel, kind: initialKind, submitLabel, formId }: Omit<FormProps, 'catalog'> & { readonly kind?: 'cash' | 'investment' | 'loan'; readonly submitLabel?: string; readonly formId?: string }) {
   const { t, money } = useI18n();
+  const copy = useRecordCopy();
   const { api, space, refresh } = useWorkspace();
   const [kind, setKind] = useState<'cash' | 'investment' | 'loan'>(initialKind ?? 'cash');
   const [direction, setDirection] = useState<'i_owe' | 'owed_to_me'>('i_owe');
@@ -177,21 +184,22 @@ export function WalletForm({ onDone, onCancel, kind: initialKind }: Omit<FormPro
   const [opening, setOpening] = useState<bigint | null>(0n);
   const [negative, setNegative] = useState(false);
   const [on, setOn] = useState(space.today);
+  const signedOpening = (opening ?? 0n) * (kind === 'cash' && negative ? -1n : 1n);
   const command = useCommand((requestId, _: null) => api.createWallet({
     spaceId: space.id, requestId, name: name.trim(), kind, currency,
-    opening: (opening ?? 0n) * (kind === 'cash' && negative ? -1n : 1n), openedOn: on,
+    opening: signedOpening, openedOn: on,
     loanDirection: kind === 'loan' ? direction : null, counterparty: kind === 'loan' ? nullable(counterparty) : null,
   }));
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || opening === null) return;
     if (!(await command.submit(null))) return;
     refresh();
-    onDone(t('wallet.done', { name: name.trim(), amount: money(opening ?? 0n, currency) }));
+    onDone(t('wallet.done', { name: name.trim(), amount: money(kind === 'loan' && direction === 'i_owe' ? -signedOpening : signedOpening, currency) }));
   }
   const explain: MessageKey = kind === 'cash' ? 'wallet.cashExplain' : kind === 'investment' ? 'wallet.investmentExplain' : 'wallet.loanExplain';
   return (
-    <form className="dialog-form cr-stack" onSubmit={(event) => void submit(event)}>
+    <form id={formId} className="dialog-form cr-stack" onSubmit={(event) => void submit(event)}>
       <fieldset className="cr-choice">
         <legend>{t('wallet.kind')}</legend>
         {(['cash', 'investment', 'loan'] as const).map((option) => (
@@ -225,11 +233,12 @@ export function WalletForm({ onDone, onCancel, kind: initialKind }: Omit<FormPro
       <MoneyField key={currency} label={kind === 'loan' ? t('wallet.outstanding') : t('wallet.opening')} currency={currency} value={opening} onChange={setOpening} allowZero
         hint={kind === 'cash' ? t('wallet.openingHint') : undefined} />
       {kind === 'cash' ? (
-        <label className="cr-check"><input type="checkbox" checked={negative} onChange={(event) => setNegative(event.target.checked)} />{t('wallet.inDebt')}</label>
+        <fieldset className="cr-choice"><legend>{copy('Opening balance meaning', 'معنى الرصيد الافتتاحي')}</legend><label><input type="radio" name="wallet-sign" checked={!negative} onChange={() => setNegative(false)} />{copy('I have this money', 'أملك هذا المال')}</label><label><input type="radio" name="wallet-sign" checked={negative} onChange={() => setNegative(true)} />{copy('I owe this money', 'عليّ هذا المال')}</label></fieldset>
       ) : null}
+      <Preview><p>{t('wallet.opening')}: {money(kind === 'loan' && direction === 'i_owe' ? -signedOpening : signedOpening, currency)}</p></Preview>
       <DateField value={on} onChange={setOn} max={space.today} label={t('wallet.asOf')} />
       {command.error ? <ErrorNotice error={command.error} /> : null}
-      <FormActions submitLabel="wallet.save" pending={command.pending} onCancel={onCancel} disabled={!name.trim()} />
+      <FormActions submitText={submitLabel} submitLabel="wallet.save" pending={command.pending} onCancel={onCancel} disabled={!name.trim() || opening === null} />
     </form>
   );
 }

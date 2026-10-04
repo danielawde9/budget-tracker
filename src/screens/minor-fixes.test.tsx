@@ -94,6 +94,7 @@ describe('bills can be skipped and un-skipped', () => {
     renderWithWorkspace(<BillsSection onRecord={vi.fn()} />, api);
     const row = (await screen.findByText('Internet')).closest('li');
     if (!row) throw new Error('no row');
+    await user.click(within(row).getByLabelText('Bill actions: Internet'));
     await user.click(within(row).getByRole('button', { name: 'Skip' }));
     expect(api.skipBill).toHaveBeenCalledWith(expect.objectContaining({ billId: bill.billId, due: '2026-10-20' }));
   });
@@ -105,6 +106,7 @@ describe('bills can be skipped and un-skipped', () => {
     renderWithWorkspace(<BillsSection onRecord={vi.fn()} />, api);
     const row = (await screen.findByText('Internet')).closest('li');
     if (!row) throw new Error('no row');
+    await user.click(within(row).getByLabelText('Bill actions: Internet'));
     await user.click(within(row).getByRole('button', { name: 'Undo skip' }));
     expect(api.unskipBill).toHaveBeenCalledWith(expect.objectContaining({ billId: bill.billId, due: '2026-10-20' }));
   });

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './app/app.tsx';
 import './styles.css';
 import './control-room.css';
+import './owner-redesign.css';
 
 const root = document.querySelector('#root');
 

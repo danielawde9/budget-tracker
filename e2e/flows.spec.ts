@@ -6,9 +6,10 @@ test.beforeEach(async () => {
 });
 
 async function openRecord(page: Page, kind: string): Promise<void> {
-  await page.getByRole('navigation', { name: 'Main' }).first().getByRole('button', { name: 'Record' }).click();
+  await page.getByRole('button', { name: 'Record', exact: true }).filter({ visible: true }).first().click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByRole('button', { name: kind, exact: true }).click();
+  if (!['Expense', 'Income', 'Change purpose'].includes(kind)) await dialog.getByText('More actions', { exact: true }).click();
+  await dialog.getByRole('button', { name: new RegExp('^' + kind) }).click();
 }
 
 async function done(page: Page): Promise<void> {
@@ -25,9 +26,7 @@ test('a fresh account: onboarding, income, funding, overspending and taking it b
   await page.getByRole('button', { name: 'Next' }).click();
   await page.getByRole('button', { name: 'Keep defaults' }).click();
   await page.getByLabel('Name', { exact: true }).fill('Bank');
-  await page.getByRole('button', { name: 'Add', exact: true }).click();
-  await expect(page.getByText('Bank', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Next' }).click();
+  await page.getByRole('button', { name: 'Save wallet and continue' }).click();
   await page.getByRole('button', { name: 'Finish' }).click();
   await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
   await expectEquation(page, '$0.00', '$0.00', '$0.00');
@@ -48,11 +47,11 @@ test('a fresh account: onboarding, income, funding, overspending and taking it b
   await dialog.getByLabel('Description').fill('Supermarket');
   await dialog.getByLabel('Amount').fill('50');
   await dialog.getByLabel('What was it for?').selectOption({ label: 'Groceries — $0.00' });
-  await expect(dialog.getByText('Groceries has $0.00. The other $50.00 will come from:')).toBeVisible();
+  await expect(dialog.getByText('Groceries has $0.00. Take the missing $50.00 from:')).toBeVisible();
   await expect(dialog.getByText(/over-assigned by \$50\.00/)).toBeVisible();
   await dialog.getByRole('button', { name: 'Record expense' }).click();
   await done(page);
-  await expect(moneyCard(page).getByText('Over-assigned')).toBeVisible();
+  await expect(moneyCard(page).getByRole('heading', { name: 'Over-assigned', exact: true })).toBeVisible();
   await expectEquation(page, '$4,060.00', '$4,110.00', '-$50.00');
 
   // Taking money back from an item restores the balance.
@@ -66,7 +65,7 @@ test('a fresh account: onboarding, income, funding, overspending and taking it b
   await expectEquation(page, '$4,060.00', '$4,060.00', '$0.00');
 
   // 7 · Reassigning savings to a goal changes purposes only.
-  await openRecord(page, 'Move money');
+  await openRecord(page, 'Change purpose');
   const reassign = page.getByRole('dialog');
   await reassign.getByLabel('From', { exact: true }).selectOption({ label: 'General savings — $411.00' });
   await reassign.getByLabel('To', { exact: true }).selectOption({ label: 'Goals money — $616.50' });
@@ -74,6 +73,7 @@ test('a fresh account: onboarding, income, funding, overspending and taking it b
   await reassign.getByRole('button', { name: 'Move now', exact: true }).click();
   await done(page);
   await expectEquation(page, '$4,060.00', '$4,060.00', '$0.00');
+  await page.getByText('Plan details', { exact: true }).click();
   const groups = page.getByRole('region', { name: 'Set aside by group' });
   await expect(groups.getByRole('listitem').filter({ hasText: 'Savings' })).toContainText('$261.00');
   await expect(groups.getByRole('listitem').filter({ hasText: 'Short-term goals' })).toContainText('$766.50');
@@ -97,6 +97,7 @@ test('existing money: pay a bill, update an investment, repay a loan, read last 
   await expectEquation(page, '$8,712.60', '$7,392.60', '$1,320.00');
 
   // 10 · A bill reads its item; paying it is one deduction from that item.
+  await page.getByText('Upcoming bills', { exact: true }).first().click();
   const bills = page.getByRole('region', { name: 'Upcoming bills' });
   await bills.getByRole('listitem').filter({ hasText: 'Internet' }).getByRole('button', { name: 'Pay' }).click();
   const pay = page.getByRole('dialog');
@@ -109,18 +110,21 @@ test('existing money: pay a bill, update an investment, repay a loan, read last 
   // 9 · A value update is a gain, kept apart from contributions.
   await page.getByRole('link', { name: 'Accounts' }).first().click();
   const brokerage = page.getByRole('listitem').filter({ hasText: 'Brokerage' });
-  await brokerage.getByRole('button', { name: 'Update value' }).click();
+  await brokerage.locator('summary').click();
+  await brokerage.getByRole('button', { name: 'What is it worth now?' }).click();
   const value = page.getByRole('dialog');
-  await value.getByLabel('Value today').fill('13100');
+  await value.getByLabel('New total value').fill('13100');
   await value.getByRole('button', { name: 'Record' }).click();
   await done(page);
   await expect(brokerage).toContainText('contributed $12,822.00 · gain +$278.00');
 
   // 10 · Repaying: principal reduces the debt; interest is spending.
   const loan = page.getByRole('listitem').filter({ hasText: 'Car loan' });
+  await loan.locator('summary').click();
   await loan.getByRole('button', { name: 'Repay what I owe' }).click();
   const repay = page.getByRole('dialog');
   await repay.getByLabel('Principal').fill('100');
+  await repay.getByText('Interest and fees (optional)', { exact: true }).click();
   await repay.getByLabel('Interest paid').fill('10');
   await expect(repay.getByText('$110.00 leaves your wallet: $100.00 debt repaid, $10.00 interest and fees.')).toBeVisible();
   await repay.getByRole('button', { name: 'Record' }).click();
@@ -130,8 +134,8 @@ test('existing money: pay a bill, update an investment, repay a loan, read last 
   // 2 / 6 · Last month shows the opening balances apart from funding.
   await page.getByRole('link', { name: 'Plan' }).first().click();
   await page.getByRole('button', { name: 'Previous month' }).click();
-  const shortTerm = page.locator('details').filter({ hasText: 'Short-term goals' });
-  await shortTerm.locator('summary').click();
+  const shortTerm = page.locator('details.cr-group').filter({ hasText: 'Short-term goals' });
+  await shortTerm.locator(':scope > summary').click();
   await expect(shortTerm.getByRole('row').filter({ hasText: 'Holiday' })).toContainText('$800.00 opening balance');
 });
 

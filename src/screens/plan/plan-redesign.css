@@ -1,0 +1,42 @@
+.plan-editor-totals { position: sticky; inset-block-start: 0; z-index: 1; background: var(--cr-surface, #fff); padding: 1rem; border: 1px solid var(--cr-border); border-radius: 12px; }
+.plan-editor-layout { display: grid; grid-template-columns: minmax(130px, .7fr) minmax(0, 2fr); gap: 1.5rem; align-items: start; }
+.plan-group-nav { display: flex; flex-direction: column; gap: .5rem; }
+.plan-group-nav button { justify-content: start; text-align: start; }
+.plan-group-nav [aria-current] { background: var(--cr-accent-soft); color: var(--cr-accent-strong); border-color: var(--cr-accent); }
+.cr-plan-editor .cr-editor-group { min-inline-size: 0; }
+.cr-plan-editor .cr-editor-item { display: grid; grid-template-columns: minmax(0, 1fr) minmax(110px, .65fr); gap: .75rem; }
+.plan-item-options { grid-column: 1 / -1; border-block-start: 1px solid var(--cr-hairline); padding-block: .25rem; }
+.plan-item-options > summary, .plan-term > summary, .plan-bill-actions > summary { cursor: pointer; min-block-size: 48px; display: flex; align-items: center; gap: .5rem; }
+.plan-item-options[open] { display: grid; gap: .75rem; }
+.plan-group-toolbar { display: flex; justify-content: end; padding-block: .5rem; }
+.plan-bill-actions { position: relative; }
+.plan-bill-actions[open] { padding: .5rem; border: 1px solid var(--cr-border); border-radius: 8px; }
+.plan-bill-actions button { display: flex; min-block-size: 48px; inline-size: 100%; }
+.plan-statement-summary { background: var(--cr-accent-soft); border-radius: 12px; padding: 1rem; }
+.plan-statement-summary h3 { font-size: 1rem; }
+.plan-statement-summary .cr-figures { margin-block: .8rem 0; }
+.cr-plan-editor input, .cr-plan-editor select { font-size: 16px; min-block-size: 48px; }
+.cr-plan-editor button { min-block-size: 48px; }
+@media (max-width: 680px) {
+  .plan-editor-layout { grid-template-columns: minmax(0, 1fr); gap: .75rem; }
+  .plan-group-nav { flex-direction: row; overflow-x: auto; padding-block: .25rem; }
+  .plan-group-nav button { flex-shrink: 0; }
+
+  .cr-plan-editor .cr-editor-group-head { grid-template-columns: minmax(0, 1fr); }
+  .cr-plan-editor .cr-editor-item { grid-template-columns: minmax(0, 1fr); }
+}
+
+.cr-plan-editor .cr-editor-group-head { grid-template-columns: minmax(0, 1.5fr) minmax(90px, .7fr); }
+.cr-plan-editor .cr-editor-group-amount { grid-column: 1 / -1; }
+@media (max-width: 680px) { .cr-plan-editor .cr-editor-group-head { grid-template-columns: minmax(0, 1fr); } }
+
+.cr-plan-editor .cr-editor-group[hidden] { display: none; }
+@media (min-width: 681px) {
+  .cr-plan-editor .plan-editor-totals { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 16px; }
+  .cr-plan-editor .plan-editor-totals > p { margin: 0; }
+}
+.cr-plan-editor .plan-editor-totals { inset-block-start: 84px; z-index: 2; }
+.cr-plan-editor .cr-editor-group > .cr-explain { padding: 0; background: transparent; border: 0; font-size: 14px; margin-block: 4px 12px; }
+@media (max-width: 680px) { .cr-plan-editor .plan-editor-totals { inset-block-start: 75px; } }
+.cr-plan-editor .cr-editor-group { gap: 12px; }
+.cr-plan-editor .cr-editor-group-head { gap: 8px; }

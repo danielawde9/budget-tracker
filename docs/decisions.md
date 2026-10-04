@@ -4214,3 +4214,13 @@ Until then, do not push `main`. To return `main` to v1, reset it to
 `origin/main` (`e38489a`). v2 stays safe on `redesign/connected-plan` and in
 the bundle.
 
+
+## 2026-10-04 — Owner chose a production fresh start for v2
+
+The owner explicitly chose to remove old app data and re-enter it. The pre-reset
+application schema/data was backed up outside Git and restored in a local
+rehearsal. The complete v2 SQL then replaced the v1 application schemas in one
+hosted migration on dfuxxzlhmxscgvxdmwti, preserving all four Auth accounts.
+The frontend was deployed to the existing budget-tracker Worker. This
+supersedes the earlier instruction not to push main pending the v2 database.
+See docs/operations/2026-10-04-v2-production-release.md for evidence and limits.

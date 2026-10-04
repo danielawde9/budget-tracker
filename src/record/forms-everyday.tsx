@@ -4,8 +4,9 @@ import { useI18n } from '../lib/i18n.tsx';
 import type { Currency } from '../lib/money.ts';
 import { ErrorNotice, useCommand } from '../ui/async.tsx';
 import { MoneyField } from '../ui/money.tsx';
+import { useRecordCopy } from './record-copy.ts';
 import { DescriptionField, matchSuggestion, useExpenseSuggestions } from './expense-suggestions.tsx';
-import { CoverChoice, DateField, Explain, FormActions, ItemSelect, NoteField, READY, shortfallOf, WalletSelect, withCovered } from './fields.tsx';
+import { CoverChoice, DateField, Explain, Preview, FormActions, ItemSelect, NoteField, READY, shortfallOf, WalletSelect, withCovered } from './fields.tsx';
 
 export interface BillIntent {
   readonly billId: string;
@@ -115,6 +116,7 @@ export function ExpenseForm({ catalog, onDone, onCancel, walletId: initialWallet
 
 export function RefundForm({ catalog, onDone, onCancel }: FormProps) {
   const { t, money, name } = useI18n();
+  const copy = useRecordCopy();
   const { api, space, refresh } = useWorkspace();
   const wallets = activeWallets(catalog.accounts, 'cash');
   const [walletId, setWalletId] = useState(wallets[0]?.id ?? '');
@@ -136,6 +138,7 @@ export function RefundForm({ catalog, onDone, onCancel }: FormProps) {
   return (
     <form className="dialog-form cr-stack" onSubmit={(event) => void submit(event)}>
       <Explain>{t('record.refundExplain')}</Explain>
+      {amount !== null && item ? <Preview><p>{wallets.find(wallet => wallet.id === walletId)?.name}: +{money(amount, currency)}</p><p>{name(item)}: {money(item.balances[currency], currency)} → {money(item.balances[currency] + amount, currency)}</p><p>{copy('This returns money to the item. It is not new income.', 'يعيد هذا المال إلى البند ولا يُعتبر دخلاً جديداً.')}</p></Preview> : null}
       <MoneyField label={t('common.amount')} currency={currency} value={amount} onChange={setAmount} autoFocus />
       <WalletSelect label={t('record.receivedIn')} wallets={wallets} value={walletId} onChange={setWalletId} />
       <ItemSelect label={t('record.refundTo')} groups={pickerGroups(catalog.plan)} value={itemId} onChange={setItemId} currency={currency} />
@@ -149,6 +152,7 @@ export function RefundForm({ catalog, onDone, onCancel }: FormProps) {
 
 export function IncomeForm({ catalog, onDone, onCancel, walletId: initialWallet, onFund }: FormProps & { readonly walletId?: string; readonly onFund: () => void }) {
   const { t, money, name } = useI18n();
+  const copy = useRecordCopy();
   const { api, space, refresh } = useWorkspace();
   const wallets = activeWallets(catalog.accounts, 'cash');
   const [walletId, setWalletId] = useState(initialWallet ?? wallets[0]?.id ?? '');
@@ -192,6 +196,7 @@ export function IncomeForm({ catalog, onDone, onCancel, walletId: initialWallet,
       <WalletSelect label={t('record.receivedIn')} wallets={wallets} value={walletId} onChange={setWalletId} />
       <ItemSelect label={t('record.incomeGoesTo')} groups={pickerGroups(catalog.plan)} value={target} onChange={setTarget} currency={currency} includeReady />
       <Explain>{t('record.incomeExplain')}</Explain>
+      {amount !== null ? <Preview><p>{wallets.find(wallet => wallet.id === walletId)?.name}: +{money(amount, currency)}</p><p>{target === READY ? t('common.readyToAssign') : name(findItem(catalog.plan, target)!)}: +{money(amount, currency)}</p></Preview> : null}
       <DateField value={on} onChange={setOn} max={space.today} />
       <NoteField value={memo} onChange={setMemo} />
       {command.error ? <ErrorNotice error={command.error} /> : null}
@@ -202,6 +207,7 @@ export function IncomeForm({ catalog, onDone, onCancel, walletId: initialWallet,
 
 export function TransferForm({ catalog, onDone, onCancel }: FormProps) {
   const { t, money } = useI18n();
+  const copy = useRecordCopy();
   const { api, space, refresh } = useWorkspace();
   const wallets = activeWallets(catalog.accounts, 'cash');
   const [fromId, setFromId] = useState(wallets[0]?.id ?? '');
@@ -224,6 +230,7 @@ export function TransferForm({ catalog, onDone, onCancel }: FormProps) {
   return (
     <form className="dialog-form cr-stack" onSubmit={(event) => void submit(event)}>
       <Explain>{t('record.transferExplain')}</Explain>
+      {amount !== null && from ? <Preview><p>{from.name}: {money(from.balance, currency)} → {money(from.balance - amount, currency)}</p><p>{targets.find(wallet => wallet.id === effectiveTo)?.name}: {money(targets.find(wallet => wallet.id === effectiveTo)?.balance ?? 0n, currency)} → {money((targets.find(wallet => wallet.id === effectiveTo)?.balance ?? 0n) + amount, currency)}</p><p>{copy('Your plan and total money stay the same.', 'تبقى خطتك وإجمالي مالك كما هما.')}</p></Preview> : null}
       <MoneyField label={t('common.amount')} currency={currency} value={amount} onChange={setAmount} autoFocus />
       <WalletSelect label={t('record.from')} wallets={wallets} value={fromId} onChange={setFromId} />
       {targets.length > 0 ? (
@@ -246,6 +253,7 @@ export function MoveForm({ catalog, onDone, onCancel, fromItemId, toItemId, curr
   readonly currency?: Currency;
 }) {
   const { t, money, name } = useI18n();
+  const copy = useRecordCopy();
   const { api, space, refresh } = useWorkspace();
   const [currency, setCurrency] = useState<Currency>(initialCurrency ?? catalog.plan.planCurrency);
   const [from, setFrom] = useState(fromItemId ?? READY);
@@ -281,6 +289,7 @@ export function MoveForm({ catalog, onDone, onCancel, fromItemId, toItemId, curr
       <ItemSelect label={t('record.to')} groups={groups} value={to} onChange={setTo} currency={currency} includeReady readyBalance={ready} exclude={from} />
       <MoneyField key={currency} label={t('common.amount')} currency={currency} value={amount} onChange={setAmount} autoFocus
         hint={t('record.moveAvailable', { name: label(fromItem), amount: money(fromAvailable, currency) })} />
+      {amount !== null ? <Preview><p>{label(fromItem)}: {money(fromAvailable, currency)} → {money(fromAvailable - amount, currency)}</p><p>{label(toItem)}: {money(toItem ? toItem.balances[currency] : ready, currency)} → {money((toItem ? toItem.balances[currency] : ready) + amount, currency)}</p><p>{copy('Wallet balances stay the same.', 'تبقى أرصدة المحافظ كما هي.')}</p></Preview> : null}
       {amount !== null && amount > fromAvailable ? <Explain tone="warn">{t('record.moveTooMuch')}</Explain> : null}
       <DateField value={on} onChange={setOn} max={space.today} />
       {command.error ? <ErrorNotice error={command.error} /> : null}
@@ -292,6 +301,7 @@ export function MoveForm({ catalog, onDone, onCancel, fromItemId, toItemId, curr
 /** Exchange: both amounts are what actually changed hands; the rate is derived. */
 export function ExchangeForm({ catalog, onDone, onCancel }: FormProps) {
   const { t, money, name } = useI18n();
+  const copy = useRecordCopy();
   const { api, space, refresh } = useWorkspace();
   const wallets = activeWallets(catalog.accounts, 'cash');
   const [fromId, setFromId] = useState(wallets.find((wallet) => wallet.currency === 'USD')?.id ?? wallets[0]?.id ?? '');
@@ -327,6 +337,7 @@ export function ExchangeForm({ catalog, onDone, onCancel }: FormProps) {
       <MoneyField key={`gave-${fromCurrency}`} label={t('record.youGave')} currency={fromCurrency} value={gave} onChange={setGave} autoFocus />
       <WalletSelect label={t('record.to')} wallets={targets} value={effectiveTo} onChange={setToId} />
       <MoneyField key={`got-${toCurrency}`} label={t('record.youGot')} currency={toCurrency} value={got} onChange={setGot} />
+      {gave !== null && got !== null && from && to ? <Preview><p>{from.name}: {money(from.balance, fromCurrency)} → {money(from.balance - gave, fromCurrency)}</p><p>{to.name}: {money(to.balance, toCurrency)} → {money(to.balance + got, toCurrency)}</p><p>{copy('Use the amounts that actually changed hands. The rate is calculated from them.', 'استخدم المبالغ التي تبادلتها فعلياً. يُحسب السعر منها.')}</p></Preview> : null}
       {rate !== null ? <p className="cr-helper">{t('record.impliedRate', { rate: (rate / 100n).toString() })}</p> : null}
       <ItemSelect label={t('record.exchangeFor')} groups={pickerGroups(catalog.plan)} value={purpose} onChange={setPurpose} currency={fromCurrency}
         includeReady readyBalance={readyBalance(catalog, fromCurrency)} />

@@ -61,15 +61,13 @@ export function Shell({ route, space, spaces, onSelectSpace, onRecord, onToggleL
       <nav className="cr-rail" aria-label={t('nav.main')}>
         <div className="cr-brand"><Leaf aria-hidden size={22} /><bdi className="cr-brand-name" dir="ltr">{t('app.name')}</bdi></div>
         <SpaceControl space={space} spaces={spaces} onSelectSpace={onSelectSpace} />
-        <button type="button" className="cr-rail-record" onClick={onRecord}>
-          <Plus aria-hidden size={18} />
-          {t('nav.record')}
-        </button>
-        {DESTINATIONS.map(tab)}
+        <div className="cr-rail-destinations">{DESTINATIONS.filter(destination => destination.name !== 'settings').map(tab)}</div>
+        <div className="cr-rail-footer">{DESTINATIONS.filter(destination => destination.name === 'settings').map(tab)}
         <button type="button" className="cr-rail-language" onClick={onToggleLocale} aria-label={t('shell.languageLabel')}>
           <Languages aria-hidden size={18} />
           {t('shell.language')}
         </button>
+        </div>
       </nav>
       <div className="cr-mobile-topbar">
         <SpaceControl space={space} spaces={spaces} onSelectSpace={onSelectSpace} />
@@ -82,7 +80,7 @@ export function Shell({ route, space, spaces, onSelectSpace, onRecord, onToggleL
           </a>
         </div>
       </div>
-      <main className="cr-main cr-main--wide">{children}</main>
+      <div className="cr-workspace-main"><div className="cr-global-record"><button type="button" className="cr-button" onClick={onRecord}><Plus aria-hidden size={18} />{t('nav.record')}</button></div><main className="cr-main cr-main--wide">{children}</main></div>
       <nav className="cr-tabbar" aria-label={t('nav.main')}>
         {mobileTabs.slice(0, 2).map(tab)}
         <div className="cr-tab-fab">

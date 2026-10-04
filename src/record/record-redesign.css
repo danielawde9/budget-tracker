@@ -1,0 +1,15 @@
+.cr-record-back { justify-self: start; color: var(--cr-accent, #117960); background: transparent; border: 0; padding: .4rem 0; font-size: 1rem; cursor: pointer; }
+.cr-record-chooser { display: grid; gap: .7rem; }
+.cr-record-option { display: grid; gap: .25rem; inline-size: 100%; text-align: start; color: inherit; padding: 1rem; border: 1px solid var(--cr-border, #d8e2dd); border-radius: .75rem; background: var(--cr-surface, #fff); font-size: 1rem; cursor: pointer; }
+.cr-record-option:hover, .cr-record-option:focus-visible { border-color: var(--cr-accent, #117960); }
+.cr-record-option span { color: var(--cr-muted, #64756d); font-size: .875rem; }
+.cr-record-details { border-block-start: 1px solid var(--cr-border, #d8e2dd); padding-block: .75rem; }
+.cr-record-details > summary { cursor: pointer; font-size: 1rem; padding-block: .35rem; }
+.cr-record-details[open] > summary { margin-block-end: .6rem; }
+.cr-record-details .cr-record-option + .cr-record-option { margin-block-start: .5rem; }
+.cr-record-preview { display: grid; gap: .3rem; padding: 1rem; background: var(--cr-accent-soft, #edf7f2); border-radius: .75rem; color: var(--cr-ink, #163d31); }
+.cr-record-preview p { margin: .2rem 0; overflow-wrap: anywhere; }
+.cr-fund-groups { display: flex; gap: .4rem; flex-wrap: wrap; }
+.cr-fund-groups button { font-size: 1rem; }
+.cr-record-summary { display: flex; flex-wrap: wrap; gap: 1rem; }
+.cr-record-summary p { margin: 0; flex: 1; min-inline-size: 7rem; }

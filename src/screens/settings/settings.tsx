@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { PageHeader } from '../../app/shell.tsx';
 import { useWorkspace } from '../../app/workspace.tsx';
+import { MoneyGlossary } from '../../ui/money-help.tsx';
+import { useUiCopy } from '../../lib/ui-copy.ts';
 import { useI18n } from '../../lib/i18n.tsx';
 import { IS_DEMO } from '../../preview/demo-mode.ts';
 import { DemoTour } from '../../preview/tour.tsx';
@@ -8,30 +10,31 @@ import { ErrorNotice, LoadState, useCommand, useLoad } from '../../ui/async.tsx'
 
 export function SettingsScreen({ onToggleLocale, onSignOut }: { readonly onToggleLocale: () => void; readonly onSignOut: () => void }) {
   const { t } = useI18n();
+  const c = useUiCopy();
   const { api, space, version } = useWorkspace();
   const overview = useLoad(() => api.overview(space.id), [api, space.id, version]);
   return (
     <>
       <PageHeader title={t('nav.settings')} />
-      {IS_DEMO ? <DemoTour /> : null}
-      <section className="cr-card">
+      <div className="cr-settings"><section className="cr-settings-section">
         <h2>{t('settings.language')}</h2>
         <button type="button" className="cr-button" onClick={onToggleLocale}>{t('shell.language')}</button>
       </section>
-      <section className="cr-card">
+      <section className="cr-settings-section">
         <h2>{t('settings.rateTitle')}</h2>
-        <p className="cr-helper">{t('settings.rateIntro')}</p>
+        <p className="cr-helper">{c('referenceHelp')}</p>
         <LoadState loaded={overview}>
           {(data) => <RateForm key={data.referenceRate?.unitsPerUsd ?? 'none'} current={data.referenceRate?.unitsPerUsd ?? ''} since={data.referenceRate?.effectiveOn ?? null} />}
         </LoadState>
       </section>
-      <section className="cr-card">
+      <section className="cr-settings-section">
         <h2>{t('settings.space')}</h2>
         <p><bdi>{space.name}</bdi> · {space.timezone} · {t('settings.planCurrency', { currency: space.planCurrency })}</p>
       </section>
-      <section className="cr-card">
+      <section className="cr-settings-section"><h2>{c('help')}</h2><MoneyGlossary />{IS_DEMO ? <DemoTour /> : null}</section>
+      <section className="cr-settings-section">
         <button type="button" className="cr-button cr-button--danger" onClick={onSignOut}>{t('settings.signOut')}</button>
-      </section>
+      </section></div>
     </>
   );
 }
