@@ -11,11 +11,8 @@ import { dashboardTotals, loadMonthActivity, spendingSeries, plannedSpending } f
 
 export function Dashboard({ overview, view }: { readonly overview: Overview; readonly view: CurrencyOverview }) {
   const { api, space, version } = useWorkspace();
-  const { date } = useI18n();
-  const c = useUiCopy();
   const plan = useLoad(() => api.planMonth(space.id, overview.month), [api, space.id, overview.month, version]);
   return <div className="cr-dashboard">
-    <div className="cr-dashboard-status"><span className="cr-helper">{date(overview.month, 'month')}</span></div>
     <LoadState loaded={plan}>{data => <DashboardPlan plan={data} overview={overview} view={view} />}</LoadState>
   </div>;
 }
@@ -25,6 +22,9 @@ function DashboardPlan({ plan, overview, view }: { readonly plan: PlanMonth; rea
   const { name } = useI18n();
   const c = useUiCopy();
   const totals = dashboardTotals(plan, view.currency);
+  const items = plan.groups.flatMap(group => [...group.items, ...(group.flex ? [group.flex] : [])]);
+  const hasReserves = items.some(item => item.kind === 'reserve' || item.kind === 'loan_payment');
+  const hasSavings = items.some(item => item.kind === 'goal');
   const activity = useLoad(() => loadMonthActivity(api, space.id, overview.month), [api, space.id, overview.month, version]);
   const segments = view.setAsideByGroup.filter(group => group.amount !== 0n);
   const positive = segments.filter(group => group.amount > 0n);
@@ -41,8 +41,8 @@ function DashboardPlan({ plan, overview, view }: { readonly plan: PlanMonth; rea
     <div className="cr-dashboard-metrics">
       <Metric label={c('availableSpend')} help={c('availableHelp')} amount={totals.available} currency={view.currency} Icon={ShoppingCart} />
       <article className="cr-card cr-metric"><ChartNoAxesCombined size={22} aria-hidden /><div><p className="cr-helper">{c('spentMonth')}</p><LoadState loaded={activity}>{entries => <Amount minor={spendingSeries(entries, view.currency, overview.month, overview.today).at(-1)?.amount ?? 0n} currency={view.currency} />}</LoadState><p className="cr-helper">{c('netSpending')}</p></div></article>
-      <Metric label={c('reserves')} help={c('reservesHelp')} amount={totals.reserves} currency={view.currency} Icon={ShieldCheck} />
-      <Metric label={c('savings')} help={c('savingsHelp')} amount={totals.savings} currency={view.currency} Icon={PiggyBank} />
+      {hasReserves ? <Metric label={c('reserves')} help={c('reservesHelp')} amount={totals.reserves} currency={view.currency} Icon={ShieldCheck} /> : null}
+      {hasSavings ? <Metric label={c('savings')} help={c('savingsHelp')} amount={totals.savings} currency={view.currency} Icon={PiggyBank} /> : null}
     </div>
     <div className="cr-dashboard-charts">
       <section className="cr-card" aria-labelledby="spending-heading"><h2 id="spending-heading">{c('spendingChart')}</h2><p className="cr-helper">{c('spendingHelp')}</p><LoadState loaded={activity}>{entries => <SpendingChart entries={entries} overview={overview} view={view} plan={plan} />}</LoadState></section>

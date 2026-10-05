@@ -52,3 +52,13 @@ it('replaces the zero assignment hero with real spending and allocation charts',
   expect(money.querySelector('.cr-hero')).toBeNull();
   expect(screen.getAllByRole('progressbar').length).toBe(fixtures.plan.groups.length);
 });
+
+it('does not show reserve or savings tiles when those item types are not configured', async () => {
+  const plan = { ...fixtures.plan, groups: fixtures.plan.groups.map(g => ({ ...g, items: g.items.filter(i => i.kind === 'spending'), flex: g.flex })) };
+  const api = fakeApi({ planMonth: async () => plan, activity: async () => ({ ...fixtures.activity, next: null }) });
+  renderWithWorkspace(<HomeScreen onRecord={vi.fn()} />, api);
+  await screen.findByRole('img', { name: /Spending this month/ });
+  expect(screen.queryByText('Reserves and loan payments')).not.toBeInTheDocument();
+  expect(screen.queryByText('Available in your goals')).not.toBeInTheDocument();
+  expect(screen.getByText('Available to spend')).toBeInTheDocument();
+});

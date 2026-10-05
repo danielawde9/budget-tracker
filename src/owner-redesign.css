@@ -126,7 +126,7 @@ summary:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 3px
 .cr-home .cr-money-card--settled .cr-section-header { margin: 0; }
 .cr-home .cr-money-card--action { padding: 20px; }
 .cr-home .cr-money-card--action .cr-hero .cr-amount--hero { font-size: 36px; }
-.cr-dashboard-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.cr-dashboard-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
 .cr-dashboard .cr-card { margin: 0; min-inline-size: 0; }
 .cr-metric { display: flex; flex-direction: row; align-items: start; gap: 12px; padding: 20px; }
 .cr-metric > svg { color: var(--cr-accent-strong); flex-shrink: 0; margin-block-start: 4px; }
@@ -191,3 +191,27 @@ summary:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 3px
   .cr-money-card--settled .cr-section-header { gap: 24px; }
 }
 .cr-money-card--settled h2 { color: var(--cr-accent-strong); }
+
+/* Keep the assigned state in a toolbar so charts lead the page. */
+.cr-home { gap: 16px; }
+.cr-dashboard { gap: 16px; }
+.cr-home .cr-money-card--settled { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.cr-money-card--settled > .cr-section-header { flex: 1; min-inline-size: 0; }
+.cr-home-status { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.cr-home-status .cr-assigned-badge { padding: 6px 10px; font-size: 13px; }
+.cr-money-card--settled .cr-hero-actions { gap: 12px; }
+.cr-money-card--settled .cr-hero-actions .text-button { font-size: 14px; }
+.cr-money-card--settled .cr-money-breakdown { border: 0; }
+.cr-money-card--settled .cr-money-breakdown > summary { padding: 8px 0; font-size: 13px; }
+.cr-money-card--settled .cr-money-breakdown[open] { flex-basis: 100%; background: var(--cr-surface); border: 1px solid var(--cr-border); border-radius: 12px; padding: 12px 16px; }
+.cr-money-card--settled > .cr-helper { flex-basis: 100%; }
+.cr-dashboard .cr-metric { padding: 16px; }
+.cr-metric .cr-amount { margin-block: 4px; }
+.cr-spending-chart { max-block-size: 260px; }
+.cr-category-progress li { padding-block: 12px; }
+@media (min-width: 1024px) { .cr-shell .cr-header:has(+ .cr-home) { margin-block-end: 16px; } }
+@media (max-width: 680px) {
+  .cr-money-card--settled > .cr-section-header { flex-basis: 100%; }
+  .cr-home .cr-money-card--settled { gap: 4px 16px; }
+  .cr-dashboard-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

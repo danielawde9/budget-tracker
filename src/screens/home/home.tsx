@@ -1,6 +1,6 @@
 import { Dashboard } from './dashboard.tsx';
 import { useState } from 'react';
-import { Wallet, Plus } from 'lucide-react';
+import { Wallet, Plus, CheckCircle2 } from 'lucide-react';
 import { useUiCopy } from '../../lib/ui-copy.ts';
 import { MoneyHelp } from '../../ui/money-help.tsx';
 import { DemoTourInvite } from '../../preview/tour.tsx';
@@ -69,7 +69,7 @@ function MoneyCard({ view, overview, currency, onCurrency, onRecord }: {
   readonly onCurrency: (currency: Currency) => void;
   readonly onRecord: (intent: RecordIntent) => void;
 }) {
-  const { t, money } = useI18n();
+  const { t, money, date } = useI18n();
   const c = useUiCopy();
   const overAssigned = view.ready < 0n;
   const rate = overview.referenceRate;
@@ -78,7 +78,7 @@ function MoneyCard({ view, overview, currency, onCurrency, onRecord }: {
       <div className="cr-section-header">
         <div>
           {view.ready !== 0n ? <p className="cr-label">{c('nextStep')}</p> : null}
-          <h2 id="money-heading">{overAssigned ? t('home.overAssigned') : view.ready > 0n ? c('givePurpose') : c('allAssigned')}</h2>
+          {view.ready === 0n ? <div className="cr-home-status"><span className="cr-helper">{date(overview.month, 'month')}</span><span className="cr-assigned-badge"><CheckCircle2 size={16} aria-hidden />{c('allAssigned')}</span></div> : <h2 id="money-heading">{overAssigned ? t('home.overAssigned') : c('givePurpose')}</h2>}
         </div>
         {overview.currencies.length > 1 ? (
           <div className="cr-tabs" role="group" aria-label={t('common.currency')}>
