@@ -116,3 +116,78 @@ summary:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 3px
 .cr-dialog .cr-affix-suffix { padding-block-end: 0; }
 .cr-header-actions { max-inline-size: 100%; min-inline-size: 0; }
 .cr-glossary dd { white-space: normal; font-weight: 400; overflow-wrap: anywhere; }
+
+/* Home: useful monthly context, with an assignment action only when needed. */
+.cr-dashboard { display: grid; gap: 20px; min-inline-size: 0; }
+.cr-dashboard-status { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.cr-assigned-badge { display: inline-flex; gap: 8px; align-items: center; padding: 8px 12px; border-radius: 8px; background: var(--cr-accent-soft); color: var(--cr-accent-strong); font-size: 14px; }
+.cr-home .cr-money-card--settled { background: var(--cr-surface); padding: 16px 20px; gap: 10px; }
+.cr-home .cr-money-card--settled h2 { font-size: 18px; }
+.cr-home .cr-money-card--settled .cr-section-header { margin: 0; }
+.cr-home .cr-money-card--action { padding: 20px; }
+.cr-home .cr-money-card--action .cr-hero .cr-amount--hero { font-size: 36px; }
+.cr-dashboard-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.cr-dashboard .cr-card { margin: 0; min-inline-size: 0; }
+.cr-metric { display: flex; flex-direction: row; align-items: start; gap: 12px; padding: 20px; }
+.cr-metric > svg { color: var(--cr-accent-strong); flex-shrink: 0; margin-block-start: 4px; }
+.cr-metric > div { min-inline-size: 0; }
+.cr-metric .cr-amount { font-size: clamp(20px, 2vw, 28px); font-weight: 750; display: block; margin-block: 8px; overflow-wrap: anywhere; }
+.cr-metric .cr-helper { font-size: 13px; line-height: 1.5; }
+.cr-dashboard-charts { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 20px; align-items: stretch; }
+.cr-dashboard h2 { font-size: 20px; }
+.cr-chart-key { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; font-size: 13px; margin-block: 12px; }
+.cr-chart-key > span { display: inline-flex; align-items: center; gap: 6px; }
+.cr-chart-key strong { margin-inline-start: auto; }
+.cr-chart-key i { inline-size: 16px; border-block-start: 3px solid #17634f; }
+.cr-chart-key i.cr-chart-key-plan { border-block-start: 2px dashed #58ac92; }
+.cr-spending-chart { inline-size: 100%; block-size: auto; overflow: visible; direction: ltr; }
+.cr-spending-chart text { font-size: 11px; fill: var(--cr-ink-soft); }
+.cr-chart-grid { stroke: var(--cr-border); stroke-width: 1; }
+.cr-chart-actual { fill: none; stroke: #17634f; stroke-width: 3; stroke-linejoin: round; }
+.cr-chart-pace { fill: none; stroke: #58ac92; stroke-width: 2; stroke-dasharray: 6 5; }
+.cr-chart-area { fill: #58ac9229; }
+.cr-chart-data { font-size: 13px; }
+.cr-chart-data summary { cursor: pointer; padding-block: 8px; color: var(--cr-accent-strong); }
+.cr-chart-data table { inline-size: 100%; border-collapse: collapse; }
+.cr-chart-data td, .cr-chart-data th { padding: 8px; text-align: start; border-block-end: 1px solid var(--cr-border); }
+.cr-allocation { display: flex; flex-direction: column; align-items: center; gap: 20px; margin-block-start: 16px; }
+.cr-donut { inline-size: 190px; block-size: 190px; border-radius: 50%; padding: 23px; display: grid; place-items: center; flex-shrink: 0; }
+.cr-donut > div { border-radius: 50%; background: var(--cr-surface); inline-size: 100%; block-size: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 8px; text-align: center; padding: 10px; }
+.cr-donut .cr-amount { font-size: 20px; font-weight: 750; }
+.cr-donut span { font-size: 11px; color: var(--cr-ink-soft); }
+.cr-chart-legend { list-style: none; padding: 0; margin: 0; inline-size: 100%; display: grid; gap: 12px; }
+.cr-chart-legend li { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.cr-chart-legend bdi { flex: 1; }
+.cr-chart-dot { inline-size: 10px; block-size: 10px; border-radius: 50%; flex-shrink: 0; }
+.cr-category-progress { list-style: none; padding: 0; margin: 12px 0 0; }
+.cr-category-progress li { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(100px, 2fr) minmax(160px, 1fr); align-items: center; gap: 20px; padding-block: 16px; border-block-end: 1px solid var(--cr-hairline); }
+.cr-category-progress li > span { text-align: end; font-size: 14px; }
+.cr-category-progress progress { inline-size: 100%; block-size: 10px; border: 0; border-radius: 6px; overflow: hidden; background: #e1ece7; accent-color: #17634f; }
+.cr-category-progress progress::-webkit-progress-bar { background: #e1ece7; border-radius: 6px; }
+.cr-category-progress progress::-webkit-progress-value { background: #17634f; border-radius: 6px; }
+.cr-category-progress progress::-moz-progress-bar { background: #17634f; border-radius: 6px; }
+.cr-category-progress .cr-progress-over { accent-color: var(--cr-danger); }
+.cr-category-progress .cr-progress-over::-webkit-progress-value { background: var(--cr-danger); }
+.cr-category-progress .cr-progress-over::-moz-progress-bar { background: var(--cr-danger); }
+.cr-over-label { display: block; color: var(--cr-danger); margin-block-start: 4px; }
+.cr-home-columns > .cr-card { margin: 0; min-inline-size: 0; }
+@media (max-width: 1200px) { .cr-dashboard-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 800px) {
+  .cr-dashboard-charts { grid-template-columns: minmax(0, 1fr); }
+  .cr-category-progress li { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+  .cr-category-progress progress { grid-row: 2; grid-column: 1 / -1; }
+  .cr-allocation { flex-direction: row; }
+}
+@media (max-width: 480px) {
+  .cr-metric { padding: 14px; gap: 8px; }
+  .cr-metric > svg { display: none; }
+  .cr-dashboard-metrics { gap: 10px; }
+  .cr-allocation { flex-direction: column; }
+  .cr-home .cr-money-card--settled { padding: 16px; }
+}
+@media (min-width: 681px) {
+  .cr-home .cr-money-card--settled { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .cr-money-card--settled .cr-money-breakdown { grid-column: 1 / -1; }
+  .cr-money-card--settled .cr-section-header { gap: 24px; }
+}
+.cr-money-card--settled h2 { color: var(--cr-accent-strong); }

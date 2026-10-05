@@ -1,3 +1,4 @@
+import { Dashboard } from './dashboard.tsx';
 import { useState } from 'react';
 import { Wallet, Plus } from 'lucide-react';
 import { useUiCopy } from '../../lib/ui-copy.ts';
@@ -53,13 +54,10 @@ function HomeBody({ overview, onRecord }: { readonly overview: Overview; readonl
         </section>
       ) : null}
       <MoneyCard view={view} overview={overview} currency={currency} onCurrency={setCurrency} onRecord={onRecord} />
+      <Dashboard overview={overview} view={view} />
+      <div className="cr-home-columns"><UpcomingBills onRecord={onRecord} /><RecentActivity /></div>
       <section className="cr-wallet-section" aria-labelledby="wallets-heading"><div className="cr-section-header"><h2 id="wallets-heading">{c('wallets')}</h2><button className="text-button" type="button" onClick={() => onRecord({ kind: 'wallet' })}><Plus size={16} aria-hidden />{t('home.addWallet')}</button></div><ul className="cr-register">{overview.currencies.flatMap((pile) => pile.wallets.map((wallet) => <li key={wallet.walletId} className="cr-register-row"><Wallet aria-hidden size={20} /><bdi className="cr-register-title">{wallet.name}</bdi><Amount minor={wallet.balance} currency={pile.currency} /></li>))}</ul></section>
-      <details className="cr-disclosure"><summary>{t('home.alerts')} <span className="cr-helper">{date(overview.month, 'month')} · {overview.alerts.length}</span></summary><Alerts alerts={overview.alerts} month={overview.month} onRecord={onRecord} /></details>
-      <details className="cr-disclosure"><summary>{t('home.billsTitle')}</summary><UpcomingBills onRecord={onRecord} /></details>
-      <details className="cr-disclosure"><summary>{c('planDetails')}</summary><div className="cr-home-columns">
-        <SetAsideCard view={view} />
-        <RecentActivity />
-      </div></details>
+      {overview.alerts.length > 0 ? <Alerts alerts={overview.alerts} month={overview.month} onRecord={onRecord} /> : null}
     </div>
   );
 }
@@ -76,11 +74,11 @@ function MoneyCard({ view, overview, currency, onCurrency, onRecord }: {
   const overAssigned = view.ready < 0n;
   const rate = overview.referenceRate;
   return (
-    <section className="cr-card cr-money-card" aria-label={t('home.moneyTitle')}>
+    <section className={`cr-card cr-money-card ${view.ready === 0n ? 'cr-money-card--settled' : 'cr-money-card--action'}`} aria-label={t('home.moneyTitle')}>
       <div className="cr-section-header">
         <div>
-          <p className="cr-label">{c('nextStep')}</p>
-          <h2 id="money-heading">{overAssigned ? t('home.overAssigned') : view.ready > 0n ? c('givePurpose') : c('funded')}</h2>
+          {view.ready !== 0n ? <p className="cr-label">{c('nextStep')}</p> : null}
+          <h2 id="money-heading">{overAssigned ? t('home.overAssigned') : view.ready > 0n ? c('givePurpose') : c('allAssigned')}</h2>
         </div>
         {overview.currencies.length > 1 ? (
           <div className="cr-tabs" role="group" aria-label={t('common.currency')}>
@@ -93,15 +91,15 @@ function MoneyCard({ view, overview, currency, onCurrency, onRecord }: {
           </div>
         ) : null}
       </div>
-      <div className="cr-hero">
+      {view.ready !== 0n ? <div className="cr-hero">
         <div className="cr-label">{overAssigned ? t('home.overAssigned') : t('common.readyToAssign')} <MoneyHelp term="ready" /></div>
         <Amount minor={overAssigned ? -view.ready : view.ready} currency={currency} className="cr-amount--hero" tone={overAssigned ? 'negative' : 'plain'} />
         <p className="cr-helper">{overAssigned ? t('home.overAssignedHelp') : view.ready > 0n ? c('readyBody') : c('fundedBody')}</p>
+      </div> : null}
+      <div className="cr-hero-actions">{view.ready > 0n ? <button type="button" className="cr-button cr-button--primary" onClick={() => onRecord(currency === overview.planCurrency ? { kind: 'fund', month: overview.month } : { kind: 'move', currency })}>{currency === overview.planCurrency ? c('fund') : t('plan.move')}</button> : view.ready < 0n ? <button type="button" className="cr-button cr-button--primary" onClick={() => onRecord({ kind: 'move', currency })}>{t('alert.takeBack')}</button> : null}<button type="button" className="text-button" onClick={() => navigate({ name: 'plan', month: overview.month })}>{c('viewPlan')}</button></div>
         {currency === 'LBP' && rate && view.cashHeld !== 0n ? (
           <p className="cr-helper">{t('common.approx', { amount: money(approxUsd(view.cashHeld, rate.unitsPerUsd), 'USD'), rate: rate.unitsPerUsd })}</p>
         ) : null}
-      </div>
-      <div className="cr-hero-actions">{view.ready > 0n ? <button type="button" className="cr-button cr-button--primary" onClick={() => onRecord(currency === overview.planCurrency ? { kind: 'fund', month: overview.month } : { kind: 'move', currency })}>{currency === overview.planCurrency ? c('fund') : t('plan.move')}</button> : view.ready < 0n ? <button type="button" className="cr-button cr-button--primary" onClick={() => onRecord({ kind: 'move', currency })}>{t('alert.takeBack')}</button> : null}<button type="button" className="text-button" onClick={() => navigate({ name: 'plan', month: overview.month })}>{c('viewPlan')}</button></div>
       <details className="cr-money-breakdown"><summary>{c('breakdown')}</summary><div>
       <dl className="cr-equation" aria-label={t('home.equationLabel')}>
         <div><dt>{t('home.cashHeld')}</dt><dd><Amount minor={view.cashHeld} currency={currency} /></dd></div>
@@ -215,37 +213,6 @@ function UpcomingBills({ onRecord }: { readonly onRecord: (intent: RecordIntent)
           );
         }}
       </LoadState>
-    </section>
-  );
-}
-
-function SetAsideCard({ view }: { readonly view: CurrencyOverview }) {
-  const { t, name } = useI18n();
-  const max = view.setAsideByGroup.reduce((top, group) => (group.amount > top ? group.amount : top), 0n);
-  return (
-    <section className="cr-card" aria-labelledby="set-aside-heading">
-      <div className="cr-section-header">
-        <div>
-          <h2 id="set-aside-heading">{t('home.setAsideTitle')}</h2>
-          <p className="cr-helper">{t('home.setAsideIntro')}</p>
-        </div>
-        <button type="button" className="text-button" onClick={() => navigate({ name: 'plan', month: null })}>{t('home.openPlan')}</button>
-      </div>
-      {view.setAsideByGroup.length === 0 ? <p className="cr-helper">{t('home.nothingSetAside')}</p> : (
-        <ul className="cr-register">
-          {view.setAsideByGroup.map((group) => (
-            <li key={group.groupId} className="cr-register-row">
-              <div className="cr-register-main">
-                <bdi className="cr-register-title">{name(group)}</bdi>
-                <div className="cr-progress" aria-hidden="true">
-                  <span style={{ inlineSize: `${max > 0n ? Number((group.amount * 100n) / max) : 0}%` }} />
-                </div>
-              </div>
-              <Amount minor={group.amount} currency={view.currency} />
-            </li>
-          ))}
-        </ul>
-      )}
     </section>
   );
 }
