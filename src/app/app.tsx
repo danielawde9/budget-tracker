@@ -15,8 +15,10 @@ import { Onboarding } from '../screens/onboarding/onboarding.tsx';
 import { PlanScreen } from '../screens/plan/plan.tsx';
 import { SettingsScreen } from '../screens/settings/settings.tsx';
 import { ErrorNotice } from '../ui/async.tsx';
+import { PageMetadata } from './page-metadata.tsx';
 import { AuthScreen } from './auth-screen.tsx';
-import { useRoute } from './router.ts';
+import { InviteAcceptance } from './invite-acceptance.tsx';
+import { navigate, useRoute } from './router.ts';
 import { useSpaces } from './use-spaces.ts';
 import { Shell } from './shell.tsx';
 import { useSession } from './use-session.ts';
@@ -73,7 +75,7 @@ function StatePage({ titleKey, bodyKey }: { readonly titleKey: 'app.configTitle'
   const { t } = useI18n();
   return (
     <main className="auth-page">
-      <section className="auth-boundary" role="alert">
+      <section className="auth-boundary" role="alert"><PageMetadata page="onboarding" />
         <h1>{t(titleKey)}</h1>
         <p>{t(bodyKey)}</p>
       </section>
@@ -83,20 +85,23 @@ function StatePage({ titleKey, bodyKey }: { readonly titleKey: 'app.configTitle'
 
 function SignedInGate({ client, api, onToggleLocale }: { readonly client: SupabaseClient; readonly api: BudgetApi; readonly onToggleLocale: () => void }) {
   const session = useSession(client);
+  const route = useRoute();
   const { t } = useI18n();
   if (session.status === 'loading') return <main className="auth-page"><p role="status">{t('common.loading')}</p></main>;
-  if (session.status === 'signed-out') return <AuthScreen client={client} onToggleLocale={onToggleLocale} />;
+  if (session.status === 'signed-out') return <><PageMetadata page={route.name === 'invite' ? 'invite' : 'public'} /><AuthScreen client={client} onToggleLocale={onToggleLocale} /></>;
   return <SpacesGate key={session.session.user.id} api={api} client={client} onToggleLocale={onToggleLocale} />;
 }
 
 function SpacesGate({ api, client, onToggleLocale }: { readonly api: BudgetApi; readonly client: SupabaseClient; readonly onToggleLocale: () => void }) {
   const { spaces, reload } = useSpaces(api);
+  const route = useRoute();
   const [selected, setSelected] = useState<string | null>(() => readStored(SPACE_KEY));
   const select = useCallback((spaceId: string) => {
     writeStored(SPACE_KEY, spaceId);
     setSelected(spaceId);
   }, []);
   const { t } = useI18n();
+  if (route.name === 'invite') return <InviteAcceptance key={route.token} api={api} token={route.token} onSignOut={() => void client.auth.signOut()} onAccepted={spaceId => { select(spaceId); reload(); navigate({ name: 'home' }); }} />;
   if (spaces.status === 'error' && spaces.data === null) {
     return <main className="auth-page"><ErrorNotice error={spaces.error} onRetry={spaces.reload} /></main>;
   }
@@ -105,6 +110,8 @@ function SpacesGate({ api, client, onToggleLocale }: { readonly api: BudgetApi; 
   const space = list.find((candidate) => candidate.id === selected) ?? list[0];
   if (!space) {
     return (
+      <>
+      <PageMetadata page="onboarding" />
       <Onboarding
         api={api}
         onToggleLocale={onToggleLocale}
@@ -113,7 +120,7 @@ function SpacesGate({ api, client, onToggleLocale }: { readonly api: BudgetApi; 
           select(spaceId);
           reload();
         }}
-      />
+      /></>
     );
   }
   return (
@@ -134,7 +141,7 @@ function Routes({ space, spaces, onSelectSpace, onToggleLocale, onSignOut }: {
   const [record, setRecord] = useState<RecordIntent | null>(() => quickAddIntent());
   const openRecord = useCallback((intent: RecordIntent) => setRecord(intent), []);
   return (
-    <DemoTourProvider key={space.id}><Shell route={route} space={space} spaces={spaces} onSelectSpace={onSelectSpace} onRecord={() => openRecord({ kind: 'expense' })} onToggleLocale={onToggleLocale}>
+    <DemoTourProvider key={space.id}><PageMetadata page={route.name} /><Shell route={route} space={space} spaces={spaces} onSelectSpace={onSelectSpace} onRecord={() => openRecord({ kind: 'expense' })} onToggleLocale={onToggleLocale}>
       {route.name === 'home' ? <HomeScreen onRecord={openRecord} /> : null}
       {route.name === 'plan' ? <PlanScreen month={route.month ?? space.currentMonth} onRecord={openRecord} /> : null}
       {route.name === 'activity' ? <ActivityScreen onRecord={openRecord} /> : null}

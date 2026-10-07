@@ -34,6 +34,7 @@ export type FakeApi = { [K in keyof BudgetApi]: ReturnType<typeof vi.fn> & Budge
 export function fakeApi(overrides: Partial<Record<keyof BudgetApi, (...args: never[]) => unknown>> = {}): FakeApi {
   const unstubbed = (name: string) => vi.fn(async () => { throw new Error(`${name} is not stubbed`); });
   const api: Record<string, unknown> = {
+    spaceInvitations: vi.fn(async () => []),
     mySpaces: vi.fn(async () => fixtures.spaces),
     clockToday: vi.fn(async () => space().today),
     overview: vi.fn(async () => fixtures.overview),
@@ -44,7 +45,7 @@ export function fakeApi(overrides: Partial<Record<keyof BudgetApi, (...args: nev
     billsList: vi.fn(async () => []),
     expenseSuggestions: vi.fn(async () => ({ lastWalletId: null, suggestions: [] })),
   };
-  for (const name of ['fundingPreview', 'itemStatement', 'createSpace', 'createWallet', 'updateWallet', 'assignMoney', 'recordIncome', 'recordExpense',
+  for (const name of ['createSpaceInvitation', 'revokeSpaceInvitation', 'acceptSpaceInvitation', 'fundingPreview', 'itemStatement', 'createSpace', 'createWallet', 'updateWallet', 'assignMoney', 'recordIncome', 'recordExpense',
     'recordRefund', 'recordTransfer', 'recordExchange', 'recordInvestment', 'recordLoan', 'reverseEntry', 'saveBill', 'skipBill', 'unskipBill', 'setReferenceRate', 'savePlan']) {
     api[name] = unstubbed(name);
   }

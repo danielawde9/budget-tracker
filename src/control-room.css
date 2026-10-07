@@ -309,13 +309,14 @@
   gap: var(--cr-space-2);
   min-block-size: 44px;
   margin-block-end: var(--cr-space-5);
-  padding-inline: var(--cr-space-2);
+  padding-inline: 0;
   color: var(--cr-rail-ink);
-  font-size: 21px;
+  font-size: 0.875rem;
   font-weight: 800;
   letter-spacing: -0.02em;
 }
-.cr-brand svg { color: var(--cr-rail-indicator); flex: none; }
+.cr-brand svg { color: var(--cr-rail-indicator); flex: none; inline-size: 18px; block-size: 18px; }
+.cr-rail .cr-brand-name { white-space: nowrap; }
 
 @media (min-width: 1024px) {
   .cr-shell { flex-direction: row; }
@@ -1819,3 +1820,10 @@
 
 /* Domain branding remains readable in narrow rails and RTL layouts. */
 .cr-brand-name { min-inline-size: 0; overflow-wrap: anywhere; }
+
+.cr-invitations { list-style: none; padding: 0; margin: 0; }
+.cr-invitations li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--cr-space-3); padding-block: var(--cr-space-3); border-block-end: 1px solid var(--cr-border); }
+.cr-invitations bdi { overflow-wrap: anywhere; }
+.cr-invitations .cr-helper { margin-block: var(--cr-space-1) 0; }
+
+.cr-invite-controls .cr-field, .cr-invite-controls .cr-field > input { inline-size: 100%; min-inline-size: 0; }

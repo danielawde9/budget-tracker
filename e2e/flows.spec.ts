@@ -55,7 +55,7 @@ test('a fresh account: onboarding, income, funding, overspending and taking it b
   await expectEquation(page, '$4,060.00', '$4,110.00', '-$50.00');
 
   // Taking money back from an item restores the balance.
-  await page.getByRole('button', { name: 'Take back' }).click();
+  await moneyCard(page).getByRole('button', { name: 'Take back' }).click();
   const move = page.getByRole('dialog');
   await move.getByLabel('From', { exact: true }).selectOption({ label: 'Other essentials — $2,466.00' });
   await move.getByLabel('To', { exact: true }).selectOption({ label: 'Ready to assign — -$50.00' });

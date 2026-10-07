@@ -105,5 +105,10 @@ export function useCommand<A, R>(run: (requestId: string, args: A) => Promise<R>
       setPending(false);
     }
   }, [run, requestId]);
-  return { submit, pending, error, clearError: () => setError(null) };
+  const resetRequest = useCallback(() => {
+    if (inFlight.current) return;
+    setRequestId(newRequestId());
+    setError(null);
+  }, []);
+  return { submit, pending, error, resetRequest, clearError: () => setError(null) };
 }

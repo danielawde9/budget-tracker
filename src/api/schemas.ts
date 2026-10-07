@@ -290,3 +290,6 @@ export type Bill = z.infer<typeof bill>;
 export type ExpenseSuggestion = z.infer<typeof expenseSuggestion>;
 export type ExpenseSuggestions = z.infer<typeof expenseSuggestions>;
 export type WalletKind = z.infer<typeof walletKind>;
+
+export const spaceInvitation = z.object({ invitationId: id, email: z.string(), expiresAt: z.string() });
+export const invitationResult = spaceInvitation.pick({ invitationId: true, expiresAt: true });

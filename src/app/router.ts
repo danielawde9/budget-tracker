@@ -1,17 +1,20 @@
 import { useEffect, useState } from 'react';
 
 export type Route =
+  | { readonly name: 'invite'; readonly token: string }
   | { readonly name: 'home' }
   | { readonly name: 'plan'; readonly month: string | null }
   | { readonly name: 'activity' }
   | { readonly name: 'accounts' }
   | { readonly name: 'settings' };
 
-export type RouteName = Route['name'];
+export type RouteName = Exclude<Route['name'], 'invite'>;
 
 export function parseRoute(hash: string): Route {
   const [first, second] = hash.replace(/^#\/?/, '').split('/');
   switch (first) {
+    case 'invite':
+      return { name: 'invite', token: second ?? '' };
     case 'plan':
       return { name: 'plan', month: second && /^\d{4}-\d{2}$/.test(second) ? `${second}-01` : null };
     case 'activity':
@@ -26,6 +29,7 @@ export function parseRoute(hash: string): Route {
 }
 
 export function routeHash(route: Route): string {
+  if (route.name === 'invite') return `#/invite/${route.token}`;
   if (route.name === 'plan') return route.month ? `#/plan/${route.month.slice(0, 7)}` : '#/plan';
   return `#/${route.name}`;
 }

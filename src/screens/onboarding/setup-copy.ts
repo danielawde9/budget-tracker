@@ -2,7 +2,7 @@ import type { Locale } from '../../lib/money.ts';
 
 const copy = {
   headline: { en: 'Know what your money is for.', ar: 'اعرف الغرض من مالك.' },
-  subtitle: { en: 'Plan in USD. Keep track of USD and LBP together.', ar: 'خطّط بالدولار وتابع الدولار والليرة معًا.' },
+  subtitle: { en: 'Plan your monthly budget in USD. Track expenses, income and wallets in USD and LBP, in English or Arabic.', ar: 'خطّط ميزانيتك الشهرية بالدولار. تابع المصروفات والدخل والمحافظ بالدولار والليرة، بالعربية أو الإنجليزية.' },
   tagline: { en: 'A calmer way to plan your next month.', ar: 'طريقة أهدأ للتخطيط لشهرك المقبل.' },
   currencyHint: { en: 'Your plan is sized in USD. Add LBP wallets next, then assign LBP to your items separately.', ar: 'يُحدَّد حجم خطتك بالدولار. أضف محافظ الليرة في الخطوة التالية ثم وزّع الليرة على بنودك بشكل منفصل.' },
   saveWallet: { en: 'Save wallet and continue', ar: 'حفظ المحفظة والمتابعة' },

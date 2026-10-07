@@ -27,3 +27,7 @@
   .auth-redesign .auth-content { padding: 24px; }
   .auth-redesign .cr-demo-accounts { grid-template-columns: 1fr; }
 }
+
+@media (min-width: 1024px) {
+  .auth-redesign .auth-brand { font-size: 1rem; }
+}
