@@ -1,5 +1,19 @@
 /** Screen copy in English and Arabic. Merged into `messages` in i18n.tsx. */
 export const screenMessages = {
+  'statement.check': { en: 'Check against a statement', ar: 'مقارنة مع كشف الحساب' },
+  'statement.readOnly': { en: 'Comparing changes nothing. Nothing is saved and no adjustment entry is created.', ar: 'المقارنة لا تغيّر شيئًا. لا يُحفظ شيء ولا يُنشأ قيد لتعديل الرصيد.' },
+  'statement.details': { en: 'Statement details', ar: 'تفاصيل كشف الحساب' },
+  'statement.date': { en: 'Statement date', ar: 'تاريخ كشف الحساب' },
+  'statement.balance': { en: 'Statement balance', ar: 'رصيد كشف الحساب' },
+  'statement.cents': { en: 'USD accepts dollars and cents. Use a minus sign for a balance owed.', ar: 'يُقبل الدولار والسنت. استخدم إشارة ناقص للرصيد المستحق عليك.' },
+  'statement.whole': { en: 'LBP accepts whole lira. Use a minus sign for a balance owed.', ar: 'تُقبل الليرة بأعداد صحيحة. استخدم إشارة ناقص للرصيد المستحق عليك.' },
+  'statement.compare': { en: 'Compare balances', ar: 'مقارنة الرصيدين' },
+  'statement.recordedNow': { en: 'App balance at the end of that day, as recorded now:', ar: 'رصيد التطبيق في نهاية ذلك اليوم، حسب القيود الحالية:' },
+  'statement.match': { en: 'The statement and app balances match.', ar: 'رصيد كشف الحساب يطابق رصيد التطبيق.' },
+  'statement.more': { en: 'The statement has more than the app by', ar: 'رصيد كشف الحساب أعلى من التطبيق بمقدار' },
+  'statement.less': { en: 'The statement has less than the app by', ar: 'رصيد كشف الحساب أقل من التطبيق بمقدار' },
+  'statement.activity': { en: 'See this month in Activity', ar: 'عرض نشاط هذا الشهر' },
+  'statement.record': { en: 'Record a missing entry', ar: 'تسجيل قيد ناقص' },
   'app.configTitle': { en: 'Configuration needed', ar: 'يلزم الإعداد' },
   'app.configBody': { en: 'This build has no backend address. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.', ar: 'هذا الإصدار بلا عنوان خادم. اضبط VITE_SUPABASE_URL وVITE_SUPABASE_ANON_KEY.' },
 

@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import { WalletStatementDialog } from './wallet-statement.tsx';
+import { ViewportDisclosure } from '../../ui/viewport-disclosure.tsx';
 import { MoreHorizontal } from 'lucide-react';
 import { useUiCopy } from '../../lib/ui-copy.ts';
 import type { AccountWallet } from '../../api/schemas.ts';
@@ -10,6 +13,7 @@ import { Amount } from '../../ui/money.tsx';
 
 export function AccountsScreen({ onRecord }: { readonly onRecord: (intent: RecordIntent) => void }) {
   const { t } = useI18n();
+  const [statementWallet, setStatementWallet] = useState<AccountWallet | null>(null);
   const { catalog } = useWorkspace();
   return (
     <>
@@ -23,6 +27,7 @@ export function AccountsScreen({ onRecord }: { readonly onRecord: (intent: Recor
           <div className="cr-accounts">
             <WalletList titleKey="accounts.cashTitle" introKey="accounts.cashIntro" wallets={activeWallets(accounts, 'cash')} onAdd={() => onRecord({ kind: 'wallet', walletKind: 'cash' })}
               actions={(wallet) => [
+                { label: t('statement.check'), run: () => setStatementWallet(wallet) },
                 { label: t('record.kind.expense'), run: () => onRecord({ kind: 'expense', walletId: wallet.id }) },
                 { label: t('record.kind.income'), run: () => onRecord({ kind: 'income', walletId: wallet.id }) },
                 { label: t('record.kind.transfer'), run: () => onRecord({ kind: 'transfer' }) },
@@ -46,6 +51,7 @@ export function AccountsScreen({ onRecord }: { readonly onRecord: (intent: Recor
           </div>
         )}
       </LoadState>
+      {statementWallet ? <WalletStatementDialog wallet={statementWallet} onClose={() => setStatementWallet(null)} onRecord={(intent) => { setStatementWallet(null); onRecord(intent); }} /> : null}
     </>
   );
 }
@@ -77,9 +83,9 @@ function WalletList({ titleKey, introKey, wallets, onAdd, actions }: {
                 <WalletFacts wallet={wallet} />
               </div>
               <Amount minor={wallet.loanDirection === 'i_owe' ? -wallet.balance : wallet.balance} currency={wallet.currency} />
-              <details className="cr-account-menu"><summary><MoreHorizontal size={20} aria-hidden /><span className="cr-visually-hidden">{c('accountActions')}</span></summary><div className="cr-account-actions">
+              <ViewportDisclosure className="cr-account-menu" panelClassName="cr-account-actions" summary={<><MoreHorizontal size={20} aria-hidden /><span className="cr-visually-hidden">{c('accountActions')}</span></>}>
                 {actions(wallet).map((action) => <button key={action.label} type="button" className="cr-button cr-button--sm" onClick={(event) => { const menu = event.currentTarget.closest('details'); if (menu) { menu.open = false; menu.querySelector('summary')?.focus(); } action.run(); }}>{action.label}</button>)}
-              </div></details>
+              </ViewportDisclosure>
             </li>
           ))}
         </ul>

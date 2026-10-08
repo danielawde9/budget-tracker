@@ -24,5 +24,9 @@ export default defineConfig({
     reuseExistingServer: true,
     timeout: 60_000,
   },
-  projects: [{ name: 'desktop', use: { ...devices['Desktop Chrome'], channel: 'chrome', viewport: { width: 1440, height: 1000 } } }],
+  projects: [
+    { name: 'desktop', use: { ...devices['Desktop Chrome'], channel: 'chrome', viewport: { width: 1440, height: 1000 } } },
+    { name: 'mobile', use: { ...devices['iPhone 13'], defaultBrowserType: 'chromium', channel: 'chrome' } },
+    { name: 'mobile-small', testMatch: '**/mobile.spec.ts', use: { ...devices['iPhone SE'], defaultBrowserType: 'chromium', channel: 'chrome', viewport: { width: 320, height: 568 } } },
+  ],
 });

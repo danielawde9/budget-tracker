@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DependencyList, type ReactNode } from 'react';
+import { useCommandScope } from './command-pending.tsx';
 import { BudgetError, toBudgetError } from '../api/budget-api.ts';
 import { newRequestId } from '../api/request-id.ts';
 import { isMessageKey, useI18n, type I18n } from '../lib/i18n.tsx';
@@ -84,6 +85,7 @@ export function LoadState<T>({ loaded, children, skeleton }: { readonly loaded: 
  * second click while pending does nothing.
  */
 export function useCommand<A, R>(run: (requestId: string, args: A) => Promise<R>) {
+  const scope = useCommandScope();
   const [requestId, setRequestId] = useState(newRequestId);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<BudgetError | null>(null);
@@ -91,6 +93,7 @@ export function useCommand<A, R>(run: (requestId: string, args: A) => Promise<R>
   const submit = useCallback(async (args: A): Promise<R | null> => {
     if (inFlight.current) return null;
     inFlight.current = true;
+    const stopPending = scope?.start();
     setPending(true);
     setError(null);
     try {
@@ -101,10 +104,11 @@ export function useCommand<A, R>(run: (requestId: string, args: A) => Promise<R>
       setError(toBudgetError(caught));
       return null;
     } finally {
+      stopPending?.();
       inFlight.current = false;
       setPending(false);
     }
-  }, [run, requestId]);
+  }, [run, requestId, scope?.start]);
   const resetRequest = useCallback(() => {
     if (inFlight.current) return;
     setRequestId(newRequestId());

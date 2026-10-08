@@ -4255,3 +4255,25 @@ without a known loan identity are conservatively refused by the move command.
 Deploy the additive migration before this frontend. Existing migrations and
 money entries remain unchanged; historical partial bills are recalculated from
 their existing active payments.
+
+## 2026-10-08 — Preserve unconfirmed saves in memory and finish by replay
+
+Unknown transport, gateway or malformed-response outcomes keep the exact encoded
+RPC name, request ID and arguments in an app-owned store, separately per space.
+A different save in that space is refused until Check and finish replays the
+original request. Definite database refusals clear the attempt and display their
+reason. Successful replay clears it and refreshes reads; unconfirmed outcomes
+also refresh reads because the original save may already have committed.
+Record and plan modal hosts share their descendant commands' pending state,
+blocking Close, Escape, backdrop dismissal and action switches during a save.
+
+Recovery data stays in memory only, never browser storage or logs. Reload,
+closing the app or signing out loses it; the notice tells the person to finish
+before leaving. Session storage was rejected to avoid retaining private amounts
+on the device. Recovery is isolated per space and cleared when the signed-in
+account changes. This is not persistence across reloads.
+
+Cash statement comparison is a read, using the journal as recorded now for the
+selected day. It creates no adjustment entries or stored statement data. Clock
+control exists only in disposable test databases; the production clock returns
+transaction now and API roles cannot change or execute the private helper.

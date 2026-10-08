@@ -23,6 +23,7 @@ test('a fresh account: onboarding, income, funding, overspending and taking it b
 
   // 1 · Setup from zero.
   await page.getByLabel('Expected income').fill('4110');
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
   await page.getByRole('button', { name: 'Next' }).click();
   await page.getByRole('button', { name: 'Keep defaults' }).click();
   await page.getByLabel('Name', { exact: true }).fill('Bank');
@@ -73,8 +74,7 @@ test('a fresh account: onboarding, income, funding, overspending and taking it b
   await reassign.getByRole('button', { name: 'Move now', exact: true }).click();
   await done(page);
   await expectEquation(page, '$4,060.00', '$4,060.00', '$0.00');
-  await page.getByText('Plan details', { exact: true }).click();
-  const groups = page.getByRole('region', { name: 'Set aside by group' });
+  const groups = page.getByRole('region', { name: 'Where your money is assigned' });
   await expect(groups.getByRole('listitem').filter({ hasText: 'Savings' })).toContainText('$261.00');
   await expect(groups.getByRole('listitem').filter({ hasText: 'Short-term goals' })).toContainText('$766.50');
 

@@ -1,3 +1,4 @@
+import type { SaveRecoveryStore } from './save-recovery.ts';
 import type { z } from 'zod';
 import type { Currency } from '../lib/money.ts';
 import * as s from './schemas.ts';
@@ -108,18 +109,22 @@ interface Command {
 export type InvestmentAction = 'contribute' | 'withdraw' | 'value' | 'fee' | 'income_cash' | 'income_reinvested';
 export type LoanAction = 'borrow' | 'repay' | 'lend' | 'collect';
 
-export function createBudgetApi(client: RpcClient) {
+export function createBudgetApi(client: RpcClient, recovery?: SaveRecoveryStore) {
   async function call<T extends z.ZodType>(name: string, args: Record<string, unknown>, schema: T): Promise<z.output<T>> {
-    let result: RpcResult;
-    try {
-      result = await client.rpc(name, encode(args) as Record<string, unknown>).abortSignal(AbortSignal.timeout(TIMEOUT_MS));
-    } catch (error) {
-      throw toBudgetError(error);
-    }
-    if (result.error) throw toBudgetError(result.error);
-    const parsed = schema.safeParse(result.data);
-    if (!parsed.success) throw new BudgetError('BAD_RESPONSE', { rpc: name });
-    return parsed.data;
+    const encoded = encode(args) as Record<string, unknown>;
+    const payload = JSON.stringify(encoded);
+    const frozen = JSON.parse(payload) as Record<string, unknown>;
+    const send = async () => {
+      let result: RpcResult;
+      try { result = await client.rpc(name, frozen).abortSignal(AbortSignal.timeout(TIMEOUT_MS)); }
+      catch (error) { throw toBudgetError(error); }
+      if (result.error) throw toBudgetError(result.error);
+      const parsed = schema.safeParse(result.data);
+      if (!parsed.success) throw new BudgetError('BAD_RESPONSE', { rpc: name });
+      return parsed.data;
+    };
+    return recovery && typeof frozen['p_space'] === 'string' && typeof frozen['p_request'] === 'string'
+      ? recovery.perform(frozen['p_space'], frozen['p_request'], name, payload, send) : send();
   }
 
   const cmd = (input: Command) => ({ p_space: input.spaceId, p_request: input.requestId });
@@ -136,6 +141,8 @@ export function createBudgetApi(client: RpcClient) {
       call('item_statement', { p_space: spaceId, p_item: itemId, p_month: month }, s.itemStatement),
     activity: (spaceId: string, options: { limit?: number; before?: s.ActivityCursor | null; filter?: Record<string, string> } = {}) =>
       call('activity_page', { p_space: spaceId, p_limit: options.limit ?? 30, p_before: options.before ?? null, p_filter: options.filter ?? {} }, s.activityPage),
+    walletBalanceOn: (spaceId: string, walletId: string, on: string) =>
+      call('wallet_balance_on', { p_space: spaceId, p_wallet: walletId, p_on: on }, s.walletStatement),
     accounts: (spaceId: string) => call('accounts_overview', { p_space: spaceId }, s.accounts),
     billsUpcoming: (spaceId: string, from: string, to: string) =>
       call('bills_upcoming', { p_space: spaceId, p_from: from, p_to: to }, s.billOccurrence.array()),

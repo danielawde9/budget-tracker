@@ -10,6 +10,9 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const nullableText = z.string().nullable();
 export const currency = z.enum(['USD', 'LBP']);
 
+export const walletStatement = z.object({ walletId: id, currency, on: isoDate, balance: minor });
+export type WalletStatement = z.infer<typeof walletStatement>;
+
 export const spaceSummary = z.object({
   id,
   name: z.string(),

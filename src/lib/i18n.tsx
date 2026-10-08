@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { recoveryMessages } from './messages-recovery.ts';
 import { screenMessages } from './messages-screens.ts';
 import { formatMoney, type Currency, type Locale } from './money.ts';
 
@@ -7,6 +8,7 @@ import { formatMoney, type Currency, type Locale } from './money.ts';
  * `{name}` placeholders are filled by `t(key, { name })`.
  */
 export const messages = {
+  ...recoveryMessages,
   // Navigation and shell
   'invite.title': { en: 'Invite a member', ar: 'دعوة عضو' },
   'invite.ownerOnly': { en: 'Only the space owner can invite members.', ar: 'يمكن لمالك المساحة فقط دعوة الأعضاء.' },
@@ -70,7 +72,7 @@ export const messages = {
   'plan.flexGets': { en: '{name} gets {amount}', ar: '{name} يحصل على {amount}' },
 
   // Errors (codes come from the database)
-  'error.UNKNOWN': { en: 'Something went wrong. Nothing was saved. Try again.', ar: 'حدث خطأ. لم يُحفظ شيء. أعد المحاولة.' },
+  'error.UNKNOWN': { en: 'The result could not be confirmed. Check and finish an unconfirmed save before recording again.', ar: 'تعذّر تأكيد النتيجة. تحقق وأكمل عملية الحفظ غير المؤكدة قبل التسجيل مجددًا.' },
   'error.NETWORK': { en: 'The server could not be reached, so this may or may not have been saved. Try again from this same form: it will not be recorded twice.', ar: 'تعذّر الوصول إلى الخادم، لذا قد يكون هذا قد حُفظ أو لا. أعد المحاولة من النموذج نفسه: لن يُسجَّل مرتين.' },
   'error.BAD_RESPONSE': { en: 'The server sent an unexpected answer.', ar: 'أرسل الخادم ردًا غير متوقع.' },
   'error.BUDGET_NOT_MEMBER': { en: 'You no longer have access to this space.', ar: 'لم يعد لديك وصول إلى هذه المساحة.' },

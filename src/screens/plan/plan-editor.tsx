@@ -1,3 +1,4 @@
+import { CommandScope, useCommandScope } from '../../ui/command-pending.tsx';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState, type FormEvent } from 'react';
 import type { PlanInput } from '../../api/budget-api.ts';
@@ -96,9 +97,14 @@ function move<T>(list: readonly T[], index: number, offset: number): T[] {
  * amounts; the rest of each group goes to its flexible item.
  */
 export function PlanEditorDialog({ plan, month, onClose, groupId }: { readonly plan: PlanMonth; readonly month: string; readonly onClose: () => void; readonly groupId?: string | undefined }) {
+  return <CommandScope><PlanEditorBody plan={plan} month={month} onClose={onClose} groupId={groupId} /></CommandScope>;
+}
+
+function PlanEditorBody({ plan, month, onClose, groupId }: { readonly plan: PlanMonth; readonly month: string; readonly onClose: () => void; readonly groupId?: string | undefined }) {
   const { t, date } = useI18n();
+  const pending = Boolean(useCommandScope()?.pending);
   return (
-    <Dialog title={t('editor.title', { month: date(month, 'month') })} onClose={onClose} wide description={t('editor.intro')}>
+    <Dialog pending={pending} title={t('editor.title', { month: date(month, 'month') })} onClose={onClose} wide description={t('editor.intro')}>
       <PlanEditorForm plan={plan} month={month} onCancel={onClose} onSaved={onClose} initialGroupId={groupId} />
     </Dialog>
   );

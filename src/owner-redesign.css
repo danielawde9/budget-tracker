@@ -94,6 +94,7 @@ summary:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 3px
   .cr-tour-panel { inset-block-end: 24px; }
 }
 @media (max-width: 680px) {
+  .cr-onboarding .auth-topbar { flex-wrap: wrap; gap: 12px; }
   .cr-home .cr-money-card { padding: 20px; }
   .cr-hero-actions { gap: 16px; }
   .cr-tour-invite { flex-wrap: wrap; gap: 8px; }
@@ -215,3 +216,30 @@ summary:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 3px
   .cr-home .cr-money-card--settled { gap: 4px 16px; }
   .cr-dashboard-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Context panels follow the trigger but stay inside the visible viewport. */
+.cr-viewport-panel,
+.cr-account-menu .cr-account-actions.cr-viewport-panel {
+  position: fixed; inset: auto; z-index: 35; margin: 0;
+  min-inline-size: 0; inline-size: 240px; overflow: auto;
+  padding: 8px; background: #fff; border: 1px solid var(--cr-border);
+  border-radius: 12px; box-shadow: 0 8px 24px #12161414;
+  overflow-wrap: anywhere; text-align: start;
+}
+.cr-term-help .cr-viewport-panel { padding: 12px; font-size: 14px; font-weight: 400; text-transform: none; letter-spacing: normal; }
+.cr-term-help .cr-viewport-panel p { margin: 0; line-height: 1.5; white-space: normal; }
+.cr-description-suggestions { display: grid; gap: 4px; min-inline-size: 0; max-block-size: 220px; overflow: auto; overscroll-behavior: contain; }
+.cr-description-suggestions button { display: flex; flex-direction: column; align-items: start; text-align: start; gap: 4px; padding: 12px; min-block-size: 48px; background: var(--cr-accent-soft); color: var(--cr-ink); border: 1px solid var(--cr-border); border-radius: 8px; overflow-wrap: anywhere; }
+.cr-description-suggestions button span { font-size: 13px; }
+.cr-dialog.dialog { overscroll-behavior: contain; max-block-size: calc(var(--dialog-viewport-height, 100dvh) - 48px); }
+.cr-dialog .cr-field { min-inline-size: 0; }
+.cr-dialog select { min-inline-size: 0; max-inline-size: 100%; text-overflow: ellipsis; }
+@media (max-width: 680px) {
+  .cr-dialog.dialog, .cr-dialog.dialog-wide { inset-block-start: var(--dialog-viewport-top, 0px); inset-block-end: auto; block-size: var(--dialog-viewport-height, 100dvh); min-block-size: 0; max-block-size: var(--dialog-viewport-height, 100dvh); }
+  .cr-account-row .cr-register-main { flex: 1 1 40%; min-inline-size: 0; }
+  .cr-account-row > .cr-amount { flex-shrink: 0; }
+  .plan-bill-actions[open] { flex-basis: 100%; min-inline-size: 0; }
+  .cr-dialog .dialog-header { padding-block-start: max(16px, env(safe-area-inset-top, 0px)); }
+}
+
+.cr-description-field { display: grid; gap: 12px; min-inline-size: 0; }

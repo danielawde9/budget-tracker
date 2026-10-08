@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useId, useRef, useState } from 'react';
 import type { ExpenseSuggestion, ExpenseSuggestions } from '../api/schemas.ts';
 import { findItem, useWorkspace, type Catalog } from '../app/workspace.tsx';
 import { useI18n } from '../lib/i18n.tsx';
@@ -21,10 +21,8 @@ export function matchSuggestion(loaded: Loaded<ExpenseSuggestions>, text: string
 }
 
 /**
- * Free text with the past descriptions as a native dropdown (`<datalist>`):
- * the browser filters as you type and supplies keyboard and screen-reader
- * support. Picking one is just typing it in full; the form decides what that
- * fills.
+ * Past expenses stay in the scrollable form, so suggestions cannot cover the
+ * keyboard or escape the dialog. Each suggestion is a normal keyboard-accessible button.
  */
 export function DescriptionField({ value, onChange, suggestions, catalog, autoFocus }: {
   readonly value: string;
@@ -35,35 +33,46 @@ export function DescriptionField({ value, onChange, suggestions, catalog, autoFo
   readonly autoFocus: boolean;
 }) {
   const { t, money, name } = useI18n();
-  const listId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [focused, setFocused] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   const hintId = useId();
   const options = suggestions?.status === 'ready' ? suggestions.data.suggestions : [];
   const hint = suggestions?.status === 'error' ? t('record.suggestionsFailed') : options.length > 0 ? t('record.descriptionHint') : null;
   return (
-    <>
+    <div className="cr-description-field" onFocus={() => setFocused(true)}
+      onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setFocused(false); }}>
       <label className="cr-field">
         <span className="cr-label">{t('record.description')}</span>
         <input
+          ref={inputRef}
           type="text"
           maxLength={200}
           autoComplete="off"
-          list={options.length > 0 ? listId : undefined}
+          onFocus={() => setFocused(true)}
+          onKeyDown={(event) => { if (event.key === 'Escape') setDismissed(true); }}
           aria-describedby={hint ? hintId : undefined}
           data-autofocus={autoFocus ? '' : undefined}
           value={value}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={(event) => { setDismissed(false); onChange(event.target.value); }}
         />
       </label>
-      {options.length > 0 ? (
-        <datalist id={listId}>
-          {options.map((suggestion) => {
+      {focused && !dismissed && options.length > 0 ? (
+        <div className="cr-description-suggestions">
+          {options.filter(suggestion => suggestion.memo.toLocaleLowerCase().includes(value.trim().toLocaleLowerCase())).slice(0, 5).map((suggestion) => {
             const item = findItem(catalog.plan, suggestion.itemId);
             const amount = money(suggestion.amount, suggestion.currency);
-            return <option key={suggestion.memo} value={suggestion.memo}>{item ? `${name(item)} · ${amount}` : amount}</option>;
+            return <button type="button" key={suggestion.memo}
+              onPointerDown={event => event.preventDefault()}
+              onFocus={() => setFocused(true)}
+              onBlur={event => { if (!event.currentTarget.parentElement?.contains(event.relatedTarget as Node)) setFocused(false); }}
+              onClick={() => { onChange(suggestion.memo); setDismissed(true); inputRef.current?.focus(); }}>
+              <strong>{suggestion.memo}</strong><span>{item ? `${name(item)} · ${amount}` : amount}</span>
+            </button>;
           })}
-        </datalist>
+        </div>
       ) : null}
       {hint ? <p id={hintId} className="cr-helper">{hint}</p> : null}
-    </>
+    </div>
   );
 }

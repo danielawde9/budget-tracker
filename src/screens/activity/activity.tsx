@@ -20,15 +20,16 @@ const FLOW_LABEL = {
   interest: 'flow.interest', lend: 'flow.lend', collect: 'flow.collect',
 } as const;
 
-export function ActivityScreen({ onRecord }: { readonly onRecord: (intent: RecordIntent) => void }) {
+export function ActivityScreen({ onRecord, walletId: initialWalletId, month: initialMonth }: { readonly onRecord: (intent: RecordIntent) => void; readonly walletId?: string | null; readonly month?: string | null }) {
   const i18n = useI18n();
   const { t, date } = i18n;
   const c = useUiCopy();
   const [search, setSearch] = useState('');
   const [kind, setKind] = useState('');
   const { api, space, version, catalog } = useWorkspace();
-  const [month, setMonth] = useState('');
-  const [walletId, setWalletId] = useState('');
+  const [month, setMonth] = useState(initialMonth ?? '');
+  const [walletId, setWalletId] = useState(initialWalletId ?? '');
+  useEffect(() => { setMonth(initialMonth ?? ''); setWalletId(initialWalletId ?? ''); }, [initialMonth, initialWalletId]);
   const [itemId, setItemId] = useState('');
   const [pages, setPages] = useState<Entry[]>([]);
   const [cursor, setCursor] = useState<ActivityCursor | null>(null);
@@ -62,14 +63,14 @@ export function ActivityScreen({ onRecord }: { readonly onRecord: (intent: Recor
       setLoadingMore(false);
     }
   }
-  const months = Array.from({ length: 12 }, (_, index) => addMonths(space.currentMonth, -index));
+  const months = Array.from(new Set([...(month ? [month] : []), ...Array.from({ length: 12 }, (_, index) => addMonths(space.currentMonth, -index))])).sort().reverse();
   const visible = pages.filter((entry) => { const line = describeEntry(i18n, entry); const haystack = [line.title, line.detail, entry.memo, kindLabel(i18n, entry.kind), ...entry.wallets.map((wallet) => wallet.name)].join(' ').toLocaleLowerCase(i18n.locale); return (!kind || entry.kind === kind) && haystack.includes(search.trim().toLocaleLowerCase(i18n.locale)); });
   return (
     <>
       <PageHeader title={t('nav.activity')} subtitle={t('activity.intro')} />
       <section className="cr-card">
         <div className="cr-activity-toolbar"><label className="cr-field"><span className="cr-label">{c('search')}</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} /></label><SelectField label={c('allTypes')} value={kind} onChange={(event) => setKind(event.target.value)}><option value="">{c('allTypes')}</option>{Array.from(new Set(pages.map((entry) => entry.kind))).map((value) => <option key={value} value={value}>{kindLabel(i18n, value)}</option>)}</SelectField></div>
-        <details className="cr-filter-details"><summary>{c('moreFilters')}</summary><div className="cr-toolbar cr-filters">
+        <details className="cr-filter-details" open={Boolean(initialMonth || initialWalletId) || undefined}><summary>{c('moreFilters')}</summary><div className="cr-toolbar cr-filters">
           <SelectField label={t('activity.month')} value={month} onChange={(event) => setMonth(event.target.value)}>
               <option value="">{t('activity.allMonths')}</option>
               {months.map((value) => <option key={value} value={value}>{date(value, 'month')}</option>)}
