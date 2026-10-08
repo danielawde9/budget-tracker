@@ -4224,3 +4224,34 @@ hosted migration on dfuxxzlhmxscgvxdmwti, preserving all four Auth accounts.
 The frontend was deployed to the existing budget-tracker Worker. This
 supersedes the earlier instruction not to push main pending the v2 database.
 See docs/operations/2026-10-04-v2-production-release.md for evidence and limits.
+
+## 2026-10-08 — Bill payments total active cash and keep association history
+
+For #7 and #8, a bill occurrence is settled only when the sum of its active,
+non-reversed cash payments reaches its expected amount. Loan repayment cash
+includes principal, interest and fees. Partial payments remain payable; coverage
+and the next Pay form use only the remainder. Excess belongs to that occurrence
+and never pays the next one automatically. Skipping a partial occurrence keeps
+its payment total and suppresses payment until Undo skip.
+
+We chose an append-only association table over aggregating original entry links
+alone because correcting the selected bill must not reverse or rewrite the
+payment. The entry's original bill/date remain intact. Reads resolve its latest
+link event; moving, detaching and reattaching change no wallet or item lines.
+Events and request records share the existing space lock. A link revision rejects
+fresh requests from stale forms; identical request retries return the recorded
+result. Selecting the current destination is allowed without double-counting
+that payment; the UI offers other eligible occurrences.
+
+Targets must have the same purpose, currency and loan. Changing those uses
+Correct. Fee-only repayments lack a principal wallet line, so a private immutable
+loan identity snapshot captures the original linked loan at entry creation.
+Existing born-linked repayments are seeded from their actual loan line where
+available, otherwise their bill's configuration at migration time. A fee-only
+entry whose bill changed loans before this migration has no recoverable historic
+loan identity; the snapshot cannot reconstruct it. Unlinked fee-only repayments
+without a known loan identity are conservatively refused by the move command.
+
+Deploy the additive migration before this frontend. Existing migrations and
+money entries remain unchanged; historical partial bills are recalculated from
+their existing active payments.

@@ -12,6 +12,7 @@
     "test:db": "vitest run tests/db --pool=forks --no-file-parallelism",
     "test:ui": "vitest run --config vitest.ui.config.ts",
     "test:e2e": "env -u NO_COLOR playwright test",
+    "test:e2e:bills": "env -u NO_COLOR playwright test --config playwright.bills.config.ts",
     "preview:up": "bash scripts/preview/up.sh",
     "preview:seed": "node scripts/preview/seed.ts",
     "check": "pnpm typecheck && pnpm test:db && pnpm test:ui && pnpm build",

@@ -104,6 +104,7 @@ export const messages = {
   'error.BUDGET_BILL_NOT_DUE': { en: 'That bill is not due on that date.', ar: 'هذه الفاتورة غير مستحقة في هذا التاريخ.' },
   'error.BUDGET_BILL_SKIPPED': { en: 'That bill was skipped for this date.', ar: 'تم تخطي هذه الفاتورة لهذا التاريخ.' },
   'error.BUDGET_BILL_ALREADY_PAID': { en: 'That bill is already paid for this date.', ar: 'هذه الفاتورة مدفوعة لهذا التاريخ.' },
+  'error.BUDGET_BILL_LINK_CHANGED': { en: 'This payment’s bill link changed. Close this form and reopen the payment to see its current bill.', ar: 'تغيّر ارتباط هذه الدفعة بالفاتورة. أغلق هذا النموذج وافتح الدفعة مجددًا لعرض فاتورتها الحالية.' },
   'error.BUDGET_BILL_MISMATCH': { en: 'Pay this bill from its own item, wallet currency and loan.', ar: 'ادفع هذه الفاتورة من بندها وبعملة محفظتها وقرضها.' },
   'error.BUDGET_INVALID_BILL': { en: 'Check the bill’s details.', ar: 'تحقق من تفاصيل الفاتورة.' },
   'error.BUDGET_INVALID_ACTION': { en: 'That action is not available.', ar: 'هذا الإجراء غير متاح.' },

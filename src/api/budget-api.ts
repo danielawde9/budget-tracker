@@ -197,6 +197,8 @@ export function createBudgetApi(client: RpcClient) {
       }, s.coveredResult.partial({ covered: true })),
     reverseEntry: (input: Command & { entryId: string; reason: string }) =>
       call('reverse_entry', { ...cmd(input), p_entry: input.entryId, p_reason: input.reason }, s.entryResult),
+    moveBillPayment: (input: Command & { entryId: string; expectedVersion: number; billId: string | null; due: string | null }) =>
+      call('move_bill_payment', { ...cmd(input), p_entry: input.entryId, p_expected_version: input.expectedVersion, p_bill: input.billId, p_due: input.due }, s.billLinkResult),
     saveBill: (input: Command & { billId?: string | null; name: string; itemId: string; amount: bigint; currency: Currency; cadence: 'monthly' | 'yearly' | 'once'; firstDue: string; end?: string | null; loanId?: string | null; archived?: boolean }) =>
       call('save_bill', {
         ...cmd(input), p_name: input.name, p_item: input.itemId, p_amount: input.amount, p_currency: input.currency, p_cadence: input.cadence,

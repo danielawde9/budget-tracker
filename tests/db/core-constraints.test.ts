@@ -127,7 +127,7 @@ describe('balances stay within their bounds', () => {
 });
 
 describe('history is append-only', () => {
-  const tables = ['budget.entries', 'budget.wallet_lines', 'budget.item_lines'];
+  const tables = ['budget.entries', 'budget.wallet_lines', 'budget.item_lines', 'budget.bill_payment_links', 'budget.bill_payment_loan_identities'];
 
   for (const table of tables) {
     it(`rejects UPDATE on ${table}`, async () => {

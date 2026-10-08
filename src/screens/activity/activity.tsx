@@ -1,3 +1,4 @@
+import { BillPaymentLinkForm } from './bill-payment-link.tsx';
 import { useEffect, useState } from 'react';
 import { toBudgetError, type BudgetError } from '../../api/budget-api.ts';
 import type { ActivityCursor, Entry } from '../../api/schemas.ts';
@@ -125,13 +126,18 @@ export function ActivityScreen({ onRecord }: { readonly onRecord: (intent: Recor
   );
 }
 
-function EntryDetail({ entry, onClose, onCorrect, canCorrect }: { readonly entry: Entry; readonly onClose: () => void; readonly onCorrect: () => void; readonly canCorrect: boolean }) {
+export function EntryDetail({ entry, onClose, onCorrect, canCorrect }: { readonly entry: Entry; readonly onClose: () => void; readonly onCorrect: () => void; readonly canCorrect: boolean }) {
   const i18n = useI18n();
   const { t, date, name } = i18n;
   const line = describeEntry(i18n, entry);
+  const { refresh } = useWorkspace();
+  const close = () => { refresh(); onClose(); };
+  const [editingLink, setEditingLink] = useState(false);
+  const [pending, setPending] = useState(false);
+  const canLink = !entry.reversedByEntryId && entry.kind !== 'reversal' && Boolean(entry.billId || (entry.billLinkVersion ?? 0) > 0);
   return (
-    <Dialog title={line.title} onClose={onClose} description={`${kindLabel(i18n, entry.kind)} · ${date(entry.occurredOn)}`}>
-      <div className="cr-stack">
+    <Dialog title={line.title} pending={pending} onClose={close} description={`${kindLabel(i18n, entry.kind)} · ${date(entry.occurredOn)}`}>
+      {editingLink ? <BillPaymentLinkForm entry={entry} onDone={onClose} onCancel={() => setEditingLink(false)} onPending={setPending} /> : <div className="cr-stack">
         {entry.memo ? <p><bdi>{entry.memo}</bdi></p> : null}
         {entry.reversalReason ? <p className="cr-explain">{t('activity.reason', { reason: entry.reversalReason })}</p> : null}
         {entry.reversedByEntryId ? <p className="cr-explain cr-explain--warn">{t('activity.wasCorrected')}</p> : null}
@@ -151,11 +157,17 @@ function EntryDetail({ entry, onClose, onCorrect, canCorrect }: { readonly entry
             ))}
           </ul>
         )}
+        {entry.billId ? <p className="cr-helper">{t('bill.linked')}: <bdi>{entry.billName}</bdi> · {date(entry.billDueOn ?? entry.occurredOn)}</p> : null}
+        {entry.billLinkHistory?.length ? <section aria-label={t('bill.linkHistory')}><h3>{t('bill.linkHistory')}</h3><ul className="cr-lines">{entry.billLinkHistory.map((event, index) => <li key={index}>
+          {event.billId ? <>{t('bill.linked')}: <bdi>{event.billName}</bdi> · {date(event.dueOn ?? entry.occurredOn)}</> : t('bill.detached')}
+          {' · '}<bdi>{date(event.createdAt.slice(0, 10))}</bdi>
+        </li>)}</ul></section> : null}
         <div className="dialog-actions">
+          {canLink ? <button type="button" className="cr-button" onClick={() => setEditingLink(true)}>{t('bill.movePayment')}</button> : null}
           {canCorrect ? <button type="button" className="cr-button" onClick={onCorrect}>{t('activity.correct')}</button> : null}
-          <button type="button" className="cr-button cr-button--primary" data-autofocus="" onClick={onClose}>{t('common.done')}</button>
+          <button type="button" className="cr-button cr-button--primary" data-autofocus="" onClick={close}>{t('common.done')}</button>
         </div>
-      </div>
+      </div>}
     </Dialog>
   );
 }

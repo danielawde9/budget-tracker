@@ -1,3 +1,4 @@
+import { BillPaymentStatus, billRemaining, isOpenBill } from './bill-payment-status.tsx';
 import { usePlanCopy } from './plan-copy.ts';
 import './plan-redesign.css';
 import { useWorkspace } from '../../app/workspace.tsx';
@@ -37,7 +38,7 @@ export function BillsSection({ onRecord }: { readonly onRecord: (intent: RecordI
         {({ list, upcoming }) => list.length === 0 ? <p className="cr-helper">{t('bill.none')}</p> : (
           <ul className="cr-register">
             {list.map((bill) => {
-              const next = upcoming.find((occurrence) => occurrence.billId === bill.billId && (occurrence.status === 'due' || occurrence.status === 'overdue'));
+              const next = upcoming.find((occurrence) => occurrence.billId === bill.billId && isOpenBill(occurrence));
               const lastPaid = [...upcoming].reverse().find((occurrence) => occurrence.billId === bill.billId && occurrence.status === 'paid');
               const lastSkipped = [...upcoming].reverse().find((occurrence) => occurrence.billId === bill.billId && occurrence.status === 'skipped');
               return (
@@ -50,9 +51,11 @@ export function BillsSection({ onRecord }: { readonly onRecord: (intent: RecordI
                       {lastPaid ? ` · ${t('bill.lastPaid', { date: date(lastPaid.dueOn, 'short') })}` : ''}
                     </span>
                     {next ? <span className="cr-helper"><bdi>{name({ nameEn: next.itemNameEn, nameAr: next.itemNameAr })}</bdi></span> : null}
+                    {next ? <BillPaymentStatus occurrence={next} /> : null}
+                    {lastPaid ? <BillPaymentStatus occurrence={lastPaid} /> : null}
                   </div>
                   {next ? <CoveragePill occurrence={next} /> : null}
-                  <Amount minor={bill.amount} currency={bill.currency} />
+                  <Amount minor={next ? billRemaining(next) : bill.amount} currency={bill.currency} />
                   {next ? <button type="button" className="cr-button cr-button--sm" onClick={() => onRecord(billIntent(next))}>{t('bill.pay')}</button> : null}
                   <details className="plan-bill-actions">
                     <summary aria-label={`${copy.actions}: ${bill.name}`}>···</summary>

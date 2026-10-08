@@ -1,3 +1,4 @@
+import { BillPaymentStatus, billRemaining, isOpenBill } from '../plan/bill-payment-status.tsx';
 import { Dashboard } from './dashboard.tsx';
 import { useState } from 'react';
 import { Wallet, Plus, CheckCircle2 } from 'lucide-react';
@@ -17,7 +18,7 @@ import { addDays, describeEntry } from '../describe.ts';
 
 export function billIntent(occurrence: BillOccurrence): RecordIntent {
   const bill = {
-    billId: occurrence.billId, name: occurrence.name, dueOn: occurrence.dueOn, amount: occurrence.expected,
+    billId: occurrence.billId, name: occurrence.name, dueOn: occurrence.dueOn, amount: billRemaining(occurrence),
     currency: occurrence.currency, itemId: occurrence.itemId, loanWalletId: occurrence.loanWalletId,
   };
   return occurrence.loanWalletId ? { kind: 'loan', action: 'repay', bill } : { kind: 'expense', bill };
@@ -194,7 +195,7 @@ function UpcomingBills({ onRecord }: { readonly onRecord: (intent: RecordIntent)
       </div>
       <LoadState loaded={bills}>
         {(list) => {
-          const open = list.filter((occurrence) => occurrence.status === 'due' || occurrence.status === 'overdue');
+          const open = list.filter(isOpenBill);
           if (open.length === 0) return <p className="cr-helper">{t('home.noBills')}</p>;
           return (
             <ul className="cr-register">
@@ -203,9 +204,10 @@ function UpcomingBills({ onRecord }: { readonly onRecord: (intent: RecordIntent)
                   <div className="cr-register-main">
                     <bdi className="cr-register-title">{occurrence.name}</bdi>
                     <span className="cr-helper">{date(occurrence.dueOn, 'short')} · <bdi>{name({ nameEn: occurrence.itemNameEn, nameAr: occurrence.itemNameAr })}</bdi></span>
+                    <BillPaymentStatus occurrence={occurrence} />
                   </div>
                   <CoveragePill occurrence={occurrence} />
-                  <Amount minor={occurrence.expected} currency={occurrence.currency} />
+                  <Amount minor={billRemaining(occurrence)} currency={occurrence.currency} />
                   <button type="button" className="cr-button cr-button--sm" onClick={() => onRecord(billIntent(occurrence))}>{t('bill.pay')}</button>
                 </li>
               ))}

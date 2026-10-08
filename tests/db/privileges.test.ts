@@ -21,7 +21,7 @@ afterAll(async () => {
   await db.close();
 });
 
-const tables = ['spaces', 'space_members', 'wallets', 'plan_groups', 'items', 'plan_versions', 'entries', 'wallet_lines', 'item_lines', 'bills', 'command_receipts'];
+const tables = ['spaces', 'space_members', 'wallets', 'plan_groups', 'items', 'plan_versions', 'entries', 'wallet_lines', 'item_lines', 'bills', 'command_receipts', 'bill_payment_links', 'bill_payment_loan_identities'];
 
 describe('the browser roles cannot reach budget tables', () => {
   for (const table of tables) {
