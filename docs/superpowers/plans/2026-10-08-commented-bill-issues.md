@@ -22,3 +22,5 @@ DB/frontend contract:
 Verification: pnpm check passed (191 DB tests, 140 UI tests, typecheck/build); pnpm test:e2e:bills passed six real-local-DB flows (EN/AR × desktop/iPhone13/320px). Spec and quality reviews have no remaining important findings after fixes. The earlier mobile changes remain preserved in the primary checkout.
 
 Published PR: https://github.com/danielawde9/budget-tracker/pull/10. Replies posted as danielawde9 to both contributor comments, and issues #7/#8 verified CLOSED/COMPLETED. Merge and migration-first production release remain pending and were explicitly disclosed in the PR and replies. The other seven open issues had no outside comments and were left for their separate scopes.
+
+Completion update (06:01 UTC): PR #10 squash-merged as `a2e6445`; migration-first production release and frontend deployment verified. The owner subsequently authorized finishing the remaining issues; all nine issues are closed with replies. Combined validation: 202 DB, 160 UI and 60 browser tests. See `docs/operations/2026-10-08-issue-release.md` for release evidence and external limitations.
