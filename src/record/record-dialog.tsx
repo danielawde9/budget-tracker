@@ -1,3 +1,5 @@
+import { CommandScope, useCommandScope } from '../ui/command-pending.tsx';
+import { SaveRecoveryNotice, useSaveRecovery } from '../app/save-recovery.tsx';
 import { Check } from 'lucide-react';
 import { useState } from 'react';
 import type { InvestmentAction, LoanAction } from '../api/budget-api.ts';
@@ -48,17 +50,25 @@ const TITLES: Readonly<Record<RecordIntent['kind'], MessageKey>> = {
 
 /** One host for every money action, so screens only describe intent. */
 export function RecordDialog({ intent: initial, onClose }: { readonly intent: RecordIntent; readonly onClose: () => void }) {
+  return <CommandScope><RecordDialogBody intent={initial} onClose={onClose} /></CommandScope>;
+}
+
+function RecordDialogBody({ intent: initial, onClose }: { readonly intent: RecordIntent; readonly onClose: () => void }) {
   const { t, date } = useI18n();
   const copy = useRecordCopy();
   const [choosing, setChoosing] = useState(initial.kind === 'expense' && !initial.walletId && !initial.itemId && !initial.bill);
   const { catalog, space } = useWorkspace();
+  const pendingScope = useCommandScope();
+  const { attempt } = useSaveRecovery(space.id);
+  const pending = Boolean(pendingScope?.pending || attempt?.status === 'pending');
   const [intent, setIntent] = useState<RecordIntent>(initial);
   const [result, setResult] = useState<string | null>(null);
   const [formKey, setFormKey] = useState(0);
   const everyday = EVERYDAY.some((option) => option.kind === intent.kind) && !('bill' in intent && intent.bill);
   const done = (message: string) => setResult(message);
   return (
-    <Dialog title={intent.kind === 'fund' ? `${t('fund.title')} · ${date(intent.month ?? space.currentMonth, 'month')}` : intent.kind === 'bill' ? copy(intent.bill ? 'Edit bill' : 'Add a bill', intent.bill ? 'تعديل فاتورة' : 'إضافة فاتورة') : everyday && !choosing ? t(EVERYDAY.find(option => option.kind === intent.kind)!.label) : t(TITLES[intent.kind])} onClose={onClose} wide={false}>
+    <Dialog pending={pending} title={intent.kind === 'fund' ? `${t('fund.title')} · ${date(intent.month ?? space.currentMonth, 'month')}` : intent.kind === 'bill' ? copy(intent.bill ? 'Edit bill' : 'Add a bill', intent.bill ? 'تعديل فاتورة' : 'إضافة فاتورة') : everyday && !choosing ? t(EVERYDAY.find(option => option.kind === intent.kind)!.label) : t(TITLES[intent.kind])} onClose={onClose} wide={false}>
+      <SaveRecoveryNotice onFinished={onClose} />
       {result ? (
         <div className="cr-success-result">
           <div className="cr-success-result-copy" role="status" aria-atomic="true">
@@ -85,7 +95,7 @@ export function RecordDialog({ intent: initial, onClose }: { readonly intent: Re
                 {EVERYDAY.filter(option => !['expense', 'income', 'move'].includes(option.kind)).map(option => <button key={option.kind} type="button" className="cr-record-option" onClick={() => { if (option.kind !== intent.kind) setIntent({ kind: option.kind }); setChoosing(false); }}><strong>{t(option.label)}</strong>{' '}<span>{copy(option.kind === 'transfer' ? 'Move real money between your wallets.' : option.kind === 'exchange' ? 'Convert between USD and LBP.' : option.kind === 'invest' ? 'Record investment money, returns or value.' : option.kind === 'loan' ? 'Borrow, lend or repay money.' : 'Money returned from an earlier expense.', option.kind === 'transfer' ? 'نقل المال الفعلي بين محافظك.' : option.kind === 'exchange' ? 'التحويل بين الدولار والليرة.' : option.kind === 'invest' ? 'تسجيل أموال الاستثمار والعوائد والقيمة.' : option.kind === 'loan' ? 'اقتراض أو إقراض أو سداد المال.' : 'مال مسترجع من مصروف سابق.')}</span></button>)}
               </details>
             </section>
-          ) : <button type="button" className="cr-record-back" onClick={() => setChoosing(true)}>{copy('All actions', 'كل الإجراءات')}</button> : null}
+          ) : <button type="button" disabled={pending} className="cr-record-back" onClick={() => setChoosing(true)}>{copy('All actions', 'كل الإجراءات')}</button> : null}
           <div hidden={choosing}>
           <LoadState loaded={catalog}>
             {(data) => {

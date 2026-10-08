@@ -1,5 +1,7 @@
+import { SaveRecoveryStore } from '../api/save-recovery.ts';
+import { SaveRecoveryProvider, SaveRecoveryNotice } from './save-recovery.tsx';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createBudgetApi, type BudgetApi } from '../api/budget-api.ts';
 import type { SpaceSummary } from '../api/schemas.ts';
 import { I18nProvider, useI18n } from '../lib/i18n.tsx';
@@ -57,7 +59,8 @@ export function App() {
     document.documentElement.dir = locale === 'ar' ? 'rtl' : 'ltr';
   }, [locale]);
   const backend = useMemo(createBrowserBackend, []);
-  const api = useMemo(() => (backend ? createBudgetApi(backend.rpc) : null), [backend]);
+  const recovery = useMemo(() => new SaveRecoveryStore(), []);
+  const api = useMemo(() => (backend ? createBudgetApi(backend.rpc, recovery) : null), [backend, recovery]);
   return (
     <I18nProvider locale={locale}>
       {backend === null || api === null ? (
@@ -65,7 +68,7 @@ export function App() {
       ) : IS_DEMO && !isLoopbackUrl(backend.url) ? (
         <StatePage titleKey="demo.refusedTitle" bodyKey="demo.refusedBody" />
       ) : (
-        <SignedInGate client={backend.client} api={api} onToggleLocale={toggleLocale} />
+        <SaveRecoveryProvider store={recovery}><SignedInGate recovery={recovery} client={backend.client} api={api} onToggleLocale={toggleLocale} /></SaveRecoveryProvider>
       )}
     </I18nProvider>
   );
@@ -83,8 +86,10 @@ function StatePage({ titleKey, bodyKey }: { readonly titleKey: 'app.configTitle'
   );
 }
 
-function SignedInGate({ client, api, onToggleLocale }: { readonly client: SupabaseClient; readonly api: BudgetApi; readonly onToggleLocale: () => void }) {
+function SignedInGate({ client, api, onToggleLocale, recovery }: { readonly recovery: SaveRecoveryStore; readonly client: SupabaseClient; readonly api: BudgetApi; readonly onToggleLocale: () => void }) {
   const session = useSession(client);
+  const userId = session.status === 'signed-in' ? session.session.user.id : null;
+  useEffect(() => recovery.clear(), [recovery, userId]);
   const route = useRoute();
   const { t } = useI18n();
   if (session.status === 'loading') return <main className="auth-page"><p role="status">{t('common.loading')}</p></main>;
@@ -130,7 +135,7 @@ function SpacesGate({ api, client, onToggleLocale }: { readonly api: BudgetApi; 
   );
 }
 
-function Routes({ space, spaces, onSelectSpace, onToggleLocale, onSignOut }: {
+export function Routes({ space, spaces, onSelectSpace, onToggleLocale, onSignOut }: {
   readonly space: SpaceSummary;
   readonly spaces: readonly SpaceSummary[];
   readonly onSelectSpace: (spaceId: string) => void;
@@ -139,12 +144,17 @@ function Routes({ space, spaces, onSelectSpace, onToggleLocale, onSignOut }: {
 }) {
   const route = useRoute();
   const [record, setRecord] = useState<RecordIntent | null>(() => quickAddIntent());
+  const previousSpace = useRef(space.id);
+  useEffect(() => {
+    if (previousSpace.current !== space.id) { previousSpace.current = space.id; setRecord(null); }
+  }, [space.id]);
   const openRecord = useCallback((intent: RecordIntent) => setRecord(intent), []);
   return (
     <DemoTourProvider key={space.id}><PageMetadata page={route.name} /><Shell route={route} space={space} spaces={spaces} onSelectSpace={onSelectSpace} onRecord={() => openRecord({ kind: 'expense' })} onToggleLocale={onToggleLocale}>
+      <SaveRecoveryNotice key={space.id} />
       {route.name === 'home' ? <HomeScreen onRecord={openRecord} /> : null}
       {route.name === 'plan' ? <PlanScreen month={route.month ?? space.currentMonth} onRecord={openRecord} /> : null}
-      {route.name === 'activity' ? <ActivityScreen onRecord={openRecord} /> : null}
+      {route.name === 'activity' ? <ActivityScreen walletId={route.walletId ?? null} month={route.month ?? null} onRecord={openRecord} /> : null}
       {route.name === 'accounts' ? <AccountsScreen onRecord={openRecord} /> : null}
       {route.name === 'settings' ? <SettingsScreen onToggleLocale={onToggleLocale} onSignOut={onSignOut} /> : null}
       {IS_DEMO ? <DemoTourPanel /> : null}

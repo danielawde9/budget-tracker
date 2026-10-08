@@ -49,6 +49,13 @@ describe('createBudgetApi', () => {
     expect(result).toEqual({ entryId: 'e1', covered: 1550n });
   });
 
+  it('sends the observed bill-link revision and parses a detached result', async () => {
+    const { client, calls } = fakeClient({ data: { entryId: 'e', billId: null, dueOn: null, linkVersion: 4 } });
+    const result = await createBudgetApi(client).moveBillPayment({ spaceId: 's', requestId: 'r', entryId: 'e', expectedVersion: 3, billId: null, due: null });
+    expect(calls[0]).toEqual({ name: 'move_bill_payment', args: { p_space: 's', p_request: 'r', p_entry: 'e', p_expected_version: 3, p_bill: null, p_due: null } });
+    expect(result.linkVersion).toBe(4);
+  });
+
   it('fails loudly on a malformed read payload', async () => {
     const { client } = fakeClient({ data: { today: '2026-10-03', currencies: 'nope' } });
     await expect(createBudgetApi(client).overview('s')).rejects.toMatchObject({ code: 'BAD_RESPONSE' });

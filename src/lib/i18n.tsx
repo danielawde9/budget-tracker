@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { recoveryMessages } from './messages-recovery.ts';
 import { screenMessages } from './messages-screens.ts';
 import { formatMoney, type Currency, type Locale } from './money.ts';
 
@@ -7,6 +8,7 @@ import { formatMoney, type Currency, type Locale } from './money.ts';
  * `{name}` placeholders are filled by `t(key, { name })`.
  */
 export const messages = {
+  ...recoveryMessages,
   // Navigation and shell
   'invite.title': { en: 'Invite a member', ar: 'دعوة عضو' },
   'invite.ownerOnly': { en: 'Only the space owner can invite members.', ar: 'يمكن لمالك المساحة فقط دعوة الأعضاء.' },
@@ -70,7 +72,7 @@ export const messages = {
   'plan.flexGets': { en: '{name} gets {amount}', ar: '{name} يحصل على {amount}' },
 
   // Errors (codes come from the database)
-  'error.UNKNOWN': { en: 'Something went wrong. Nothing was saved. Try again.', ar: 'حدث خطأ. لم يُحفظ شيء. أعد المحاولة.' },
+  'error.UNKNOWN': { en: 'The result could not be confirmed. Check and finish an unconfirmed save before recording again.', ar: 'تعذّر تأكيد النتيجة. تحقق وأكمل عملية الحفظ غير المؤكدة قبل التسجيل مجددًا.' },
   'error.NETWORK': { en: 'The server could not be reached, so this may or may not have been saved. Try again from this same form: it will not be recorded twice.', ar: 'تعذّر الوصول إلى الخادم، لذا قد يكون هذا قد حُفظ أو لا. أعد المحاولة من النموذج نفسه: لن يُسجَّل مرتين.' },
   'error.BAD_RESPONSE': { en: 'The server sent an unexpected answer.', ar: 'أرسل الخادم ردًا غير متوقع.' },
   'error.BUDGET_NOT_MEMBER': { en: 'You no longer have access to this space.', ar: 'لم يعد لديك وصول إلى هذه المساحة.' },
@@ -104,6 +106,7 @@ export const messages = {
   'error.BUDGET_BILL_NOT_DUE': { en: 'That bill is not due on that date.', ar: 'هذه الفاتورة غير مستحقة في هذا التاريخ.' },
   'error.BUDGET_BILL_SKIPPED': { en: 'That bill was skipped for this date.', ar: 'تم تخطي هذه الفاتورة لهذا التاريخ.' },
   'error.BUDGET_BILL_ALREADY_PAID': { en: 'That bill is already paid for this date.', ar: 'هذه الفاتورة مدفوعة لهذا التاريخ.' },
+  'error.BUDGET_BILL_LINK_CHANGED': { en: 'This payment’s bill link changed. Close this form and reopen the payment to see its current bill.', ar: 'تغيّر ارتباط هذه الدفعة بالفاتورة. أغلق هذا النموذج وافتح الدفعة مجددًا لعرض فاتورتها الحالية.' },
   'error.BUDGET_BILL_MISMATCH': { en: 'Pay this bill from its own item, wallet currency and loan.', ar: 'ادفع هذه الفاتورة من بندها وبعملة محفظتها وقرضها.' },
   'error.BUDGET_INVALID_BILL': { en: 'Check the bill’s details.', ar: 'تحقق من تفاصيل الفاتورة.' },
   'error.BUDGET_INVALID_ACTION': { en: 'That action is not available.', ar: 'هذا الإجراء غير متاح.' },

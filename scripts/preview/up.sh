@@ -19,9 +19,14 @@ value() { printf '%s\n' "${status}" | sed -n "s/^$1=\"\(.*\)\"$/\1/p" | head -n 
 api_url="$(value API_URL)"
 anon_key="$(value ANON_KEY)"
 service_key="$(value SERVICE_ROLE_KEY)"
+db_url="$(value DB_URL)"
 case "${api_url}" in
   http://127.0.0.1:*|http://localhost:*) ;;
   *) echo "Refusing: the API URL is not local (${api_url})." >&2; exit 1 ;;
+esac
+case "${db_url}" in
+  postgresql://*@127.0.0.1:*/*|postgresql://*@localhost:*/*) ;;
+  *) echo "Refusing: the database URL is not local." >&2; exit 1 ;;
 esac
 
 umask 077
@@ -30,6 +35,7 @@ cat > .env.demo.local <<ENV
 VITE_SUPABASE_URL=${api_url}
 VITE_SUPABASE_ANON_KEY=${anon_key}
 VITE_DEMO=1
+DEMO_DATABASE_URL=${db_url}
 ENV
 
 SUPABASE_URL="${api_url}" SUPABASE_ANON_KEY="${anon_key}" SUPABASE_SERVICE_ROLE_KEY="${service_key}" node scripts/preview/seed.ts

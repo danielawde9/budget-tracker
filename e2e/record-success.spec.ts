@@ -45,7 +45,9 @@ test('record dialog close button and backdrop dismiss restore focus', async ({ p
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(opener).toBeFocused();
   await opener.click();
-  await page.mouse.click(10, 10);
+  // Mobile dialogs fill the viewport, so there is no exposed backdrop.
+  if ((page.viewportSize()?.width ?? 1440) <= 680) await page.keyboard.press('Escape');
+  else await page.mouse.click(10, 10);
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(opener).toBeFocused();
 });

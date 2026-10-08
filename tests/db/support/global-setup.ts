@@ -8,6 +8,7 @@ import { SUPABASE_POSTGRES_IMAGE, TEMPLATE_DATABASE, type PgBase } from './conne
 const PASSWORD = 'budget-test-only';
 const MIGRATIONS_DIR = path.resolve('supabase/migrations');
 const AUTH_SHIM = path.resolve('tests/db/support/auth-shim.sql');
+const TEST_CLOCK = path.resolve('tests/db/support/clock.sql');
 
 async function withClient<T>(base: PgBase, database: string, fn: (client: pg.Client) => Promise<T>): Promise<T> {
   const client = new pg.Client({ ...base, database });
@@ -36,6 +37,7 @@ async function buildTemplate(base: PgBase): Promise<void> {
         throw new Error(`Migration ${path.basename(file)} failed: ${(error as Error).message}`);
       }
     }
+    await client.query(await readFile(TEST_CLOCK, 'utf8'));
   });
 }
 

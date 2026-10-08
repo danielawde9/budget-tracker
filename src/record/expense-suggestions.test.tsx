@@ -18,7 +18,7 @@ const supermarket: ExpenseSuggestions = {
   suggestions: [{ memo: 'Supermarket', itemId: itemId('Groceries'), walletId: walletId('Cash'), amount: 6420n, currency: 'USD', lastOn: '2026-10-01' }],
 };
 
-const description = () => screen.getByRole('combobox', { name: 'Description' });
+const description = () => screen.getByRole('textbox', { name: 'Description' });
 const amount = () => screen.getByRole('textbox', { name: /Amount/ });
 const item = () => screen.getByRole('combobox', { name: 'What was it for?' });
 const wallet = () => screen.getByRole('combobox', { name: 'Paid from' });
@@ -27,8 +27,9 @@ describe('the expense form remembers past expenses', () => {
   it('offers each past description in the list', async () => {
     renderWithWorkspace(<ExpenseForm catalog={catalog} onDone={vi.fn()} onCancel={vi.fn()} />, fakeApi({ expenseSuggestions: async () => supermarket }));
     await screen.findByText(/Start typing to reuse a past expense/);
-    const list = document.getElementById(description().getAttribute('list') ?? '');
-    expect([...(list?.querySelectorAll('option') ?? [])].map((option) => option.value)).toEqual(['Supermarket']);
+    await userEvent.setup().click(description());
+    expect(screen.getByRole('button', { name: /Supermarket/ })).toBeVisible();
+    expect(description()).not.toHaveAttribute('list');
   });
 
   it('picking one fills the item, wallet and last amount', async () => {

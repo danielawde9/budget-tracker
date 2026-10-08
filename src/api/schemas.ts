@@ -10,6 +10,9 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const nullableText = z.string().nullable();
 export const currency = z.enum(['USD', 'LBP']);
 
+export const walletStatement = z.object({ walletId: id, currency, on: isoDate, balance: minor });
+export type WalletStatement = z.infer<typeof walletStatement>;
+
 export const spaceSummary = z.object({
   id,
   name: z.string(),
@@ -155,6 +158,9 @@ export const entry = z.object({
   billId: id.nullable(),
   billDueOn: isoDate.nullable(),
   billName: nullableText,
+  billPaymentLoanWalletId: id.nullable().optional(),
+  billLinkVersion: z.number().int().nonnegative().optional(),
+  billLinkHistory: z.array(z.object({ billId: id.nullable(), billName: nullableText, dueOn: isoDate.nullable(), createdAt: z.string() })).optional(),
   wallets: z.array(z.object({ walletId: id, name: z.string(), kind: walletKind, currency, amount: minor, flow })),
   items: z.array(z.object({ itemId: id, kind: itemKind, ...named, currency, amount: minor, flow })),
 });
@@ -221,8 +227,11 @@ export const billOccurrence = z.object({
   currency,
   expected: minor,
   dueOn: isoDate,
-  status: z.enum(['paid', 'skipped', 'due', 'overdue']),
+  status: z.enum(['paid', 'part_paid', 'skipped', 'due', 'overdue']),
   paidAmount: minor,
+  remaining: minor.optional(),
+  overpaid: minor.optional(),
+  paymentCount: z.number().int().nonnegative().optional(),
   entryId: id.nullable(),
   coverage: z.enum(['covered', 'short', 'not_covered']).nullable(),
   shortBy: minor,
@@ -241,6 +250,8 @@ export const bill = z.object({
   endOn: isoDate.nullable(),
   loanWalletId: id.nullable(),
 });
+
+export const billLinkResult = z.object({ entryId: id, billId: id.nullable(), dueOn: isoDate.nullable(), linkVersion: z.number().int().nonnegative() });
 
 export const entryResult = z.object({ entryId: id.nullable() });
 export const coveredResult = z.object({ entryId: id, covered: minor });

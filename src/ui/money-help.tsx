@@ -1,3 +1,4 @@
+import { ViewportDisclosure } from './viewport-disclosure.tsx';
 import { Info } from 'lucide-react';
 import { useI18n } from '../lib/i18n.tsx';
 import { useUiCopy } from '../lib/ui-copy.ts';
@@ -18,7 +19,7 @@ export type MoneyTerm = keyof typeof definitions;
 export function MoneyHelp({ term }: { readonly term: MoneyTerm }) {
   const { locale } = useI18n();
   const d = definitions[term];
-  return <details className="cr-term-help"><summary aria-label={locale === 'ar' ? `شرح ${d[1]}` : `Explain ${d[0]}`}><Info size={16} aria-hidden /></summary><p>{d[locale === 'ar' ? 3 : 2]}</p></details>;
+  return <ViewportDisclosure className="cr-term-help" label={locale === 'ar' ? `شرح ${d[1]}` : `Explain ${d[0]}`} summary={<Info size={16} aria-hidden />}><p>{d[locale === 'ar' ? 3 : 2]}</p></ViewportDisclosure>;
 }
 export function MoneyGlossary() {
   const [open, setOpen] = useState(false);

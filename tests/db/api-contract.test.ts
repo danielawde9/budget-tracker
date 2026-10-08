@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { setupSpace } from './support/budget.ts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as s from '../../src/api/schemas.ts';
 import { runExistingMoneyStory, type ScenarioCaller, type StoryRefs } from '../../scripts/preview/scenario.ts';
@@ -60,4 +62,18 @@ describe('every read matches the client schema', () => {
     expect(s.billOccurrence.array().safeParse(await c.call('bills_upcoming', { p_space: story.spaceId, p_from: story.setupMonth, p_to: story.today })).error?.issues ?? []).toEqual([]);
     expect(s.bill.array().safeParse(await c.call('bills_list', { p_space: story.spaceId })).error?.issues ?? []).toEqual([]);
   });
+});
+
+// Check the correction command's actual receipt and the updated activity fields.
+it('move_bill_payment matches the client result schema and activity link history', async () => {
+  const h = await setupSpace(db.pool);
+  const wallet = await h.wallet('Bank', 'cash', 'USD', 10000n);
+  const item = await h.item('Bills');
+  const bill = (await h.command<{ billId: string }>('save_bill', { p_name: 'Water', p_item: item, p_amount: 6000n, p_currency: 'USD', p_cadence: 'once', p_first_due: h.today })).billId;
+  await h.command('assign_money', { p_on: h.today, p_moves: [{ from: null, to: item, currency: 'USD', amountMinor: '6000' }] });
+  const entry = await h.command('record_expense', { p_wallet: wallet, p_item: item, p_amount: 2000n, p_on: h.today, p_cover_from: null });
+  const result = await h.command('move_bill_payment', { p_entry: entry.entryId, p_expected_version: 0, p_bill: bill, p_due: h.today, p_request: randomUUID() });
+  expect(s.billLinkResult.safeParse(result).error?.issues ?? []).toEqual([]);
+  const activity = await h.call('activity_page', { p_space: h.spaceId, p_limit: 100, p_before: null, p_filter: {} });
+  expect(s.activityPage.safeParse(activity).error?.issues ?? []).toEqual([]);
 });

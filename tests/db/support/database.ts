@@ -9,6 +9,8 @@ pg.types.setTypeParser(pg.types.builtins.DATE, (value) => value);
 
 export interface TestDatabase {
   readonly pool: pg.Pool;
+  /** Pin this clone only; null restores the real transaction clock. */
+  setClock(instant: string | null): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -26,6 +28,9 @@ export async function freshDatabase(): Promise<TestDatabase> {
   const pool = new pg.Pool({ ...base, database: name, max: 6 });
   return {
     pool,
+    async setClock(instant) {
+      await pool.query('update budget_test.clock set instant = $1::timestamptz where singleton', [instant]);
+    },
     async close() {
       await pool.end();
     },

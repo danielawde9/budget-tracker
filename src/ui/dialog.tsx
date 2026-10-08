@@ -36,6 +36,14 @@ export function Dialog({ title, onClose, children, pending = false, wide = false
     } else {
       dialog.setAttribute('open', '');
     }
+    const viewport = window.visualViewport;
+    const updateViewport = () => {
+      dialog.style.setProperty('--dialog-viewport-height', `${viewport?.height ?? window.innerHeight}px`);
+      dialog.style.setProperty('--dialog-viewport-top', `${viewport?.offsetTop ?? 0}px`);
+    };
+    updateViewport();
+    viewport?.addEventListener('resize', updateViewport);
+    viewport?.addEventListener('scroll', updateViewport);
     const onCancel = (event: Event) => {
       event.preventDefault();
       if (!pendingRef.current) closeRef.current();
@@ -45,6 +53,8 @@ export function Dialog({ title, onClose, children, pending = false, wide = false
     target?.focus();
     return () => {
       dialog.removeEventListener('cancel', onCancel);
+      viewport?.removeEventListener('resize', updateViewport);
+      viewport?.removeEventListener('scroll', updateViewport);
       if (typeof dialog.close === 'function' && dialog.open) dialog.close();
       opener?.focus();
     };
