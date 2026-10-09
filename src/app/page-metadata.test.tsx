@@ -7,7 +7,7 @@ afterEach(cleanup);
 it('gives every private route a useful title while excluding financial screens from indexing', () => {
   for (const page of ['home', 'plan', 'activity', 'accounts', 'settings', 'onboarding', 'invite'] as const) {
     const view = render(<I18nProvider locale="en"><PageMetadata page={page} /></I18nProvider>);
-    expect(document.title).toMatch(/.+ · openbudgetracker.app/);
+    expect(document.title).toMatch(/.+ · Open Budget Tracker/);
     expect(document.querySelector('meta[name="robots"]')).toHaveAttribute('content', 'noindex, nofollow');
     expect(document.querySelector('link[rel="canonical"]')?.getAttribute('href')).not.toContain('#');
     view.unmount();

@@ -1820,6 +1820,42 @@
 
 /* Domain branding remains readable in narrow rails and RTL layouts. */
 .cr-brand-name { min-inline-size: 0; overflow-wrap: anywhere; }
+.cr-brand-mark { display: block; flex: none; inline-size: 40px; block-size: 40px; object-fit: contain; }
+.cr-rail .cr-brand-mark { inline-size: var(--cr-space-6); block-size: var(--cr-space-6); background: var(--cr-accent-soft); border-radius: var(--cr-radius-sm); }
+
+/* Public articles share the app tokens and card/button language. */
+.cr-public { font-family: var(--cr-font); line-height: 1.65; }
+.cr-public-frame { max-inline-size: var(--cr-content-w); margin-inline: auto; padding: var(--cr-space-5); }
+.cr-public-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--cr-space-3); padding-block: var(--cr-space-3) var(--cr-space-4); }
+.cr-public-header .auth-brand { font-size: 19px; text-decoration: none; }
+.cr-public-nav { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cr-space-2) var(--cr-space-4); }
+.cr-public-nav a, .cr-public a.auth-brand { display: inline-flex; align-items: center; min-block-size: 44px; max-inline-size: 100%; overflow-wrap: anywhere; }
+.cr-public-nav a { color: var(--cr-accent-strong); text-underline-offset: var(--cr-space-1); }
+.cr-public-nav a[aria-current="page"] { font-weight: 800; }
+.cr-public-nav a:hover { text-decoration-thickness: 2px; }
+.cr-public a:focus-visible, .cr-public-entry a:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: var(--cr-space-1); border-radius: var(--cr-radius-sm); }
+.cr-public-intro { padding-block: var(--cr-space-6); }
+.cr-public-intro h1 { font-size: clamp(1.75rem, 5vw, 2.5rem); line-height: 1.2; max-inline-size: 22ch; }
+.cr-public-intro > p:last-child { color: var(--cr-ink-soft); margin-block-start: var(--cr-space-4); }
+.cr-public :where(h2, p) { margin-block: 0; }
+.cr-public h2 { font-size: 19px; line-height: 1.4; }
+.cr-public p { overflow-wrap: anywhere; }
+.cr-public-cta { margin-block-start: var(--cr-space-5); }
+.cr-public-nav .cr-button { color: var(--cr-ink); text-decoration: none; padding-block: var(--cr-space-2); }
+.cr-public-nav .cr-button--primary { color: var(--cr-accent-ink); }
+.cr-public-footer { border-block-start: 1px solid var(--cr-hairline); padding-block: var(--cr-space-5); margin-block-start: var(--cr-space-6); }
+.cr-public-skip { position: absolute; inset-inline-start: var(--cr-space-4); inset-block-start: var(--cr-space-2); padding: var(--cr-space-3); background: var(--cr-surface); color: var(--cr-accent-strong); transform: translateY(-200%); }
+.cr-public-skip:focus { transform: none; }
+.cr-public-entry { inline-size: min(850px, 100%); text-align: center; }
+.cr-public-entry .cr-public-nav { justify-content: center; }
+.cr-public-entry p { margin-block: var(--cr-space-2) 0; }
+@media (max-width: 650px) {
+  .cr-public-frame { padding: var(--cr-space-4); }
+  .cr-public .cr-card { padding: var(--cr-space-4); }
+}
+@media (min-width: 701px) {
+  .auth-redesign:has(.cr-public-entry) { padding-block-start: calc(var(--cr-space-6) * 3); }
+}
 
 .cr-invitations { list-style: none; padding: 0; margin: 0; }
 .cr-invitations li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--cr-space-3); padding-block: var(--cr-space-3); border-block-end: 1px solid var(--cr-border); }

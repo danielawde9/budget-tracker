@@ -10,6 +10,7 @@ import { Amount, MoneyField } from '../../ui/money.tsx';
 import { PlanEditorForm } from '../plan/plan-editor.tsx';
 import { setupCopy } from './setup-copy.ts';
 import './onboarding-redesign.css';
+import { BRAND_MARK_URL } from '../../public-site/site.ts';
 
 type Step = 'space' | 'plan' | 'money' | 'assign';
 const STEPS: readonly { readonly step: Step; readonly label: MessageKey }[] = [
@@ -38,7 +39,7 @@ export function Onboarding({ api, onFinished, onToggleLocale, onSignOut }: {
   return (
     <main className="cr-onboarding setup-redesign" dir={dir}>
       <header className="auth-topbar">
-        <span className="auth-brand"><span className="auth-brand-mark" aria-hidden="true" />{t('app.name')}</span>
+        <span className="auth-brand"><img className="cr-brand-mark" src={BRAND_MARK_URL} width="40" height="40" alt="" /><bdi className="cr-brand-name" dir="ltr">{t('app.name')}</bdi></span>
         <span className="cr-row">
           <button type="button" className="text-button" onClick={onToggleLocale}>{t('shell.language')}</button>
           <button type="button" className="text-button" onClick={onSignOut}>{t('settings.signOut')}</button>

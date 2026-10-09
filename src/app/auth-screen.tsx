@@ -5,6 +5,8 @@ import { IS_DEMO } from '../preview/demo-mode.ts';
 import { Eye, EyeOff } from 'lucide-react';
 import { setupCopy } from '../screens/onboarding/setup-copy.ts';
 import './auth-redesign.css';
+import { PublicLinks } from '../public-site/public-links.tsx';
+import { BRAND_MARK_URL } from '../public-site/site.ts';
 
 const DemoSignIn = IS_DEMO ? lazy(() => import('../preview/demo-sign-in.tsx')) : null;
 
@@ -38,7 +40,7 @@ export function AuthScreen({ client, onToggleLocale }: { readonly client: Supaba
   return (
     <main className="auth-page auth-redesign" dir={dir}>
       <header className="auth-topbar">
-        <span className="auth-brand"><span className="auth-brand-mark" aria-hidden="true" /><bdi className="cr-brand-name" dir="ltr">{t('app.name')}</bdi></span>
+        <span className="auth-brand"><img className="cr-brand-mark" src={BRAND_MARK_URL} width="40" height="40" alt="" /><bdi className="cr-brand-name" dir="ltr">{t('app.name')}</bdi></span>
         <button type="button" className="text-button auth-language" onClick={onToggleLocale}>{t('shell.language')}</button>
       </header>
       <section className="auth-boundary">
@@ -76,6 +78,7 @@ export function AuthScreen({ client, onToggleLocale }: { readonly client: Supaba
           {DemoSignIn ? <Suspense fallback={null}><DemoSignIn client={client} /></Suspense> : null}
         </div>
       </section>
+      <PublicLinks />
     </main>
   );
 }

@@ -2,6 +2,7 @@ import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { recoveryMessages } from './messages-recovery.ts';
 import { screenMessages } from './messages-screens.ts';
 import { formatMoney, type Currency, type Locale } from './money.ts';
+import { BRAND_NAME } from '../public-site/site.ts';
 
 /**
  * Every user-visible string, in English and Arabic, in one typed table.
@@ -32,7 +33,7 @@ export const messages = {
   'error.BUDGET_INVITATION_INVALID': { en: 'This invitation is expired, revoked, or intended for another email. Sign in with the invited, confirmed email or ask the owner for a new link.', ar: 'انتهت صلاحية هذه الدعوة أو أُلغيت أو خُصّصت لبريد آخر. سجّل الدخول بالبريد المدعو المؤكّد أو اطلب رابطًا جديدًا من المالك.' },
   'error.BUDGET_ALREADY_MEMBER': { en: 'This email already belongs to a member of this space.', ar: 'هذا البريد لعضو في هذه المساحة بالفعل.' },
   'error.BUDGET_INVITATION_LIMIT': { en: 'There are 20 pending invitations. Revoke an unused invitation before creating another.', ar: 'توجد ٢٠ دعوة معلّقة. ألغِ دعوة غير مستخدمة قبل إنشاء أخرى.' },
-  'app.name': { en: 'openbudgetracker.app', ar: 'openbudgetracker.app' },
+  'app.name': { en: BRAND_NAME, ar: BRAND_NAME },
   'nav.home': { en: 'Home', ar: 'الرئيسية' },
   'nav.plan': { en: 'Plan', ar: 'الخطة' },
   'nav.activity': { en: 'Activity', ar: 'النشاط' },

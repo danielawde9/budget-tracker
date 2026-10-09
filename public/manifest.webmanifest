@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "openbudgetracker.app",
-  "short_name": "openbudgetracker.app",
+  "name": "Open Budget Tracker",
+  "short_name": "Open Budget",
   "description": "Household budget in USD and LBP",
   "start_url": "/",
   "scope": "/",

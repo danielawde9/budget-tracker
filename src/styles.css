@@ -720,25 +720,8 @@ input[type="checkbox"]:checked::after { opacity: 1; }
   letter-spacing: -0.02em;
   line-height: 1.15;
 }
-.auth-brand-mark {
-  display: inline-block;
-  flex: none;
-  inline-size: var(--cr-space-5);
-  block-size: var(--cr-space-5);
-  position: relative;
-}
-.auth-brand-mark::before, .auth-brand-mark::after {
-  content: "";
-  position: absolute;
-  inset-block: 0;
-  inline-size: 55%;
-  border-radius: var(--cr-radius-full) 0 var(--cr-radius-full) 0;
-  background: var(--cr-accent-strong);
-}
-.auth-brand-mark::before { inset-inline-start: 0; transform: rotate(-18deg); }
-.auth-brand-mark::after { inset-inline-end: 0; transform: rotate(18deg); background: var(--cr-accent); }
 .auth-card-brand { margin-block-end: calc(var(--cr-space-6) * 2); font-size: 21px; }
-.auth-card-brand .auth-brand-mark { inline-size: var(--cr-space-6); block-size: var(--cr-space-6); }
+.auth-card-brand .cr-brand-mark { inline-size: var(--cr-space-6); block-size: var(--cr-space-6); }
 .auth-intro h1 { font-size: 42px; }
 .auth-form input { min-block-size: 52px; }
 .auth-form .cr-button { min-block-size: 58px; }

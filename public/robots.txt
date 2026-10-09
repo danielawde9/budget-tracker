@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /*?add=
 
-Sitemap: https://budget-tracker.danielawde9.workers.dev/sitemap.xml
+Sitemap: https://openbudgetracker.app/sitemap.xml

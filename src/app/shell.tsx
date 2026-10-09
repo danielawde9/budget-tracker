@@ -1,9 +1,10 @@
-import { ChartPie, House, Languages, Leaf, List, Plus, Settings, Wallet } from 'lucide-react';
+import { ChartPie, House, Languages, List, Plus, Settings, Wallet } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { SpaceSummary } from '../api/schemas.ts';
 import { useI18n, type MessageKey } from '../lib/i18n.tsx';
 import { SelectField } from '../ui/select-field.tsx';
 import { navigate, type Route, type RouteName } from './router.ts';
+import { BRAND_MARK_URL } from '../public-site/site.ts';
 
 const DESTINATIONS: readonly { readonly name: RouteName; readonly label: MessageKey; readonly Icon: typeof House }[] = [
   { name: 'home', label: 'nav.home', Icon: House },
@@ -59,7 +60,7 @@ export function Shell({ route, space, spaces, onSelectSpace, onRecord, onToggleL
   return (
     <div className="cr-shell">
       <nav className="cr-rail" aria-label={t('nav.main')}>
-        <div className="cr-brand"><Leaf aria-hidden size={22} /><bdi className="cr-brand-name" dir="ltr">{t('app.name')}</bdi></div>
+        <div className="cr-brand"><img className="cr-brand-mark" src={BRAND_MARK_URL} width="40" height="40" alt="" /><bdi className="cr-brand-name" dir="ltr">{t('app.name')}</bdi></div>
         <SpaceControl space={space} spaces={spaces} onSelectSpace={onSelectSpace} />
         <div className="cr-rail-destinations">{DESTINATIONS.filter(destination => destination.name !== 'settings').map(tab)}</div>
         <div className="cr-rail-footer">{DESTINATIONS.filter(destination => destination.name === 'settings').map(tab)}

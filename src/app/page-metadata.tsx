@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 import { useI18n } from '../lib/i18n.tsx';
 
-// This is the deployed address, not the product name (the custom domain is not configured).
-export const SITE_URL = 'https://budget-tracker.danielawde9.workers.dev/';
+import { BRAND_NAME, SITE_URL } from '../public-site/site.ts';
+export { SITE_URL } from '../public-site/site.ts';
 const titles = {
   public: { en: 'Budget Tracker for USD & LBP', ar: 'تتبّع الميزانية بالدولار والليرة' },
   home: { en: 'Overview', ar: 'نظرة عامة' },
@@ -32,7 +32,7 @@ function meta(attribute: 'name' | 'property', key: string, content: string) {
 export function PageMetadata({ page }: { readonly page: keyof typeof titles }) {
   const { locale } = useI18n();
   useEffect(() => {
-    const title = `${titles[page][locale]} · openbudgetracker.app`;
+    const title = `${titles[page][locale]} · ${BRAND_NAME}`;
     const description = page === 'public' ? descriptions[locale] : titles[page][locale];
     document.title = title;
     meta('name', 'description', description);

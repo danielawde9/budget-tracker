@@ -1,6 +1,11 @@
-# openbudgetracker.app (v2: connected money model)
+# [Open Budget Tracker](https://openbudgetracker.app)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+**[Open the app](https://openbudgetracker.app)** ·
+[How it works](https://openbudgetracker.app/how-it-works) ·
+[USD & LBP guide](https://openbudgetracker.app/budgeting-usd-lbp) ·
+[Contribute](CONTRIBUTING.md)
 
 A bilingual (English/Arabic, right-to-left) personal budget built on
 Postgres/Supabase and React. Every dollar has exactly one job. One append-only
@@ -12,9 +17,17 @@ own balance.
 > **v2 is live as of 2026-10-04.** The owner authorized a fresh start:
 > old Budget application data was backed up, restored in a local rehearsal,
 > and cleared from production. Existing login accounts were preserved.
-> Live address: https://budget-tracker.danielawde9.workers.dev.
-> The visible product name is openbudgetracker.app; custom-domain hosting is
-> separate. See `docs/operations/2026-10-04-v2-production-release.md`.
+> Live address: **https://openbudgetracker.app**.
+> The original release record is in
+> `docs/operations/2026-10-04-v2-production-release.md`.
+
+## Help improve the app
+
+The project is open source under the MIT license. Contributions can be code,
+Arabic translations, documentation, accessibility improvements, or clear bug
+reports. [Browse issues](https://github.com/danielawde9/budget-tracker/issues)
+or read the [contribution guide](CONTRIBUTING.md) to get started.
+Please use demonstration data and remove personal financial details from reports.
 
 ## Concepts
 
@@ -59,6 +72,14 @@ pnpm test:e2e
 - `pnpm test:e2e` needs the local preview stack.
 
 ## Where things live
+
+- `src/public-site/`: bilingual public articles and shared site links.
+  `scripts/public-pages.ts` serves them in development and emits standalone
+  HTML documents plus `sitemap.xml` during `pnpm build`. The public routes are
+  `/about`, `/how-it-works`, `/budgeting-usd-lbp`, and `/contribute`, with Arabic
+  equivalents under `/ar/`. They share the app stylesheet and load no app
+  JavaScript or backend session. Titles, canonical URLs, language alternatives,
+  social metadata, and structured data are included in the HTML.
 
 - `supabase/migrations/`: the schema, invariant triggers, commands, plan and
   reads. All writes go through `SECURITY DEFINER` functions. The tables are not

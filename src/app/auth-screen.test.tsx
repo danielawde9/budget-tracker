@@ -22,6 +22,15 @@ it('reveals the password accessibly without changing it or submitting', async ()
   expect(auth.signInWithPassword).not.toHaveBeenCalled();
 });
 
+it('offers public information and GitHub contributions before sign in', () => {
+  setup();
+  expect(screen.getByRole('link', { name: 'About' })).toHaveAttribute('href', '/about');
+  expect(screen.getByRole('link', { name: 'How it works' })).toHaveAttribute('href', '/how-it-works');
+  expect(screen.getByRole('link', { name: 'USD & LBP guide' })).toHaveAttribute('href', '/budgeting-usd-lbp');
+  expect(screen.getByRole('link', { name: 'Contribute' })).toHaveAttribute('href', '/contribute');
+  expect(screen.getByRole('link', { name: 'GitHub' })).toHaveAttribute('href', 'https://github.com/danielawde9/budget-tracker');
+});
+
 it('keeps sign in and account creation on their original backend methods', async () => {
   const auth = setup();
   const user = userEvent.setup();

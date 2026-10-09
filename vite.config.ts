@@ -1,8 +1,9 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { publicPagesPlugin } from './scripts/public-pages.ts';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), publicPagesPlugin()],
   server: {
     host: '127.0.0.1',
   },

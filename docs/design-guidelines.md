@@ -241,6 +241,21 @@ Rules:
 
 ## 16. Entry and first-space screens
 
+- The visible product name is **Open Budget Tracker** in both languages; the
+  website address remains `https://openbudgetracker.app`. `.cr-brand-mark`
+  displays the shared generated ledger symbol with explicit image dimensions.
+  Its empty alt text avoids repeating the adjacent wordmark. The sidebar adds
+  an accent-soft tile for contrast on the dark rail. Brand artwork is in
+  `assets/brand/`; `node scripts/generate-app-icons.mjs` packages it into the
+  public logo, favicon, and installable-app icons.
+
+- Public articles use `.cr-public` and `.cr-public-frame`, shared `.cr-card`
+  sections, and the existing button family. `.cr-public-nav` provides wrapping
+  navigation with 44px link targets, a visible current page, and keyboard focus
+  rings. `.cr-public-entry` puts the same links below the sign-in card. All new
+  styles live in `control-room.css` and use its tokens. Arabic articles use
+  dedicated `/ar/` URLs with RTL layout; articles are readable without JavaScript.
+
 - The signed-out entry lives outside `.cr-shell`. Its `.auth-boundary` uses a
   two-column card at desktop widths: the form on one side and a simple ledger
   illustration on the other. The illustration is decorative and built from
@@ -322,7 +337,8 @@ Use logical properties and existing tokens; do not introduce feature colors.
 
 ## 19. Product name
 
-The visible product name is `openbudgetracker.app` in both locales. Domain
-branding uses `<bdi dir="ltr" class="cr-brand-name">` to preserve direction
+The visible product name is **Open Budget Tracker** in both locales. The website
+address remains `https://openbudgetracker.app`. The wordmark uses
+`<bdi dir="ltr" class="cr-brand-name">` to preserve direction
 and allow wrapping inside the narrow rail. Browser and installed-app titles
 use the same name. The deployment worker identifier remains `budget-tracker`.
