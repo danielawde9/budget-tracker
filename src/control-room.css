@@ -50,6 +50,9 @@
   --cr-space-4: 16px;
   --cr-space-5: 24px;
   --cr-space-6: 32px;
+  --cr-space-page: 20px;
+  --cr-title-size: 28px;
+  --cr-hero-size: 36px;
 
   /* Radius scale */
   --cr-radius-sm: 12px;
@@ -68,7 +71,7 @@
   --cr-ease: cubic-bezier(0.22, 1, 0.36, 1);
 
   /* Layout */
-  --cr-tabbar-h: 68px;
+  --cr-tabbar-h: 80px;
   --cr-rail-w: 282px;
   --cr-content-w: 760px;
   --cr-content-w-wide: 1280px;
@@ -135,7 +138,7 @@
   letter-spacing: -0.02em;
   line-height: 1.15;
 }
-.cr-shell h1 { font-size: 34px; }
+.cr-shell h1 { font-size: var(--cr-title-size); }
 .cr-shell h2 { font-size: 19px; }
 
 /* Small field: caption label stacked over a control */
@@ -182,7 +185,7 @@
   inline-size: 100%;
   max-inline-size: var(--cr-content-w);
   margin-inline: auto;
-  padding: 0 var(--cr-space-4) var(--cr-space-4);
+  padding: 0 var(--cr-space-page) var(--cr-space-4);
   padding-block-end: calc(var(--cr-tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--cr-space-6));
 }
 .cr-main--wide { max-inline-size: var(--cr-content-w-wide); }
@@ -200,7 +203,7 @@
 }
 
 /* ==========================================================================
-   Navigation — phone-first bottom tab bar with raised center FAB;
+   Navigation — phone-first bottom tab bar with an inline Record action;
    ≥1024px: left rail with space switcher + prominent Record action
    ========================================================================== */
 
@@ -209,7 +212,8 @@
   inset-inline: 0;
   inset-block-end: 0;
   z-index: 30;
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: stretch;
   justify-content: space-around;
   min-height: calc(var(--cr-tabbar-h) + env(safe-area-inset-bottom, 0px));
@@ -221,9 +225,15 @@
 /* Phone-only top bar: the space switcher lives here on narrow screens (the
    left rail that normally hosts it is hidden below 1024px). */
 .cr-mobile-topbar {
-  display: block;
-  padding: var(--cr-space-2) var(--cr-space-4) 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--cr-space-2);
+  padding: max(var(--cr-space-3), env(safe-area-inset-top, 0px)) var(--cr-space-page) var(--cr-space-3);
 }
+.cr-mobile-topbar > .cr-row { align-items: center; gap: var(--cr-space-1); }
+.cr-mobile-topbar .cr-space-name { padding: 0; min-inline-size: 0; overflow-wrap: anywhere; }
+.cr-mobile-topbar .cr-space-select { min-inline-size: 0; }
 .cr-mobile-topbar .space-switcher { margin: 0; inline-size: min(48%, 200px); }
 .cr-mobile-topbar .space-switcher-trigger {
   min-block-size: 44px;
@@ -256,11 +266,12 @@
   justify-content: center;
   gap: 4px;
   min-height: var(--cr-tabbar-h);
-  padding: 0 var(--cr-space-2);
+  padding: var(--cr-space-2) var(--cr-space-1);
+  min-inline-size: 0;
   border: 0;
   background: none;
   color: var(--cr-ink-soft);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   transition: color var(--cr-duration) var(--cr-ease);
@@ -274,21 +285,25 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: var(--cr-space-1);
+  min-inline-size: 0;
+  padding-block: var(--cr-space-2);
   background: none;
   border: 0;
 }
 .cr-tab-fab-label {
   color: var(--cr-ink-soft);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
 }
 
 .cr-shell .cr-fab {
-  inline-size: 56px;
-  block-size: 56px;
-  margin-block-start: -20px;
-  border: 4px solid var(--cr-surface);
+  inline-size: 44px;
+  block-size: 44px;
+  min-block-size: 44px;
+  padding: 0;
+  margin: 0;
+  border: 0;
   border-radius: 50%;
   background: var(--cr-accent);
   color: var(--cr-accent-ink);
@@ -296,7 +311,7 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: var(--cr-shadow-fab);
+  box-shadow: none;
   transition: background-color var(--cr-duration) var(--cr-ease), transform var(--cr-duration) var(--cr-ease);
 }
 .cr-shell .cr-fab:hover { background: var(--cr-accent-strong); transform: translateY(-1px); }
@@ -364,7 +379,7 @@
   }
   .cr-tabbar { display: none; }
   .cr-main { max-inline-size: none; padding: var(--cr-space-5) 22px; }
-  .cr-shell h1 { font-size: 44px; }
+  .cr-shell h1 { font-size: var(--cr-space-6); }
   .cr-mobile-topbar { display: none; }
 }
 
@@ -1673,6 +1688,60 @@
 .cr-tabs > .cr-tab-button--active { background: var(--cr-accent-strong); color: var(--cr-accent-ink); }
 .cr-tabs > .cr-tab-button:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 2px; }
 .cr-home, .cr-plan, .cr-accounts { display: flex; flex-direction: column; gap: var(--cr-space-4); }
+.cr-home > .cr-card + .cr-card, .cr-plan > .cr-card + .cr-card { margin-block-start: 0; }
+
+/* Shared approved money state and compact registers, 2026-10-09. */
+.cr-money-alert { background: var(--cr-danger-soft); }
+.cr-assignment-warning { display: grid; gap: var(--cr-space-3); min-inline-size: 0; }
+.cr-warning-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--cr-space-2); }
+.cr-warning-heading .cr-tabs { margin: 0; }
+.cr-warning-heading .cr-tabs > .cr-tab-button { min-inline-size: 44px; min-block-size: 44px; padding-inline: var(--cr-space-2); font-size: 12px; }
+.cr-money-footer { display: grid; gap: var(--cr-space-2); }
+.cr-money-footer > .text-button { justify-self: start; }
+.cr-assignment-warning h2 { display: flex; align-items: center; gap: var(--cr-space-2); color: var(--cr-danger); }
+.cr-assignment-warning h2 svg { flex: none; }
+.cr-assignment-warning .cr-amount--hero { font-size: var(--cr-hero-size); font-weight: 800; line-height: 1.1; }
+.cr-assignment-warning > .cr-button { inline-size: 100%; min-block-size: 44px; white-space: normal; }
+.cr-assignment-warning .cr-helper { max-inline-size: 55ch; }
+.cr-assignment-total { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: var(--cr-space-2); padding: var(--cr-space-3) var(--cr-space-4); border-block-end: 1px solid var(--cr-border); font-size: 14px; }
+.cr-plan-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--cr-space-3); }
+.cr-plan-actions > .cr-button--primary { margin-inline-start: auto; }
+.cr-plan-summary .cr-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--cr-space-4); }
+.cr-plan-summary .cr-figures > div { gap: var(--cr-space-1); }
+.cr-plan-summary .cr-figures dt { display: flex; align-items: center; flex-wrap: wrap; gap: var(--cr-space-1); }
+.cr-plan-summary .cr-figures .cr-amount { font-size: 22px; overflow-wrap: anywhere; }
+.cr-inline-disclosure { border-block-start: 1px solid var(--cr-border); }
+.cr-inline-disclosure > summary { display: list-item; min-block-size: 44px; padding-block: var(--cr-space-3); cursor: pointer; color: var(--cr-accent-strong); font-size: 14px; font-weight: 600; }
+.cr-inline-disclosure[open] > :not(summary) { padding-block-end: var(--cr-space-3); }
+.cr-wallet-balance-amounts { display: flex; flex-wrap: wrap; gap: var(--cr-space-2) var(--cr-space-5); }
+.cr-wallet-balance-amounts > .cr-amount { font-size: var(--cr-hero-size); font-weight: 800; overflow-wrap: anywhere; }
+.cr-wallet-balances > .cr-button { align-self: start; margin-block-start: var(--cr-space-2); }
+.cr-account-section { display: flex; flex-direction: column; gap: var(--cr-space-3); padding-block: var(--cr-space-4); border-block-end: 1px solid var(--cr-border); }
+.cr-account-section .cr-section-header { flex-wrap: nowrap; align-items: start; }
+.cr-account-section .cr-section-header > div { min-inline-size: 0; }
+.cr-account-section .cr-section-header .cr-helper { margin-block-start: var(--cr-space-1); }
+.cr-account-section .cr-register-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: var(--cr-space-2); align-items: center; padding-block: var(--cr-space-3); }
+.cr-account-icon { display: grid; place-items: center; inline-size: 40px; block-size: 40px; border-radius: var(--cr-radius-sm); background: var(--cr-accent-soft); color: var(--cr-accent-strong); }
+.cr-account-section .cr-register-title { overflow-wrap: anywhere; }
+.cr-account-section .cr-account-menu > summary { inline-size: 44px; block-size: 44px; }
+.cr-account-empty { background: var(--cr-surface-sunken); border-radius: var(--cr-radius-sm); padding: var(--cr-space-4); }
+@media (min-width: 681px) {
+  .cr-assignment-warning > .cr-button { inline-size: auto; min-inline-size: 220px; justify-self: start; }
+}
+@media (max-width: 680px) {
+  .cr-card { padding: var(--cr-space-4); }
+  .cr-header-actions { inline-size: 100%; }
+  .cr-header-actions > .cr-button--primary, .cr-wallet-balances > .cr-button { inline-size: 100%; }
+  .cr-plan-actions { justify-content: space-between; }
+  .cr-plan-actions > .cr-button--primary { inline-size: 100%; margin: 0; }
+  .cr-wallet-balance-amounts { flex-direction: column; }
+  .cr-account-section .cr-register-row > .cr-amount { font-size: 16px; }
+}
+@media (max-width: 360px) {
+  .cr-account-section .cr-account-icon { display: none; }
+  .cr-account-section .cr-register-row { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .cr-wallet-balance-amounts > .cr-amount { font-size: 30px; }
+}
 .cr-home-columns { display: grid; gap: var(--cr-space-4); }
 @media (min-width: 1024px) { .cr-home-columns { grid-template-columns: 1fr 1fr; align-items: start; } }
 .cr-setup-card { border-color: var(--cr-accent); }

@@ -262,6 +262,7 @@ export function MoveForm({ catalog, onDone, onCancel, fromItemId, toItemId, curr
   const [on, setOn] = useState(space.today);
   const groups = pickerGroups(catalog.plan);
   const ready = readyBalance(catalog, currency);
+  const sourceChosen = from !== READY || ready >= 0n;
   const fromItem = from === READY ? null : findItem(catalog.plan, from);
   const toItem = to === READY ? null : findItem(catalog.plan, to);
   const fromAvailable = fromItem ? fromItem.balances[currency] : ready;
@@ -271,7 +272,7 @@ export function MoveForm({ catalog, onDone, onCancel, fromItemId, toItemId, curr
   const label = (item: ReturnType<typeof findItem>) => (item ? name(item) : t('common.readyToAssign'));
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (amount === null || from === to) return;
+    if (amount === null || from === to || !sourceChosen || amount > fromAvailable) return;
     if (!(await command.submit(null))) return;
     refresh();
     onDone(t('record.moveDone', { amount: money(amount, currency), from: label(fromItem), to: label(toItem) }));
@@ -285,15 +286,15 @@ export function MoveForm({ catalog, onDone, onCancel, fromItemId, toItemId, curr
           <label key={option}><input type="radio" name="move-currency" checked={currency === option} onChange={() => setCurrency(option)} />{option}</label>
         ))}
       </fieldset>
-      <ItemSelect label={t('record.from')} groups={groups} value={from} onChange={setFrom} currency={currency} includeReady readyBalance={ready} />
+      <ItemSelect label={t('record.from')} groups={groups} value={from} onChange={setFrom} currency={currency} includeReady={ready >= 0n} readyBalance={ready} />
       <ItemSelect label={t('record.to')} groups={groups} value={to} onChange={setTo} currency={currency} includeReady readyBalance={ready} exclude={from} />
       <MoneyField key={currency} label={t('common.amount')} currency={currency} value={amount} onChange={setAmount} autoFocus
-        hint={t('record.moveAvailable', { name: label(fromItem), amount: money(fromAvailable, currency) })} />
-      {amount !== null ? <Preview><p>{label(fromItem)}: {money(fromAvailable, currency)} → {money(fromAvailable - amount, currency)}</p><p>{label(toItem)}: {money(toItem ? toItem.balances[currency] : ready, currency)} → {money((toItem ? toItem.balances[currency] : ready) + amount, currency)}</p><p>{copy('Wallet balances stay the same.', 'تبقى أرصدة المحافظ كما هي.')}</p></Preview> : null}
-      {amount !== null && amount > fromAvailable ? <Explain tone="warn">{t('record.moveTooMuch')}</Explain> : null}
+        hint={sourceChosen ? t('record.moveAvailable', { name: label(fromItem), amount: money(fromAvailable, currency) }) : copy('Choose an item to take money from.', 'اختر بندًا لاسترجاع المال منه.')} />
+      {amount !== null && sourceChosen ? <Preview><p>{label(fromItem)}: {money(fromAvailable, currency)} → {money(fromAvailable - amount, currency)}</p><p>{label(toItem)}: {money(toItem ? toItem.balances[currency] : ready, currency)} → {money((toItem ? toItem.balances[currency] : ready) + amount, currency)}</p><p>{copy('Wallet balances stay the same.', 'تبقى أرصدة المحافظ كما هي.')}</p></Preview> : null}
+      {amount !== null && sourceChosen && amount > fromAvailable ? <Explain tone="warn">{t('record.moveTooMuch')}</Explain> : null}
       <DateField value={on} onChange={setOn} max={space.today} />
       {command.error ? <ErrorNotice error={command.error} /> : null}
-      <FormActions submitLabel="record.saveMove" pending={command.pending} onCancel={onCancel} disabled={amount === null || from === to || amount > fromAvailable} />
+      <FormActions submitLabel="record.saveMove" pending={command.pending} onCancel={onCancel} disabled={amount === null || !sourceChosen || from === to || amount > fromAvailable} />
     </form>
   );
 }

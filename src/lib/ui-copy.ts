@@ -1,6 +1,16 @@
 import { useI18n } from './i18n.tsx';
 const copy = {
   needsCovering: ['Needs covering', 'يحتاج تغطية'],
+  fixAssignment: ['Fix over-assignment', 'تصحيح التوزيع الزائد'],
+  overAssignedBody: ['Reduce an assignment to cover the shortfall.', 'قلّل أحد المبالغ المخصّصة لتغطية العجز.'],
+  cashHeld: ['In your wallets', 'في محافظك'],
+  cashHeldHelp: ['Cash and bank accounts', 'النقد والحسابات المصرفية'],
+  assignedSpending: ['Assigned to spending', 'المخصّص للإنفاق'],
+  fundingHelp: ['How funding works', 'كيف يعمل التمويل'],
+  forecastHelp: ['Expected income is a forecast, not money available to spend.', 'الدخل المتوقع تقدير، وليس مالًا متاحًا للإنفاق.'],
+  walletSummary: ['Wallet balance', 'رصيد المحافظ'],
+  walletSummaryHelp: ['Money held in cash and bank accounts', 'المال الموجود نقدًا وفي الحسابات المصرفية'],
+  spendableHelp: ['What counts as spendable money?', 'ما المال القابل للإنفاق؟'],
   allAssigned: ['Everything assigned', 'وُزّع المال بالكامل'],
   availableSpend: ['Available to spend', 'متاح للإنفاق'],
   availableHelp: ['In spending categories', 'في بنود الإنفاق'],

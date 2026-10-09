@@ -1,4 +1,5 @@
 import { ShoppingCart, ChartNoAxesCombined, ShieldCheck, PiggyBank } from 'lucide-react';
+import type { ReactNode } from 'react';
 import type { CurrencyOverview, Overview, PlanMonth, Entry } from '../../api/schemas.ts';
 import { useWorkspace } from '../../app/workspace.tsx';
 import { navigate } from '../../app/router.ts';
@@ -9,15 +10,15 @@ import { Amount } from '../../ui/money.tsx';
 import { endOfMonth } from '../describe.ts';
 import { dashboardTotals, loadMonthActivity, spendingSeries, plannedSpending } from './dashboard-model.ts';
 
-export function Dashboard({ overview, view }: { readonly overview: Overview; readonly view: CurrencyOverview }) {
+export function Dashboard({ overview, view, afterMetrics }: { readonly overview: Overview; readonly view: CurrencyOverview; readonly afterMetrics?: ReactNode }) {
   const { api, space, version } = useWorkspace();
   const plan = useLoad(() => api.planMonth(space.id, overview.month), [api, space.id, overview.month, version]);
   return <div className="cr-dashboard">
-    <LoadState loaded={plan}>{data => <DashboardPlan plan={data} overview={overview} view={view} />}</LoadState>
+    <LoadState loaded={plan}>{data => <DashboardPlan plan={data} overview={overview} view={view} afterMetrics={afterMetrics} />}</LoadState>
   </div>;
 }
 
-function DashboardPlan({ plan, overview, view }: { readonly plan: PlanMonth; readonly overview: Overview; readonly view: CurrencyOverview }) {
+function DashboardPlan({ plan, overview, view, afterMetrics }: { readonly plan: PlanMonth; readonly overview: Overview; readonly view: CurrencyOverview; readonly afterMetrics?: ReactNode }) {
   const { api, space, version } = useWorkspace();
   const { name } = useI18n();
   const c = useUiCopy();
@@ -39,11 +40,15 @@ function DashboardPlan({ plan, overview, view }: { readonly plan: PlanMonth; rea
   });
   return <>
     <div className="cr-dashboard-metrics">
-      <Metric label={c('availableSpend')} help={c('availableHelp')} amount={totals.available} currency={view.currency} Icon={ShoppingCart} />
+      <Metric label={c(view.ready < 0n ? 'cashHeld' : 'availableSpend')} help={c(view.ready < 0n ? 'cashHeldHelp' : 'availableHelp')} amount={view.ready < 0n ? view.cashHeld : totals.available} currency={view.currency} Icon={ShoppingCart} />
       <article className="cr-card cr-metric"><ChartNoAxesCombined size={22} aria-hidden /><div><p className="cr-helper">{c('spentMonth')}</p><LoadState loaded={activity}>{entries => <Amount minor={spendingSeries(entries, view.currency, overview.month, overview.today).at(-1)?.amount ?? 0n} currency={view.currency} />}</LoadState><p className="cr-helper">{c('netSpending')}</p></div></article>
+    </div>
+    {view.ready < 0n ? <div className="cr-assignment-total"><span>{c('assignedSpending')}</span><Amount minor={totals.available} currency={view.currency} /></div> : null}
+    {afterMetrics}
+    {hasReserves || hasSavings ? <div className="cr-dashboard-metrics">
       {hasReserves ? <Metric label={c('reserves')} help={c('reservesHelp')} amount={totals.reserves} currency={view.currency} Icon={ShieldCheck} /> : null}
       {hasSavings ? <Metric label={c('savings')} help={c('savingsHelp')} amount={totals.savings} currency={view.currency} Icon={PiggyBank} /> : null}
-    </div>
+    </div> : null}
     <div className="cr-dashboard-charts">
       <section className="cr-card" aria-labelledby="spending-heading"><h2 id="spending-heading">{c('spendingChart')}</h2><p className="cr-helper">{c('spendingHelp')}</p><LoadState loaded={activity}>{entries => <SpendingChart entries={entries} overview={overview} view={view} plan={plan} />}</LoadState></section>
       <section className="cr-card" aria-labelledby="allocation-heading"><h2 id="allocation-heading">{c('allocation')}</h2>{segments.length === 0 ? <p className="cr-helper">{c('noAllocation')}</p> : <div className="cr-allocation"><div className="cr-donut" style={{ background: stops.length ? `conic-gradient(${stops.join(',')})` : '#e1ece7' }}><div><Amount minor={total} currency={view.currency} /><span>{c('totalAssigned')}</span></div></div><ul className="cr-chart-legend">{segments.map(group => <li key={group.groupId}><span className="cr-chart-dot" style={{ background: group.amount < 0n ? 'var(--cr-danger)' : colors[positive.indexOf(group) % colors.length] }} aria-hidden /><bdi>{name(group)}{group.amount < 0n ? <small className="cr-over-label">{c('needsCovering')}</small> : null}</bdi><Amount minor={group.amount} currency={view.currency} tone={group.amount < 0n ? 'negative' : 'plain'} /></li>)}</ul></div>}</section>

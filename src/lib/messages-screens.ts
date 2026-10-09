@@ -387,7 +387,8 @@ export const screenMessages = {
   'flow.lend': { en: 'lent', ar: 'إقراض' },
   'flow.collect': { en: 'repaid to you', ar: 'سُدّد لك' },
 
-  'accounts.intro': { en: 'Where your money is. Investments and loans count in net worth, never in spendable cash.', ar: 'أين يوجد مالك. تُحسب الاستثمارات والقروض في صافي الثروة، لا في النقد القابل للإنفاق.' },
+  'accounts.intro': { en: 'Where your money is.', ar: 'أين يوجد مالك.' },
+  'accounts.spendableHelp': { en: 'Cash and bank accounts hold spendable money. Investments and loans count in net worth, never in spendable cash.', ar: 'النقد والحسابات المصرفية تحتوي المال القابل للإنفاق. تُحسب الاستثمارات والقروض في صافي الثروة، لا في النقد القابل للإنفاق.' },
   'accounts.add': { en: 'Add an account', ar: 'إضافة حساب' },
   'accounts.addShort': { en: 'Add', ar: 'إضافة' },
   'accounts.none': { en: 'None yet.', ar: 'لا شيء بعد.' },

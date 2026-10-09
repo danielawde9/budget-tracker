@@ -29,7 +29,7 @@ spacing value, radius, shadow, or duration.
 
 | Level | Spec | Class |
 | --- | --- | --- |
-| Screen title | 24px / 800 / -0.02em | bare `h1` in `.cr-shell` (never override) |
+| Screen title | 28px mobile, 32px desktop / 800 / -0.02em | bare `h1` in `.cr-shell` (never override) |
 | Section title | 19px / 800 / -0.02em | bare `h2` in `.cr-shell` |
 | Group label (legend, kicker) | 11px / 700 / 0.08em / uppercase / `--cr-ink-soft` | `.cr-form-section legend`, `.cr-choice legend` |
 | Field label | 12px / 600 / `--cr-ink-soft` | `.cr-label` |
@@ -41,6 +41,12 @@ Placeholders are always muted (`--cr-ink-soft`) and are hints, never the only
 label (global rule in `styles.css`).
 
 ## 3. Surfaces
+
+Approved mobile rhythm (2026-10-09): the workspace and language/settings controls share one top row; page gutters use `--cr-space-page` (20px). The five-column bottom bar reserves 80px plus the bottom safe area. Record stays inside its column, with a 44px button and an unobscured label. All screens reuse this shell.
+
+Over-assignment uses the shared `AssignmentWarning` within `.cr-money-alert`, with a red surface and text, a visible warning icon, and one correction action. Home shows wallet cash separately from spending assignments while over-assigned. Financial totals remain the API's values; currencies are never combined.
+
+Accounts use `.cr-account-section` registers and compact `.cr-account-empty` states. The wallet summary includes only active cash wallets, grouped by currency. Optional explanations use `.cr-inline-disclosure`; keep live categories, transactions, and loan controls available.
 
 - **Card** — one per screen section: `.cr-card` (white, 16px radius, space-5
   padding, card shadow). Cards stack with space-4 between them.

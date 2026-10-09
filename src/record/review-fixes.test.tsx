@@ -1,10 +1,25 @@
-import { act, renderHook, screen } from '@testing-library/react';
+import { act, renderHook, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { useSpaces } from '../app/use-spaces.ts';
 import type { BudgetApi } from '../api/budget-api.ts';
 import { fakeApi, fixtures, itemId, renderWithWorkspace } from '../test/harness.tsx';
 import { InvestForm } from './forms-accounts.tsx';
 import { MoveForm } from './forms-everyday.tsx';
+
+it('asks for a funded source when correcting negative ready money', async () => {
+  const api = fakeApi({ assignMoney: async () => ({ entryId: 'correction' }) });
+  const catalog = { plan: fixtures.plan, accounts: fixtures.accounts, ready: { USD: -5400n, LBP: 0n } };
+  const user = userEvent.setup();
+  renderWithWorkspace(<MoveForm catalog={catalog} onDone={vi.fn()} onCancel={vi.fn()} />, api);
+  const source = await screen.findByRole('combobox', { name: 'From' });
+  expect(within(source).queryByRole('option', { name: /Ready to assign/ })).not.toBeInTheDocument();
+  expect(screen.getByRole('combobox', { name: 'To' })).toHaveValue('');
+  await user.type(screen.getByRole('textbox', { name: /Amount/ }), '54');
+  expect(screen.getByRole('button', { name: 'Move now' })).toBeDisabled();
+  await user.selectOptions(source, itemId('Groceries'));
+  await user.click(screen.getByRole('button', { name: 'Move now' }));
+  expect(api.assignMoney).toHaveBeenCalledWith(expect.objectContaining({ moves: [{ from: itemId('Groceries'), to: null, currency: 'USD', amount: 5400n }] }));
+});
 
 describe('LBP waiting in Ready to assign can be given a job (review #2)', () => {
   it('moves lira out of Ready to assign into an item', async () => {

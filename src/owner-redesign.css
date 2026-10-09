@@ -4,13 +4,14 @@
 .cr-workspace-main { flex: 1; min-inline-size: 0; position: relative; }
 .cr-global-record { display: none; }
 .cr-home { gap: 24px; }
-.cr-home .cr-money-card { background: #eaf5f0; border-color: #cfe2d9; gap: 20px; padding: 28px; }
-.cr-home .cr-money-card h2 { font-size: clamp(23px, 3vw, 32px); font-weight: 750; }
+.cr-home .cr-money-card { gap: var(--cr-space-3); padding: var(--cr-space-page); }
+.cr-home .cr-money-card--action { background: var(--cr-accent-soft); }
+.cr-home .cr-money-card h2 { font-size: 19px; font-weight: 750; }
 .cr-money-card .cr-label { display: flex; align-items: center; gap: 8px; }
 .cr-home .cr-hero { gap: 10px; }
-.cr-home .cr-hero .cr-amount--hero { color: var(--cr-accent-strong); font-size: clamp(40px, 5vw, 62px); }
+.cr-home .cr-hero .cr-amount--hero { color: var(--cr-accent-strong); font-size: var(--cr-hero-size); }
 .cr-home .cr-hero .cr-amount--negative { color: var(--cr-danger); }
-.cr-hero-actions { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+.cr-hero-actions { display: flex; align-items: center; gap: var(--cr-space-3); flex-wrap: wrap; }
 .cr-hero-actions .cr-button { padding-inline: 24px; min-block-size: 48px; }
 .cr-wallet-section .cr-register { background: var(--cr-surface); margin-block-start: 16px; border-radius: 12px; padding-inline: 16px; }
 .cr-wallet-section .cr-register-title { flex: 1; }
@@ -81,10 +82,9 @@
 .cr-shell .cr-field > input, .cr-shell .cr-field > select { font-size: 16px; min-block-size: 48px; }
 summary:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 3px; border-radius: 6px; }
 @media (min-width: 1024px) {
-  .cr-shell .cr-main { padding: 36px 48px 56px; }
-  .cr-shell h1 { font-size: 38px; }
-  .cr-shell .cr-header { min-block-size: 56px; padding-inline-end: 130px; margin-block-end: 28px; }
-  .cr-global-record { display: block; position: absolute; z-index: 2; inset-block-start: 38px; inset-inline-end: 48px; }
+  .cr-shell .cr-main { padding: var(--cr-space-5) var(--cr-space-6) 56px; }
+  .cr-shell .cr-header { min-block-size: 56px; padding-inline-end: 130px; margin-block-end: var(--cr-space-5); }
+  .cr-global-record { display: block; position: absolute; z-index: 2; inset-block-start: var(--cr-space-5); inset-inline-end: var(--cr-space-6); }
   .cr-global-record .cr-button { gap: 8px; min-block-size: 48px; color: var(--cr-accent-strong); }
   .cr-rail { padding: 28px 16px; gap: 20px; }
   .cr-rail-destinations { display: flex; flex-direction: column; gap: 12px; margin-block-start: 20px; }
@@ -135,7 +135,7 @@ summary:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 3px
 .cr-metric .cr-amount { font-size: clamp(20px, 2vw, 28px); font-weight: 750; display: block; margin-block: 8px; overflow-wrap: anywhere; }
 .cr-metric .cr-helper { font-size: 13px; line-height: 1.5; }
 .cr-dashboard-charts { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 20px; align-items: stretch; }
-.cr-dashboard h2 { font-size: 20px; }
+.cr-dashboard h2 { font-size: 19px; }
 .cr-chart-key { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; font-size: 13px; margin-block: 12px; }
 .cr-chart-key > span { display: inline-flex; align-items: center; gap: 6px; }
 .cr-chart-key strong { margin-inline-start: auto; }

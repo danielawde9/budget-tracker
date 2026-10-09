@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { WalletStatementDialog } from './wallet-statement.tsx';
 import { ViewportDisclosure } from '../../ui/viewport-disclosure.tsx';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, Wallet, TrendingUp, HandCoins } from 'lucide-react';
 import { useUiCopy } from '../../lib/ui-copy.ts';
 import type { AccountWallet } from '../../api/schemas.ts';
 import { PageHeader } from '../../app/shell.tsx';
@@ -13,6 +13,7 @@ import { Amount } from '../../ui/money.tsx';
 
 export function AccountsScreen({ onRecord }: { readonly onRecord: (intent: RecordIntent) => void }) {
   const { t } = useI18n();
+  const c = useUiCopy();
   const [statementWallet, setStatementWallet] = useState<AccountWallet | null>(null);
   const { catalog } = useWorkspace();
   return (
@@ -20,11 +21,11 @@ export function AccountsScreen({ onRecord }: { readonly onRecord: (intent: Recor
       <PageHeader
         title={t('nav.accounts')}
         subtitle={t('accounts.intro')}
-        actions={<button type="button" className="cr-button cr-button--primary" onClick={() => onRecord({ kind: 'wallet' })}>{t('accounts.add')}</button>}
       />
       <LoadState loaded={catalog}>
         {({ accounts }) => (
           <div className="cr-accounts">
+            <WalletBalances wallets={activeWallets(accounts, 'cash')} onAdd={() => onRecord({ kind: 'wallet' })} />
             <WalletList titleKey="accounts.cashTitle" introKey="accounts.cashIntro" wallets={activeWallets(accounts, 'cash')} onAdd={() => onRecord({ kind: 'wallet', walletKind: 'cash' })}
               actions={(wallet) => [
                 { label: t('statement.check'), run: () => setStatementWallet(wallet) },
@@ -48,12 +49,25 @@ export function AccountsScreen({ onRecord }: { readonly onRecord: (intent: Recor
                     { label: t('loan.collect'), run: () => onRecord({ kind: 'loan', action: 'collect', loanId: wallet.id }) },
                     { label: t('loan.lend'), run: () => onRecord({ kind: 'loan', action: 'lend', loanId: wallet.id }) },
                   ]} />
+            <details className="cr-inline-disclosure"><summary>{c('spendableHelp')}</summary><p className="cr-helper">{t('accounts.spendableHelp')}</p></details>
           </div>
         )}
       </LoadState>
       {statementWallet ? <WalletStatementDialog wallet={statementWallet} onClose={() => setStatementWallet(null)} onRecord={(intent) => { setStatementWallet(null); onRecord(intent); }} /> : null}
     </>
   );
+}
+
+function WalletBalances({ wallets, onAdd }: { readonly wallets: readonly AccountWallet[]; readonly onAdd: () => void }) {
+  const { t } = useI18n();
+  const c = useUiCopy();
+  const currencies = [...new Set(wallets.map(wallet => wallet.currency))];
+  return <section className="cr-card cr-wallet-balances" aria-label={c('walletSummary')}>
+    <p className="cr-helper">{c('walletSummary')}</p>
+    <div className="cr-wallet-balance-amounts">{currencies.length ? currencies.map(currency => <Amount key={currency} minor={wallets.filter(wallet => wallet.currency === currency).reduce((total, wallet) => total + wallet.balance, 0n)} currency={currency} />) : <p className="cr-helper">{t('accounts.none')}</p>}</div>
+    <p className="cr-helper">{c('walletSummaryHelp')}</p>
+    <button type="button" className="cr-button cr-button--primary" onClick={onAdd}>{t('accounts.add')}</button>
+  </section>;
 }
 
 function WalletList({ titleKey, introKey, wallets, onAdd, actions }: {
@@ -66,18 +80,19 @@ function WalletList({ titleKey, introKey, wallets, onAdd, actions }: {
   const { t } = useI18n();
   const c = useUiCopy();
   return (
-    <section className="cr-card" aria-labelledby={titleKey}>
+    <section className="cr-account-section" aria-labelledby={titleKey}>
       <div className="cr-section-header">
         <div>
           <h2 id={titleKey}>{t(titleKey)}</h2>
           <p className="cr-helper">{t(introKey)}</p>
         </div>
-        <button type="button" className="cr-button cr-button--sm" onClick={onAdd}>{t('accounts.addShort')}</button>
+        <button type="button" className="text-button" onClick={onAdd} aria-label={`${t('accounts.addShort')} · ${t(titleKey)}`}>{t('accounts.addShort')}</button>
       </div>
-      {wallets.length === 0 ? <p className="cr-helper">{t('accounts.none')}</p> : (
+      {wallets.length === 0 ? <p className="cr-helper cr-account-empty">{t('accounts.none')}</p> : (
         <ul className="cr-register">
           {wallets.map((wallet) => (
             <li key={wallet.id} className="cr-register-row cr-account-row">
+              <span className="cr-account-icon" aria-hidden>{wallet.kind === 'investment' ? <TrendingUp size={21} /> : wallet.kind === 'loan' ? <HandCoins size={21} /> : <Wallet size={21} />}</span>
               <div className="cr-register-main">
                 <bdi className="cr-register-title">{wallet.name}</bdi>
                 <WalletFacts wallet={wallet} />

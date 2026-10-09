@@ -13,6 +13,8 @@ import { addMonths } from '../describe.ts';
 import { BillsSection } from './bills-section.tsx';
 import { ItemStatementDialog } from './item-statement.tsx';
 import { MoneyHelp } from '../../ui/money-help.tsx';
+import { AssignmentWarning } from '../../ui/assignment-warning.tsx';
+import { useUiCopy } from '../../lib/ui-copy.ts';
 import { usePlanCopy } from './plan-copy.ts';
 import './plan-redesign.css';
 import { PlanEditorDialog } from './plan-editor.tsx';
@@ -46,18 +48,19 @@ export function PlanScreen({ month, onRecord }: { readonly month: string; readon
             {isCurrent ? null : <button type="button" className="text-button" onClick={() => navigate({ name: 'plan', month: null })}>{t('plan.thisMonth')}</button>}
           </span>
         }
-        actions={
-          <>
-            <button type="button" className="cr-button" onClick={() => onRecord({ kind: 'move' })}>{t('plan.move')}</button>
-            <button type="button" className="cr-button" onClick={() => setEditing('')}>{t('plan.edit')}</button>
-            {isCurrent ? <button type="button" className="cr-button cr-button--primary" onClick={() => onRecord({ kind: 'fund', month })}>{t('plan.fund')}</button> : null}
-          </>
-        }
       />
       <LoadState loaded={plan}>
         {(data) => (
           <div className="cr-plan">
+            {isCurrent && data.ready < 0n ? <section className="cr-card cr-money-alert" aria-label={t('home.overAssigned')}>
+              <AssignmentWarning shortfall={-data.ready} currency={data.planCurrency} onFix={() => onRecord({ kind: 'move', currency: data.planCurrency })} />
+            </section> : null}
             <PlanSummary plan={data} />
+            <div className="cr-plan-actions">
+              <button type="button" className="text-button" onClick={() => onRecord({ kind: 'move' })}>{t('plan.move')}</button>
+              <button type="button" className="text-button" onClick={() => setEditing('')}>{t('plan.edit')}</button>
+              {isCurrent && data.ready >= 0n ? <button type="button" className="cr-button cr-button--primary" onClick={() => onRecord({ kind: 'fund', month })}>{t('plan.fund')}</button> : null}
+            </div>
             {data.groups.map((group, index) => (
               <GroupCard key={group.groupId} group={group} index={index} currency={data.planCurrency} today={data.today} onOpen={setStatement} onEdit={() => setEditing(group.groupId)} />
             ))}
@@ -73,20 +76,23 @@ export function PlanScreen({ month, onRecord }: { readonly month: string; readon
 
 function PlanSummary({ plan }: { readonly plan: PlanMonth }) {
   const { t, money, name, digits } = useI18n();
+  const c = useUiCopy();
   const currency = plan.planCurrency;
   const plannedBps = plan.groups.reduce((sum, group) => sum + group.percentBps, 0);
   // A past month shows what was left unassigned when it ended, not today's figure.
   const ready = plan.isPast ? plan.readyAtMonthEnd : plan.ready;
   return (
-    <section className="cr-card" aria-labelledby="plan-summary-heading">
+    <section className="cr-card cr-plan-summary" aria-labelledby="plan-summary-heading">
       <h2 id="plan-summary-heading">{plan.isPast ? t('plan.summaryPast') : t('plan.summary')}</h2>
       <dl className="cr-figures">
         <div><dt>{t('plan.expectedIncome')}<MoneyHelp term="expected" /></dt><dd><Amount minor={plan.expectedIncome} currency={currency} /></dd></div>
         <div><dt>{t('plan.received')}<MoneyHelp term="received" /></dt><dd><Amount minor={plan.received} currency={currency} /></dd></div>
         <div><dt>{t('plan.funded')}<MoneyHelp term="funded" /></dt><dd><Amount minor={plan.funded} currency={currency} /></dd></div>
         <div><dt>{t('plan.stillToFund')}<MoneyHelp term="stillToFund" /></dt><dd><Amount minor={plan.stillToFund} currency={currency} tone={plan.stillToFund > 0n ? 'warn' : 'plain'} /></dd></div>
-        <div><dt>{plan.isPast ? t('plan.readyAtMonthEnd') : t('common.readyToAssign')}<MoneyHelp term="ready" /></dt><dd><Amount minor={ready} currency={currency} tone={ready < 0n ? 'negative' : 'plain'} /></dd></div>
+        {plan.isPast || !plan.isCurrent || ready >= 0n ? <div><dt>{plan.isPast ? t('plan.readyAtMonthEnd') : t('common.readyToAssign')}<MoneyHelp term="ready" /></dt><dd><Amount minor={ready} currency={currency} tone={ready < 0n ? 'negative' : 'plain'} /></dd></div> : null}
       </dl>
+      <details className="cr-inline-disclosure"><summary>{c('fundingHelp')}</summary><div className="cr-stack">
+      <p className="cr-helper">{c('forecastHelp')}</p>
       <div className="cr-stack-bar" role="img" aria-label={t('plan.barLabel')}>
         {plan.groups.map((group, index) => (
           <span key={group.groupId} className={`cr-stack-bar-part cr-tone-${index % 6}`} style={{ flexGrow: group.percentBps }} title={`${name(group)} ${bpsToPercentText(group.percentBps)}%`} />
@@ -98,6 +104,7 @@ function PlanSummary({ plan }: { readonly plan: PlanMonth }) {
         {plan.overPlanned > 0n ? ` ${t('plan.overLine', { amount: money(plan.overPlanned, currency) })}` : ''}
       </p>
       <p className="cr-helper">{t('plan.howItWorks')}</p>
+      </div></details>
     </section>
   );
 }
