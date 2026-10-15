@@ -1,4 +1,5 @@
 import { useId, useRef, useState } from 'react';
+import { ArrowUpLeft } from 'lucide-react';
 import type { ExpenseSuggestion, ExpenseSuggestions } from '../api/schemas.ts';
 import { findItem, useWorkspace, type Catalog } from '../app/workspace.tsx';
 import { useI18n } from '../lib/i18n.tsx';
@@ -34,11 +35,17 @@ export function DescriptionField({ value, onChange, suggestions, catalog, autoFo
 }) {
   const { t, money, name } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const [focused, setFocused] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const hintId = useId();
   const options = suggestions?.status === 'ready' ? suggestions.data.suggestions : [];
-  const hint = suggestions?.status === 'error' ? t('record.suggestionsFailed') : options.length > 0 ? t('record.descriptionHint') : null;
+  const query = value.trim().toLocaleLowerCase();
+  const exactMatch = options.some(suggestion => suggestion.memo.toLocaleLowerCase() === query);
+  const matches = exactMatch ? []
+    : options.filter(suggestion => suggestion.memo.toLocaleLowerCase().includes(query)).slice(0, 3);
+  const visible = focused && !dismissed && matches.length > 0;
+  const hint = suggestions?.status === 'error' ? t('record.suggestionsFailed') : options.length > 0 && !exactMatch ? t('record.descriptionHint') : null;
   return (
     <div className="cr-description-field" onFocus={() => setFocused(true)}
       onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setFocused(false); }}>
@@ -50,16 +57,23 @@ export function DescriptionField({ value, onChange, suggestions, catalog, autoFo
           maxLength={200}
           autoComplete="off"
           onFocus={() => setFocused(true)}
-          onKeyDown={(event) => { if (event.key === 'Escape') setDismissed(true); }}
+          onKeyDown={(event) => {
+            if (!visible || event.nativeEvent.isComposing) return;
+            if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setDismissed(true); }
+            if (event.key === 'ArrowDown') { event.preventDefault(); listRef.current?.querySelector('button')?.focus(); }
+          }}
           aria-describedby={hint ? hintId : undefined}
           data-autofocus={autoFocus ? '' : undefined}
           value={value}
           onChange={(event) => { setDismissed(false); onChange(event.target.value); }}
         />
       </label>
-      {focused && !dismissed && options.length > 0 ? (
-        <div className="cr-description-suggestions">
-          {options.filter(suggestion => suggestion.memo.toLocaleLowerCase().includes(value.trim().toLocaleLowerCase())).slice(0, 5).map((suggestion) => {
+      {visible ? (
+        <div ref={listRef} className="cr-description-suggestions" role="group" aria-label={t('record.pastExpenses')}
+          onKeyDown={event => {
+            if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setDismissed(true); inputRef.current?.focus(); }
+          }}>
+          {matches.map((suggestion) => {
             const item = findItem(catalog.plan, suggestion.itemId);
             const amount = money(suggestion.amount, suggestion.currency);
             return <button type="button" key={suggestion.memo}
@@ -67,7 +81,9 @@ export function DescriptionField({ value, onChange, suggestions, catalog, autoFo
               onFocus={() => setFocused(true)}
               onBlur={event => { if (!event.currentTarget.parentElement?.contains(event.relatedTarget as Node)) setFocused(false); }}
               onClick={() => { onChange(suggestion.memo); setDismissed(true); inputRef.current?.focus(); }}>
-              <strong>{suggestion.memo}</strong><span>{item ? `${name(item)} · ${amount}` : amount}</span>
+              <span className="cr-suggestion-copy"><strong>{suggestion.memo}</strong>{item ? <span>{name(item)}</span> : null}</span>
+              <bdi className="cr-suggestion-amount" dir="ltr">{amount}</bdi>
+              <ArrowUpLeft size={16} aria-hidden="true" />
             </button>;
           })}
         </div>

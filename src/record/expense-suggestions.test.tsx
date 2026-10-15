@@ -59,6 +59,28 @@ describe('the expense form remembers past expenses', () => {
     expect(item()).toHaveValue(itemId('Groceries'));
   });
 
+  it('announces autofill and clears the suggestion list once a description matches', async () => {
+    const user = userEvent.setup();
+    renderWithWorkspace(<ExpenseForm catalog={catalog} onDone={vi.fn()} onCancel={vi.fn()} />, fakeApi({ expenseSuggestions: async () => supermarket }));
+    await user.type(description(), 'Supermarket');
+    expect(await screen.findByRole('status')).toHaveTextContent('Filled from past expense');
+    expect(screen.queryByRole('button', { name: /Supermarket/ })).not.toBeInTheDocument();
+    await user.clear(description());
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('lets the keyboard reach and choose a matching past expense', async () => {
+    const user = userEvent.setup();
+    renderWithWorkspace(<ExpenseForm catalog={catalog} onDone={vi.fn()} onCancel={vi.fn()} />, fakeApi({ expenseSuggestions: async () => supermarket }));
+    await user.type(description(), 'Super');
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('button', { name: /Supermarket/ })).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(description()).toHaveValue('Supermarket');
+    expect(description()).toHaveFocus();
+    expect(amount()).toHaveValue('64.20');
+  });
+
   it('starts on the wallet used last', async () => {
     renderWithWorkspace(<ExpenseForm catalog={catalog} onDone={vi.fn()} onCancel={vi.fn()} />,
       fakeApi({ expenseSuggestions: async () => ({ lastWalletId: walletId('Cash'), suggestions: [] }) }));

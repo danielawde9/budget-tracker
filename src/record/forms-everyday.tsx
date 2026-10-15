@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { Check } from 'lucide-react';
 import { activeWallets, findItem, pickerGroups, useWorkspace, type Catalog } from '../app/workspace.tsx';
 import { useI18n } from '../lib/i18n.tsx';
 import type { Currency } from '../lib/money.ts';
@@ -52,6 +53,7 @@ export function ExpenseForm({ catalog, onDone, onCancel, walletId: initialWallet
   const [itemId, setItemId] = useState(bill?.itemId ?? initialItem ?? '');
   const [amount, setAmount] = useState<bigint | null>(bill?.amount ?? null);
   const [amountFilled, setAmountFilled] = useState(false);
+  const [filledFromPast, setFilledFromPast] = useState(false);
   const [on, setOn] = useState(bill && bill.dueOn <= space.today ? bill.dueOn : space.today);
   const [memo, setMemo] = useState(bill?.name ?? '');
   const [coverFrom, setCoverFrom] = useState(READY);
@@ -73,11 +75,15 @@ export function ExpenseForm({ catalog, onDone, onCancel, walletId: initialWallet
   function changeMemo(next: string) {
     setMemo(next);
     const pick = bill ? null : matchSuggestion(suggestions, next);
+    setFilledFromPast(false);
     if (!pick) return;
     const pickWallet = setByPerson.wallet ? undefined : wallets.find((candidate) => candidate.id === pick.walletId);
     if (pickWallet) setChosenWallet(pickWallet.id);
-    if (!setByPerson.item && findItem(catalog.plan, pick.itemId)) setItemId(pick.itemId);
-    if (!setByPerson.amount && (pickWallet?.currency ?? currency) === pick.currency) {
+    const fillItem = !setByPerson.item && findItem(catalog.plan, pick.itemId);
+    const fillAmount = !setByPerson.amount && (pickWallet?.currency ?? currency) === pick.currency;
+    if (fillItem) setItemId(pick.itemId);
+    setFilledFromPast(Boolean(pickWallet || fillItem || fillAmount));
+    if (fillAmount) {
       setAmount(pick.amount);
       setAmountFilled(true);
     }
@@ -94,11 +100,15 @@ export function ExpenseForm({ catalog, onDone, onCancel, walletId: initialWallet
 
   if (wallets.length === 0) return <Explain>{t('record.needWallet')}</Explain>;
   return (
-    <form className="dialog-form cr-stack" onSubmit={(event) => void submit(event)}>
+    <form className="dialog-form cr-stack cr-expense-form" onSubmit={(event) => void submit(event)}>
       {bill ? <Explain>{t('record.payingBill', { name: bill.name, date: i18n.date(bill.dueOn) })}</Explain> : null}
       <DescriptionField value={memo} onChange={changeMemo} suggestions={bill ? null : suggestions} catalog={catalog} autoFocus={!bill} />
+      {filledFromPast ? <p className="cr-expense-filled" role="status"><Check size={16} aria-hidden="true" />{t('record.filledFromPast')}</p> : null}
+      <div className="cr-expense-amount-date">
       <MoneyField label={t('common.amount')} currency={currency} value={amount} autoFocus={Boolean(bill)} selectOnFocus={amountFilled}
         onChange={(next) => { setAmount(next); setAmountFilled(false); setSetByPerson((was) => ({ ...was, amount: true })); }} />
+      <DateField value={on} onChange={setOn} max={space.today} />
+      </div>
       <WalletSelect label={t('record.paidFrom')} wallets={wallets} value={walletId}
         onChange={(next) => { setChosenWallet(next); setSetByPerson((was) => ({ ...was, wallet: true })); }} />
       {bill ? null : <ItemSelect label={t('record.whatFor')} groups={groups} value={itemId} currency={currency}
@@ -107,7 +117,6 @@ export function ExpenseForm({ catalog, onDone, onCancel, walletId: initialWallet
         <p className="cr-helper">{t('record.itemHolds', { name: name(item), amount: money(item.balances[currency], currency) })}</p>
       ) : null}
       <CoverChoice catalog={catalog} itemId={itemId} currency={currency} amount={amount} value={coverFrom} onChange={setCoverFrom} />
-      <DateField value={on} onChange={setOn} max={space.today} />
       {command.error ? <ErrorNotice error={command.error} /> : null}
       <FormActions submitLabel="record.saveExpense" pending={command.pending} onCancel={onCancel} disabled={amount === null || !item} />
     </form>

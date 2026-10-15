@@ -13,3 +13,18 @@
 .cr-fund-groups button { font-size: 1rem; }
 .cr-record-summary { display: flex; flex-wrap: wrap; gap: 1rem; }
 .cr-record-summary p { margin: 0; flex: 1; min-inline-size: 7rem; }
+
+.cr-dialog .cr-expense-form { gap: 16px; }
+.cr-expense-form .cr-description-field > .cr-helper { margin: 0; font-size: 13px; }
+.cr-expense-filled { display: flex; align-items: start; gap: 6px; margin: -4px 0 0; color: var(--cr-accent); font-size: 13px; }
+.cr-expense-filled svg { flex-shrink: 0; margin-block-start: 2px; }
+.cr-expense-amount-date { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: end; gap: 16px; }
+/* Match the shared input reset's specificity so mobile text stays at least 16px. */
+.cr-dialog .cr-expense-form input[type]:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]) { font-size: 16px; }
+.cr-dialog .cr-expense-form .cr-expense-amount-date .cr-affix > input[type="text"][inputmode] { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cr-expense-amount-date input[type="date"] { min-inline-size: 0; inline-size: 100%; box-sizing: border-box; }
+.cr-expense-form > .cr-helper { margin: -8px 0 0; font-size: 13px; }
+.cr-dialog .cr-expense-form .dialog-actions { margin-block-start: 4px; }
+@media (max-width: 380px) {
+  .cr-expense-amount-date { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+}
