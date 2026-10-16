@@ -14,7 +14,6 @@ describe('statement comparison', () => {
     const onRecord = vi.fn();
     renderWithWorkspace(<AccountsScreen onRecord={onRecord} />, api);
     await screen.findAllByText('Check against a statement');
-    await userEvent.click(screen.getAllByText('Account actions')[0]!);
     await userEvent.click(screen.getAllByText('Check against a statement')[0]!);
     fireEvent.change(screen.getByLabelText('Statement date'), { target: { value: '2026-09-30' } });
     await userEvent.type(screen.getByLabelText('Statement balance'), '105.25');

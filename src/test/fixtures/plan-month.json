@@ -206,7 +206,8 @@
    "otherOut": "17200",
    "available": "130210",
    "percentBps": 6000,
-   "itemsPlanned": "245000"
+   "itemsPlanned": "245000",
+   "purpose": "expense"
   },
   {
    "flex": {
@@ -302,7 +303,8 @@
    "otherOut": "0",
    "available": "23550",
    "percentBps": 500,
-   "itemsPlanned": "20550"
+   "itemsPlanned": "20550",
+   "purpose": "expense"
   },
   {
    "flex": {
@@ -398,7 +400,8 @@
    "otherOut": "0",
    "available": "218300",
    "percentBps": 1500,
-   "itemsPlanned": "61650"
+   "itemsPlanned": "61650",
+   "purpose": "expense"
   },
   {
    "flex": {
@@ -439,7 +442,8 @@
    "otherOut": "0",
    "available": "367200",
    "percentBps": 1000,
-   "itemsPlanned": "0"
+   "itemsPlanned": "0",
+   "purpose": "savings"
   },
   {
    "flex": {
@@ -480,7 +484,8 @@
    "otherOut": "41100",
    "available": "0",
    "percentBps": 1000,
-   "itemsPlanned": "0"
+   "itemsPlanned": "0",
+   "purpose": "savings"
   }
  ],
  "isPast": false,

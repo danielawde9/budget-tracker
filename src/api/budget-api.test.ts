@@ -73,7 +73,7 @@ describe('createBudgetApi', () => {
         month: '2026-10-01', planCurrency: 'USD', versionId: 'v', revision: 2, effectiveMonth: '2026-09-01',
         expectedIncome: '411000', groupsTotal: '411000', notPlanned: '0', overPlanned: '0', received: '411000',
         otherIncome: '0', funded: '411000', stillToFund: '0', ready: '132000', readyAtMonthEnd: '120000', today: '2026-10-03', isCurrent: true, isPast: false,
-        groups: [{ groupId: 'g', nameEn: 'Essentials', nameAr: 'الأساسيات', percentBps: 6000, planned: '246600', itemsPlanned: '245000',
+        groups: [{ groupId: 'g', purpose: 'expense', nameEn: 'Essentials', nameAr: 'الأساسيات', percentBps: 6000, planned: '246600', itemsPlanned: '245000',
           over: '0', funded: '246600', spent: '100000', otherOut: '0', available: '146600', items: [item], flex: { ...item, itemId: 'f', kind: 'flex' } }],
       },
     });
@@ -82,4 +82,18 @@ describe('createBudgetApi', () => {
     expect(plan.ready).toBe(132000n);
     expect(plan.readyAtMonthEnd).toBe(120000n);
   });
+});
+
+it('preserves an explicit group purpose when saving a renamed plan', async () => {
+  const { client, calls } = fakeClient({ data: { versionId: 'v', revision: 2, effectiveMonth: '2026-10-01' } });
+  await createBudgetApi(client).savePlan({ spaceId: 's', requestId: 'r', month: '2026-10-01', expectedRevision: 1, plan: {
+    expectedIncome: 10000n, archiveItemIds: [], archiveGroupIds: [], groups: [{ groupId: 'g', nameEn: 'Winter fund', nameAr: null, purpose: 'savings', percentBps: 10000, items: [] }],
+  } });
+  expect(calls[0]!.args['p_plan']).toMatchObject({ expectedIncomeMinor: '10000', groups: [{ groupId: 'g', purpose: 'savings', nameEn: 'Winter fund' }] });
+});
+
+it('sends account opening money through its idempotent opening RPC as exact minor units', async () => {
+  const { client, calls } = fakeClient({ data: { entryId: 'e' } });
+  await createBudgetApi(client).recordWalletOpening({ spaceId: 's', requestId: 'same-request', walletId: 'w', amount: 9007199254740993n, on: '2026-10-01' });
+  expect(calls).toEqual([{ name: 'record_wallet_opening', args: { p_space: 's', p_request: 'same-request', p_wallet: 'w', p_amount: '9007199254740993', p_on: '2026-10-01' } }]);
 });

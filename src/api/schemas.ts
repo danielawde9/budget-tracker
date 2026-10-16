@@ -105,6 +105,7 @@ export const planItem = z.object({
 
 export const planGroup = z.object({
   groupId: id,
+  purpose: z.enum(['expense', 'savings']),
   ...named,
   percentBps: z.number().int(),
   planned: minor,
@@ -162,7 +163,7 @@ export const entry = z.object({
   billLinkVersion: z.number().int().nonnegative().optional(),
   billLinkHistory: z.array(z.object({ billId: id.nullable(), billName: nullableText, dueOn: isoDate.nullable(), createdAt: z.string() })).optional(),
   wallets: z.array(z.object({ walletId: id, name: z.string(), kind: walletKind, currency, amount: minor, flow })),
-  items: z.array(z.object({ itemId: id, kind: itemKind, ...named, currency, amount: minor, flow })),
+  items: z.array(z.object({ itemId: id, kind: itemKind, ...named, currency, amount: minor, flow, groupId: id.nullable().optional(), groupNameEn: nullableText.optional(), groupNameAr: nullableText.optional(), purpose: z.enum(['expense','savings']).nullable().optional() })),
 });
 
 export const activityCursor = z.object({ occurredOn: isoDate, createdAt: z.string(), id });

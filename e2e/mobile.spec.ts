@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { localStackUp, signIn, storyUser } from './support.ts';
 
-test('phone menus and forms stay within the screen in English and Arabic', async ({ page }) => {
+test('phone account actions and forms stay within the screen in English and Arabic', async ({ page }) => {
   test.skip(!(await localStackUp()), 'Local demo unavailable; unverified.');
   await signIn(page, await storyUser());
   const phone = page.viewportSize()?.width ?? 390;
@@ -14,26 +14,14 @@ test('phone menus and forms stay within the screen in English and Arabic', async
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
     }
     await page.goto('/#/accounts');
-    const menus = page.locator('.cr-account-menu');
-    await expect(menus.first()).toBeVisible();
-    for (let i = 0; i < await menus.count(); i++) {
-      const menu = menus.nth(i);
-      await menu.locator('summary').click();
-      const panel = menu.locator('.cr-account-actions');
-      await expect(panel).toBeVisible();
-      await expect.poll(async () => {
-        const rect = await panel.boundingBox();
-        const size = page.viewportSize()!;
-        return Boolean(rect && rect.x >= 7 && rect.y >= 7 && rect.x + rect.width <= size.width - 7 && rect.y + rect.height <= size.height - 7);
-      }).toBe(true);
-      for (const button of await panel.getByRole('button').all()) {
-        await expect.poll(() => button.evaluate(el => {
-          const r = el.getBoundingClientRect();
-          const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
-          return hit === el || el.contains(hit);
-        })).toBe(true);
-      }
-      await panel.getByRole('button').first().click();
+    const rows = page.locator('.cr-account-row');
+    await expect(rows.first()).toBeVisible();
+    await expect(page.locator('.cr-account-menu')).toHaveCount(0);
+    for (const row of await rows.all()) {
+      const actions = row.locator('.cr-account-direct-actions');
+      await expect(actions).toBeVisible();
+      await expect.poll(() => actions.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+      await actions.getByRole('button').first().click();
       const dialog = page.getByRole('dialog');
       await expect(dialog).toBeVisible();
       await expect.poll(() => dialog.evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);

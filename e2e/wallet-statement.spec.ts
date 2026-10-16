@@ -23,10 +23,10 @@ for (const locale of ['en', 'ar'] as const) {
       const before = await budgetRowsets();
       await page.setViewportSize({ width, height: 568 });
       await signIn(page, user);
-      await expect(page.getByRole('region', { name: 'Your money', exact: true })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
       await page.evaluate(locale => localStorage.setItem('budget:locale', locale), locale);
       await page.reload();
-      await expect(page.getByRole('region', { name: t('home.moneyTitle'), exact: true })).toBeVisible();
+      await expect(page.getByRole('heading', { name: t('nav.home'), level: 1 })).toBeVisible();
       await expect(page.locator('html')).toHaveAttribute('dir', locale === 'ar' ? 'rtl' : 'ltr');
 
       const writes: string[] = [];
@@ -41,7 +41,6 @@ for (const locale of ['en', 'ar'] as const) {
       async function openCheck(walletName: string) {
         await page.goto('/#/accounts');
         const row = page.locator('.cr-account-row').filter({ has: page.locator('.cr-register-title', { hasText: new RegExp(`^${walletName}$`) }) });
-        await row.locator('summary').click();
         await row.getByRole('button', { name: t('statement.check'), exact: true }).click();
         await expect(page.getByRole('dialog')).toBeVisible();
       }

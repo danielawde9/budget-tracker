@@ -1,13 +1,12 @@
 import { fixtures } from '../../test/harness.tsx';
-import { dashboardTotals, spendingSeries, loadMonthActivity, plannedSpending } from './dashboard-model.ts';
+import { dashboardTotals, expenseEntries, spendingSeries, loadMonthActivity, plannedSpending } from './dashboard-model.ts';
 import type { Entry } from '../../api/schemas.ts';
 
 describe('dashboard money calculations', () => {
   it('keeps available category balances separate from spending and currencies', () => {
     const totals = dashboardTotals(fixtures.plan, 'USD');
-    const items = fixtures.plan.groups.flatMap(g => [...g.items, ...(g.flex ? [g.flex] : [])]);
-    expect(totals.available).toBe(items.filter(i => i.kind === 'spending' || i.kind === 'flex').reduce((n, i) => n + i.balances.USD, 0n));
-    expect(totals.spent).toBe(fixtures.plan.groups.reduce((n, g) => n + g.spent, 0n));
+    expect(totals.available).toBe(372060n);
+    expect(totals.spent).toBe(109220n);
     expect(dashboardTotals(fixtures.plan, 'LBP').spent).toBeNull();
   });
 
@@ -35,7 +34,28 @@ describe('dashboard money calculations', () => {
 });
 
 it('compares spending with spending allocations rather than savings goals', () => {
-  const spending = fixtures.plan.groups.flatMap(g => [...g.items, ...(g.flex ? [g.flex] : [])]).filter(i => i.kind === 'spending' || i.kind === 'flex');
-  expect(plannedSpending(fixtures.plan)).toBe(spending.reduce((n, i) => n + i.planned, 0n));
+  expect(plannedSpending(fixtures.plan)).toBe(313800n);
   expect(plannedSpending(fixtures.plan)).toBeLessThan(fixtures.plan.groupsTotal);
+});
+
+it('excludes savings flex and all saving movements from the monthly expense allowance', () => {
+  const base = fixtures.plan.groups[0]!;
+  const item = base.items[0]!;
+  const plan = { ...fixtures.plan, groups: [
+    { ...base, purpose: 'expense' as const, planned: 20000n, spent: 3000n, items: [{ ...item, planned: 10000n }], flex: { ...base.flex!, planned: 10000n } },
+    { ...base, groupId: 'saving', purpose: 'savings' as const, planned: 90000n, spent: 0n, items: [], flex: { ...base.flex!, itemId: 'saving-flex', planned: 90000n, balances: { USD: 90000n, LBP: 0n } } },
+  ] };
+  expect(plannedSpending(plan)).toBe(20000n);
+  expect(dashboardTotals(plan, 'USD').available).toBe(base.items[0]!.balances.USD + base.flex!.balances.USD);
+});
+
+it('retains spending in an archived category while excluding saving and reserve lines', () => {
+  const base = fixtures.activity.entries[0]!;
+  const line = base.items[0]!;
+  const entries: Entry[] = [{ ...base, occurredOn: '2026-10-02', items: [
+    { ...line, itemId: 'archived', kind: 'spending', purpose: 'expense', amount: -1234n, flow: 'spend' },
+    { ...line, itemId: 'saving', kind: 'flex', purpose: 'savings', amount: -9999n, flow: 'spend' },
+    { ...line, itemId: 'reserve', kind: 'reserve', purpose: 'expense', amount: -8888n, flow: 'spend' },
+  ] }];
+  expect(spendingSeries(expenseEntries(entries, fixtures.plan), 'USD', '2026-10-01', '2026-10-03').at(-1)?.amount).toBe(1234n);
 });

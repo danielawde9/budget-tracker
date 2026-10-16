@@ -31,6 +31,7 @@ interface DraftItem {
 }
 
 interface DraftGroup {
+  readonly purpose: 'expense' | 'savings';
   readonly key: string;
   readonly groupId: string | null;
   readonly nameEn: string | null;
@@ -58,6 +59,7 @@ function toDraft(plan: PlanMonth): Draft {
     archiveGroupIds: [],
     groups: plan.groups.map((group) => ({
       key: group.groupId,
+      purpose: group.purpose,
       groupId: group.groupId,
       nameEn: group.nameEn,
       nameAr: group.nameAr,
@@ -158,6 +160,7 @@ export function PlanEditorForm({ plan, month, onCancel, onSaved, cancelLabel, in
       archiveGroupIds: draft.archiveGroupIds,
       groups: draft.groups.map((group, index) => ({
         groupId: group.groupId,
+        purpose: group.purpose,
         nameEn: group.nameEn?.trim() || null,
         nameAr: group.nameAr?.trim() || null,
         percentBps: bps[index] ?? 0,
@@ -200,6 +203,10 @@ export function PlanEditorForm({ plan, month, onCancel, onSaved, cancelLabel, in
           return (
             <fieldset key={group.key} hidden={group.key !== activeKey} className="cr-form-section cr-editor-group">
               <legend>{name(group) || t('editor.newGroup')}</legend>
+              <fieldset className="cr-choice"><legend>{locale === 'ar' ? 'نوع المجموعة' : 'Group purpose'}</legend>
+                {(['expense', 'savings'] as const).map(purpose => <label key={purpose}><input type="radio" name={`purpose-${group.key}`} checked={group.purpose === purpose} onChange={() => setGroup(group.key, current => ({ ...current, purpose }))} />{locale === 'ar' ? purpose === 'expense' ? 'مصروفات' : 'ادخار' : purpose === 'expense' ? 'Expenses' : 'Savings'}</label>)}
+              </fieldset>
+              <p className="cr-helper">{locale === 'ar' ? 'تظهر مجموعات المصروفات في ملخص الإنفاق الشهري. يبقى الادخار في الخطة.' : 'Expense groups appear in monthly spending. Savings stay in your plan.'}</p>
               <div className="cr-editor-group-head">
                 <label className="cr-field">
                   <span className="cr-label">{t('editor.groupName')}</span>
@@ -305,7 +312,7 @@ export function PlanEditorForm({ plan, month, onCancel, onSaved, cancelLabel, in
         </div>
         <button type="button" className="cr-button" onClick={() => { const key = nextKey(); setSelectedGroup(key); setDraft((current) => ({
           ...current,
-          groups: [...current.groups, { key, groupId: null, nameEn: null, nameAr: null, flexEn: null, flexAr: null, bpsText: '0', items: [] }],
+          groups: [...current.groups, { key, groupId: null, purpose: 'expense', nameEn: null, nameAr: null, flexEn: null, flexAr: null, bpsText: '0', items: [] }],
         })); }}><Plus aria-hidden size={16} /> {t('editor.addGroup')}</button>
         {!valid && totalBps <= 10000 ? <p className="cr-helper" role="status">{copy.invalid}</p> : null}
         {command.error ? <ErrorNotice error={command.error} /> : null}
