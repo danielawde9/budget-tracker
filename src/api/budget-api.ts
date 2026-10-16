@@ -87,6 +87,7 @@ export interface PlanItemInput {
 }
 
 export interface PlanGroupInput {
+  readonly purpose?: 'spending' | 'saving' | 'investment';
   readonly groupId: string | null;
   readonly nameEn: string | null;
   readonly nameAr: string | null;
@@ -134,6 +135,7 @@ export function createBudgetApi(client: RpcClient, recovery?: SaveRecoveryStore)
     mySpaces: () => call('my_spaces', {}, s.spaceSummary.array()),
     clockToday: (timezone = 'Asia/Beirut') => call('clock_today', { p_timezone: timezone }, s.spaceSummary.shape.today),
     overview: (spaceId: string) => call('space_overview', { p_space: spaceId }, s.overview),
+    moneyHistory: (spaceId: string) => call('money_history', { p_space: spaceId }, s.moneyHistory),
     planMonth: (spaceId: string, month: string) => call('plan_month', { p_space: spaceId, p_month: month }, s.planMonth),
     fundingPreview: (spaceId: string, month: string, currency?: Currency, amount?: bigint) =>
       call('funding_preview', { p_space: spaceId, p_month: month, p_currency: currency ?? null, p_amount: amount ?? null }, s.fundingPreview),
@@ -177,10 +179,10 @@ export function createBudgetApi(client: RpcClient, recovery?: SaveRecoveryStore)
       call('record_income', {
         ...cmd(input), p_wallet: input.walletId, p_amount: input.amount, p_on: input.on, p_memo: input.memo ?? null, p_item: input.itemId ?? null,
       }, s.entryResult),
-    recordExpense: (input: Command & { walletId: string; itemId: string; amount: bigint; on: string; memo?: string | null; coverFrom?: string | null; billId?: string | null; billDue?: string | null }) =>
-      call('record_expense', {
+    recordExpense: (input: Command & { walletId: string; itemId: string; amount: bigint; on: string; memo?: string | null; coverFrom?: string | null; payFrom?: string | null; billId?: string | null; billDue?: string | null }) =>
+      call(input.payFrom ? 'record_expense_from' : 'record_expense', {
         ...cmd(input), p_wallet: input.walletId, p_item: input.itemId, p_amount: input.amount, p_on: input.on, p_memo: input.memo ?? null,
-        p_cover_from: input.coverFrom ?? null, p_bill: input.billId ?? null, p_bill_due: input.billDue ?? null,
+        ...(input.payFrom ? { p_source: input.payFrom } : { p_cover_from: input.coverFrom ?? null }), p_bill: input.billId ?? null, p_bill_due: input.billDue ?? null,
       }, s.coveredResult),
     recordRefund: (input: Command & { walletId: string; itemId: string; amount: bigint; on: string; memo?: string | null }) =>
       call('record_refund', { ...cmd(input), p_wallet: input.walletId, p_item: input.itemId, p_amount: input.amount, p_on: input.on, p_memo: input.memo ?? null }, s.entryResult),
@@ -225,7 +227,7 @@ export function createBudgetApi(client: RpcClient, recovery?: SaveRecoveryStore)
           archiveItemIds: input.plan.archiveItemIds,
           archiveGroupIds: input.plan.archiveGroupIds,
           groups: input.plan.groups.map((group) => ({
-            groupId: group.groupId, nameEn: group.nameEn, nameAr: group.nameAr, percentBps: group.percentBps,
+            ...(group.purpose === undefined ? {} : { purpose: group.purpose }), groupId: group.groupId, nameEn: group.nameEn, nameAr: group.nameAr, percentBps: group.percentBps,
             items: group.items.map((item) => ({
               itemId: item.itemId, kind: item.kind, nameEn: item.nameEn, nameAr: item.nameAr, monthlyMinor: item.monthly,
               targetMinor: item.target, targetDate: item.targetDate, walletId: item.walletId,

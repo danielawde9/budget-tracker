@@ -19,6 +19,18 @@ function fakeClient(response: { data?: unknown; error?: unknown }): { client: Rp
 }
 
 describe('createBudgetApi', () => {
+  it('reads monthly history as exact signed money in separate currencies', async () => {
+    const { client, calls } = fakeClient({ data: { today: '2026-10-10', months: [{ month: '2026-10-01', through: '2026-10-10', income: { USD: '9007199254740993', LBP: '123000' }, spent: { USD: '-500', LBP: '0' }, savings: { USD: '10000', LBP: '700000' } }] } });
+    const result = await createBudgetApi(client).moneyHistory('s');
+    expect(calls).toEqual([{ name: 'money_history', args: { p_space: 's' } }]);
+    expect(result.months[0]).toMatchObject({ income: { USD: 9007199254740993n, LBP: 123000n }, spent: { USD: -500n, LBP: 0n }, savings: { USD: 10000n, LBP: 700000n } });
+  });
+
+  it('rejects history when a currency is missing instead of inventing a zero', async () => {
+    const { client } = fakeClient({ data: { today: '2026-10-10', months: [{ month: '2026-10-01', through: '2026-10-10', income: { USD: '5' }, spent: { USD: '0', LBP: '0' }, savings: { USD: '0', LBP: '0' } }] } });
+    await expect(createBudgetApi(client).moneyHistory('s')).rejects.toMatchObject({ code: 'BAD_RESPONSE' });
+  });
+
   it('turns PostgREST plain-object errors into BudgetError with the server code', async () => {
     const { client } = fakeClient({ error: { code: 'P0001', message: 'BUDGET_INSUFFICIENT_READY', details: '{"currency":"USD","available":"1200"}', hint: null } });
     const api = createBudgetApi(client);
@@ -82,4 +94,13 @@ describe('createBudgetApi', () => {
     expect(plan.ready).toBe(132000n);
     expect(plan.readyAtMonthEnd).toBe(120000n);
   });
+});
+
+it('sends an explicit whole-payment source through the atomic savings expense command', async () => {
+  const { client, calls } = fakeClient({ data: { entryId: 'e', covered: '1200' } });
+  await createBudgetApi(client).recordExpense({ spaceId: 's', requestId: 'r', walletId: 'w', itemId: 'food', amount: 1200n,
+    on: '2026-10-10', payFrom: 'savings' });
+  expect(calls[0]?.name).toBe('record_expense_from');
+  expect(calls[0]?.args).toMatchObject({ p_source: 'savings', p_item: 'food', p_amount: '1200' });
+  expect(calls[0]?.args).not.toHaveProperty('p_cover_from');
 });

@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-16",
+  "dataSource": "Real local Supabase with synthetic accounts and recorded ledger activity; screenshots in real-local/. Original root screenshots were fixture-based.",
+  "localPreview": "http://127.0.0.1:5173/",
+  "localApi": "http://127.0.0.1:54421",
+  "pages": [
+    "home",
+    "plan",
+    "activity",
+    "accounts",
+    "settings"
+  ],
+  "languages": [
+    "English",
+    "Arabic"
+  ],
+  "viewportWidths": [
+    1440,
+    390,
+    320,
+    690
+  ],
+  "checks": {
+    "typecheck": "passed",
+    "uiTests": {
+      "passed": 187,
+      "files": 37
+    },
+    "databaseTests": {
+      "passed": 209,
+      "files": 18
+    },
+    "realBrowserDashboardTests": {
+      "passed": 9
+    },
+    "realBrowserWalletStatementTests": {
+      "passed": 12
+    },
+    "cloudflareProductionBuild": "passed",
+    "cloudflareFrontendDryRun": "passed",
+    "githubActions": "waived per owner instruction",
+    "independentReview": "Two P2 findings fixed and confirmed: tablet labels, accessible daily-count table"
+  },
+  "liveDatabaseAcceptance": "Passed against the local preview. The earlier offline claim came from checking the wrong port.",
+  "productionDeployment": "pending; not performed",
+  "realLocalScreenshotCount": 30
+}

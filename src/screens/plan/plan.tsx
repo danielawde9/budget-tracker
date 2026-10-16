@@ -5,6 +5,7 @@ import { navigate } from '../../app/router.ts';
 import { PageHeader } from '../../app/shell.tsx';
 import { useWorkspace } from '../../app/workspace.tsx';
 import { useI18n, type MessageKey } from '../../lib/i18n.tsx';
+import { remainingFunding, itemPurpose } from '../../lib/money-purpose.ts';
 import { bpsToPercentText } from '../../lib/plan-math.ts';
 import type { RecordIntent } from '../../record/record-dialog.tsx';
 import { LoadState, useLoad } from '../../ui/async.tsx';
@@ -18,6 +19,7 @@ import { useUiCopy } from '../../lib/ui-copy.ts';
 import { usePlanCopy } from './plan-copy.ts';
 import './plan-redesign.css';
 import { PlanEditorDialog } from './plan-editor.tsx';
+import { PlanCharts } from './plan-charts.tsx';
 
 export const KIND_LABEL: Readonly<Record<PlanItem['kind'], MessageKey>> = {
   ready: 'common.readyToAssign',
@@ -61,12 +63,13 @@ export function PlanScreen({ month, onRecord }: { readonly month: string; readon
               <button type="button" className="text-button" onClick={() => setEditing('')}>{t('plan.edit')}</button>
               {isCurrent && data.ready >= 0n ? <button type="button" className="cr-button cr-button--primary" onClick={() => onRecord({ kind: 'fund', month })}>{t('plan.fund')}</button> : null}
             </div>
+            <PlanCharts plan={data} />
             {data.groups.map((group, index) => (
-              <GroupCard key={group.groupId} group={group} index={index} currency={data.planCurrency} today={data.today} onOpen={setStatement} onEdit={() => setEditing(group.groupId)} />
+              <GroupCard key={group.groupId} group={group} index={index} currency={data.planCurrency} today={data.today} onRecord={onRecord} onOpen={setStatement} onEdit={() => setEditing(group.groupId)} />
             ))}
             <BillsSection onRecord={onRecord} />
             {editing !== null ? <PlanEditorDialog plan={data} month={month} groupId={editing || undefined} onClose={() => setEditing(null)} /> : null}
-            {statement ? <ItemStatementDialog item={statement} month={month} onClose={() => setStatement(null)} onRecord={(intent) => { setStatement(null); onRecord(intent); }} /> : null}
+            {statement ? <ItemStatementDialog purpose={data.groups.flatMap(group => [...group.items, ...(group.flex ? [group.flex] : [])].filter(item => item.itemId === statement.itemId).map(item => itemPurpose(group, item)))[0] ?? 'spending'} item={statement} month={month} onClose={() => setStatement(null)} onRecord={(intent) => { setStatement(null); onRecord(intent); }} /> : null}
           </div>
         )}
       </LoadState>
@@ -88,11 +91,11 @@ function PlanSummary({ plan }: { readonly plan: PlanMonth }) {
         <div><dt>{t('plan.expectedIncome')}<MoneyHelp term="expected" /></dt><dd><Amount minor={plan.expectedIncome} currency={currency} /></dd></div>
         <div><dt>{t('plan.received')}<MoneyHelp term="received" /></dt><dd><Amount minor={plan.received} currency={currency} /></dd></div>
         <div><dt>{t('plan.funded')}<MoneyHelp term="funded" /></dt><dd><Amount minor={plan.funded} currency={currency} /></dd></div>
-        <div><dt>{t('plan.stillToFund')}<MoneyHelp term="stillToFund" /></dt><dd><Amount minor={plan.stillToFund} currency={currency} tone={plan.stillToFund > 0n ? 'warn' : 'plain'} /></dd></div>
+        <div><dt>{t('plan.stillToFund')}<MoneyHelp term="stillToFund" /></dt><dd><Amount minor={remainingFunding(plan)} currency={currency} tone={remainingFunding(plan) > 0n ? 'warn' : 'plain'} /></dd></div>
         {plan.isPast || !plan.isCurrent || ready >= 0n ? <div><dt>{plan.isPast ? t('plan.readyAtMonthEnd') : t('common.readyToAssign')}<MoneyHelp term="ready" /></dt><dd><Amount minor={ready} currency={currency} tone={ready < 0n ? 'negative' : 'plain'} /></dd></div> : null}
       </dl>
-      <details className="cr-inline-disclosure"><summary>{c('fundingHelp')}</summary><div className="cr-stack">
-      <p className="cr-helper">{c('forecastHelp')}</p>
+      <details className="cr-inline-disclosure" open><summary>{c('fundingHelp')}</summary><div className="cr-stack">
+      <p className="cr-helper">{c('forecastHelp')}</p><p className="cr-helper">{c('incomeHelp')}</p><p className="cr-helper">{c('fundingNeedHelp')}</p>
       <div className="cr-stack-bar" role="img" aria-label={t('plan.barLabel')}>
         {plan.groups.map((group, index) => (
           <span key={group.groupId} className={`cr-stack-bar-part cr-tone-${index % 6}`} style={{ flexGrow: group.percentBps }} title={`${name(group)} ${bpsToPercentText(group.percentBps)}%`} />
@@ -109,19 +112,21 @@ function PlanSummary({ plan }: { readonly plan: PlanMonth }) {
   );
 }
 
-function GroupCard({ group, index, currency, today, onOpen, onEdit }: {
+function GroupCard({ group, index, currency, today, onOpen, onEdit, onRecord }: {
   readonly group: PlanGroup;
   readonly index: number;
   readonly currency: PlanMonth['planCurrency'];
   readonly today: string;
   readonly onOpen: (item: PlanItem) => void;
   readonly onEdit: () => void;
+  readonly onRecord: (intent: RecordIntent) => void;
 }) {
   const { t, money, name, digits } = useI18n();
   const copy = usePlanCopy();
+  const c = useUiCopy();
   const rows = [...group.items, ...(group.flex ? [group.flex] : [])];
   return (
-    <details className="cr-card cr-group" open={index === 0}>
+    <details className="cr-card cr-group" aria-label={name(group)} open>
       <summary className="cr-group-summary">
         <span className={`cr-dot cr-tone-${index % 6}`} aria-hidden="true" />
         <span className="cr-group-name"><bdi>{name(group)}</bdi> <span className="cr-helper">{digits(bpsToPercentText(group.percentBps))}%</span></span>
@@ -129,7 +134,13 @@ function GroupCard({ group, index, currency, today, onOpen, onEdit }: {
           <span><span className="cr-label">{t('plan.planned')}</span><Amount minor={group.planned} currency={currency} /></span>
         </span>
       </summary>
-      <div className="plan-group-toolbar"><button type="button" className="text-button" onClick={onEdit}>{copy.editGroup}</button></div>
+      <p className="cr-helper">{c(group.purpose === 'saving' ? 'carryHelp' : group.purpose === 'investment' ? 'investingHelp' : 'poolHelp')}</p>
+      {group.purpose === 'saving' ? <p className="cr-helper">{c('savingsHow')} {c('useSavingsHelp')}</p> : null}
+      <div className="plan-group-toolbar"><button type="button" className="text-button" onClick={onEdit}>{copy.editGroup}</button>
+        {group.flex ? <button type="button" className="cr-button cr-button--sm" onClick={() => onRecord({ kind: 'move', toItemId: group.flex!.itemId })}>{c('addMoney')}</button> : null}
+        {group.purpose === 'saving' && group.flex ? <button type="button" className="cr-button cr-button--sm" onClick={() => onRecord({ kind: 'expense', payFrom: group.flex!.itemId })}>{c('useSavings')}</button> : null}
+        {group.purpose === 'investment' && group.flex ? <button type="button" className="cr-button cr-button--sm" onClick={() => onRecord({ kind: 'invest', action: 'contribute', itemId: group.flex!.itemId })}>{t('record.kind.invest')}</button> : null}
+      </div>
       {group.over > 0n ? <p className="cr-explain cr-explain--warn">{t('plan.groupOver', { amount: money(group.over, currency) })}</p> : null}
       <table className="cr-plan-table">
         <thead>
@@ -143,7 +154,7 @@ function GroupCard({ group, index, currency, today, onOpen, onEdit }: {
         </thead>
         <tbody>
           {rows.map((item) => (
-            <ItemRow key={item.itemId} item={item} currency={currency} today={today} onOpen={() => onOpen(item)} />
+            <ItemRow key={item.itemId} item={item} displayName={item.kind === 'flex' && group.purpose === 'spending' ? `${name(group)} · ${c('pool')}` : name(item)} currency={currency} today={today} onOpen={() => onOpen(item)} />
           ))}
         </tbody>
       </table>
@@ -152,8 +163,8 @@ function GroupCard({ group, index, currency, today, onOpen, onEdit }: {
   );
 }
 
-function ItemRow({ item, currency, today, onOpen }: { readonly item: PlanItem; readonly currency: PlanMonth['planCurrency']; readonly today: string; readonly onOpen: () => void }) {
-  const { t, money, name, date, digits } = useI18n();
+function ItemRow({ item, displayName, currency, today, onOpen }: { readonly item: PlanItem; readonly displayName: string; readonly currency: PlanMonth['planCurrency']; readonly today: string; readonly onOpen: () => void }) {
+  const { t, money, date, digits } = useI18n();
   const other = currency === 'USD' ? 'LBP' : 'USD';
   // Progress toward a target only means something until its date has passed.
   const showProgress = item.targetMinor !== null && item.targetMinor > 0n && (item.targetDate === null || item.targetDate >= today);
@@ -162,7 +173,7 @@ function ItemRow({ item, currency, today, onOpen }: { readonly item: PlanItem; r
     <tr className={item.kind === 'flex' ? 'cr-plan-row cr-plan-row--flex' : 'cr-plan-row'}>
       <th scope="row">
         <button type="button" className="cr-link-button" onClick={onOpen}>
-          <bdi>{name(item)}</bdi>
+          <bdi>{displayName}</bdi>
         </button>
         {item.broughtForward !== 0n ? <span className="cr-helper">{t('plan.broughtForward', { amount: money(item.broughtForward, currency) })}</span> : null}
         {item.opening !== 0n ? <span className="cr-helper">{t('plan.openingLine', { amount: money(item.opening, currency) })}</span> : null}
@@ -173,16 +184,16 @@ function ItemRow({ item, currency, today, onOpen }: { readonly item: PlanItem; r
           </span>
         ) : null}
       </th>
-      <td><Amount minor={item.planned} currency={currency} /></td>
-      <td>
+      <td data-label={t('plan.planned')}><Amount minor={item.planned} currency={currency} /></td>
+      <td data-label={t('plan.funded')}>
         <Amount minor={item.funded} currency={currency} />
         {item.stillToFund > 0n ? <span className="cr-helper">{t('plan.needs', { amount: money(item.stillToFund, currency) })}</span> : null}
       </td>
-      <td>
+      <td data-label={t('plan.spent')}>
         <Amount minor={item.spent} currency={currency} />
         {item.otherOut !== 0n ? <span className="cr-helper">{t('plan.otherOutItem', { amount: money(item.otherOut, currency) })}</span> : null}
       </td>
-      <td>
+      <td data-label={t('plan.available')}>
         <Amount minor={item.available} currency={currency} />
         {item.balances[other] !== 0n ? <Amount minor={item.balances[other]} currency={other} className="cr-amount--secondary" /> : null}
       </td>

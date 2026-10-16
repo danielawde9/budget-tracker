@@ -46,19 +46,19 @@ it('replaces the zero assignment hero with real spending and allocation charts',
   renderWithWorkspace(<HomeScreen onRecord={vi.fn()} />, api);
   const chart = await screen.findByRole('img', { name: /Spending this month/ });
   expect(chart).toBeInTheDocument();
-  expect(screen.getByRole('heading', { name: 'Where your money is assigned' })).toBeInTheDocument();
-  expect(screen.getByRole('heading', { name: 'Category progress' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Where your remaining money is assigned' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Where this month’s spending went' })).toBeInTheDocument();
   const money = screen.getByRole('region', { name: 'Your money' });
   expect(money.querySelector('.cr-hero')).toBeNull();
-  expect(screen.getAllByRole('progressbar').length).toBe(fixtures.plan.groups.length);
+  expect(screen.getByText('Savings and goals')).toBeInTheDocument();
 });
 
 it('does not show reserve or savings tiles when those item types are not configured', async () => {
-  const plan = { ...fixtures.plan, groups: fixtures.plan.groups.map(g => ({ ...g, items: g.items.filter(i => i.kind === 'spending'), flex: g.flex })) };
+  const plan = { ...fixtures.plan, groups: fixtures.plan.groups.map(g => ({ ...g, purpose: 'spending' as const, items: g.items.filter(i => i.kind === 'spending'), flex: g.flex })) };
   const api = fakeApi({ planMonth: async () => plan, activity: async () => ({ ...fixtures.activity, next: null }) });
   renderWithWorkspace(<HomeScreen onRecord={vi.fn()} />, api);
   await screen.findByRole('img', { name: /Spending this month/ });
   expect(screen.queryByText('Reserves and loan payments')).not.toBeInTheDocument();
-  expect(screen.queryByText('Available in your goals')).not.toBeInTheDocument();
-  expect(screen.getByText('Available to spend')).toBeInTheDocument();
+  expect(screen.queryByText('Balance from all months · carries forward automatically')).not.toBeInTheDocument();
+  expect(screen.getByText('Everyday spending left')).toBeInTheDocument();
 });

@@ -41,7 +41,6 @@ for (const locale of ['en', 'ar'] as const) {
       async function openCheck(walletName: string) {
         await page.goto('/#/accounts');
         const row = page.locator('.cr-account-row').filter({ has: page.locator('.cr-register-title', { hasText: new RegExp(`^${walletName}$`) }) });
-        await row.locator('summary').click();
         await row.getByRole('button', { name: t('statement.check'), exact: true }).click();
         await expect(page.getByRole('dialog')).toBeVisible();
       }

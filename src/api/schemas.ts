@@ -10,6 +10,19 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const nullableText = z.string().nullable();
 export const currency = z.enum(['USD', 'LBP']);
 
+const currencyAmounts = z.object({ USD: minor, LBP: minor });
+export const moneyHistory = z.object({
+  today: isoDate,
+  months: z.array(z.object({
+    month: isoDate,
+    through: isoDate,
+    income: currencyAmounts,
+    spent: currencyAmounts,
+    savings: currencyAmounts,
+  })).max(6),
+});
+export type MoneyHistory = z.infer<typeof moneyHistory>;
+
 export const walletStatement = z.object({ walletId: id, currency, on: isoDate, balance: minor });
 export type WalletStatement = z.infer<typeof walletStatement>;
 
@@ -103,7 +116,10 @@ export const planItem = z.object({
   walletId: id.nullable(),
 });
 
+export const moneyPurpose = z.enum(['spending', 'saving', 'investment']);
+
 export const planGroup = z.object({
+  purpose: moneyPurpose.default('spending'),
   groupId: id,
   ...named,
   percentBps: z.number().int(),

@@ -1,0 +1,377 @@
+[
+  {
+    "device": "desktop",
+    "destination": "home",
+    "overflow": {
+      "viewport": 1440,
+      "document": 1440,
+      "offenders": []
+    },
+    "errors": []
+  },
+  {
+    "device": "desktop",
+    "destination": "plan",
+    "overflow": {
+      "viewport": 1440,
+      "document": 1440,
+      "offenders": [
+        {
+          "tag": "DIV",
+          "class": "cr-viewport-panel ",
+          "text": "Money left in an item now, including money carried from earl"
+        },
+        {
+          "tag": "P",
+          "class": "",
+          "text": "Money left in an item now, including money carried from earl"
+        },
+        {
+          "tag": "DIV",
+          "class": "cr-viewport-panel ",
+          "text": "Money left in an item now, including money carried from earl"
+        },
+        {
+          "tag": "P",
+          "class": "",
+          "text": "Money left in an item now, including money carried from earl"
+        },
+        {
+          "tag": "DIV",
+          "class": "cr-viewport-panel ",
+          "text": "Money left in an item now, including money carried from earl"
+        },
+        {
+          "tag": "P",
+          "class": "",
+          "text": "Money left in an item now, including money carried from earl"
+        },
+        {
+          "tag": "DIV",
+          "class": "cr-viewport-panel ",
+          "text": "Money left in an item now, including money carried from earl"
+        },
+        {
+          "tag": "P",
+          "class": "",
+          "text": "Money left in an item now, including money carried from earl"
+        }
+      ]
+    },
+    "errors": []
+  },
+  {
+    "device": "desktop",
+    "destination": "activity",
+    "overflow": {
+      "viewport": 1440,
+      "document": 1440,
+      "offenders": []
+    },
+    "errors": []
+  },
+  {
+    "device": "desktop",
+    "destination": "accounts",
+    "overflow": {
+      "viewport": 1440,
+      "document": 1440,
+      "offenders": []
+    },
+    "errors": []
+  },
+  {
+    "device": "desktop",
+    "destination": "settings",
+    "overflow": {
+      "viewport": 1440,
+      "document": 1440,
+      "offenders": []
+    },
+    "errors": []
+  },
+  {
+    "device": "mobile",
+    "destination": "home",
+    "overflow": {
+      "viewport": 390,
+      "document": 390,
+      "offenders": []
+    },
+    "errors": []
+  },
+  {
+    "device": "mobile",
+    "destination": "plan",
+    "overflow": {
+      "viewport": 390,
+      "document": 390,
+      "offenders": [
+        {
+          "tag": "DIV",
+          "class": "cr-viewport-panel ",
+          "text": "Income actually received during the selected month."
+        },
+        {
+          "tag": "P",
+          "class": "",
+          "text": "Income actually received during the selected month."
+        },
+        {
+          "tag": "DIV",
+          "class": "cr-viewport-panel ",
+          "text": "The part of this month’s plan that has not yet been funded."
+        },
+        {
+          "tag": "P",
+          "class": "",
+          "text": "The part of this month’s plan that has not yet been funded."
+        },
+        {
+          "tag": "DIV",
+          "class": "cr-viewport-panel ",
+          "text": "Money paid from an item this month."
+        },
+        {
+          "tag": "P",
+          "class": "",
+          "text": "Money paid from an item this month."
+        },
+        {
+          "tag": "DIV",
+          "class": "cr-viewport-panel ",
+          "text": "Money left in an item now, including money carried from earl"
+        },
+        {
+          "tag": "DIV",
+          "class": "cr-viewport-panel ",
+          "text": "Money paid from an item this month."
+        }
+      ]
+    },
+    "errors": []
+  },
+  {
+    "device": "mobile",
+    "destination": "activity",
+    "overflow": {
+      "viewport": 390,
+      "document": 390,
+      "offenders": []
+    },
+    "errors": []
+  },
+  {
+    "device": "mobile",
+    "destination": "accounts",
+    "overflow": {
+      "viewport": 390,
+      "document": 390,
+      "offenders": []
+    },
+    "errors": []
+  },
+  {
+    "device": "mobile",
+    "destination": "settings",
+    "overflow": {
+      "viewport": 390,
+      "document": 390,
+      "offenders": []
+    },
+    "errors": []
+  },
+  {
+    "device": "mobile-ar",
+    "destination": "home",
+    "overflow": {
+      "viewport": 390,
+      "document": 390,
+      "offenders": []
+    },
+    "errors": []
+  },
+  {
+    "device": "mobile-ar",
+    "destination": "plan",
+    "overflow": {
+      "viewport": 390,
+      "document": 390,
+      "offenders": [
+        {
+          "tag": "DIV",
+          "class": "cr-viewport-panel ",
+          "text": "الدخل المستلم فعليًا خلال الشهر المختار."
+        },
+        {
+          "tag": "P",
+          "class": "",
+          "text": "الدخل المستلم فعليًا خلال الشهر المختار."
+        },
+        {
+          "tag": "DIV",
+          "class": "cr-viewport-panel ",
+          "text": "الجزء من خطة هذا الشهر الذي لم يُموّل بعد."
+        },
+        {
+          "tag": "P",
+          "class": "",
+          "text": "الجزء من خطة هذا الشهر الذي لم يُموّل بعد."
+        },
+        {
+          "tag": "DIV",
+          "class": "cr-viewport-panel ",
+          "text": "مال أُضيف إلى بند هذا الشهر. الأرصدة الافتتاحية والمُرحّلة م"
+        },
+        {
+          "tag": "P",
+          "class": "",
+          "text": "مال أُضيف إلى بند هذا الشهر. الأرصدة الافتتاحية والمُرحّلة م"
+        },
+        {
+          "tag": "DIV",
+          "class": "cr-viewport-panel ",
+          "text": "مال صُرف من بند هذا الشهر."
+        },
+        {
+          "tag": "P",
+          "class": "",
+          "text": "مال صُرف من بند هذا الشهر."
+        }
+      ]
+    },
+    "errors": []
+  },
+  {
+    "device": "mobile-ar",
+    "destination": "activity",
+    "overflow": {
+      "viewport": 390,
+      "document": 390,
+      "offenders": []
+    },
+    "errors": []
+  },
+  {
+    "device": "mobile-ar",
+    "destination": "accounts",
+    "overflow": {
+      "viewport": 390,
+      "document": 390,
+      "offenders": []
+    },
+    "errors": []
+  },
+  {
+    "device": "mobile-ar",
+    "destination": "settings",
+    "overflow": {
+      "viewport": 390,
+      "document": 390,
+      "offenders": []
+    },
+    "errors": []
+  },
+  {
+    "device": "small",
+    "destination": "home",
+    "overflow": {
+      "viewport": 320,
+      "document": 320,
+      "offenders": [
+        {
+          "tag": "DIV",
+          "class": "cr-viewport-panel ",
+          "text": "Money you have that has no purpose yet."
+        },
+        {
+          "tag": "P",
+          "class": "",
+          "text": "Money you have that has no purpose yet."
+        }
+      ]
+    },
+    "errors": []
+  },
+  {
+    "device": "small",
+    "destination": "plan",
+    "overflow": {
+      "viewport": 320,
+      "document": 320,
+      "offenders": [
+        {
+          "tag": "DIV",
+          "class": "cr-viewport-panel ",
+          "text": "Income actually received during the selected month."
+        },
+        {
+          "tag": "P",
+          "class": "",
+          "text": "Income actually received during the selected month."
+        },
+        {
+          "tag": "DIV",
+          "class": "cr-viewport-panel ",
+          "text": "The part of this month’s plan that has not yet been funded."
+        },
+        {
+          "tag": "P",
+          "class": "",
+          "text": "The part of this month’s plan that has not yet been funded."
+        },
+        {
+          "tag": "DIV",
+          "class": "cr-viewport-panel ",
+          "text": "Money added to an item this month. Opening money and carry-o"
+        },
+        {
+          "tag": "P",
+          "class": "",
+          "text": "Money added to an item this month. Opening money and carry-o"
+        },
+        {
+          "tag": "DIV",
+          "class": "cr-viewport-panel ",
+          "text": "Money paid from an item this month."
+        },
+        {
+          "tag": "P",
+          "class": "",
+          "text": "Money paid from an item this month."
+        }
+      ]
+    },
+    "errors": []
+  },
+  {
+    "device": "small",
+    "destination": "activity",
+    "overflow": {
+      "viewport": 320,
+      "document": 320,
+      "offenders": []
+    },
+    "errors": []
+  },
+  {
+    "device": "small",
+    "destination": "accounts",
+    "overflow": {
+      "viewport": 320,
+      "document": 320,
+      "offenders": []
+    },
+    "errors": []
+  },
+  {
+    "device": "small",
+    "destination": "settings",
+    "overflow": {
+      "viewport": 320,
+      "document": 320,
+      "offenders": []
+    },
+    "errors": []
+  }
+]

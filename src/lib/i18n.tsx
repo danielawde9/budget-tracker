@@ -142,6 +142,7 @@ const dateFormats = {
   day: { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' },
   weekday: { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' },
   month: { year: 'numeric', month: 'long', timeZone: 'UTC' },
+  shortMonth: { month: 'short', timeZone: 'UTC' },
   short: { month: 'short', day: 'numeric', timeZone: 'UTC' },
 } as const satisfies Record<string, Intl.DateTimeFormatOptions>;
 

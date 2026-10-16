@@ -14,7 +14,6 @@ describe('statement comparison', () => {
     const onRecord = vi.fn();
     renderWithWorkspace(<AccountsScreen onRecord={onRecord} />, api);
     await screen.findAllByText('Check against a statement');
-    await userEvent.click(screen.getAllByText('Account actions')[0]!);
     await userEvent.click(screen.getAllByText('Check against a statement')[0]!);
     fireEvent.change(screen.getByLabelText('Statement date'), { target: { value: '2026-09-30' } });
     await userEvent.type(screen.getByLabelText('Statement balance'), '105.25');
@@ -54,4 +53,14 @@ describe('statement comparison', () => {
     expect(parseRoute(routeHash(route))).toEqual(route);
     expect(parseRoute('#/activity?wallet=bad&month=2026-13')).toEqual({ name: 'activity', walletId: null, month: null });
   });
+});
+
+it('shows cash, investing and loan actions without opening a menu', async () => {
+  const onRecord = vi.fn();
+  renderWithWorkspace(<AccountsScreen onRecord={onRecord} />, fakeApi());
+  const contribution = (await screen.findAllByRole('button', { name: 'Put money in' }))[0]!;
+  expect(contribution).toBeVisible();
+  expect(contribution.closest('details')).toBeNull();
+  await userEvent.click(contribution);
+  expect(onRecord).toHaveBeenCalledWith(expect.objectContaining({ kind: 'invest', action: 'contribute' }));
 });

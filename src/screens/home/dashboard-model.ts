@@ -1,13 +1,14 @@
 import { BudgetError, type BudgetApi } from '../../api/budget-api.ts';
 import type { ActivityCursor, Entry, PlanMonth } from '../../api/schemas.ts';
 import type { Currency } from '../../lib/money.ts';
+import { purposeItems, type MoneyPurpose } from '../../lib/money-purpose.ts';
 import { addDays } from '../describe.ts';
 
 export function dashboardTotals(plan: PlanMonth, currency: Currency) {
-  const items = plan.groups.flatMap(group => [...group.items, ...(group.flex ? [group.flex] : [])]);
-  const sum = (kinds: string[]) => items.filter(item => kinds.includes(item.kind)).reduce((total, item) => total + item.balances[currency], 0n);
+  const items = purposeItems(plan);
+  const sum = (purpose: MoneyPurpose) => items.filter(row => row.purpose === purpose).reduce((total, { item }) => total + item.balances[currency], 0n);
   return {
-    available: sum(['spending', 'flex']), reserves: sum(['reserve', 'loan_payment']), savings: sum(['goal']),
+    available: sum('spending'), reserves: sum('reserve'), savings: sum('saving'), investing: sum('investment'),
     spent: currency === plan.planCurrency ? plan.groups.reduce((total, group) => total + group.spent, 0n) : null,
   };
 }
@@ -51,7 +52,21 @@ export function spendingSeries(entries: readonly Entry[], currency: Currency, mo
 
 /** Saving and moving principal are allocations, not a spending allowance. */
 export function plannedSpending(plan: PlanMonth): bigint {
-  return plan.groups.flatMap(group => [...group.items, ...(group.flex ? [group.flex] : [])])
-    .filter(item => item.kind === 'spending' || item.kind === 'flex')
-    .reduce((sum, item) => sum + item.planned, 0n);
+  return purposeItems(plan).filter(row => row.purpose === 'spending')
+    .reduce((sum, { item }) => sum + item.planned, 0n);
+}
+
+/** Net consumption, regardless of which purpose paid. Asset purchases are excluded. */
+export function spendingByCategory(entries: readonly Entry[], currency: Currency, month: string, today: string) {
+  const rows = new Map<string, { itemId: string; nameEn: string | null; nameAr: string | null; amount: bigint }>();
+  for (const entry of entries) {
+    if (entry.occurredOn < month || entry.occurredOn > today || entry.occurredOn.slice(0, 7) !== month.slice(0, 7)) continue;
+    for (const line of entry.items) {
+      if (line.currency !== currency || line.kind === 'ready' || !['spend', 'refund', 'interest', 'fee'].includes(line.flow)) continue;
+      const row = rows.get(line.itemId) ?? { itemId: line.itemId, nameEn: line.nameEn, nameAr: line.nameAr, amount: 0n };
+      row.amount -= line.amount;
+      rows.set(line.itemId, row);
+    }
+  }
+  return [...rows.values()].filter(row => row.amount !== 0n).sort((a, b) => a.amount > b.amount ? -1 : a.amount < b.amount ? 1 : a.itemId.localeCompare(b.itemId));
 }

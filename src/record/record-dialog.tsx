@@ -16,13 +16,13 @@ import { useRecordCopy } from './record-copy.ts';
 import { BillForm, FundForm } from './forms-plan.tsx';
 
 export type RecordIntent =
-  | { readonly kind: 'expense'; readonly walletId?: string; readonly itemId?: string; readonly bill?: BillIntent }
+  | { readonly kind: 'expense'; readonly payFrom?: string; readonly walletId?: string; readonly itemId?: string; readonly bill?: BillIntent }
   | { readonly kind: 'refund' }
   | { readonly kind: 'income'; readonly walletId?: string }
   | { readonly kind: 'transfer' }
   | { readonly kind: 'move'; readonly fromItemId?: string; readonly toItemId?: string; readonly currency?: Currency }
   | { readonly kind: 'exchange' }
-  | { readonly kind: 'invest'; readonly action?: InvestmentAction; readonly investmentId?: string }
+  | { readonly kind: 'invest'; readonly action?: InvestmentAction; readonly investmentId?: string; readonly itemId?: string }
   | { readonly kind: 'loan'; readonly action?: LoanAction; readonly loanId?: string; readonly bill?: BillIntent }
   | { readonly kind: 'fund'; readonly month?: string }
   | { readonly kind: 'wallet'; readonly walletKind?: 'cash' | 'investment' | 'loan' }
@@ -56,7 +56,7 @@ export function RecordDialog({ intent: initial, onClose }: { readonly intent: Re
 function RecordDialogBody({ intent: initial, onClose }: { readonly intent: RecordIntent; readonly onClose: () => void }) {
   const { t, date } = useI18n();
   const copy = useRecordCopy();
-  const [choosing, setChoosing] = useState(initial.kind === 'expense' && !initial.walletId && !initial.itemId && !initial.bill);
+  const [choosing, setChoosing] = useState(initial.kind === 'expense' && !initial.walletId && !initial.itemId && !initial.payFrom && !initial.bill);
   const { catalog, space } = useWorkspace();
   const pendingScope = useCommandScope();
   const { attempt } = useSaveRecovery(space.id);
@@ -91,9 +91,9 @@ function RecordDialogBody({ intent: initial, onClose }: { readonly intent: Recor
             <section className="cr-record-chooser" aria-label={t('record.kind')}>
               <p className="cr-helper">{copy('What happened to your money?', 'ماذا حدث لمالك؟')}</p>
               {(['expense', 'income', 'move'] as const).map(kind => <button key={kind} type="button" className="cr-record-option" onClick={() => { if (kind !== intent.kind) setIntent({ kind }); setChoosing(false); }}><strong>{t(`record.kind.${kind}`)}</strong>{' '}<span>{copy(kind === 'expense' ? 'Money you spent.' : kind === 'income' ? 'Money you received.' : 'Move money between plan items.', kind === 'expense' ? 'مال أنفقته.' : kind === 'income' ? 'مال استلمته.' : 'نقل المال بين بنود الخطة.')}</span></button>)}
-              <details className="cr-record-details"><summary>{copy('More actions', 'إجراءات أخرى')}</summary>
+              <div className="cr-record-details">
                 {EVERYDAY.filter(option => !['expense', 'income', 'move'].includes(option.kind)).map(option => <button key={option.kind} type="button" className="cr-record-option" onClick={() => { if (option.kind !== intent.kind) setIntent({ kind: option.kind }); setChoosing(false); }}><strong>{t(option.label)}</strong>{' '}<span>{copy(option.kind === 'transfer' ? 'Move real money between your wallets.' : option.kind === 'exchange' ? 'Convert between USD and LBP.' : option.kind === 'invest' ? 'Record investment money, returns or value.' : option.kind === 'loan' ? 'Borrow, lend or repay money.' : 'Money returned from an earlier expense.', option.kind === 'transfer' ? 'نقل المال الفعلي بين محافظك.' : option.kind === 'exchange' ? 'التحويل بين الدولار والليرة.' : option.kind === 'invest' ? 'تسجيل أموال الاستثمار والعوائد والقيمة.' : option.kind === 'loan' ? 'اقتراض أو إقراض أو سداد المال.' : 'مال مسترجع من مصروف سابق.')}</span></button>)}
-              </details>
+              </div>
             </section>
           ) : <button type="button" disabled={pending} className="cr-record-back" onClick={() => setChoosing(true)}>{copy('All actions', 'كل الإجراءات')}</button> : null}
           <div hidden={choosing}>
@@ -102,13 +102,13 @@ function RecordDialogBody({ intent: initial, onClose }: { readonly intent: Recor
               const key = `${intent.kind}-${formKey}`;
               const props = { catalog: data, onDone: done, onCancel: onClose };
               switch (intent.kind) {
-                case 'expense': return <ExpenseForm key={key} {...props} {...(intent.walletId ? { walletId: intent.walletId } : {})} {...(intent.itemId ? { itemId: intent.itemId } : {})} {...(intent.bill ? { bill: intent.bill } : {})} />;
+                case 'expense': return <ExpenseForm payFrom={intent.payFrom} key={key} {...props} {...(intent.walletId ? { walletId: intent.walletId } : {})} {...(intent.itemId ? { itemId: intent.itemId } : {})} {...(intent.bill ? { bill: intent.bill } : {})} />;
                 case 'refund': return <RefundForm key={key} {...props} />;
                 case 'income': return <IncomeForm key={key} {...props} {...(intent.walletId ? { walletId: intent.walletId } : {})} onFund={() => { setResult(null); setIntent({ kind: 'fund' }); }} />;
                 case 'transfer': return <TransferForm key={key} {...props} />;
                 case 'move': return <MoveForm key={key} {...props} {...(intent.fromItemId ? { fromItemId: intent.fromItemId } : {})} {...(intent.toItemId ? { toItemId: intent.toItemId } : {})} {...(intent.currency ? { currency: intent.currency } : {})} />;
                 case 'exchange': return <ExchangeForm key={key} {...props} />;
-                case 'invest': return <InvestForm key={key} {...props} {...(intent.action ? { action: intent.action } : {})} {...(intent.investmentId ? { investmentId: intent.investmentId } : {})} />;
+                case 'invest': return <InvestForm key={key} {...props} {...(intent.action ? { action: intent.action } : {})} {...(intent.investmentId ? { investmentId: intent.investmentId } : {})} {...(intent.itemId ? { itemId: intent.itemId } : {})} />;
                 case 'loan': return <LoanForm key={key} {...props} {...(intent.action ? { action: intent.action } : {})} {...(intent.loanId ? { loanId: intent.loanId } : {})} {...(intent.bill ? { bill: intent.bill } : {})} />;
                 case 'fund': return <FundForm key={key} {...props} month={intent.month ?? space.currentMonth} />;
                 case 'wallet': return <WalletForm key={key} onDone={done} onCancel={onClose} {...(intent.walletKind ? { kind: intent.walletKind } : {})} />;

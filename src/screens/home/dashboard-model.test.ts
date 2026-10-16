@@ -5,8 +5,7 @@ import type { Entry } from '../../api/schemas.ts';
 describe('dashboard money calculations', () => {
   it('keeps available category balances separate from spending and currencies', () => {
     const totals = dashboardTotals(fixtures.plan, 'USD');
-    const items = fixtures.plan.groups.flatMap(g => [...g.items, ...(g.flex ? [g.flex] : [])]);
-    expect(totals.available).toBe(items.filter(i => i.kind === 'spending' || i.kind === 'flex').reduce((n, i) => n + i.balances.USD, 0n));
+    expect(totals.available).toBe(153760n);
     expect(totals.spent).toBe(fixtures.plan.groups.reduce((n, g) => n + g.spent, 0n));
     expect(dashboardTotals(fixtures.plan, 'LBP').spent).toBeNull();
   });
@@ -35,7 +34,6 @@ describe('dashboard money calculations', () => {
 });
 
 it('compares spending with spending allocations rather than savings goals', () => {
-  const spending = fixtures.plan.groups.flatMap(g => [...g.items, ...(g.flex ? [g.flex] : [])]).filter(i => i.kind === 'spending' || i.kind === 'flex');
-  expect(plannedSpending(fixtures.plan)).toBe(spending.reduce((n, i) => n + i.planned, 0n));
+  expect(plannedSpending(fixtures.plan)).toBe(232150n);
   expect(plannedSpending(fixtures.plan)).toBeLessThan(fixtures.plan.groupsTotal);
 });

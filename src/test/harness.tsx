@@ -38,6 +38,7 @@ export function fakeApi(overrides: Partial<Record<keyof BudgetApi, (...args: nev
     mySpaces: vi.fn(async () => fixtures.spaces),
     clockToday: vi.fn(async () => space().today),
     overview: vi.fn(async () => fixtures.overview),
+    moneyHistory: vi.fn(async () => ({ today: space().today, months: [] })),
     planMonth: vi.fn(async () => fixtures.plan),
     accounts: vi.fn(async () => fixtures.accounts),
     activity: vi.fn(async () => fixtures.activity),

@@ -22,9 +22,10 @@ const INVEST_ACTIONS: readonly { readonly action: InvestmentAction; readonly lab
   { action: 'income_reinvested', label: 'invest.incomeReinvested', explain: 'invest.incomeReinvestedExplain' },
 ];
 
-export function InvestForm({ catalog, onDone, onCancel, action: initialAction, investmentId }: FormProps & {
+export function InvestForm({ catalog, onDone, onCancel, action: initialAction, investmentId, itemId: initialItemId }: FormProps & {
   readonly action?: InvestmentAction;
   readonly investmentId?: string;
+  readonly itemId?: string;
 }) {
   const i18n = useI18n();
   const copy = useRecordCopy();
@@ -38,7 +39,7 @@ export function InvestForm({ catalog, onDone, onCancel, action: initialAction, i
   const cash = activeWallets(catalog.accounts, 'cash').filter((wallet) => wallet.currency === currency);
   const [cashId, setCashId] = useState('');
   const effectiveCash = cash.some((wallet) => wallet.id === cashId) ? cashId : (cash[0]?.id ?? '');
-  const [itemId, setItemId] = useState(() => defaultInvestItem(catalog, accountId));
+  const [itemId, setItemId] = useState(() => initialItemId ?? defaultInvestItem(catalog, accountId));
   const [coverFrom, setCoverFrom] = useState(READY);
   const [amount, setAmount] = useState<bigint | null>(null);
   const [on, setOn] = useState(space.today);
@@ -275,11 +276,11 @@ export function CorrectForm({ entry, onDone, onCancel }: Omit<FormProps, 'catalo
 
 /**
  * The item a contribution comes out of by default: one tied to this
- * investment account, else the last group's flexible item (plans list
- * long-term money last). Never matched by name, so renaming is safe.
+ * investment account, else an explicitly marked investment group's flexible
+ * item. A shortcut's selected source takes precedence. Renaming is safe.
  */
 function defaultInvestItem(catalog: FormProps['catalog'], accountId: string): string {
   const groups = pickerGroups(catalog.plan);
   const linked = groups.flatMap((group) => group.items).find((item) => item.walletId !== null && item.walletId === accountId);
-  return linked?.itemId ?? catalog.plan.groups.at(-1)?.flex?.itemId ?? '';
+  return linked?.itemId ?? catalog.plan.groups.find(group => group.purpose === 'investment')?.flex?.itemId ?? '';
 }

@@ -1,7 +1,7 @@
 import { BillPaymentStatus, billRemaining, isOpenBill } from '../plan/bill-payment-status.tsx';
 import { Dashboard } from './dashboard.tsx';
 import { useState } from 'react';
-import { Wallet, Plus, CheckCircle2 } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 import { useUiCopy } from '../../lib/ui-copy.ts';
 import { MoneyHelp } from '../../ui/money-help.tsx';
 import { AssignmentWarning } from '../../ui/assignment-warning.tsx';
@@ -39,8 +39,7 @@ export function HomeScreen({ onRecord }: { readonly onRecord: (intent: RecordInt
 }
 
 function HomeBody({ overview, onRecord }: { readonly overview: Overview; readonly onRecord: (intent: RecordIntent) => void }) {
-  const { t, date } = useI18n();
-  const c = useUiCopy();
+  const { t } = useI18n();
   const [currency, setCurrency] = useState<Currency>(overview.planCurrency);
   const view = overview.currencies.find((candidate) => candidate.currency === currency) ?? overview.currencies[0];
   if (!view) return null;
@@ -55,11 +54,9 @@ function HomeBody({ overview, onRecord }: { readonly overview: Overview; readonl
           <button type="button" className="cr-button cr-button--primary" onClick={() => onRecord({ kind: 'wallet' })}>{t('home.addWallet')}</button>
         </section>
       ) : null}
-      <MoneyCard view={view} overview={overview} currency={currency} onCurrency={setCurrency} onRecord={onRecord} />
-      <Dashboard overview={overview} view={view} afterMetrics={view.ready < 0n ? <section className="cr-money-footer"><button type="button" className="text-button" onClick={() => navigate({ name: 'plan', month: overview.month })}>{c('viewPlan')}</button><MoneyDetails view={view} currency={currency} /></section> : undefined} />
+      <Dashboard overview={overview} view={view} afterMetrics={<MoneyCard view={view} overview={overview} currency={currency} onCurrency={setCurrency} onRecord={onRecord} />} />
       <div className="cr-home-columns"><UpcomingBills onRecord={onRecord} /><RecentActivity /></div>
-      <section className="cr-wallet-section" aria-labelledby="wallets-heading"><div className="cr-section-header"><h2 id="wallets-heading">{c('wallets')}</h2><button className="text-button" type="button" onClick={() => onRecord({ kind: 'wallet' })}><Plus size={16} aria-hidden />{t('home.addWallet')}</button></div><ul className="cr-register">{overview.currencies.flatMap((pile) => pile.wallets.map((wallet) => <li key={wallet.walletId} className="cr-register-row"><Wallet aria-hidden size={20} /><bdi className="cr-register-title">{wallet.name}</bdi><Amount minor={wallet.balance} currency={pile.currency} /></li>))}</ul></section>
-      {overview.alerts.length > 0 ? <Alerts alerts={overview.alerts} month={overview.month} onRecord={onRecord} /> : null}
+      {overview.alerts.length > 0 ? <Alerts alerts={overview.alerts.filter(alert => !(alert.kind === 'over_assigned' && alert.currency === currency))} month={overview.month} onRecord={onRecord} /> : null}
     </div>
   );
 }
@@ -92,11 +89,11 @@ function MoneyCard({ view, overview, currency, onCurrency, onRecord }: {
         <Amount minor={view.ready} currency={currency} className="cr-amount--hero" />
         <p className="cr-helper">{c('readyBody')}</p>
       </div> : null}
-      {!overAssigned ? <div className="cr-hero-actions">{view.ready > 0n ? <button type="button" className="cr-button cr-button--primary" onClick={() => onRecord(currency === overview.planCurrency ? { kind: 'fund', month: overview.month } : { kind: 'move', currency })}>{currency === overview.planCurrency ? c('fund') : t('plan.move')}</button> : null}<button type="button" className="text-button" onClick={() => navigate({ name: 'plan', month: overview.month })}>{c('viewPlan')}</button></div> : null}
+      {!overAssigned ? <div className="cr-hero-actions">{view.ready > 0n ? <button type="button" className="cr-button cr-button--primary" onClick={() => onRecord(currency === overview.planCurrency ? { kind: 'fund', month: overview.month } : { kind: 'move', currency })}>{currency === overview.planCurrency ? c('fund') : t('plan.move')}</button> : null}</div> : null}
         {currency === 'LBP' && rate && view.cashHeld !== 0n ? (
           <p className="cr-helper">{t('common.approx', { amount: money(approxUsd(view.cashHeld, rate.unitsPerUsd), 'USD'), rate: rate.unitsPerUsd })}</p>
         ) : null}
-      {!overAssigned ? <MoneyDetails view={view} currency={currency} /> : null}
+      <MoneyDetails view={view} currency={currency} />
     </section>
   );
 }
@@ -104,7 +101,7 @@ function MoneyCard({ view, overview, currency, onCurrency, onRecord }: {
 function MoneyDetails({ view, currency }: { readonly view: CurrencyOverview; readonly currency: Currency }) {
   const { t, money } = useI18n();
   const c = useUiCopy();
-  return <details className="cr-money-breakdown"><summary>{c('breakdown')}</summary><div>
+  return <details className="cr-money-breakdown" open><summary>{c('breakdown')}</summary><div>
       <dl className="cr-equation" aria-label={t('home.equationLabel')}>
         <div><dt>{t('home.cashHeld')}</dt><dd><Amount minor={view.cashHeld} currency={currency} /></dd></div>
         <div className="cr-equation-op" aria-hidden="true">=</div>

@@ -184,11 +184,14 @@ describe('a reversal must mirror its original exactly', () => {
 });
 
 describe('plan versions', () => {
+  let monthOffset = 0;
   async function version(): Promise<string> {
     const id = randomUUID();
+    // Each version needs its own month; random months can collide.
+    monthOffset += 1;
     await db.pool.query(
-      "insert into budget.plan_versions (id, space_id, effective_month, expected_income_minor, updated_by) values ($1, $2, date_trunc('month', current_date)::date - (floor(random() * 1000)::int * interval '1 month'), 411000, $3)",
-      [id, s.spaceId, s.userId],
+      "insert into budget.plan_versions (id, space_id, effective_month, expected_income_minor, updated_by) values ($1, $2, date_trunc('month', current_date)::date - ($4::int * interval '1 month'), 411000, $3)",
+      [id, s.spaceId, s.userId, monthOffset],
     );
     return id;
   }

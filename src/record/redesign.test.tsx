@@ -17,14 +17,14 @@ describe('focused owner record forms', () => {
     expect(api.createWallet).toHaveBeenCalledWith(expect.objectContaining({ opening: -10000n }));
     expect(onDone).toHaveBeenCalledWith(expect.stringContaining('-$100.00'));
   });
-  it('groups uncommon actions under More while keeping contextual actions selected', async () => {
+  it('shows every action on the first level while keeping contextual actions selected', async () => {
     const user = userEvent.setup();
     renderWithWorkspace(<RecordDialog intent={{ kind: 'transfer' }} onClose={vi.fn()} />, fakeApi());
     expect(await screen.findByRole('textbox', { name: /Amount/ })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'All actions' }));
     expect(screen.getByRole('button', { name: /Change purpose/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Between wallets/, hidden: true })).not.toBeVisible();
-    await user.click(screen.getByText('More actions'));
+    expect(screen.getByRole('button', { name: /Refund/ })).toBeVisible();
+    expect(screen.getByRole('button', { name: /Refund/ }).closest('details')).toBeNull();
     expect(screen.getByRole('button', { name: /Between wallets/ })).toBeVisible();
   });
   it('previews a value update as a loss before recording it', async () => {

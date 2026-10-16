@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { WalletStatementDialog } from './wallet-statement.tsx';
-import { ViewportDisclosure } from '../../ui/viewport-disclosure.tsx';
-import { MoreHorizontal, Wallet, TrendingUp, HandCoins } from 'lucide-react';
+import { Wallet, TrendingUp, HandCoins, Plus } from 'lucide-react';
 import { useUiCopy } from '../../lib/ui-copy.ts';
 import type { AccountWallet } from '../../api/schemas.ts';
 import { PageHeader } from '../../app/shell.tsx';
@@ -25,6 +24,7 @@ export function AccountsScreen({ onRecord }: { readonly onRecord: (intent: Recor
       <LoadState loaded={catalog}>
         {({ accounts }) => (
           <div className="cr-accounts">
+            <section className="cr-account-overview" aria-label={c('accountsOverview')}><div><h2>{c('accountsOverview')}</h2><p className="cr-helper">{c('accountsOverviewHelp')}</p></div><span className="cr-count-badge">{accounts.wallets.filter(wallet => !wallet.archived).length} · {c('activeAccounts')}</span></section>
             <WalletBalances wallets={activeWallets(accounts, 'cash')} onAdd={() => onRecord({ kind: 'wallet' })} />
             <WalletList titleKey="accounts.cashTitle" introKey="accounts.cashIntro" wallets={activeWallets(accounts, 'cash')} onAdd={() => onRecord({ kind: 'wallet', walletKind: 'cash' })}
               actions={(wallet) => [
@@ -62,11 +62,11 @@ function WalletBalances({ wallets, onAdd }: { readonly wallets: readonly Account
   const { t } = useI18n();
   const c = useUiCopy();
   const currencies = [...new Set(wallets.map(wallet => wallet.currency))];
-  return <section className="cr-card cr-wallet-balances" aria-label={c('walletSummary')}>
+  return <section className="cr-card cr-wallet-balances" aria-label={c('walletSummary')}><div className="cr-wallet-summary-main">
     <p className="cr-helper">{c('walletSummary')}</p>
     <div className="cr-wallet-balance-amounts">{currencies.length ? currencies.map(currency => <Amount key={currency} minor={wallets.filter(wallet => wallet.currency === currency).reduce((total, wallet) => total + wallet.balance, 0n)} currency={currency} />) : <p className="cr-helper">{t('accounts.none')}</p>}</div>
     <p className="cr-helper">{c('walletSummaryHelp')}</p>
-    <button type="button" className="cr-button cr-button--primary" onClick={onAdd}>{t('accounts.add')}</button>
+    </div><button type="button" className="cr-button cr-button--primary" onClick={onAdd}><Plus size={18} aria-hidden />{t('accounts.add')}</button>
   </section>;
 }
 
@@ -80,7 +80,7 @@ function WalletList({ titleKey, introKey, wallets, onAdd, actions }: {
   const { t } = useI18n();
   const c = useUiCopy();
   return (
-    <section className="cr-account-section" aria-labelledby={titleKey}>
+    <section className="cr-card cr-account-section" aria-labelledby={titleKey}>
       <div className="cr-section-header">
         <div>
           <h2 id={titleKey}>{t(titleKey)}</h2>
@@ -98,9 +98,9 @@ function WalletList({ titleKey, introKey, wallets, onAdd, actions }: {
                 <WalletFacts wallet={wallet} />
               </div>
               <Amount minor={wallet.loanDirection === 'i_owe' ? -wallet.balance : wallet.balance} currency={wallet.currency} />
-              <ViewportDisclosure className="cr-account-menu" panelClassName="cr-account-actions" summary={<><MoreHorizontal size={20} aria-hidden /><span className="cr-visually-hidden">{c('accountActions')}</span></>}>
-                {actions(wallet).map((action) => <button key={action.label} type="button" className="cr-button cr-button--sm" onClick={(event) => { const menu = event.currentTarget.closest('details'); if (menu) { menu.open = false; menu.querySelector('summary')?.focus(); } action.run(); }}>{action.label}</button>)}
-              </ViewportDisclosure>
+              <div className="cr-account-actions" role="group" aria-label={`${wallet.name} · ${c('accountActions')}`}>
+                {actions(wallet).map(action => <button key={action.label} type="button" className="cr-button cr-button--sm" onClick={action.run}>{action.label}</button>)}
+              </div>
             </li>
           ))}
         </ul>

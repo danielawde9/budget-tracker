@@ -57,11 +57,10 @@ export function BillsSection({ onRecord }: { readonly onRecord: (intent: RecordI
                   {next ? <CoveragePill occurrence={next} /> : null}
                   <Amount minor={next ? billRemaining(next) : bill.amount} currency={bill.currency} />
                   {next ? <button type="button" className="cr-button cr-button--sm" onClick={() => onRecord(billIntent(next))}>{t('bill.pay')}</button> : null}
-                  <details className="plan-bill-actions">
-                    <summary aria-label={`${copy.actions}: ${bill.name}`}>···</summary>
-                    <button type="button" className="cr-link-button" onClick={() => onRecord({ kind: 'bill', bill })}>{copy.editBill}</button>
+                  <div className="cr-bill-actions" role="group" aria-label={`${copy.actions}: ${bill.name}`}>
+                    <button type="button" className="cr-button cr-button--sm" onClick={() => onRecord({ kind: 'bill', bill })}>{copy.editBill}</button>
                     <SkipActions bill={bill} next={next} lastSkipped={lastSkipped} />
-                  </details>
+                  </div>
                 </li>
               );
             })}
@@ -92,8 +91,8 @@ function SkipActions({ bill, next, lastSkipped }: {
   const error = skip.error ?? unskip.error;
   return (
     <>
-      {next ? <button type="button" className="cr-link-button" disabled={pending} onClick={() => void run(skip, next.dueOn)}>{t('bill.skip')}</button> : null}
-      {lastSkipped ? <button type="button" className="cr-link-button" disabled={pending} onClick={() => void run(unskip, lastSkipped.dueOn)}>{t('bill.unskip')}</button> : null}
+      {next ? <button type="button" className="cr-button cr-button--sm" disabled={pending} onClick={() => void run(skip, next.dueOn)}>{t('bill.skip')}</button> : null}
+      {lastSkipped ? <button type="button" className="cr-button cr-button--sm" disabled={pending} onClick={() => void run(unskip, lastSkipped.dueOn)}>{t('bill.unskip')}</button> : null}
       {error ? <ErrorNotice error={error} /> : null}
     </>
   );

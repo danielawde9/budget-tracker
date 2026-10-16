@@ -143,11 +143,12 @@ export function CoverChoice({ catalog, itemId, currency, amount, value, onChange
   if (!item || shortfall === 0n) return null;
   const available = item.balances[currency] > 0n ? item.balances[currency] : 0n;
   const ready = catalog.ready[currency];
-  const groups = pickerGroups(catalog.plan).map((group) => ({ ...group, items: group.items.filter((candidate) => candidate.balances[currency] >= shortfall) }));
+  const groups = pickerGroups(catalog.plan).map((group) => ({ ...group, items: group.items.filter((candidate) => candidate.balances[currency] >= shortfall || candidate.itemId === value) }));
   return (
     <div className="cr-cover">
       <Explain tone="warn">{t('record.shortfall', { name: name(item), available: money(available, currency), shortfall: money(shortfall, currency) })}</Explain>
       <ItemSelect label={t('record.coverFrom')} groups={groups} value={value} onChange={onChange} currency={currency} includeReady readyBalance={ready} exclude={itemId} />
+      {value !== READY && (findItem(catalog.plan, value)?.balances[currency] ?? 0n) < shortfall ? <Explain tone="warn">{t('record.coverTooSmall')}</Explain> : null}
       {value === READY && ready < shortfall ? (
         <Explain tone="warn">{t('record.willOverAssign', { amount: money(shortfall - (ready > 0n ? ready : 0n), currency) })}</Explain>
       ) : null}

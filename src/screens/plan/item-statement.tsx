@@ -1,3 +1,5 @@
+import type { MoneyPurpose } from '../../lib/money-purpose.ts';
+import { useUiCopy } from '../../lib/ui-copy.ts';
 import { usePlanCopy } from './plan-copy.ts';
 import { MoneyHelp } from '../../ui/money-help.tsx';
 import './plan-redesign.css';
@@ -24,13 +26,15 @@ const ROWS: readonly { readonly key: keyof Omit<StatementRow, 'currency'>; reado
 ];
 
 /** Where an item's money came from and went this month, in each currency. */
-export function ItemStatementDialog({ item, month, onClose, onRecord }: {
+export function ItemStatementDialog({ item, month, onClose, onRecord, purpose = 'spending' }: {
+  readonly purpose?: MoneyPurpose;
   readonly item: PlanItem;
   readonly month: string;
   readonly onClose: () => void;
   readonly onRecord: (intent: RecordIntent) => void;
 }) {
   const copy = usePlanCopy();
+  const c = useUiCopy();
   const i18n = useI18n();
   const { t, name, date } = i18n;
   const { api, space, version } = useWorkspace();
@@ -40,16 +44,18 @@ export function ItemStatementDialog({ item, month, onClose, onRecord }: {
       <LoadState loaded={statement}>
         {(data) => (
           <div className="cr-stack">
+            {purpose === 'saving' ? <div className="cr-explain"><p>{c('carryHelp')}</p><p>{c('savingsHow')}</p><p>{c('useSavingsHelp')}</p></div> : null}
             {data.statement.length === 0 ? <p className="cr-helper">{t('statement.empty')}</p> : null}
             {data.statement.map((row) => <section className="plan-statement-summary" key={row.currency}>
-              <h3>{t('statement.available')} <MoneyHelp term="available" /></h3>
+              <h3>{c('balanceEnd')} <MoneyHelp term="available" /></h3>
               <Amount minor={row.available} currency={row.currency} />
               <dl className="cr-figures">
-                <div><dt>{t('plan.funded')}</dt><dd><Amount minor={row.funded} currency={row.currency} sign /></dd></div>
-                <div><dt>{copy.spent}</dt><dd><Amount minor={-row.spent} currency={row.currency} sign /></dd></div>
+                <div><dt>{c('balanceStart')}</dt><dd><Amount minor={row.broughtForward} currency={row.currency} /></dd></div>
+                <div><dt>{c('addedMonth')}</dt><dd><Amount minor={row.opening + row.funded + row.movedIn + row.coveredIn + (row.exchanged > 0n ? row.exchanged : 0n)} currency={row.currency} sign /></dd></div>
+                <div><dt>{c('usedMonth')}</dt><dd><Amount minor={-(row.spent + row.otherOut + row.movedOut + row.coveredOut) + (row.exchanged < 0n ? row.exchanged : 0n)} currency={row.currency} sign /></dd></div>
               </dl>
             </section>)}
-            <details className="plan-item-options">
+            <details className="plan-item-options" open>
             <summary>{copy.breakdown}</summary>
             {data.statement.map((row) => (
               <table key={row.currency} className="cr-statement">
@@ -92,7 +98,7 @@ export function ItemStatementDialog({ item, month, onClose, onRecord }: {
             <div className="dialog-actions">
               <button type="button" className="cr-button" onClick={() => onRecord({ kind: 'move', toItemId: item.itemId })}>{t('statement.moveIn')}</button>
               <button type="button" className="cr-button" onClick={() => onRecord({ kind: 'move', fromItemId: item.itemId })}>{t('statement.moveOut')}</button>
-              <button type="button" className="cr-button cr-button--primary" onClick={() => onRecord({ kind: 'expense', itemId: item.itemId })}>{t('statement.spend')}</button>
+              <button type="button" className="cr-button cr-button--primary" onClick={() => onRecord(purpose === 'investment' ? { kind: 'invest', action: 'contribute', itemId: item.itemId } : { kind: 'expense', itemId: item.itemId })}>{purpose === 'investment' ? t('record.kind.invest') : t('statement.spend')}</button>
             </div>
           </div>
         )}

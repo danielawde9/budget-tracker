@@ -12,6 +12,7 @@ import { Dialog } from '../../ui/dialog.tsx';
 import { Amount } from '../../ui/money.tsx';
 import { SelectField } from '../../ui/select-field.tsx';
 import { addMonths, describeEntry, kindLabel } from '../describe.ts';
+import { ActivityCharts } from './activity-charts.tsx';
 
 const FLOW_LABEL = {
   opening: 'flow.opening', income: 'flow.income', other_income: 'flow.other_income', fund: 'flow.fund', release: 'flow.release',
@@ -89,6 +90,7 @@ export function ActivityScreen({ onRecord, walletId: initialWalletId, month: ini
             </SelectField>
         </div>
         </details>
+        {first.status === 'ready' ? <ActivityCharts entries={visible} /> : null}
         {first.status === 'error' ? <ErrorNotice error={first.error} onRetry={first.reload} /> : null}
         {first.status === 'loading' && pages.length === 0 ? <p role="status" className="cr-helper">{t('common.loading')}</p> : null}
         {first.status === 'ready' && pages.length === 0 ? <p className="cr-helper">{t('activity.empty')}</p> : null}

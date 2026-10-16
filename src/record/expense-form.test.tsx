@@ -61,3 +61,29 @@ describe('ExpenseForm and the overspending rule', () => {
     expect(ids[1]).toBe(ids[0]);
   });
 });
+
+it('uses a shared spending pool for zero-budget reporting categories, visibly and in the saved request', async () => {
+  const group = fixtures.plan.groups[0]!;
+  const pooled = { ...catalog, plan: { ...fixtures.plan, groups: [{ ...group, purpose: 'spending' as const,
+    items: group.items.map(i => ({ ...i, planned: 0n, balances: { USD: 0n, LBP: 0n } })),
+    flex: { ...group.flex!, balances: { USD: 10000n, LBP: 0n } },
+  }] } };
+  const api = fakeApi({ recordExpense: async () => ({ entryId: 'e', covered: 1200n }) });
+  renderWithWorkspace(<ExpenseForm catalog={pooled} onDone={vi.fn()} onCancel={vi.fn()} />, api);
+  const user = await fill('12', 'Groceries');
+  expect(screen.getByRole('combobox', { name: 'Take the missing money from' })).toHaveValue(group.flex!.itemId);
+  await user.click(screen.getByRole('button', { name: 'Record expense' }));
+  expect(api.recordExpense).toHaveBeenCalledWith(expect.objectContaining({ itemId: itemId('Groceries'), coverFrom: group.flex!.itemId }));
+});
+
+it('spends from savings while retaining the purchase category and stops an insufficient savings source', async () => {
+  const savings = fixtures.plan.groups.find(g => g.nameEn === 'Savings')!.flex!;
+  const api = fakeApi({ recordExpense: async () => ({ entryId: 'e', covered: 1200n }) });
+  renderWithWorkspace(<ExpenseForm catalog={catalog} payFrom={savings.itemId} onDone={vi.fn()} onCancel={vi.fn()} />, api);
+  const user = await fill('1000', 'Groceries');
+  await user.click(screen.getByRole('button', { name: 'Record expense' }));
+  expect(api.recordExpense).toHaveBeenCalledWith(expect.objectContaining({ itemId: itemId('Groceries'), payFrom: savings.itemId }));
+  await user.clear(screen.getByRole('textbox', { name: /Amount/ }));
+  await user.type(screen.getByRole('textbox', { name: /Amount/ }), '999999');
+  expect(screen.getByRole('button', { name: 'Record expense' })).toBeDisabled();
+});
