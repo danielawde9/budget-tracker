@@ -354,3 +354,7 @@ use the same name. The deployment worker identifier remains `budget-tracker`.
 Use `.cr-amount-trigger` for amounts that open read-only breakdowns. Keep a visible chevron, `aria-haspopup="dialog"`, a descriptive accessible name, padded hover area and keyboard focus. Reuse the native `Dialog` for dismissal and focus return. Wallet balance shows separate currency totals; its breakdown presents accounts and allocations as two views of the same cash, excluding investments and loans. Monthly funding presents targets, assignments and any direct Ready coverage independently from existing savings balances.
 
 Use `.cr-money-breakdown` for label/amount rows and `.cr-breakdown-total` for totals. At narrow widths each row stacks its amount below the label. Detailed comparisons use `.cr-breakdown-table`, a labelled keyboard-scrollable region with a caption and scoped headers; overflow stays inside the dialog.
+
+Monthly funding breakdowns distinguish counted assignments from funding outside the month's targets. Groups with no monthly target show zero counted credit; their earlier assignments and direct Ready coverage appear in a separate section. Existing savings never reduce the expense funding gap.
+
+At 420px and below, the Plan summary uses a single column so localized amounts and their breakdown chevrons fit without horizontal scrolling.

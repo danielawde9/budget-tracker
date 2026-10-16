@@ -1952,7 +1952,7 @@
   text-align: start;
   cursor: pointer;
 }
-.cr-amount-trigger .cr-amount { font-size: inherit; overflow-wrap: anywhere; }
+.cr-amount-trigger .cr-amount { font-size: inherit; min-inline-size: 0; white-space: normal; overflow-wrap: anywhere; }
 .cr-amount-trigger svg { flex: 0 0 auto; color: var(--cr-accent-strong); }
 .cr-amount-trigger:hover { background: var(--cr-accent-soft); }
 .cr-amount-trigger:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 2px; }
@@ -1977,6 +1977,7 @@
 .cr-breakdown-table thead th { font-size: 13px; color: var(--cr-ink-soft); }
 .cr-breakdown-table .cr-amount { white-space: nowrap; }
 @media (max-width: 420px) {
+  .cr-plan-summary .cr-figures { grid-template-columns: minmax(0, 1fr); }
   .cr-money-breakdown > div { grid-template-columns: minmax(0, 1fr); gap: var(--cr-space-1); }
   .cr-money-breakdown dd { text-align: start; }
 }
