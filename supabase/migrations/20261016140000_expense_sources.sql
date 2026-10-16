@@ -1,6 +1,6 @@
 -- An explicit payment source is an atomic, reversible journal operation.
 -- Existing record_expense keeps its original shortfall-only behavior.
-create function public.record_expense_from(
+create or replace function public.record_expense_from(
   p_space uuid,
   p_request uuid,
   p_wallet uuid,

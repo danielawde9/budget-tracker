@@ -29,7 +29,7 @@ describe('ExpenseForm and the overspending rule', () => {
   it('warns before over-assigning when Ready to assign cannot cover it', async () => {
     renderWithWorkspace(<ExpenseForm catalog={catalog} onDone={vi.fn()} onCancel={vi.fn()} />, fakeApi());
     await fill('2000', 'Eating out');
-    expect(screen.getByText(/you will be over-assigned by \$560\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/this adds \$560\.00/)).toBeInTheDocument();
   });
 
   it('sends one request for a double click and reuses its id after a lost response', async () => {
@@ -62,20 +62,6 @@ describe('ExpenseForm and the overspending rule', () => {
   });
 });
 
-it('uses a shared spending pool for zero-budget reporting categories, visibly and in the saved request', async () => {
-  const group = fixtures.plan.groups[0]!;
-  const pooled = { ...catalog, plan: { ...fixtures.plan, groups: [{ ...group, purpose: 'spending' as const,
-    items: group.items.map(i => ({ ...i, planned: 0n, balances: { USD: 0n, LBP: 0n } })),
-    flex: { ...group.flex!, balances: { USD: 10000n, LBP: 0n } },
-  }] } };
-  const api = fakeApi({ recordExpense: async () => ({ entryId: 'e', covered: 1200n }) });
-  renderWithWorkspace(<ExpenseForm catalog={pooled} onDone={vi.fn()} onCancel={vi.fn()} />, api);
-  const user = await fill('12', 'Groceries');
-  expect(screen.getByRole('combobox', { name: 'Take the missing money from' })).toHaveValue(group.flex!.itemId);
-  await user.click(screen.getByRole('button', { name: 'Record expense' }));
-  expect(api.recordExpense).toHaveBeenCalledWith(expect.objectContaining({ itemId: itemId('Groceries'), coverFrom: group.flex!.itemId }));
-});
-
 it('spends from savings while retaining the purchase category and stops an insufficient savings source', async () => {
   const savings = fixtures.plan.groups.find(g => g.nameEn === 'Savings')!.flex!;
   const api = fakeApi({ recordExpense: async () => ({ entryId: 'e', covered: 1200n }) });
@@ -86,4 +72,46 @@ it('spends from savings while retaining the purchase category and stops an insuf
   await user.clear(screen.getByRole('textbox', { name: /Amount/ }));
   await user.type(screen.getByRole('textbox', { name: /Amount/ }), '999999');
   expect(screen.getByRole('button', { name: 'Record expense' })).toBeDisabled();
+});
+
+
+describe('automatic expense cover from its group', () => {
+  function groupCatalog(groupMoney: bigint, ready: bigint) {
+    const plan = structuredClone(fixtures.plan);
+    const group = plan.groups.find(g => g.nameEn === 'Guilt free')!;
+    group.flex!.balances.USD = groupMoney;
+    return { ...catalog, plan, ready: { USD: ready, LBP: 0n } };
+  }
+
+  it('shows the group as the default source and avoids a false over-assignment warning', async () => {
+    const api = fakeApi({ recordExpense: async () => ({ entryId: 'e', covered: 3000n }) });
+    renderWithWorkspace(<ExpenseForm catalog={groupCatalog(3000n, 0n)} onDone={vi.fn()} onCancel={vi.fn()} />, api);
+    const user = await fill('150', 'Eating out');
+    expect((screen.getByRole('option', { name: 'This group, then unassigned' }) as HTMLOptionElement).selected).toBe(true);
+    expect(screen.getByText(/Up to \$30.00 from Other guilt-free/)).toBeInTheDocument();
+    expect(screen.queryByText(/this adds/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Record expense' }));
+    expect(api.recordExpense).toHaveBeenCalledWith(expect.objectContaining({ coverFrom: null }));
+  });
+
+  it('warns only for the residual shortfall after group money and unassigned money', async () => {
+    renderWithWorkspace(<ExpenseForm catalog={groupCatalog(2000n, 500n)} onDone={vi.fn()} onCancel={vi.fn()} />, fakeApi());
+    await fill('150', 'Eating out');
+    expect(screen.getByText(/this adds \$5.00/)).toBeInTheDocument();
+    expect(screen.getByText(/Up to \$20.00 from Other guilt-free/)).toBeInTheDocument();
+  });
+
+  it('keeps an explicit alternative cover separate from the automatic group source', async () => {
+    renderWithWorkspace(<ExpenseForm catalog={groupCatalog(3000n, 0n)} onDone={vi.fn()} onCancel={vi.fn()} />, fakeApi());
+    const user = await fill('150', 'Eating out');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Take the missing money from' }), itemId('Fun'));
+    expect(screen.queryByText(/Up to/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/this adds/)).not.toBeInTheDocument();
+  });
+
+  it('does not count a group flexible balance twice when that same item is charged', async () => {
+    renderWithWorkspace(<ExpenseForm catalog={{ ...catalog, ready: { USD: 0n, LBP: 0n } }} onDone={vi.fn()} onCancel={vi.fn()} />, fakeApi());
+    await fill('50', 'Other essentials');
+    expect(screen.getByText(/this adds \$18.00/)).toBeInTheDocument();
+  });
 });

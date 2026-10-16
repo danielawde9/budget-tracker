@@ -1,3 +1,4 @@
+import { OpeningForm } from './opening-form.tsx';
 import { CommandScope, useCommandScope } from '../ui/command-pending.tsx';
 import { SaveRecoveryNotice, useSaveRecovery } from '../app/save-recovery.tsx';
 import { Check } from 'lucide-react';
@@ -17,6 +18,7 @@ import { BillForm, FundForm } from './forms-plan.tsx';
 
 export type RecordIntent =
   | { readonly kind: 'expense'; readonly payFrom?: string; readonly walletId?: string; readonly itemId?: string; readonly bill?: BillIntent }
+  | { readonly kind: 'opening'; readonly target?: 'account' | 'category'; readonly walletId?: string; readonly itemId?: string }
   | { readonly kind: 'refund' }
   | { readonly kind: 'income'; readonly walletId?: string }
   | { readonly kind: 'transfer' }
@@ -45,7 +47,7 @@ const EVERYDAY: readonly { readonly kind: EverydayKind; readonly label: MessageK
 const TITLES: Readonly<Record<RecordIntent['kind'], MessageKey>> = {
   expense: 'record.title', income: 'record.title', transfer: 'record.title', move: 'record.title', exchange: 'record.title',
   invest: 'record.title', loan: 'record.title', refund: 'record.title',
-  fund: 'fund.title', wallet: 'wallet.title', correct: 'correct.title', bill: 'bill.title',
+  opening: 'wallet.opening', fund: 'fund.title', wallet: 'wallet.title', correct: 'correct.title', bill: 'bill.title',
 };
 
 /** One host for every money action, so screens only describe intent. */
@@ -67,7 +69,7 @@ function RecordDialogBody({ intent: initial, onClose }: { readonly intent: Recor
   const everyday = EVERYDAY.some((option) => option.kind === intent.kind) && !('bill' in intent && intent.bill);
   const done = (message: string) => setResult(message);
   return (
-    <Dialog pending={pending} title={intent.kind === 'fund' ? `${t('fund.title')} · ${date(intent.month ?? space.currentMonth, 'month')}` : intent.kind === 'bill' ? copy(intent.bill ? 'Edit bill' : 'Add a bill', intent.bill ? 'تعديل فاتورة' : 'إضافة فاتورة') : everyday && !choosing ? t(EVERYDAY.find(option => option.kind === intent.kind)!.label) : t(TITLES[intent.kind])} onClose={onClose} wide={false}>
+    <Dialog pending={pending} title={intent.kind === 'opening' ? copy('Add opening balance', 'إضافة رصيد افتتاحي') : intent.kind === 'fund' ? `${t('fund.title')} · ${date(intent.month ?? space.currentMonth, 'month')}` : intent.kind === 'bill' ? copy(intent.bill ? 'Edit bill' : 'Add a bill', intent.bill ? 'تعديل فاتورة' : 'إضافة فاتورة') : everyday && !choosing ? t(EVERYDAY.find(option => option.kind === intent.kind)!.label) : t(TITLES[intent.kind])} onClose={onClose} wide={false}>
       <SaveRecoveryNotice onFinished={onClose} />
       {result ? (
         <div className="cr-success-result">
@@ -103,6 +105,7 @@ function RecordDialogBody({ intent: initial, onClose }: { readonly intent: Recor
               const props = { catalog: data, onDone: done, onCancel: onClose };
               switch (intent.kind) {
                 case 'expense': return <ExpenseForm payFrom={intent.payFrom} key={key} {...props} {...(intent.walletId ? { walletId: intent.walletId } : {})} {...(intent.itemId ? { itemId: intent.itemId } : {})} {...(intent.bill ? { bill: intent.bill } : {})} />;
+                case 'opening': return <OpeningForm key={key} {...props} {...intent} />;
                 case 'refund': return <RefundForm key={key} {...props} />;
                 case 'income': return <IncomeForm key={key} {...props} {...(intent.walletId ? { walletId: intent.walletId } : {})} onFund={() => { setResult(null); setIntent({ kind: 'fund' }); }} />;
                 case 'transfer': return <TransferForm key={key} {...props} />;

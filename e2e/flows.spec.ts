@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { expectEquation, localStackUp, moneyCard, newUser, signIn, signUp, storyUser } from './support.ts';
+import { expectMoneyState, localStackUp, newUser, signIn, signUp, storyUser } from './support.ts';
 
 test.beforeEach(async () => {
   test.skip(!(await localStackUp()), 'The local preview stack is not running (pnpm preview:up). Reported as unverified, not passed.');
@@ -8,7 +8,6 @@ test.beforeEach(async () => {
 async function openRecord(page: Page, kind: string): Promise<void> {
   await page.getByRole('button', { name: 'Record', exact: true }).filter({ visible: true }).first().click();
   const dialog = page.getByRole('dialog');
-  if (!['Expense', 'Income', 'Change purpose'].includes(kind)) await dialog.getByText('More actions', { exact: true }).click();
   await dialog.getByRole('button', { name: new RegExp('^' + kind) }).click();
 }
 
@@ -30,7 +29,7 @@ test('a fresh account: onboarding, income, funding, overspending and taking it b
   await page.getByRole('button', { name: 'Save wallet and continue' }).click();
   await page.getByRole('button', { name: 'Finish' }).click();
   await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
-  await expectEquation(page, '$0.00', '$0.00', '$0.00');
+  await expectMoneyState(page, '$0.00', '$0.00', '$0.00');
 
   // 3 · Income arrives; Fund my plan proposes the whole plan.
   await openRecord(page, 'Income');
@@ -40,30 +39,32 @@ test('a fresh account: onboarding, income, funding, overspending and taking it b
   await page.getByRole('dialog').getByRole('button', { name: 'Set aside' }).click();
   await expect(page.getByRole('dialog').getByText('Set aside $4,110.00.')).toBeVisible();
   await done(page);
-  await expectEquation(page, '$4,110.00', '$4,110.00', '$0.00');
+  await expectMoneyState(page, '$4,110.00', '$4,110.00', '$0.00');
 
-  // 5 · Spending more than an item holds is covered at once — here from Ready to assign, which goes over.
+  // 5 · An expense uses the group pool first, then over-assigns the remaining $50.
   await openRecord(page, 'Expense');
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Description').fill('Supermarket');
-  await dialog.getByLabel('Amount').fill('50');
+  await dialog.getByLabel('Amount').fill('2516');
   await dialog.getByLabel('What was it for?').selectOption({ label: 'Groceries — $0.00' });
-  await expect(dialog.getByText('Groceries has $0.00. Take the missing $50.00 from:')).toBeVisible();
-  await expect(dialog.getByText(/over-assigned by \$50\.00/)).toBeVisible();
+  await expect(dialog.getByText('Groceries has $0.00. Take the missing $2,516.00 from:')).toBeVisible();
+  await expect(dialog.getByLabel('Take the missing money from').locator('option:checked')).toHaveText('This group, then unassigned');
+  await expect(dialog.getByText('Up to $2,466.00 from Other essentials, then $50.00 from unassigned money. Earlier dates are checked when saving.')).toBeVisible();
+  await expect(dialog.getByText('Unassigned money is short: this adds $50.00 to over-assignment.')).toBeVisible();
   await dialog.getByRole('button', { name: 'Record expense' }).click();
   await done(page);
-  await expect(moneyCard(page).getByRole('heading', { name: 'Over-assigned', exact: true })).toBeVisible();
-  await expectEquation(page, '$4,060.00', '$4,110.00', '-$50.00');
+  await expect(page.locator('.cr-home').getByRole('heading', { name: 'Over-assigned', exact: true })).toBeVisible();
+  await expectMoneyState(page, '$1,594.00', '$1,644.00', '-$50.00');
 
   // Taking money back from an item restores the balance.
-  await moneyCard(page).getByRole('button', { name: 'Take back' }).click();
+  await page.locator('.cr-home').getByRole('button', { name: 'Fix over-assignment' }).click();
   const move = page.getByRole('dialog');
-  await move.getByLabel('From', { exact: true }).selectOption({ label: 'Other essentials — $2,466.00' });
+  await move.getByLabel('From', { exact: true }).selectOption({ label: 'Other guilt-free — $205.50' });
   await move.getByLabel('To', { exact: true }).selectOption({ label: 'Ready to assign — -$50.00' });
   await move.getByLabel('Amount').fill('50');
   await move.getByRole('button', { name: 'Move now', exact: true }).click();
   await done(page);
-  await expectEquation(page, '$4,060.00', '$4,060.00', '$0.00');
+  await expectMoneyState(page, '$1,594.00', '$1,594.00', '$0.00');
 
   // 7 · Reassigning savings to a goal changes purposes only.
   await openRecord(page, 'Change purpose');
@@ -73,10 +74,16 @@ test('a fresh account: onboarding, income, funding, overspending and taking it b
   await reassign.getByLabel('Amount').fill('150');
   await reassign.getByRole('button', { name: 'Move now', exact: true }).click();
   await done(page);
-  await expectEquation(page, '$4,060.00', '$4,060.00', '$0.00');
-  const groups = page.getByRole('region', { name: 'Where your money is assigned' });
-  await expect(groups.getByRole('listitem').filter({ hasText: 'Savings' })).toContainText('$261.00');
-  await expect(groups.getByRole('listitem').filter({ hasText: 'Short-term goals' })).toContainText('$766.50');
+  await expectMoneyState(page, '$1,594.00', '$1,594.00', '$0.00');
+  await page.getByRole('link', { name: 'Accounts', exact: true }).first().click();
+  await page.getByRole('button', { name: /^Wallet balance · USD/ }).click();
+  const breakdown = page.getByRole('dialog', { name: 'Wallet balance breakdown' });
+  const groups = breakdown.getByRole('region', { name: 'Where your money is assigned' });
+  await expect(groups.locator('dl > div').filter({ hasText: /^Savings/ })).toContainText('$261.00');
+  await expect(groups.locator('dl > div').filter({ hasText: /^Short-term goals/ })).toContainText('$766.50');
+  await expect(groups.locator('dl > div').filter({ hasText: /^Total allocations and Ready to assign/ })).toContainText('$1,594.00');
+  await breakdown.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
 
   // A repeat expense: its description brings back the item and amount. The only wallet is shown, not chosen.
   await openRecord(page, 'Expense');
@@ -85,7 +92,7 @@ test('a fresh account: onboarding, income, funding, overspending and taking it b
   await expect(repeat.getByRole('combobox', { name: 'Paid from' })).toHaveCount(0);
   await expect(repeat.getByText('Paid from')).toBeVisible();
   await repeat.getByLabel('Description').fill('supermarket');
-  await expect(repeat.getByLabel('Amount')).toHaveValue('50');
+  await expect(repeat.getByLabel('Amount')).toHaveValue('2516');
   await expect(repeat.getByLabel('What was it for?').locator('option:checked')).toHaveText(/^Groceries/);
   await repeat.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -94,23 +101,21 @@ test('a fresh account: onboarding, income, funding, overspending and taking it b
 test('existing money: pay a bill, update an investment, repay a loan, read last month', async ({ page }) => {
   const user = await storyUser();
   await signIn(page, user);
-  await expectEquation(page, '$8,712.60', '$7,392.60', '$1,320.00');
+  await expectMoneyState(page, '$8,712.60', '$7,392.60', '$1,320.00');
 
   // 10 · A bill reads its item; paying it is one deduction from that item.
-  await page.getByText('Upcoming bills', { exact: true }).first().click();
   const bills = page.getByRole('region', { name: 'Upcoming bills' });
   await bills.getByRole('listitem').filter({ hasText: 'Internet' }).getByRole('button', { name: 'Pay' }).click();
   const pay = page.getByRole('dialog');
   await expect(pay.getByText(/Paying Internet/)).toBeVisible();
   await pay.getByRole('button', { name: 'Record expense' }).click();
   await done(page);
-  await expectEquation(page, '$8,667.60', '$7,347.60', '$1,320.00');
+  await expectMoneyState(page, '$8,667.60', '$7,347.60', '$1,320.00');
   await expect(bills.getByRole('listitem').filter({ hasText: 'Internet' })).toHaveCount(0);
 
   // 9 · A value update is a gain, kept apart from contributions.
   await page.getByRole('link', { name: 'Accounts' }).first().click();
   const brokerage = page.getByRole('listitem').filter({ hasText: 'Brokerage' });
-  await brokerage.locator('summary').click();
   await brokerage.getByRole('button', { name: 'What is it worth now?' }).click();
   const value = page.getByRole('dialog');
   await value.getByLabel('New total value').fill('13100');
@@ -120,7 +125,6 @@ test('existing money: pay a bill, update an investment, repay a loan, read last 
 
   // 10 · Repaying: principal reduces the debt; interest is spending.
   const loan = page.getByRole('listitem').filter({ hasText: 'Car loan' });
-  await loan.locator('summary').click();
   await loan.getByRole('button', { name: 'Repay what I owe' }).click();
   const repay = page.getByRole('dialog');
   await repay.getByLabel('Principal').fill('100');

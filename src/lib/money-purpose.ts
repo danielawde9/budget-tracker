@@ -1,11 +1,11 @@
 import type { PlanGroup, PlanItem, PlanMonth } from '../api/schemas.ts';
 
-export type MoneyPurpose = PlanGroup['purpose'] | 'reserve';
+export type MoneyPurpose = 'spending' | 'saving' | 'investment' | 'reserve';
 
 export function itemPurpose(group: PlanGroup, item: PlanItem): MoneyPurpose {
+  if (group.purpose === 'savings') return 'saving';
   if (item.kind === 'reserve' || item.kind === 'loan_payment') return 'reserve';
-  if (item.kind === 'goal') return 'saving';
-  return group.purpose;
+  return 'spending';
 }
 
 export function purposeItems(plan: PlanMonth) {
@@ -13,7 +13,7 @@ export function purposeItems(plan: PlanMonth) {
     .map(item => ({ item, purpose: itemPurpose(group, item) })));
 }
 
-/** Derive the headline from the same item shortfalls the person sees below. */
+/** The canonical monthly contract includes scoped assignments and Ready spending. */
 export function remainingFunding(plan: PlanMonth): bigint {
-  return purposeItems(plan).reduce((sum, { item }) => sum + item.stillToFund, 0n);
+  return plan.stillToFund;
 }

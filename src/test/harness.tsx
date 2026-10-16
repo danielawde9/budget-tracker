@@ -41,12 +41,12 @@ export function fakeApi(overrides: Partial<Record<keyof BudgetApi, (...args: nev
     moneyHistory: vi.fn(async () => ({ today: space().today, months: [] })),
     planMonth: vi.fn(async () => fixtures.plan),
     accounts: vi.fn(async () => fixtures.accounts),
-    activity: vi.fn(async () => fixtures.activity),
+    activity: vi.fn(async () => ({ ...fixtures.activity, next: null })),
     billsUpcoming: vi.fn(async () => fixtures.bills),
     billsList: vi.fn(async () => []),
     expenseSuggestions: vi.fn(async () => ({ lastWalletId: null, suggestions: [] })),
   };
-  for (const name of ['createSpaceInvitation', 'revokeSpaceInvitation', 'acceptSpaceInvitation', 'walletBalanceOn', 'fundingPreview', 'itemStatement', 'createSpace', 'createWallet', 'updateWallet', 'assignMoney', 'recordIncome', 'recordExpense',
+  for (const name of ['recordWalletOpening', 'createSpaceInvitation', 'revokeSpaceInvitation', 'acceptSpaceInvitation', 'walletBalanceOn', 'fundingPreview', 'itemStatement', 'createSpace', 'createWallet', 'updateWallet', 'assignMoney', 'recordIncome', 'recordExpense',
     'recordRefund', 'recordTransfer', 'recordExchange', 'recordInvestment', 'recordLoan', 'reverseEntry', 'moveBillPayment', 'saveBill', 'skipBill', 'unskipBill', 'setReferenceRate', 'savePlan']) {
     api[name] = unstubbed(name);
   }

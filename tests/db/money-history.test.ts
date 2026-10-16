@@ -2,6 +2,7 @@ import { beforeAll, afterAll, expect, it } from 'vitest';
 import { setupSpace } from './support/budget.ts';
 import { createUser, callAs, asAnon } from './support/actor.ts';
 import { freshDatabase, type TestDatabase } from './support/database.ts';
+import { currentPlan } from './support/plan.ts';
 
 type Totals = { USD: string; LBP: string };
 type History = { today: string; months: { month: string; through: string; income: Totals; spent: Totals; savings: Totals }[] };
@@ -57,4 +58,55 @@ it('keeps history private to space members and denies anonymous calls', async ()
   const h = await setupSpace(db.pool), outsider = await createUser(db.pool);
   await expect(callAs(db.pool, outsider, 'money_history', { p_space: h.spaceId })).rejects.toMatchObject({ message: 'BUDGET_NOT_MEMBER' });
   await expect(asAnon(db.pool, client => client.query('select public.money_history($1)', [h.spaceId]))).rejects.toMatchObject({ code: '42501' });
+});
+
+
+it('keeps earlier savings snapshots when a later monthly plan changes the group purpose', async () => {
+  const h = await setupSpace(db.pool, { planMonth: '2026-09-01' });
+  await h.wallet('Cash', 'cash', 'USD', 10000n, { p_opened_on: '2026-09-01' });
+  await h.wallet('Lira', 'cash', 'LBP', 1000000n, { p_opened_on: '2026-09-01' });
+  const savings = await h.item('General savings');
+  await h.command('assign_money', { p_on: '2026-09-01', p_moves: [
+    { from: null, to: savings, currency: 'USD', amountMinor: '3000' },
+    { from: null, to: savings, currency: 'LBP', amountMinor: '700000' },
+  ] });
+  const current = await currentPlan(db.pool, h.spaceId, '2026-10-01');
+  Object.assign(current.payload.groups.find(g => g.nameEn === 'Savings')!, { purpose: 'expense', nameEn: 'Current expenses' });
+  await h.command('save_plan', { p_month: '2026-10-01', p_expected_revision: current.revision, p_plan: current.payload });
+  const history = await h.call<History>('money_history', { p_space: h.spaceId });
+  expect(history.months.map(row => row.savings)).toEqual([{ USD: '3000', LBP: '700000' }, { USD: '0', LBP: '0' }]);
+  expect(await h.itemBalance('General savings')).toBe(3000n);
+});
+
+it('classifies a retained item balance by its membership in each month rather than its latest group', async () => {
+  const h = await setupSpace(db.pool, { planMonth: '2026-09-01' });
+  await h.wallet('Cash', 'cash', 'USD', 10000n, { p_opened_on: '2026-09-01' });
+  const rent = await h.item('Rent');
+  await h.command('assign_money', { p_on: '2026-09-01', p_moves: [{ from: null, to: rent, currency: 'USD', amountMinor: '3000' }] });
+  const current = await currentPlan(db.pool, h.spaceId, '2026-10-01');
+  const essentials = current.payload.groups.find(g => g.nameEn === 'Essentials')!;
+  const item = essentials.items.find(i => i.itemId === rent)!;
+  essentials.items = essentials.items.filter(i => i.itemId !== rent);
+  current.payload.groups.find(g => g.nameEn === 'Savings')!.items.push(item);
+  await h.command('save_plan', { p_month: '2026-10-01', p_expected_revision: current.revision, p_plan: current.payload });
+  const history = await h.call<History>('money_history', { p_space: h.spaceId });
+  expect(history.months.map(row => row.savings)).toEqual([{ USD: '0', LBP: '0' }, { USD: '3000', LBP: '0' }]);
+});
+
+it('keeps past savings and real purchases after an emptied savings group is archived', async () => {
+  const h = await setupSpace(db.pool, { planMonth: '2026-09-01' });
+  const cash = await h.wallet('Cash', 'cash', 'USD', 10000n, { p_opened_on: '2026-09-01' });
+  const savings = await h.item('General savings');
+  await h.command('assign_money', { p_on: '2026-09-01', p_moves: [{ from: null, to: savings, currency: 'USD', amountMinor: '3000' }] });
+  await h.command('record_expense_from', { p_wallet: cash, p_item: savings, p_source: savings, p_amount: 3000n, p_on: h.today });
+  const current = await currentPlan(db.pool, h.spaceId, '2026-10-01');
+  const group = current.payload.groups.find(g => g.nameEn === 'Savings')!;
+  current.payload.groups = current.payload.groups.filter(g => g.groupId !== group.groupId);
+  current.payload.archiveGroupIds.push(group.groupId!);
+  await h.command('save_plan', { p_month: '2026-10-01', p_expected_revision: current.revision, p_plan: current.payload });
+  const history = await h.call<History>('money_history', { p_space: h.spaceId });
+  expect(history.months).toMatchObject([
+    { savings: { USD: '3000', LBP: '0' }, spent: { USD: '0', LBP: '0' } },
+    { savings: { USD: '0', LBP: '0' }, spent: { USD: '3000', LBP: '0' } },
+  ]);
 });

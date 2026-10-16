@@ -24,7 +24,7 @@ it('shows recorded flows and cumulative savings, with visible month controls and
   expect(within(flows).getByText('$120.00')).toBeInTheDocument();
   await user.click(within(savings).getByRole('button', { name: 'September 2026' }));
   expect(within(savings).getByText('$300.00')).toBeInTheDocument();
-  await user.click(within(screen.getByRole('region', { name: 'Your money' })).getByRole('button', { name: 'LBP' }));
+  await user.click(within(screen.getByRole('group', { name: 'Currency' })).getByRole('button', { name: 'LBP' }));
   expect(within(flows).getByText('LBP 1,000,000')).toBeInTheDocument();
   expect(within(savings).getByText('LBP 700,000')).toBeInTheDocument();
   expect(within(flows).queryByText('$100.00')).not.toBeInTheDocument();

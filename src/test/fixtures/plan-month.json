@@ -207,7 +207,7 @@
    "available": "130210",
    "percentBps": 6000,
    "itemsPlanned": "245000",
-   "purpose": "spending"
+   "purpose": "expense"
   },
   {
    "flex": {
@@ -304,7 +304,7 @@
    "available": "23550",
    "percentBps": 500,
    "itemsPlanned": "20550",
-   "purpose": "spending"
+   "purpose": "expense"
   },
   {
    "flex": {
@@ -401,7 +401,7 @@
    "available": "218300",
    "percentBps": 1500,
    "itemsPlanned": "61650",
-   "purpose": "saving"
+   "purpose": "savings"
   },
   {
    "flex": {
@@ -443,7 +443,7 @@
    "available": "367200",
    "percentBps": 1000,
    "itemsPlanned": "0",
-   "purpose": "saving"
+   "purpose": "savings"
   },
   {
    "flex": {
@@ -485,7 +485,7 @@
    "available": "0",
    "percentBps": 1000,
    "itemsPlanned": "0",
-   "purpose": "investment"
+   "purpose": "savings"
   }
  ],
  "isPast": false,

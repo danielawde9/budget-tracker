@@ -1,6 +1,6 @@
 {
   "date": "2026-10-16",
-  "dataSource": "Real local Supabase with synthetic accounts and recorded ledger activity; screenshots in real-local/. Original root screenshots were fixture-based.",
+  "dataSource": "Real local Supabase, canonical versioned expense/savings model, synthetic accounts and recorded activity; real-local/ screenshots refreshed after merging origin/main.",
   "localPreview": "http://127.0.0.1:5173/",
   "localApi": "http://127.0.0.1:54421",
   "pages": [
@@ -23,25 +23,39 @@
   "checks": {
     "typecheck": "passed",
     "uiTests": {
-      "passed": 187,
-      "files": 37
+      "passed": 226,
+      "files": 40
     },
     "databaseTests": {
-      "passed": 209,
-      "files": 18
+      "passed": 247,
+      "files": 21
     },
     "realBrowserDashboardTests": {
       "passed": 9
     },
     "realBrowserWalletStatementTests": {
-      "passed": 12
+      "passed": 4
     },
     "cloudflareProductionBuild": "passed",
     "cloudflareFrontendDryRun": "passed",
     "githubActions": "waived per owner instruction",
-    "independentReview": "Two P2 findings fixed and confirmed: tablet labels, accessible daily-count table"
+    "independentReview": "Merged diff reviewed; no critical or important findings. Historical purposes, opening guards, source payments and wallet/funding breakdowns preserved.",
+    "realBrowserTransactionTests": {
+      "passed": 3
+    },
+    "realBrowserPhoneActionTests": {
+      "passed": 2
+    }
   },
   "liveDatabaseAcceptance": "Passed against the local preview. The earlier offline claim came from checking the wrong port.",
   "productionDeployment": "pending; not performed",
-  "realLocalScreenshotCount": 30
+  "realLocalScreenshotCount": 30,
+  "integration": {
+    "mainBase": "cabb8124f1463ee03148658d609f1582670a4560",
+    "schema": "Canonical monthly expense/savings classification; superseded global-purpose migration removed. Source and history migrations follow main."
+  },
+  "migrations": [
+    "20261016140000_expense_sources.sql",
+    "20261016140100_money_history.sql"
+  ]
 }

@@ -40,7 +40,7 @@ export function WalletSelect({ label, wallets, value, onChange, currency }: {
 export const READY = '';
 
 /** Plan items grouped like the plan; optionally offers Ready to assign (value ''). */
-export function ItemSelect({ label, groups, value, onChange, currency, includeReady = false, readyBalance, exclude }: {
+export function ItemSelect({ label, groups, value, onChange, currency, includeReady = false, readyBalance, readyLabel, exclude }: {
   readonly label: string;
   readonly groups: readonly PickerGroup[];
   readonly value: string;
@@ -48,13 +48,14 @@ export function ItemSelect({ label, groups, value, onChange, currency, includeRe
   readonly currency: Currency;
   readonly includeReady?: boolean;
   readonly readyBalance?: bigint;
+  readonly readyLabel?: string | undefined;
   readonly exclude?: string;
 }) {
   const { t, money, name } = useI18n();
   return (
     <SelectField label={label} value={value} required={!includeReady} onChange={(event) => onChange(event.target.value)}>
         {includeReady ? (
-          <option value={READY}>{readyBalance === undefined ? t('common.readyToAssign') : `${t('common.readyToAssign')} — ${money(readyBalance, currency)}`}</option>
+          <option value={READY}>{readyLabel ?? (readyBalance === undefined ? t('common.readyToAssign') : `${t('common.readyToAssign')} — ${money(readyBalance, currency)}`)}</option>
         ) : (
           <option value="" disabled>{t('record.chooseItem')}</option>
         )}
@@ -125,17 +126,18 @@ export function shortfallOf(catalog: Catalog, itemId: string, currency: Currency
 }
 
 /**
- * The overspending rule, said out loud: when an outflow is bigger than its
- * item, the difference comes from Ready to assign or an item the person picks,
- * in the same currency, at the moment it is recorded.
+ * Explain the cover source. Expenses first use their own group flexible money;
+ * other outflows retain their existing source. An explicit picked item overrides
+ * automatic cover, and only the residual shortfall uses unassigned money.
  */
-export function CoverChoice({ catalog, itemId, currency, amount, value, onChange }: {
+export function CoverChoice({ catalog, itemId, currency, amount, value, onChange, groupFirst = false }: {
   readonly catalog: Catalog;
   readonly itemId: string;
   readonly currency: Currency;
   readonly amount: bigint | null;
   readonly value: string;
   readonly onChange: (itemId: string) => void;
+  readonly groupFirst?: boolean;
 }) {
   const { t, money, name } = useI18n();
   const item = itemId ? findItem(catalog.plan, itemId) : null;
@@ -143,14 +145,20 @@ export function CoverChoice({ catalog, itemId, currency, amount, value, onChange
   if (!item || shortfall === 0n) return null;
   const available = item.balances[currency] > 0n ? item.balances[currency] : 0n;
   const ready = catalog.ready[currency];
+  const ownGroup = groupFirst ? catalog.plan.groups.find(group => group.items.some(candidate => candidate.itemId === itemId) || group.flex?.itemId === itemId) : null;
+  const flex = ownGroup?.flex?.itemId !== itemId ? ownGroup?.flex : null;
+  const flexAvailable = flex && flex.balances[currency] > 0n ? flex.balances[currency] : 0n;
+  const fromGroup = flexAvailable < shortfall ? flexAvailable : shortfall;
+  const fromReady = shortfall - fromGroup;
   const groups = pickerGroups(catalog.plan).map((group) => ({ ...group, items: group.items.filter((candidate) => candidate.balances[currency] >= shortfall || candidate.itemId === value) }));
   return (
     <div className="cr-cover">
       <Explain tone="warn">{t('record.shortfall', { name: name(item), available: money(available, currency), shortfall: money(shortfall, currency) })}</Explain>
-      <ItemSelect label={t('record.coverFrom')} groups={groups} value={value} onChange={onChange} currency={currency} includeReady readyBalance={ready} exclude={itemId} />
+      <ItemSelect label={t('record.coverFrom')} groups={groups} value={value} onChange={onChange} currency={currency} includeReady readyBalance={ready} readyLabel={groupFirst ? t('record.groupFirst') : undefined} exclude={itemId} />
       {value !== READY && (findItem(catalog.plan, value)?.balances[currency] ?? 0n) < shortfall ? <Explain tone="warn">{t('record.coverTooSmall')}</Explain> : null}
-      {value === READY && ready < shortfall ? (
-        <Explain tone="warn">{t('record.willOverAssign', { amount: money(shortfall - (ready > 0n ? ready : 0n), currency) })}</Explain>
+      {groupFirst && value === READY && flex && fromGroup > 0n ? <Explain>{t('record.groupCoverPreview', { amount: money(fromGroup, currency), name: name(flex), remainder: money(fromReady, currency) })}</Explain> : null}
+      {value === READY && fromReady > 0n && ready < fromReady ? (
+        <Explain tone="warn">{t('record.willOverAssign', { amount: money(fromReady - (ready > 0n ? ready : 0n), currency) })}</Explain>
       ) : null}
     </div>
   );

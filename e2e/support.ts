@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { expect, type Page } from '@playwright/test';
+import { formatMoney } from '../src/lib/money.ts';
 import { runExistingMoneyStory, type ScenarioCaller } from '../scripts/preview/scenario.ts';
 
 function demoEnv(): { url: string; anonKey: string } {
@@ -56,6 +57,8 @@ export async function signIn(page: Page, user: TestUser): Promise<void> {
   await page.getByLabel('Email').fill(user.email);
   await page.getByLabel('Password', { exact: true }).fill(user.password);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  // Wait for the stored session before callers reload or navigate immediately.
+  await expect(page.getByRole('heading', { name: 'Sign in', level: 1, exact: true })).toHaveCount(0);
 }
 
 export async function signUp(page: Page, user: TestUser): Promise<void> {
@@ -66,16 +69,15 @@ export async function signUp(page: Page, user: TestUser): Promise<void> {
   await page.getByRole('button', { name: 'Create account' }).first().click();
 }
 
-export function moneyCard(page: Page) {
-  return page.getByRole('region', { name: 'Your money' });
-}
-
-export async function expectEquation(page: Page, cash: string, setAside: string, ready: string): Promise<void> {
-  const card = moneyCard(page);
-  const disclosure = card.locator('details.cr-money-breakdown');
-  if (!(await disclosure.evaluate(element => (element as HTMLDetailsElement).open))) await disclosure.locator('summary').click();
-  const equation = card.getByLabel('Cash you hold equals money set aside plus ready to assign');
-  await expect(equation).toContainText(cash);
-  await expect(equation).toContainText(setAside);
-  await expect(equation).toContainText(ready);
+/** Home intentionally omits the assignment equation. Verify the underlying
+ * authenticated read while asserting the redesigned monthly view loads. */
+export async function expectMoneyState(page: Page, cash: string, setAside: string, ready: string): Promise<void> {
+  const read = page.waitForResponse(response => response.url().endsWith('/rest/v1/rpc/space_overview') && response.ok());
+  await page.reload();
+  const data = await (await read).json() as { currencies: { currency: string; cashHeld: string; setAside: string; ready: string }[] };
+  const usd = data.currencies.find(view => view.currency === 'USD')!;
+  expect(formatMoney(BigInt(usd.cashHeld), 'USD', 'en')).toBe(cash);
+  expect(formatMoney(BigInt(usd.setAside), 'USD', 'en')).toBe(setAside);
+  expect(formatMoney(BigInt(usd.ready), 'USD', 'en')).toBe(ready);
+  await expect(page.getByRole('region', { name: 'Monthly expenses' })).toBeVisible();
 }

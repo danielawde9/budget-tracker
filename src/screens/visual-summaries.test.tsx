@@ -21,7 +21,7 @@ it('does not let surplus funding or carried cash conceal another item’s shortf
 it('compares spending without treating saving or investing as purchases', () => {
   renderWithWorkspace(<PlanCharts plan={fixtures.plan} />, fakeApi());
   const spending = screen.getByRole('region', { name: 'Planned vs spent' });
-  for (const group of fixtures.plan.groups.filter(group => group.purpose === 'investment' || group.purpose === 'saving')) {
+  for (const group of fixtures.plan.groups.filter(group => group.purpose === 'savings')) {
     expect(within(spending).queryByText(group.nameEn!)).not.toBeInTheDocument();
   }
   expect(screen.getByRole('region', { name: 'Your budget at a glance' })).toBeInTheDocument();
@@ -58,7 +58,7 @@ it('allows history to fail and retry independently of the spending overview', as
   renderWithWorkspace(<HomeScreen onRecord={vi.fn()} />, api);
   const history = await screen.findByRole('region', { name: 'Income vs spending' });
   const retry = await within(history).findByRole('button', { name: 'Try again' });
-  expect(screen.getByRole('img', { name: /Spending this month/ })).toBeInTheDocument();
+  expect(screen.getByRole('img', { name: /Actual vs. planned expenses/ })).toBeInTheDocument();
   fail = false;
   await user.click(retry);
   expect(await within(history).findByText('Record income or spending to start your history.')).toBeInTheDocument();

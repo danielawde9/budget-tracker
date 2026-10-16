@@ -22,10 +22,10 @@ for (const locale of ['en', 'ar'] as const) {
     const wallet = (await api.accounts(space.id)).wallets.find(wallet => wallet.name === 'Cash')!;
     const item = plan.groups.flatMap(group => group.items).find(item => item.nameEn === 'Groceries')!;
     await signIn(page, user);
-    await expect(page.getByRole('region', { name: 'Your money', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
     await page.evaluate(locale => localStorage.setItem('budget:locale', locale), locale);
     await page.reload();
-    await expect(page.getByRole('region', { name: t('home.moneyTitle'), exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: t('nav.home'), level: 1 })).toBeVisible();
     return { api, space, item, wallet };
   }
   async function expense(page: Page, itemId: string, walletId: string, memo: string) {
@@ -81,7 +81,7 @@ for (const locale of ['en', 'ar'] as const) {
       expect(after.setAside).toBe(before.setAside - 100n);
       expect(after.ready).toBe(before.ready);
       expect(after.cashHeld).toBe(after.setAside + after.ready);
-      const money = page.getByRole('region', { name: t('home.moneyTitle'), exact: true });
+      const money = page.getByRole('heading', { name: t('nav.home'), level: 1 });
       await money.locator('details.cr-money-breakdown summary').click();
       const equation = money.getByLabel(t('home.equationLabel'));
       await expect(equation).toBeVisible();

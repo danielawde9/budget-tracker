@@ -276,11 +276,11 @@ export function CorrectForm({ entry, onDone, onCancel }: Omit<FormProps, 'catalo
 
 /**
  * The item a contribution comes out of by default: one tied to this
- * investment account, else an explicitly marked investment group's flexible
- * item. A shortcut's selected source takes precedence. Renaming is safe.
+ * investment account, else the first savings group's flexible item.
+ * A shortcut's selected source takes precedence. Renaming is safe.
  */
 function defaultInvestItem(catalog: FormProps['catalog'], accountId: string): string {
   const groups = pickerGroups(catalog.plan);
   const linked = groups.flatMap((group) => group.items).find((item) => item.walletId !== null && item.walletId === accountId);
-  return linked?.itemId ?? catalog.plan.groups.find(group => group.purpose === 'investment')?.flex?.itemId ?? '';
+  return linked?.itemId ?? catalog.plan.groups.at(-1)?.flex?.itemId ?? '';
 }

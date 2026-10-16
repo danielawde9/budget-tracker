@@ -1,6 +1,7 @@
 import type { PlanMonth } from '../../api/schemas.ts';
 import { useI18n } from '../../lib/i18n.tsx';
-import { itemPurpose, purposeItems } from '../../lib/money-purpose.ts';
+import { purposeItems } from '../../lib/money-purpose.ts';
+import { expenseGroups } from '../home/dashboard-model.ts';
 import { useUiCopy } from '../../lib/ui-copy.ts';
 import { chartColors, chartPercent, ChartLegend, ChartSwatch, DonutChart } from '../../ui/charts.tsx';
 import { Amount } from '../../ui/money.tsx';
@@ -10,10 +11,7 @@ export function PlanCharts({ plan }: { readonly plan: PlanMonth }) {
   const c = useUiCopy();
   const currency = plan.planCurrency;
   const total = plan.groups.reduce((sum, group) => sum + group.planned, 0n);
-  const rows = plan.groups.map(group => {
-    const spending = [...group.items, ...(group.flex ? [group.flex] : [])].filter(item => ['spending', 'reserve'].includes(itemPurpose(group, item)));
-    return { id: group.groupId, label: name(group), planned: spending.reduce((sum, item) => sum + item.planned, 0n), spent: spending.reduce((sum, item) => sum + item.spent, 0n), hasSpending: spending.length > 0 };
-  }).filter(row => row.hasSpending);
+  const rows = expenseGroups(plan).filter(group => group.expenseItems.length > 0).map(group => ({ id: group.groupId, label: name(group), planned: group.planned, spent: group.spent }));
   const scale = rows.reduce((max, row) => [row.planned, row.spent].reduce((value, amount) => amount > value ? amount : value, max), 1n);
   const targets = purposeItems(plan).filter(({ item }) => item.planned > 0n);
   const goals = purposeItems(plan).filter(({ item }) => item.targetMinor !== null && item.targetMinor > 0n && (item.targetDate === null || item.targetDate >= plan.today));

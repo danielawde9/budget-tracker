@@ -1,5 +1,6 @@
--- Home trends use recorded cash flows and cumulative savings, in each currency.
-create function public.money_history(p_space uuid)
+-- Home trends use recorded cash flows and month-end savings balances in each currency.
+-- Classification follows each monthly plan, including archived groups and items.
+create or replace function public.money_history(p_space uuid)
 returns jsonb
 language plpgsql
 stable
@@ -24,7 +25,7 @@ begin
   with movements as (
     -- Wallet income counts once, even when it is assigned directly to savings.
     select budget.month_start(e.occurred_on) as month, l.currency,
-           sum(l.amount_minor) as income, 0::numeric as spent, 0::numeric as saved
+           sum(l.amount_minor) as income, 0::numeric as spent
       from budget.wallet_lines l
       join budget.entries e on e.id = l.entry_id
       join budget.wallets w on w.id = l.wallet_id
@@ -33,28 +34,38 @@ begin
      group by 1, 2
     union all
     select budget.month_start(e.occurred_on), l.currency, 0::numeric,
-           coalesce(-sum(l.amount_minor) filter (where i.kind <> 'ready' and l.flow in ('spend', 'refund', 'interest', 'fee')), 0),
-           coalesce(sum(l.amount_minor) filter (where i.kind = 'goal' or (i.kind not in ('ready', 'reserve', 'loan_payment') and g.purpose = 'saving')), 0)
+           -sum(l.amount_minor)
       from budget.item_lines l
       join budget.entries e on e.id = l.entry_id
       join budget.items i on i.id = l.item_id
-      left join budget.plan_groups g on g.id = i.group_id
-     where e.space_id = p_space and e.occurred_on <= v_today
-     -- Archived items still contribute their real historical balances.
+     where e.space_id = p_space and e.occurred_on between v_start and v_today
+       and i.kind <> 'ready' and l.flow in ('spend', 'refund', 'interest', 'fee')
      group by 1, 2
   ), totals as (
-    select month, currency, sum(income) as income, sum(spent) as spent, sum(saved) as saved
+    select month, currency, sum(income) as income, sum(spent) as spent
       from movements group by month, currency
   ), periods as (
     select d::date as month, least(v_today, (d + interval '1 month - 1 day')::date) as through
       from generate_series(v_start::timestamp, v_month::timestamp, interval '1 month') d
+  ), savings as (
+    -- Classify the retained balance at that month's end. A later plan can
+    -- reclassify/move an item without changing any earlier month's snapshot.
+    -- No archive filter: a historical balance remains part of real history.
+    select p.month, l.currency, sum(l.amount_minor) as savings
+      from periods p
+      join budget.entries e on e.space_id = p_space and e.occurred_on <= p.through
+      join budget.item_lines l on l.entry_id = e.id
+      join budget.items i on i.id = l.item_id
+     where i.kind <> 'ready'
+       and budget.group_purpose_on(budget.item_group_on(i.id, p.through), p.through) = 'savings'
+     group by p.month, l.currency
   ), rows as (
     select p.month, p.through, c.currency,
            coalesce(t.income, 0) as income, coalesce(t.spent, 0) as spent,
-           coalesce((select sum(old.saved) from totals old where old.currency = c.currency and old.month < v_start), 0)
-             + sum(coalesce(t.saved, 0)) over (partition by c.currency order by p.month) as savings
+           coalesce(s.savings, 0) as savings
       from periods p cross join (values ('USD'::budget.currency), ('LBP'::budget.currency)) c(currency)
       left join totals t on t.month = p.month and t.currency = c.currency
+      left join savings s on s.month = p.month and s.currency = c.currency
   ), months as (
     select month, jsonb_build_object('month', month, 'through', through,
              'income', jsonb_object_agg(currency, income::text),

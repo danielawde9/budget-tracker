@@ -6,24 +6,17 @@ import { AccountsScreen } from './accounts/accounts.tsx';
 import { ActivityScreen } from './activity/activity.tsx';
 
 describe('owner walkthrough simplification', () => {
-  it('starts with funding the current month and shows the cash equation without another click', async () => {
-    const onRecord = vi.fn();
-    const user = userEvent.setup();
-    renderWithWorkspace(<HomeScreen onRecord={onRecord} />, fakeApi());
-    await user.click(await screen.findByRole('button', { name: 'Fund my plan' }));
-    expect(onRecord).toHaveBeenCalledWith({ kind: 'fund', month: fixtures.overview.month });
-    const summary = screen.getByText('How your cash adds up').closest('details');
-    expect(summary).toHaveAttribute('open');
+  it('keeps Home focused on monthly expenses', async () => {
+    renderWithWorkspace(<HomeScreen onRecord={vi.fn()} />, fakeApi());
+    expect(await screen.findByRole('heading', { name: 'Monthly expenses' })).toBeInTheDocument();
+    expect(screen.queryByText('Money breakdown')).not.toBeInTheDocument();
   });
 
-  it('shows wallet actions on the first level', async () => {
-    const user = userEvent.setup();
+  it('offers a visible expense action for each cash account', async () => {
     const onRecord = vi.fn();
     renderWithWorkspace(<AccountsScreen onRecord={onRecord} />, fakeApi());
-    const expense = (await screen.findAllByRole('button', { name: 'Expense' }))[0]!;
-    const region = expense.closest('li')!;
-    expect(expense).toBeVisible();
-    await user.click(within(region).getByRole('button', { name: 'Expense' }));
+    const bank = (await screen.findByText('Bank')).closest('li')!;
+    await userEvent.click(within(bank).getByRole('button', { name: 'Expense' }));
     expect(onRecord).toHaveBeenCalledWith(expect.objectContaining({ kind: 'expense', walletId: expect.any(String) }));
   });
 

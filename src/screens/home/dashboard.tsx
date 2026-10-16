@@ -1,66 +1,54 @@
-import { ShoppingCart, ChartNoAxesCombined, ShieldCheck, PiggyBank, TrendingUp } from 'lucide-react';
-import type { ReactNode } from 'react';
 import type { CurrencyOverview, Overview, PlanMonth, Entry } from '../../api/schemas.ts';
 import { useWorkspace } from '../../app/workspace.tsx';
-import { navigate } from '../../app/router.ts';
 import { useI18n } from '../../lib/i18n.tsx';
 import { useUiCopy } from '../../lib/ui-copy.ts';
 import { LoadState, useLoad } from '../../ui/async.tsx';
 import { Amount } from '../../ui/money.tsx';
 import { endOfMonth } from '../describe.ts';
-import { purposeItems } from '../../lib/money-purpose.ts';
-import { dashboardTotals, spendingByCategory, loadMonthActivity, spendingSeries, plannedSpending } from './dashboard-model.ts';
+import { expenseEntries, expenseGroupRows, loadMonthActivity, spendingSeries, plannedSpending } from './dashboard-model.ts';
 import { HistoryCharts } from './history-charts.tsx';
-import { chartColors, DonutChart } from '../../ui/charts.tsx';
 
-export function Dashboard({ overview, view, afterMetrics }: { readonly overview: Overview; readonly view: CurrencyOverview; readonly afterMetrics?: ReactNode }) {
+export function Dashboard({ overview, view }: { readonly overview: Overview; readonly view: CurrencyOverview }) {
   const { api, space, version } = useWorkspace();
   const plan = useLoad(() => api.planMonth(space.id, overview.month), [api, space.id, overview.month, version]);
-  return <div className="cr-dashboard">
-    <LoadState loaded={plan}>{data => <DashboardPlan plan={data} overview={overview} view={view} afterMetrics={afterMetrics} />}</LoadState>
-  </div>;
+  const activity = useLoad(() => loadMonthActivity(api, space.id, overview.month), [api, space.id, overview.month, version]);
+  return <div className="cr-dashboard"><LoadState loaded={plan}>{data => <LoadState loaded={activity}>{entries => <DashboardPlan plan={data} entries={entries} overview={overview} view={view} />}</LoadState>}</LoadState></div>;
 }
 
-function DashboardPlan({ plan, overview, view, afterMetrics }: { readonly plan: PlanMonth; readonly overview: Overview; readonly view: CurrencyOverview; readonly afterMetrics?: ReactNode }) {
-  const { api, space, version } = useWorkspace();
-  const { name, money } = useI18n();
+function DashboardPlan({ plan, entries, overview, view }: { readonly plan: PlanMonth; readonly entries: Entry[]; readonly overview: Overview; readonly view: CurrencyOverview }) {
+  const { name } = useI18n();
   const c = useUiCopy();
-  const totals = dashboardTotals(plan, view.currency);
-  const items = purposeItems(plan);
-  const hasReserves = items.some(row => row.purpose === 'reserve');
-  const hasSavings = items.some(row => row.purpose === 'saving');
-  const hasInvesting = items.some(row => row.purpose === 'investment');
-  const activity = useLoad(() => loadMonthActivity(api, space.id, overview.month), [api, space.id, overview.month, version]);
-  const segments = view.setAsideByGroup.filter(group => group.amount !== 0n);
-  const positive = segments.filter(group => group.amount > 0n);
-  const total = segments.reduce((sum, group) => sum + group.amount, 0n);
+  const expenses = expenseEntries(entries, plan);
+  const groups = expenseGroupRows(plan, entries, view.currency, overview.month, overview.today);
+  const progressGroups = view.currency === plan.planCurrency ? groups : expenseGroupRows(plan, entries, plan.planCurrency, overview.month, overview.today);
+  const spent = groups.reduce((sum, group) => sum + group.spent, 0n);
+  const planned = view.currency === plan.planCurrency ? groups.reduce((sum, group) => sum + group.planned, 0n) : null;
   return <>
-    <div className="cr-dashboard-metrics">
-      <Metric label={c('cashHeld')} help={c('cashHeldHelp')} amount={view.cashHeld} currency={view.currency} Icon={ShoppingCart} />
-      <article className="cr-card cr-metric"><ChartNoAxesCombined size={22} aria-hidden /><div><p className="cr-helper">{c('spentMonth')}</p><LoadState loaded={activity}>{entries => <Amount minor={spendingSeries(entries, view.currency, overview.month, overview.today).at(-1)?.amount ?? 0n} currency={view.currency} />}</LoadState><p className="cr-helper">{c('netSpending')}</p></div></article>
-      <Metric label={c('availableSpend')} help={c('availableHelp')} amount={totals.available} currency={view.currency} Icon={ShoppingCart} />
-      {hasSavings ? <Metric label={c('savings')} help={c('savingsHelp')} amount={totals.savings} currency={view.currency} Icon={PiggyBank} /> : null}
-      {hasInvesting ? <Metric label={c('investing')} help={c('investingHelp')} amount={totals.investing} currency={view.currency} Icon={TrendingUp} /> : null}
-      {hasReserves ? <Metric label={c('reserves')} help={c('reservesHelp')} amount={totals.reserves} currency={view.currency} Icon={ShieldCheck} /> : null}
-    </div>
-    {afterMetrics}
-    <div className="cr-dashboard-charts">
-      <section className="cr-card" aria-labelledby="spending-heading"><h2 id="spending-heading">{c('spendingChart')}</h2><p className="cr-helper">{c('spendingHelp')}</p><LoadState loaded={activity}>{entries => <SpendingChart entries={entries} overview={overview} view={view} plan={plan} />}</LoadState></section>
-      <section className="cr-card cr-chart-card" aria-labelledby="allocation-heading"><h2 id="allocation-heading">{c('allocation')}</h2><p className="cr-helper">{c('allocationHelp')}</p>{view.ready < 0n ? <p className="cr-helper">{c('allocationShortfall')}</p> : null}{segments.length === 0 ? <p className="cr-helper">{c('noAllocation')}</p> : <div className="cr-allocation"><DonutChart label={`${c('allocation')}: ${money(total, view.currency)}`} segments={positive.map((group, index) => ({ value: group.amount, color: chartColors[index % chartColors.length]!, label: name(group) }))}><Amount minor={total} currency={view.currency} /><span>{c('totalAssigned')}</span></DonutChart><ul className="cr-chart-legend">{segments.map(group => <li key={group.groupId}><span className="cr-chart-dot" style={{ background: group.amount < 0n ? 'var(--cr-danger)' : chartColors[positive.indexOf(group) % chartColors.length] }} aria-hidden /><bdi>{name(group)}{group.amount < 0n ? <small className="cr-over-label">{c('needsCovering')}</small> : null}</bdi><Amount minor={group.amount} currency={view.currency} tone={group.amount < 0n ? 'negative' : 'plain'} /></li>)}</ul></div>}</section>
-    </div>
-    <section className="cr-card" aria-labelledby="actual-categories-heading"><div className="cr-section-header"><h2 id="actual-categories-heading">{c('actualCategories')}</h2><button className="text-button" type="button" onClick={() => navigate({ name: 'plan', month: overview.month })}>{c('viewPlan')}</button></div><p className="cr-helper">{c('actualCategoriesHelp')}</p>
-      <LoadState loaded={activity}>{entries => {
-        const rows = spendingByCategory(entries, view.currency, overview.month, overview.today);
-        const max = rows.reduce((n, row) => row.amount > n ? row.amount : n, 1n);
-        return rows.length === 0 ? <p className="cr-helper">{c('noSpending')}</p> : <ul className="cr-spending-categories">{rows.map(row => <li key={row.itemId}><div className="cr-section-header"><bdi>{name(row)}</bdi><Amount minor={row.amount} currency={view.currency} /></div><meter min={0} max={100} value={Number((row.amount > 0n ? row.amount : 0n) * 10000n / max) / 100} aria-label={name(row)} /></li>)}</ul>;
-      }}</LoadState>
+    <section className="cr-expense-summary" aria-labelledby="monthly-expenses-heading">
+      <h2 id="monthly-expenses-heading">{c('monthlyExpenses')}</h2><p className="cr-helper">{c('expenseScope')}</p>
+      <dl className="cr-expense-totals">
+        <div><dt>{c('plannedExpenses')}</dt><dd>{planned !== null ? <Amount minor={planned} currency={view.currency} /> : '—'}</dd></div>
+        <div><dt>{c('spentMonth')}</dt><dd><Amount minor={spent} currency={view.currency} /></dd></div>
+        <div><dt>{c('remainingExpenses')}</dt><dd>{planned !== null ? <Amount minor={planned - spent} currency={view.currency} tone={spent > planned ? 'negative' : 'plain'} /> : '—'}</dd></div>
+      </dl>{planned === null ? <p className="cr-helper">{c('currencyPlan')}</p> : null}
+      {planned !== null && groups.length > 0 ? <section className="cr-expense-remaining" aria-labelledby="remaining-categories-heading">
+        <h3 id="remaining-categories-heading">{c('remainingByCategory')}</h3>
+        <p className="cr-helper">{c('remainingBudgetHelp')}</p>
+        <dl className="cr-expense-remaining-groups">{groups.map(group => <div key={group.groupId}><dt><bdi>{name(group)}</bdi></dt><dd>{group.remaining !== null ? <Amount minor={group.remaining} currency={view.currency} tone={group.remaining < 0n ? 'negative' : 'plain'} /> : '—'}</dd></div>)}</dl>
+      </section> : null}
     </section>
+    <div className="cr-dashboard-charts">
+      <section className="cr-card" aria-labelledby="spending-heading"><h2 id="spending-heading">{c('spendingChart')}</h2><p className="cr-helper">{c('spendingHelp')}</p><SpendingChart entries={expenses} overview={overview} view={view} plan={plan} /></section>
+      <section className="cr-card" aria-labelledby="expense-breakdown-heading"><h2 id="expense-breakdown-heading">{c('spendingWhere')}</h2><p className="cr-helper">{c('netSpending')}</p>{groups.length ? <ul className="cr-chart-legend cr-expense-breakdown">{groups.map(group => <li key={group.groupId}><bdi>{name(group)}</bdi><Amount minor={group.spent} currency={view.currency} /></li>)}</ul> : <p className="cr-helper">{c('noCategories')}</p>}{spent === 0n ? <p className="cr-helper">{c('noSpending')}</p> : null}</section>
+    </div>
+    <section className="cr-card" aria-labelledby="progress-heading"><h2 id="progress-heading">{c('expenseProgress')}</h2><p className="cr-helper">{c('spentPlanned')} · {plan.planCurrency}</p>{progressGroups.length === 0 ? <p className="cr-helper">{c('noCategories')}</p> : <ul className="cr-category-progress">{progressGroups.map(group => {
+      const actual = group.spent;
+      const ratio = group.planned > 0n ? Number(actual * 10000n / group.planned) / 100 : actual > 0n ? 100 : 0;
+      const over = actual > group.planned;
+      return <li key={group.groupId}><bdi>{name(group)}</bdi><progress aria-label={name(group)} max={100} value={Math.max(0, Math.min(100, ratio))} className={over ? 'cr-progress-over' : ''} /><span><Amount minor={actual} currency={plan.planCurrency} /> / <Amount minor={group.planned} currency={plan.planCurrency} /><small className="cr-category-remaining">{c('remainingCategory')}: {group.remaining !== null ? <Amount minor={group.remaining} currency={plan.planCurrency} tone={over ? 'negative' : 'plain'} /> : '—'}</small>{over ? <small className="cr-over-label">{c('overspent')}</small> : null}</span></li>;
+    })}</ul>}</section>
     <HistoryCharts currency={view.currency} />
   </>;
-}
-
-function Metric({ label, help, amount, currency, Icon }: { label: string; help: string; amount: bigint; currency: CurrencyOverview['currency']; Icon: typeof ShoppingCart }) {
-  return <article className="cr-card cr-metric"><Icon size={22} aria-hidden /><div><p className="cr-helper">{label}</p><Amount minor={amount} currency={currency} /><p className="cr-helper">{help}</p></div></article>;
 }
 
 function SpendingChart({ entries, overview, view, plan }: { entries: Entry[]; overview: Overview; view: CurrencyOverview; plan: PlanMonth }) {
@@ -87,6 +75,6 @@ function SpendingChart({ entries, overview, view, plan }: { entries: Entry[]; ov
       {[1, Math.ceil(lastDay / 2), lastDay].map(day => <text key={day} x={x(day)} y={252} textAnchor="middle">{date(`${overview.month.slice(0, 7)}-${String(day).padStart(2, '0')}`, 'short')}</text>)}
     </svg>
     {values.every(value => value === 0n) ? <p className="cr-helper">{c('noSpending')}</p> : null}
-    <details className="cr-chart-data"><summary>{c('dailyData')}</summary><table><thead><tr><th>{c('actual')}</th><th>{c('spentMonth')}</th></tr></thead><tbody>{points.slice(1).map(point => <tr key={point.on}><td>{date(point.on, 'short')}</td><td>{money(point.amount, view.currency)}</td></tr>)}</tbody></table></details>
+    <details className="cr-chart-data"><summary>{c('dailyExpenses')}</summary><table><thead><tr><th>{c('actual')}</th><th>{c('spentMonth')}</th></tr></thead><tbody>{points.slice(1).map(point => <tr key={point.on}><td>{date(point.on, 'short')}</td><td>{money(point.amount, view.currency)}</td></tr>)}</tbody></table></details>
   </>;
 }

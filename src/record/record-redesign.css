@@ -1,4 +1,4 @@
-.cr-record-back { justify-self: start; color: var(--cr-accent, #117960); background: transparent; border: 0; padding: .4rem 0; font-size: 1rem; cursor: pointer; }
+.cr-record-back { justify-self: start; color: var(--cr-accent, #117960); background: transparent; border: 0; padding: .4rem .75rem; border-radius: .375rem; font-size: 1rem; cursor: pointer; }
 .cr-record-chooser { display: grid; gap: .7rem; }
 .cr-record-option { display: grid; gap: .25rem; inline-size: 100%; text-align: start; color: inherit; padding: 1rem; border: 1px solid var(--cr-border, #d8e2dd); border-radius: .75rem; background: var(--cr-surface, #fff); font-size: 1rem; cursor: pointer; }
 .cr-record-option:hover, .cr-record-option:focus-visible { border-color: var(--cr-accent, #117960); }

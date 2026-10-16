@@ -1,7 +1,7 @@
 import { BillPaymentLinkForm } from './bill-payment-link.tsx';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toBudgetError, type BudgetError } from '../../api/budget-api.ts';
-import type { ActivityCursor, Entry } from '../../api/schemas.ts';
+import { entryKind, type ActivityCursor, type Entry } from '../../api/schemas.ts';
 import { PageHeader } from '../../app/shell.tsx';
 import { activeWallets, pickerGroups, useWorkspace } from '../../app/workspace.tsx';
 import { useUiCopy } from '../../lib/ui-copy.ts';
@@ -32,14 +32,25 @@ export function ActivityScreen({ onRecord, walletId: initialWalletId, month: ini
   const [walletId, setWalletId] = useState(initialWalletId ?? '');
   useEffect(() => { setMonth(initialMonth ?? ''); setWalletId(initialWalletId ?? ''); }, [initialMonth, initialWalletId]);
   const [itemId, setItemId] = useState('');
+  const [groupId, setGroupId] = useState('');
+  const [purpose, setPurpose] = useState('');
   const [pages, setPages] = useState<Entry[]>([]);
+  const [knownItems, setKnownItems] = useState<Map<string, Entry['items'][number]>>(() => new Map());
+  useEffect(() => {
+    setKnownItems(current => { const next = new Map(current); for (const entry of pages) for (const item of entry.items) if (item.kind !== 'ready') next.set(item.itemId, item); return next; });
+  }, [pages]);
   const [cursor, setCursor] = useState<ActivityCursor | null>(null);
   const [selected, setSelected] = useState<Entry | null>(null);
   const filter: Record<string, string> = {};
   if (month) filter['month'] = month;
   if (walletId) filter['walletId'] = walletId;
   if (itemId) filter['itemId'] = itemId;
+  if (groupId) filter['groupId'] = groupId;
+  if (purpose) filter['purpose'] = purpose;
+  if (kind) filter['kind'] = kind;
   const filterKey = JSON.stringify(filter);
+  const generation = useRef(0);
+  useEffect(() => { generation.current += 1; setPages([]); setCursor(null); setMoreError(null); setLoadingMore(false); }, [filterKey, version, space.id, api]);
   const first = useLoad(() => api.activity(space.id, { limit: 30, filter }), [api, space.id, version, filterKey]);
   useEffect(() => {
     if (first.status === 'ready') {
@@ -52,26 +63,30 @@ export function ActivityScreen({ onRecord, walletId: initialWalletId, month: ini
   const [moreError, setMoreError] = useState<BudgetError | null>(null);
   async function more() {
     if (!cursor || loadingMore) return;
+    const requestGeneration = generation.current;
     setLoadingMore(true);
     setMoreError(null);
     try {
       const page = await api.activity(space.id, { limit: 30, before: cursor, filter });
+      if (generation.current !== requestGeneration) return;
       setPages((current) => [...current, ...page.entries]);
       setCursor(page.next);
     } catch (error) {
-      setMoreError(toBudgetError(error));
+      if (generation.current === requestGeneration) setMoreError(toBudgetError(error));
     } finally {
-      setLoadingMore(false);
+      if (generation.current === requestGeneration) setLoadingMore(false);
     }
   }
   const months = Array.from(new Set([...(month ? [month] : []), ...Array.from({ length: 12 }, (_, index) => addMonths(space.currentMonth, -index))])).sort().reverse();
-  const visible = pages.filter((entry) => { const line = describeEntry(i18n, entry); const haystack = [line.title, line.detail, entry.memo, kindLabel(i18n, entry.kind), ...entry.wallets.map((wallet) => wallet.name)].join(' ').toLocaleLowerCase(i18n.locale); return (!kind || entry.kind === kind) && haystack.includes(search.trim().toLocaleLowerCase(i18n.locale)); });
+  const visible = pages.filter((entry) => { const line = describeEntry(i18n, entry); const haystack = [line.title, line.detail, entry.memo, kindLabel(i18n, entry.kind), ...entry.wallets.map((wallet) => wallet.name), ...entry.items.flatMap(item => [i18n.name(item), item.groupNameEn, item.groupNameAr])].join(' ').toLocaleLowerCase(i18n.locale); return haystack.includes(search.trim().toLocaleLowerCase(i18n.locale)); });
   return (
     <>
       <PageHeader title={t('nav.activity')} subtitle={t('activity.intro')} />
       <section className="cr-card">
-        <div className="cr-activity-toolbar"><label className="cr-field"><span className="cr-label">{c('search')}</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} /></label><SelectField label={c('allTypes')} value={kind} onChange={(event) => setKind(event.target.value)}><option value="">{c('allTypes')}</option>{Array.from(new Set(pages.map((entry) => entry.kind))).map((value) => <option key={value} value={value}>{kindLabel(i18n, value)}</option>)}</SelectField></div>
-        <details className="cr-filter-details" open={Boolean(initialMonth || initialWalletId) || undefined}><summary>{c('moreFilters')}</summary><div className="cr-toolbar cr-filters">
+        <div className="cr-activity-toolbar"><label className="cr-field"><span className="cr-label">{c('search')}</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} /></label><SelectField label={c('allTypes')} value={kind} onChange={(event) => setKind(event.target.value)}><option value="">{c('allTypes')}</option>{entryKind.options.map((value) => <option key={value} value={value}>{kindLabel(i18n, value)}</option>)}</SelectField></div>
+        <div className="cr-toolbar cr-filters cr-activity-filters">
+          <SelectField label={c('purposeFilter')} value={purpose} onChange={event => setPurpose(event.target.value)}><option value="">{c('allPurposes')}</option><option value="expense">{c('expenses')}</option><option value="savings">{c('savingsSection')}</option></SelectField>
+          <SelectField label={c('group')} value={groupId} onChange={event => setGroupId(event.target.value)}><option value="">{c('allGroups')}</option>{catalog.data?.plan.groups.map(group => <option key={group.groupId} value={group.groupId}>{i18n.name(group)}</option>)}{[...new Map([...knownItems.values()].filter(item => item.groupId && !catalog.data?.plan.groups.some(group => group.groupId === item.groupId)).map(item => [item.groupId!, item])).values()].map(item => <option key={item.groupId} value={item.groupId!}>{i18n.name({ nameEn: item.groupNameEn ?? null, nameAr: item.groupNameAr ?? null })}</option>)}</SelectField>
           <SelectField label={t('activity.month')} value={month} onChange={(event) => setMonth(event.target.value)}>
               <option value="">{t('activity.allMonths')}</option>
               {months.map((value) => <option key={value} value={value}>{date(value, 'month')}</option>)}
@@ -87,9 +102,9 @@ export function ActivityScreen({ onRecord, walletId: initialWalletId, month: ini
                   {group.items.map((item) => <option key={item.itemId} value={item.itemId}>{i18n.name(item)}</option>)}
                 </optgroup>
               )) : null}
+              <optgroup label={i18n.locale === 'ar' ? 'فئات سابقة' : 'Earlier categories'}>{[...knownItems.values()].filter(item => !catalog.data?.plan.groups.some(group => [...group.items, ...(group.flex ? [group.flex] : [])].some(candidate => candidate.itemId === item.itemId))).map(item => <option key={item.itemId} value={item.itemId}>{i18n.name(item)}</option>)}</optgroup>
             </SelectField>
         </div>
-        </details>
         {first.status === 'ready' ? <ActivityCharts entries={visible} /> : null}
         {first.status === 'error' ? <ErrorNotice error={first.error} onRetry={first.reload} /> : null}
         {first.status === 'loading' && pages.length === 0 ? <p role="status" className="cr-helper">{t('common.loading')}</p> : null}
@@ -107,6 +122,7 @@ export function ActivityScreen({ onRecord, walletId: initialWalletId, month: ini
                       {date(entry.occurredOn)} · {kindLabel(i18n, entry.kind)}{line.detail ? ' · ' : ''}<bdi>{line.detail}</bdi>
                       {entry.reversedByEntryId ? ` · ${t('activity.corrected')}` : ''}
                     </span>
+                    <ActivityTags entry={entry} />
                   </span>
                   <span className="cr-amounts">
                     {line.amounts.map((amount) => (
@@ -173,4 +189,18 @@ export function EntryDetail({ entry, onClose, onCorrect, canCorrect }: { readonl
       </div>}
     </Dialog>
   );
+}
+
+function ActivityTags({ entry }: { readonly entry: Entry }) {
+  const { catalog } = useWorkspace();
+  const { name } = useI18n();
+  const tags = new Map<string, string>();
+  for (const item of entry.items) {
+    if (item.kind === 'ready') continue;
+    const group = catalog.data?.plan.groups.find(group => [...group.items, ...(group.flex ? [group.flex] : [])].some(candidate => candidate.itemId === item.itemId));
+    const groupName = item.groupId ? name({ nameEn: item.groupNameEn ?? null, nameAr: item.groupNameAr ?? null }) : group ? name(group) : '';
+    if (groupName) tags.set(`group-${item.groupId ?? group?.groupId}`, groupName);
+    tags.set(`item-${item.itemId}`, name(item));
+  }
+  return tags.size ? <span className="cr-activity-tags">{[...tags].map(([key, label]) => <bdi key={key} className="cr-activity-tag">{label}</bdi>)}</span> : null;
 }

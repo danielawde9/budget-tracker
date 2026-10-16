@@ -51,6 +51,12 @@ export const planTotals = z.object({
   received: minor,
   otherIncome: minor,
   funded: minor,
+  /** Newer reads separate assignments from spending covered directly by Ready. */
+  assignedFunding: minor.optional(),
+  spentFromReady: minor.optional(),
+  fundingScope: z.literal('planned_groups').optional(),
+  assignedFundingExcluded: minor.optional(),
+  spentFromReadyExcluded: minor.optional(),
   stillToFund: minor,
   ready: minor,
   /** Ready to assign at the end of the viewed month (equals today's for the current month). */
@@ -116,11 +122,9 @@ export const planItem = z.object({
   walletId: id.nullable(),
 });
 
-export const moneyPurpose = z.enum(['spending', 'saving', 'investment']);
-
 export const planGroup = z.object({
-  purpose: moneyPurpose.default('spending'),
   groupId: id,
+  purpose: z.enum(['expense', 'savings']),
   ...named,
   percentBps: z.number().int(),
   planned: minor,
@@ -178,7 +182,7 @@ export const entry = z.object({
   billLinkVersion: z.number().int().nonnegative().optional(),
   billLinkHistory: z.array(z.object({ billId: id.nullable(), billName: nullableText, dueOn: isoDate.nullable(), createdAt: z.string() })).optional(),
   wallets: z.array(z.object({ walletId: id, name: z.string(), kind: walletKind, currency, amount: minor, flow })),
-  items: z.array(z.object({ itemId: id, kind: itemKind, ...named, currency, amount: minor, flow })),
+  items: z.array(z.object({ itemId: id, kind: itemKind, ...named, currency, amount: minor, flow, groupId: id.nullable().optional(), groupNameEn: nullableText.optional(), groupNameAr: nullableText.optional(), purpose: z.enum(['expense','savings']).nullable().optional() })),
 });
 
 export const activityCursor = z.object({ occurredOn: isoDate, createdAt: z.string(), id });

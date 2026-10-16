@@ -37,7 +37,7 @@ interface SetByPerson {
   readonly amount: boolean;
 }
 
-/** Expense: the item pays; a shortfall is covered now from Ready to assign or a chosen item. */
+/** Expenses use their item, group, then unassigned money unless a whole-payment source is chosen. */
 export function ExpenseForm({ catalog, onDone, onCancel, walletId: initialWallet, itemId: initialItem, bill, payFrom: initialPayFrom }: FormProps & {
   readonly payFrom?: string | undefined;
   readonly walletId?: string;
@@ -67,10 +67,7 @@ export function ExpenseForm({ catalog, onDone, onCancel, walletId: initialWallet
   const item = itemId ? findItem(catalog.plan, itemId) : null;
   const shortfall = shortfallOf(catalog, itemId, currency, amount);
   const coverKey = `${itemId}:${currency}`;
-  const group = catalog.plan.groups.find(group => group.items.some(item => item.itemId === itemId));
-  const pool = group?.purpose === 'spending' && group.items.every(item => item.planned === 0n) && item?.kind === 'spending'
-    && group.flex && group.flex.balances[currency] >= shortfall ? group.flex : null;
-  const coverFrom = coverSelection?.key === coverKey ? coverSelection.itemId : pool?.itemId ?? READY;
+  const coverFrom = coverSelection?.key === coverKey ? coverSelection.itemId : READY;
   const coverInsufficient = payFrom ? (findItem(catalog.plan, payFrom)?.balances[currency] ?? 0n) < (amount ?? 0n) : coverFrom !== READY && (findItem(catalog.plan, coverFrom)?.balances[currency] ?? 0n) < shortfall;
   const setCoverFrom = (itemId: string) => setCoverSelection({ key: coverKey, itemId });
   const command = useCommand((requestId, _: null) => api.recordExpense({
@@ -120,7 +117,7 @@ export function ExpenseForm({ catalog, onDone, onCancel, walletId: initialWallet
       {item && shortfall === 0n ? (
         <p className="cr-helper">{t('record.itemHolds', { name: name(item), amount: money(item.balances[currency], currency) })}</p>
       ) : null}
-      {initialPayFrom ? <><ItemSelect label={t('record.payFromPurpose')} groups={groups} value={payFrom} onChange={setPayFrom} currency={currency} /><Explain>{t('record.payFromExplain')}</Explain>{coverInsufficient ? <Explain tone="warn">{t('record.coverTooSmall')}</Explain> : null}</> : <CoverChoice catalog={catalog} itemId={itemId} currency={currency} amount={amount} value={coverFrom} onChange={setCoverFrom} />}
+      {initialPayFrom ? <><ItemSelect label={t('record.payFromPurpose')} groups={groups} value={payFrom} onChange={setPayFrom} currency={currency} /><Explain>{t('record.payFromExplain')}</Explain>{coverInsufficient ? <Explain tone="warn">{t('record.coverTooSmall')}</Explain> : null}</> : <CoverChoice catalog={catalog} itemId={itemId} currency={currency} amount={amount} value={coverFrom} onChange={setCoverFrom} groupFirst />}
       <DateField value={on} onChange={setOn} max={space.today} />
       {command.error ? <ErrorNotice error={command.error} /> : null}
       <FormActions submitLabel="record.saveExpense" pending={command.pending} onCancel={onCancel} disabled={amount === null || !item || coverInsufficient} />

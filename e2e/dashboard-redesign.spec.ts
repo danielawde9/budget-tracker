@@ -30,7 +30,7 @@ test('dashboard charts display recorded history and follow currency and activity
   await expect(income.getByText(formatMoney(latest.income.USD, 'USD', 'en'), { exact: true })).toBeVisible();
   await expect(income.getByText(formatMoney(latest.spent.USD, 'USD', 'en'), { exact: true })).toBeVisible();
   await expect(savings.getByText(formatMoney(latest.savings.USD, 'USD', 'en'), { exact: true })).toBeVisible();
-  await page.getByRole('region', { name: 'Your money', exact: true }).getByRole('button', { name: 'LBP', exact: true }).click();
+  await page.getByRole('group', { name: 'Currency', exact: true }).getByRole('button', { name: 'LBP', exact: true }).click();
   await expect(income.locator('.cr-chart-readout .cr-amount').first()).toHaveText(formatMoney(latest.income.LBP, 'LBP', 'en'));
   await expect(savings.locator('.cr-chart-readout .cr-amount')).toHaveText(formatMoney(latest.savings.LBP, 'LBP', 'en'));
   await income.getByRole('button').first().click();

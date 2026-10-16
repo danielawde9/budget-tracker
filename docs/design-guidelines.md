@@ -328,9 +328,6 @@ the end of `src/control-room.css`; feature code adds no visual language.
   shortfall), `.cr-fund-lines` and `.cr-fund-total`.
 - **Utilities:** `.cr-stack` (column gap), `.cr-icon-button` (44px),
   `.cr-link-button`, `.cr-flip-rtl` (directional icons), `.cr-check`.
-  Link buttons stay content-sized at the inline start in flex and grid rows,
-  retain a 44px minimum target, and use text emphasis on hover without a filled
-  background. Keyboard focus keeps the shared visible ring.
 - **Preview only:** `.cr-demo-panel`, `.cr-tour` (amber border). Production
   bundles drop this code because Vite replaces `import.meta.env.MODE`.
 
@@ -352,33 +349,19 @@ address remains `https://openbudgetracker.app`. The wordmark uses
 and allow wrapping inside the narrow rail. Browser and installed-app titles
 use the same name. The deployment worker identifier remains `budget-tracker`.
 
-## 20. Money clarity and visible actions (2026-10-10)
+## Financial breakdowns
 
-Home starts with cash and month-spending metrics before the funding action. It always distinguishes actual cash (all months), expenses (selected month),
-everyday earmarks, savings/goals and cash waiting to be invested. Group purpose
-is explicit metadata, independent of its name or flexible item kind. Negative
-assignments remain visible. The allocation chart describes remaining earmarks;
-`.cr-spending-categories` uses native meters with named, signed text amounts for
-actual spending. Saving and investment principal are not consumption expenses.
+Use `.cr-amount-trigger` for amounts that open read-only breakdowns. Keep a visible chevron, `aria-haspopup="dialog"`, a descriptive accessible name, padded hover area and keyboard focus. Reuse the native `Dialog` for dismissal and focus return. Wallet balance shows separate currency totals; its breakdown presents accounts and allocations as two views of the same cash, excluding investments and loans. Monthly funding presents targets, assignments and any direct Ready coverage independently from existing savings balances.
 
-Plan groups and essential balance explanations start open. Account actions are
-visible wrapping `.cr-account-actions` buttons under each account, never behind
-an ellipsis. `.cr-button` aligns icons and text with inline flex. The shared
-assignment warning uses a compact two-column layout on wider screens and stacks
-on mobile. All use the established tokens, bilingual copy and 44px targets.
+Use `.cr-money-breakdown` for label/amount rows and `.cr-breakdown-total` for totals. At narrow widths each row stacks its amount below the label. Detailed comparisons use `.cr-breakdown-table`, a labelled keyboard-scrollable region with a caption and scoped headers; overflow stays inside the dialog.
 
-The visible Use savings action records one expense with an explicit whole-payment
-source. It keeps the purchase category for reporting while debiting savings, even
-when that category already holds money. Its journal lines reverse together.
+Monthly funding breakdowns distinguish counted assignments from funding outside the month's targets. Groups with no monthly target show zero counted credit; their earlier assignments and direct Ready coverage appear in a separate section. Existing savings never reduce the expense funding gap.
 
-Bill Edit and Skip actions use visible `.cr-bill-actions` rows, and the Record
-action chooser exposes all transaction types immediately. Plan tables retain
-accessible column headers on mobile and repeat their translated `data-label`
-above each value. Group toolbars wrap with the standard spacing tokens.
+At 420px and below, the Plan summary uses a single column so localized amounts and their breakdown chevrons fit without horizontal scrolling.
 
 ## 20. Visual dashboard summaries (2026-10-16)
 
-The logged-in workspace uses a shared metric strip and chart sections. All new
+The logged-in workspace uses shared financial summaries and chart sections. All new
 visual styles live in `control-room.css`; chart colors use `--cr-chart-0..5`.
 `cr-chart-card`, `cr-chart-readout`, `cr-chart-months`, `cr-chart-legend`,
 `cr-ring-chart`, `cr-bar-track`, `cr-comparison-list`, and `cr-funding-grid`
@@ -387,14 +370,21 @@ labels, and charts keep accessible names. Month selectors are keyboard buttons
 with `aria-pressed`; SVG titles add point-level details. No chart dependency is
 required. Exact minor-unit arithmetic is preserved before visual scaling.
 
-Home shows actual spending, current assignments, recorded income versus spending,
-and savings balances over recorded months. Never invent missing history or merge
-USD and LBP. History loads independently and offers retry on failure. A single
-month shows one real point. Plan compares spending categories with their planned
+Home retains monthly expense summaries and adds recorded income versus purchases
+and savings balances over recorded months. Assignments remain in the Plan and
+Accounts breakdowns. Never invent missing history or merge USD and LBP. History
+offers retry on failure. A single month shows one real point. Plan compares spending categories with their planned
 amounts, displays the planned mix, and tracks monthly funding separately from
 carried balances. Funding progress caps each item's contribution at its own target
 so surplus in one item cannot conceal another item's shortfall. Goal bars show
 balances against active targets.
+
+The current monthly expense/savings classification and historical group membership
+are authoritative. Savings history snapshots each recorded month's balances using
+that month's classification, including archived items. Purchase history includes
+all actual purchases, net of refunds and corrections; the monthly expense charts
+retain their narrower expense-category scope. The new source/history migrations
+follow the existing October 16 migrations and preserve their contracts.
 
 Activity charts count only the loaded records matching the current filters; their
 scope is explained beside the charts. Daily counts include a native disclosure

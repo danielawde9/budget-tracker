@@ -13,7 +13,6 @@ import { Amount, MoneyField } from '../../ui/money.tsx';
 import { SelectField } from '../../ui/select-field.tsx';
 import { usePlanCopy } from './plan-copy.ts';
 import './plan-redesign.css';
-import { useUiCopy } from '../../lib/ui-copy.ts';
 import { KIND_LABEL } from './plan.tsx';
 
 type EditableKind = 'spending' | 'reserve' | 'goal' | 'loan_payment';
@@ -32,7 +31,7 @@ interface DraftItem {
 }
 
 interface DraftGroup {
-  readonly purpose: PlanMonth['groups'][number]['purpose'];
+  readonly purpose: 'expense' | 'savings';
   readonly key: string;
   readonly groupId: string | null;
   readonly nameEn: string | null;
@@ -59,8 +58,8 @@ function toDraft(plan: PlanMonth): Draft {
     archiveItemIds: [],
     archiveGroupIds: [],
     groups: plan.groups.map((group) => ({
-      purpose: group.purpose,
       key: group.groupId,
+      purpose: group.purpose,
       groupId: group.groupId,
       nameEn: group.nameEn,
       nameAr: group.nameAr,
@@ -125,7 +124,6 @@ export function PlanEditorForm({ plan, month, onCancel, onSaved, cancelLabel, in
   const { api, space, refresh, catalog } = useWorkspace();
   const [draft, setDraft] = useState<Draft>(() => toDraft(plan));
   const copy = usePlanCopy();
-  const c = useUiCopy();
   const [selectedGroup, setSelectedGroup] = useState(initialGroupId ?? plan.groups[0]?.groupId ?? '');
   const activeKey = draft.groups.some((group) => group.key === selectedGroup) ? selectedGroup : draft.groups[0]?.key;
   const currency: Currency = plan.planCurrency;
@@ -161,8 +159,8 @@ export function PlanEditorForm({ plan, month, onCancel, onSaved, cancelLabel, in
       archiveItemIds: draft.archiveItemIds,
       archiveGroupIds: draft.archiveGroupIds,
       groups: draft.groups.map((group, index) => ({
-        purpose: group.purpose,
         groupId: group.groupId,
+        purpose: group.purpose,
         nameEn: group.nameEn?.trim() || null,
         nameAr: group.nameAr?.trim() || null,
         percentBps: bps[index] ?? 0,
@@ -205,6 +203,10 @@ export function PlanEditorForm({ plan, month, onCancel, onSaved, cancelLabel, in
           return (
             <fieldset key={group.key} hidden={group.key !== activeKey} className="cr-form-section cr-editor-group">
               <legend>{name(group) || t('editor.newGroup')}</legend>
+              <fieldset className="cr-choice"><legend>{locale === 'ar' ? 'نوع المجموعة' : 'Group purpose'}</legend>
+                {(['expense', 'savings'] as const).map(purpose => <label key={purpose}><input type="radio" name={`purpose-${group.key}`} checked={group.purpose === purpose} onChange={() => setGroup(group.key, current => ({ ...current, purpose }))} />{locale === 'ar' ? purpose === 'expense' ? 'مصروفات' : 'ادخار' : purpose === 'expense' ? 'Expenses' : 'Savings'}</label>)}
+              </fieldset>
+              <p className="cr-helper">{locale === 'ar' ? 'تظهر مجموعات المصروفات في ملخص الإنفاق الشهري. يبقى الادخار في الخطة.' : 'Expense groups appear in monthly spending. Savings stay in your plan.'}</p>
               <div className="cr-editor-group-head">
                 <label className="cr-field">
                   <span className="cr-label">{t('editor.groupName')}</span>
@@ -220,10 +222,6 @@ export function PlanEditorForm({ plan, month, onCancel, onSaved, cancelLabel, in
                 </label>
                 <p className="cr-editor-group-amount">{amount !== null ? <Amount minor={amount} currency={currency} /> : '—'}</p>
               </div>
-              <SelectField label={c('groupPurpose')} value={group.purpose} onChange={event => setGroup(group.key, current => ({ ...current, purpose: event.target.value as DraftGroup['purpose'] }))}>
-                <option value="spending">{c('purposeSpending')}</option><option value="saving">{c('purposeSaving')}</option><option value="investment">{c('purposeInvestment')}</option>
-              </SelectField>
-              <p className="cr-helper">{c('purposeHelp')}</p>
               <p className="cr-explain">{copy.optionalAmounts}</p>
               <ul className="cr-editor-items">
                 {group.items.map((item, itemIndex) => (
@@ -314,7 +312,7 @@ export function PlanEditorForm({ plan, month, onCancel, onSaved, cancelLabel, in
         </div>
         <button type="button" className="cr-button" onClick={() => { const key = nextKey(); setSelectedGroup(key); setDraft((current) => ({
           ...current,
-          groups: [...current.groups, { key, purpose: 'spending', groupId: null, nameEn: null, nameAr: null, flexEn: null, flexAr: null, bpsText: '0', items: [] }],
+          groups: [...current.groups, { key, groupId: null, purpose: 'expense', nameEn: null, nameAr: null, flexEn: null, flexAr: null, bpsText: '0', items: [] }],
         })); }}><Plus aria-hidden size={16} /> {t('editor.addGroup')}</button>
         {!valid && totalBps <= 10000 ? <p className="cr-helper" role="status">{copy.invalid}</p> : null}
         {command.error ? <ErrorNotice error={command.error} /> : null}

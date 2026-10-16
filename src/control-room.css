@@ -8,12 +8,6 @@
 
 :root {
   color-scheme: light;
-  --cr-chart-0: #17634f;
-  --cr-chart-1: #65a88d;
-  --cr-chart-2: #d6ad65;
-  --cr-chart-3: #698db0;
-  --cr-chart-4: #a38ab5;
-  --cr-chart-5: #82978d;
 
   /* Typography — single sans stack covering Latin + Arabic */
   --cr-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -1630,8 +1624,8 @@
 .cr-icon-button:disabled { opacity: 0.4; cursor: not-allowed; }
 .cr-flip-rtl:dir(rtl) { transform: scaleX(-1); }
 
-.cr-link-button { align-self: flex-start; justify-self: start; min-inline-size: 44px; max-inline-size: 100%; background: none; border: 0; padding: 0; color: var(--cr-ink); font: inherit; font-weight: 700; text-align: start; cursor: pointer; }
-.cr-link-button:hover { background: none; color: var(--cr-accent-strong); text-decoration: underline; text-underline-offset: 3px; }
+.cr-link-button { background: none; border: 0; padding: 6px 10px; border-radius: 6px; color: var(--cr-ink); font: inherit; font-weight: 700; text-align: start; cursor: pointer; }
+.cr-link-button:hover { color: var(--cr-accent-strong); text-decoration: underline; text-underline-offset: 3px; }
 .cr-link-button:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 2px; border-radius: 4px; }
 
 /* Amount tones: color always paired with a sign or a label. */
@@ -1665,10 +1659,10 @@
 .cr-register-title { font-weight: 700; overflow-wrap: anywhere; }
 .cr-register-button {
   display: flex; align-items: center; gap: var(--cr-space-3); inline-size: 100%; min-block-size: 56px;
-  background: none; border: 0; padding: 0; color: inherit; font: inherit; text-align: start; cursor: pointer;
+  background: none; border: 0; padding: 12px 16px; border-radius: 12px; color: inherit; font: inherit; text-align: start; cursor: pointer;
 }
 .cr-register-button:hover .cr-register-title { color: var(--cr-accent-strong); }
-.cr-register-button:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 2px; border-radius: var(--cr-radius-sm); }
+.cr-register-button:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 2px; border-radius: 12px; }
 .cr-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--cr-space-2); }
 .cr-lines li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--cr-space-2); }
 
@@ -1721,6 +1715,7 @@
 .cr-inline-disclosure[open] > :not(summary) { padding-block-end: var(--cr-space-3); }
 .cr-wallet-balance-amounts { display: flex; flex-wrap: wrap; gap: var(--cr-space-2) var(--cr-space-5); }
 .cr-wallet-balance-amounts > .cr-amount { font-size: var(--cr-hero-size); font-weight: 800; overflow-wrap: anywhere; }
+.cr-wallet-balance-amounts > .cr-amount-trigger { font-size: var(--cr-hero-size); font-weight: 800; }
 .cr-wallet-balances > .cr-button { align-self: start; margin-block-start: var(--cr-space-2); }
 .cr-account-section { display: flex; flex-direction: column; gap: var(--cr-space-3); padding-block: var(--cr-space-4); border-block-end: 1px solid var(--cr-border); }
 .cr-account-section .cr-section-header { flex-wrap: nowrap; align-items: start; }
@@ -1747,6 +1742,7 @@
   .cr-account-section .cr-account-icon { display: none; }
   .cr-account-section .cr-register-row { grid-template-columns: minmax(0, 1fr) auto auto; }
   .cr-wallet-balance-amounts > .cr-amount { font-size: 30px; }
+  .cr-wallet-balance-amounts > .cr-amount-trigger { font-size: 30px; }
 }
 .cr-home-columns { display: grid; gap: var(--cr-space-4); }
 @media (min-width: 1024px) { .cr-home-columns { grid-template-columns: 1fr 1fr; align-items: start; } }
@@ -1939,41 +1935,54 @@
 
 .cr-invite-controls .cr-field, .cr-invite-controls .cr-field > input { inline-size: 100%; min-inline-size: 0; }
 
-/* Money clarity: visible actions and readable, signed category totals. */
-.cr-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--cr-space-2); }
-.cr-button > svg { flex: none; }
-.cr-account-row { flex-wrap: wrap; }
-.cr-account-row > .cr-account-actions { display: flex; flex: 1 0 100%; gap: var(--cr-space-2); padding-inline-start: 0; }
-.cr-account-actions .cr-button { min-block-size: 44px; white-space: normal; }
-.cr-spending-categories { display: grid; gap: var(--cr-space-4); list-style: none; margin: var(--cr-space-4) 0 0; padding: 0; }
-.cr-spending-categories li { min-inline-size: 0; }
-.cr-spending-categories meter { display: block; inline-size: 100%; block-size: var(--cr-space-2); margin-block-start: var(--cr-space-2); border: 0; background: var(--cr-accent-soft); border-radius: var(--cr-radius-full); }
-.cr-spending-categories meter::-webkit-meter-bar { background: var(--cr-accent-soft); border: 0; }
-.cr-spending-categories meter::-webkit-meter-optimum-value { background: var(--cr-accent); }
-.cr-spending-categories meter::-moz-meter-bar { background: var(--cr-accent); }
-.cr-assignment-warning .cr-amount--hero { font-size: clamp(1.5rem, 4vw, 2rem); }
-.cr-assignment-warning { gap: var(--cr-space-2); }
-@media (min-width: 700px) {
-  .cr-assignment-warning { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
-  .cr-assignment-warning > .cr-warning-heading, .cr-assignment-warning > .cr-helper { grid-column: 1; }
-  .cr-assignment-warning > .cr-amount--hero { grid-column: 2; grid-row: 1; }
-  .cr-assignment-warning > .cr-button { grid-column: 2; grid-row: 2; min-inline-size: 0; justify-self: end; }
+/* Read-only financial drilldowns: current cash and monthly funding stay separate. */
+.cr-amount-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--cr-space-2);
+  max-inline-size: 100%;
+  min-block-size: 44px;
+  padding: var(--cr-space-2) var(--cr-space-3);
+  border: 0;
+  border-radius: var(--cr-radius-sm);
+  background: transparent;
+  color: var(--cr-ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.cr-amount-trigger .cr-amount { font-size: inherit; min-inline-size: 0; white-space: normal; overflow-wrap: anywhere; }
+.cr-amount-trigger svg { flex: 0 0 auto; color: var(--cr-accent-strong); }
+.cr-amount-trigger:hover { background: var(--cr-accent-soft); }
+.cr-amount-trigger:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 2px; }
+.cr-money-breakdown { display: grid; margin: 0; }
+.cr-money-breakdown > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--cr-space-3);
+  align-items: baseline;
+  padding-block: var(--cr-space-3);
+  border-block-end: 1px solid var(--cr-hairline);
+}
+.cr-money-breakdown dt { overflow-wrap: anywhere; }
+.cr-money-breakdown dd { margin: 0; text-align: end; }
+.cr-money-breakdown .cr-breakdown-total { font-weight: 700; border-block-end: 0; }
+.cr-breakdown-table { max-inline-size: 100%; overflow-x: auto; }
+.cr-breakdown-table:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 2px; }
+.cr-breakdown-table table { inline-size: 100%; border-collapse: collapse; }
+.cr-breakdown-table caption { text-align: start; font-weight: 700; padding-block-end: var(--cr-space-3); }
+.cr-breakdown-table th, .cr-breakdown-table td { padding: var(--cr-space-3); text-align: end; border-block-end: 1px solid var(--cr-hairline); }
+.cr-breakdown-table th:first-child { text-align: start; }
+.cr-breakdown-table thead th { font-size: 13px; color: var(--cr-ink-soft); }
+.cr-breakdown-table .cr-amount { white-space: nowrap; }
+@media (max-width: 420px) {
+  .cr-plan-summary .cr-figures { grid-template-columns: minmax(0, 1fr); }
+  .cr-money-breakdown > div { grid-template-columns: minmax(0, 1fr); gap: var(--cr-space-1); }
+  .cr-money-breakdown dd { text-align: start; }
 }
 
-.cr-account-section .cr-account-row > .cr-account-actions { grid-column: 1 / -1; }
-.cr-shell .cr-home .cr-money-card--action { padding: var(--cr-space-4); gap: var(--cr-space-2); }
-.cr-shell .cr-home .cr-money-card--action .cr-hero { padding-block: var(--cr-space-2); }
-.cr-shell .cr-home .cr-money-card--action .cr-amount--hero { font-size: 2rem; }
-
-.cr-shell .plan-group-toolbar { flex-wrap: wrap; justify-content: flex-start; gap: var(--cr-space-2); }
-@media (max-width: 699px) {
-  .cr-plan-table thead { display: table-header-group; position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .cr-plan-table td::before { content: attr(data-label); }
-}
-
-.cr-bill-actions { display: flex; flex-wrap: wrap; flex-basis: 100%; gap: var(--cr-space-2); }
-.cr-record-chooser .cr-record-details { display: grid; gap: var(--cr-space-2); }
-
+:root { --cr-chart-0: #17634f; --cr-chart-1: #65a88d; --cr-chart-2: #d6ad65; --cr-chart-3: #698db0; --cr-chart-4: #a38ab5; --cr-chart-5: #82978d; }
 /* Visual summaries: shared across the signed-in workspace. */
 .cr-sr-only { position: absolute; inline-size: 1px; block-size: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .cr-shell ::selection { background: var(--cr-accent-soft); color: var(--cr-accent-strong); }

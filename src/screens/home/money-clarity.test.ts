@@ -5,16 +5,16 @@ import type { Entry, PlanMonth } from '../../api/schemas.ts';
 // Names deliberately do not identify a purpose: a rename must not alter totals.
 const plan = {
   ...fixtures.plan,
-  groups: ['spending', 'saving', 'investment'].map((purpose, index) => ({
+  groups: ['expense', 'savings', 'savings'].map((purpose, index) => ({
     ...fixtures.plan.groups[0]!, groupId: String(index), nameEn: 'Renamed group', purpose,
     items: [], flex: { ...fixtures.plan.groups[0]!.flex!, itemId: String(index), kind: 'flex',
       planned: 10000n, balances: { USD: [6000n, 3000n, 1000n][index]!, LBP: 0n } },
   })),
 } as PlanMonth;
 
-it('separates savings and investment earmarks from the everyday allowance and pace', () => {
-  expect(dashboardTotals(plan, 'USD')).toMatchObject({ available: 6000n, savings: 3000n, investing: 1000n });
-  expect(dashboardTotals(plan, 'LBP').savings).toBe(0n);
+it('keeps all savings sources outside the monthly expense allowance and pace', () => {
+  expect(dashboardTotals(plan, 'USD')).toMatchObject({ available: 6000n });
+  expect(dashboardTotals(plan, 'LBP').available).toBe(0n);
   expect(plannedSpending(plan)).toBe(10000n);
 });
 

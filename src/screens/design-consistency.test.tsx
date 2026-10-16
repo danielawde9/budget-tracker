@@ -13,7 +13,7 @@ it('offers correction instead of funding when the current plan is over-assigned'
   await user.click(await screen.findByRole('button', { name: 'Fix over-assignment' }));
   expect(onRecord).toHaveBeenCalledWith({ kind: 'move', currency: plan.planCurrency });
   expect(screen.queryByRole('button', { name: 'Fund my plan' })).not.toBeInTheDocument();
-  expect(screen.getByText('Plan and actual money explained').closest('details')).toHaveAttribute('open');
+  expect(screen.getByText('How funding works').closest('details')).not.toHaveAttribute('open');
 });
 
 it('distinguishes wallet cash from category assignments when Home is over-assigned', async () => {
@@ -23,10 +23,8 @@ it('distinguishes wallet cash from category assignments when Home is over-assign
   renderWithWorkspace(<HomeScreen onRecord={onRecord} />, fakeApi({ overview: async () => overview }));
   await user.click(await screen.findByRole('button', { name: 'Fix over-assignment' }));
   expect(onRecord).toHaveBeenCalledWith({ kind: 'move', currency: overview.planCurrency });
-  const label = await screen.findByText('Cash you have');
-  expect(label.closest('article')).toHaveTextContent('$8,712.60');
-  expect(screen.getByText('Everyday spending left')).toBeInTheDocument();
-  expect(screen.getByText('Savings and goals')).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: 'Monthly expenses' })).toBeInTheDocument();
+  expect(screen.queryByText('Assigned to spending')).not.toBeInTheDocument();
 });
 
 it('summarizes active cash wallets separately by currency without investments or archived balances', async () => {

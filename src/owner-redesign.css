@@ -228,7 +228,8 @@ summary:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 3px
 }
 .cr-term-help .cr-viewport-panel { padding: 12px; font-size: 14px; font-weight: 400; text-transform: none; letter-spacing: normal; }
 .cr-term-help .cr-viewport-panel p { margin: 0; line-height: 1.5; white-space: normal; }
-.cr-description-suggestions { display: grid; gap: 4px; min-inline-size: 0; max-block-size: 220px; overflow: auto; overscroll-behavior: contain; }
+/* Keep both lines inside each suggestion while the height-limited list scrolls. */
+.cr-description-suggestions { display: grid; grid-auto-rows: max-content; gap: 4px; min-inline-size: 0; max-block-size: 220px; overflow: auto; overscroll-behavior: contain; }
 .cr-description-suggestions button { display: flex; flex-direction: column; align-items: start; text-align: start; gap: 4px; padding: 12px; min-block-size: 48px; background: var(--cr-accent-soft); color: var(--cr-ink); border: 1px solid var(--cr-border); border-radius: 8px; overflow-wrap: anywhere; }
 .cr-description-suggestions button span { font-size: 13px; }
 .cr-dialog.dialog { overscroll-behavior: contain; max-block-size: calc(var(--dialog-viewport-height, 100dvh) - 48px); }
@@ -243,3 +244,52 @@ summary:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 3px
 }
 
 .cr-description-field { display: grid; gap: 12px; min-inline-size: 0; }
+
+/* Monthly expenses are a single reading surface; savings remain in Plan. */
+.cr-home-controls { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.cr-expense-summary { padding-block: 8px 20px; border-block-end: 1px solid var(--cr-border); }
+.cr-expense-summary h2 { margin: 0 0 8px; }
+.cr-expense-totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin: 24px 0 0; }
+.cr-expense-totals dt { color: var(--cr-ink-soft); font-size: 14px; }
+.cr-expense-totals dd { margin: 8px 0 0; font-size: clamp(20px, 2.5vw, 32px); font-weight: 700; overflow-wrap: anywhere; }
+.cr-expense-remaining { margin-block-start: 28px; }
+.cr-expense-remaining h3 { margin: 0 0 8px; font-size: 16px; }
+.cr-expense-remaining-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 8px 32px; margin: 16px 0 0; }
+.cr-expense-remaining-groups > div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; min-inline-size: 0; padding-block: 8px; }
+.cr-expense-remaining-groups dt { min-inline-size: 0; overflow-wrap: anywhere; }
+.cr-expense-remaining-groups dd { margin: 0; font-weight: 650; }
+.cr-category-remaining { display: block; margin-block-start: 6px; font-size: 12px; }
+.cr-expense-breakdown { margin-block: 24px; }
+.cr-expense-breakdown li { padding-block: 12px; border-block-end: 1px solid var(--cr-hairline); }
+.cr-account-direct-actions { display: flex; flex-wrap: wrap; gap: 8px; flex: 1 1 100%; padding-inline-start: 44px; }
+.cr-plan-purpose { display: grid; gap: 12px; }
+.cr-plan-purpose > h2 { margin-block: 20px 0; font-size: 22px; }
+.cr-plan-purpose > p { margin: 0 0 8px; }
+.cr-category-opening { display: block; font-size: 12px; padding-block: 8px; }
+.cr-activity-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-block: 20px; }
+.cr-activity-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-block-start: 8px; }
+.cr-activity-tag { display: inline-block; padding: 3px 8px; background: var(--cr-surface-soft, #eef4f0); color: var(--cr-ink); border-radius: 6px; font-size: 12px; font-weight: 500; }
+@media (max-width: 600px) {
+  .cr-expense-totals { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .cr-expense-totals > div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+  .cr-expense-totals dt { min-inline-size: 0; flex: 1; font-size: 14px; }
+  .cr-expense-totals dd { min-inline-size: 0; margin: 0; font-size: 19px; }
+  .cr-expense-totals dd .cr-amount { white-space: normal; overflow-wrap: anywhere; }
+  .cr-activity-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cr-account-direct-actions { padding-inline-start: 0; }
+  .cr-account-direct-actions .cr-button { flex: 1 1 auto; min-block-size: 44px; }
+}
+/* Account names and amounts keep their own row above the visible actions. */
+.cr-account-section .cr-account-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+.cr-account-section .cr-account-direct-actions { grid-column: 2 / -1; padding-inline-start: 0; }
+@media (max-width: 600px) {
+  .cr-account-section .cr-account-direct-actions { grid-column: 1 / -1; }
+}
+/* Native select intrinsic widths must not widen phone filter columns. */
+.cr-activity-toolbar .cr-field,
+.cr-activity-filters .cr-field { min-inline-size: 0; }
+.cr-activity-toolbar select,
+.cr-activity-filters select { inline-size: 100%; min-inline-size: 0; max-inline-size: 100%; text-overflow: ellipsis; }
+@media (max-width: 360px) {
+  .cr-account-section .cr-account-row { grid-template-columns: minmax(0, 1fr) auto; }
+}

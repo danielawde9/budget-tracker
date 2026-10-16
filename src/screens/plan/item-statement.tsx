@@ -96,9 +96,11 @@ export function ItemStatementDialog({ item, month, onClose, onRecord, purpose = 
               </ul>
             )}
             <div className="dialog-actions">
+              <button type="button" className="cr-button" onClick={() => onRecord({ kind: 'opening', target: 'category', itemId: item.itemId })}>{c('openingBalance')}</button>
               <button type="button" className="cr-button" onClick={() => onRecord({ kind: 'move', toItemId: item.itemId })}>{t('statement.moveIn')}</button>
               <button type="button" className="cr-button" onClick={() => onRecord({ kind: 'move', fromItemId: item.itemId })}>{t('statement.moveOut')}</button>
-              <button type="button" className="cr-button cr-button--primary" onClick={() => onRecord(purpose === 'investment' ? { kind: 'invest', action: 'contribute', itemId: item.itemId } : { kind: 'expense', itemId: item.itemId })}>{purpose === 'investment' ? t('record.kind.invest') : t('statement.spend')}</button>
+              {purpose === 'saving' ? <button type="button" className="cr-button" onClick={() => onRecord({ kind: 'invest', action: 'contribute', itemId: item.itemId })}>{t('record.kind.invest')}</button> : null}
+              <button type="button" className="cr-button cr-button--primary" onClick={() => onRecord({ kind: 'expense', itemId: item.itemId })}>{t('statement.spend')}</button>
             </div>
           </div>
         )}
