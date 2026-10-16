@@ -1,5 +1,6 @@
 import type { Locale } from '../lib/money.ts';
 import { GITHUB_URL, type PublicPage } from './site.ts';
+import { serviceArticles } from './service-content.ts';
 
 interface Section {
   readonly heading: string;
@@ -7,7 +8,7 @@ interface Section {
   readonly steps?: readonly string[];
   readonly links?: readonly { readonly label: string; readonly href: string }[];
 }
-interface Article {
+export interface Article {
   readonly title: string;
   readonly description: string;
   readonly intro: string;
@@ -15,6 +16,7 @@ interface Article {
 }
 
 export const articles: Record<PublicPage, Record<Locale, Article>> = {
+  ...serviceArticles,
   about: {
     en: {
       title: 'A budget for the money you actually have',

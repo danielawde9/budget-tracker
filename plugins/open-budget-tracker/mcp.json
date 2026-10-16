@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "budget_tracker": {
+      "type": "streamable-http",
+      "url": "https://mcp.openbudgetracker.app/mcp",
+      "extensions": {
+        "com.openai": {
+          "auth": {
+            "type": "oauth",
+            "client": { "mode": "dcr" },
+            "authorizationServerBase": "https://mcp.openbudgetracker.app",
+            "resource": "https://mcp.openbudgetracker.app/mcp",
+            "baseScopes": ["budget:read", "budget:write", "offline_access"]
+          }
+        }
+      }
+    }
+  }
+}

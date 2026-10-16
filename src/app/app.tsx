@@ -19,6 +19,7 @@ import { SettingsScreen } from '../screens/settings/settings.tsx';
 import { ErrorNotice } from '../ui/async.tsx';
 import { PageMetadata } from './page-metadata.tsx';
 import { AuthScreen } from './auth-screen.tsx';
+import { OAuthConsent } from './oauth-consent.tsx';
 import { InviteAcceptance } from './invite-acceptance.tsx';
 import { navigate, useRoute } from './router.ts';
 import { useSpaces } from './use-spaces.ts';
@@ -94,6 +95,10 @@ function SignedInGate({ client, api, onToggleLocale, recovery }: { readonly reco
   const { t } = useI18n();
   if (session.status === 'loading') return <main className="auth-page"><p role="status">{t('common.loading')}</p></main>;
   if (session.status === 'signed-out') return <><PageMetadata page={route.name === 'invite' ? 'invite' : 'public'} /><AuthScreen key={route.name === 'invite' ? route.token : 'public'} invitation={route.name === 'invite'} client={client} onToggleLocale={onToggleLocale} /></>;
+  if (window.location.pathname === '/oauth/consent') {
+    const connectionId = new URLSearchParams(window.location.search).get('connection_id') ?? '';
+    return <OAuthConsent key={`${session.session.user.id}:${connectionId}`} api={api} connectionId={connectionId} />;
+  }
   return <SpacesGate key={session.session.user.id} api={api} client={client} onToggleLocale={onToggleLocale} />;
 }
 

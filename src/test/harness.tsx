@@ -34,6 +34,7 @@ export type FakeApi = { [K in keyof BudgetApi]: ReturnType<typeof vi.fn> & Budge
 export function fakeApi(overrides: Partial<Record<keyof BudgetApi, (...args: never[]) => unknown>> = {}): FakeApi {
   const unstubbed = (name: string) => vi.fn(async () => { throw new Error(`${name} is not stubbed`); });
   const api: Record<string, unknown> = {
+    mcpConnections: vi.fn(async () => []),
     spaceInvitations: vi.fn(async () => []),
     mySpaces: vi.fn(async () => fixtures.spaces),
     clockToday: vi.fn(async () => space().today),

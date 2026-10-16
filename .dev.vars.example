@@ -1,0 +1,2 @@
+# Local MCP Worker only. Never put a secret/service-role key here.
+SUPABASE_PUBLISHABLE_KEY=replace-with-budget-publishable-key

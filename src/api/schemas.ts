@@ -9,6 +9,7 @@ const id = z.string().min(1);
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const nullableText = z.string().nullable();
 export const currency = z.enum(['USD', 'LBP']);
+export const mcpConnection = z.object({ clientId: z.string().min(1), name: z.string(), spaceId: z.uuid(), expiresAt: z.string() });
 
 export const walletStatement = z.object({ walletId: id, currency, on: isoDate, balance: minor });
 export type WalletStatement = z.infer<typeof walletStatement>;

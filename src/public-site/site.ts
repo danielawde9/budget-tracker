@@ -4,7 +4,7 @@ export const SITE_URL = 'https://openbudgetracker.app/';
 export const BRAND_NAME = 'Open Budget Tracker';
 export const BRAND_MARK_URL = '/brand/logo-mark.png';
 export const GITHUB_URL = 'https://github.com/danielawde9/budget-tracker';
-export const PUBLIC_PAGE_IDS = ['about', 'how-it-works', 'budgeting-usd-lbp', 'contribute'] as const;
+export const PUBLIC_PAGE_IDS = ['about', 'how-it-works', 'budgeting-usd-lbp', 'contribute', 'support', 'privacy', 'terms'] as const;
 export type PublicPage = typeof PUBLIC_PAGE_IDS[number];
 
 export const publicLabels: Record<PublicPage, Record<Locale, string>> = {
@@ -12,6 +12,9 @@ export const publicLabels: Record<PublicPage, Record<Locale, string>> = {
   'how-it-works': { en: 'How it works', ar: 'كيف يعمل' },
   'budgeting-usd-lbp': { en: 'USD & LBP guide', ar: 'دليل الدولار والليرة' },
   contribute: { en: 'Contribute', ar: 'ساهم معنا' },
+  support: { en: 'Support', ar: 'المساعدة' },
+  privacy: { en: 'Privacy', ar: 'الخصوصية' },
+  terms: { en: 'Terms', ar: 'شروط الاستخدام' },
 };
 
 export function publicPath(page: PublicPage, locale: Locale): string {

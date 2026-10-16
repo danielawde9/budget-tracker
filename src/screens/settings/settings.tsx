@@ -1,4 +1,5 @@
 import { Invitations } from './invitations.tsx';
+import { McpConnections } from './mcp-connections.tsx';
 import { useState, type FormEvent } from 'react';
 import { PageHeader } from '../../app/shell.tsx';
 import { useWorkspace } from '../../app/workspace.tsx';
@@ -33,6 +34,7 @@ export function SettingsScreen({ onToggleLocale, onSignOut }: { readonly onToggl
         <p><bdi>{space.name}</bdi> · {space.timezone} · {t('settings.planCurrency', { currency: space.planCurrency })}</p>
       </section>
       <Invitations />
+      <McpConnections />
       <section className="cr-settings-section"><h2>{c('help')}</h2><MoneyGlossary />{IS_DEMO ? <DemoTour /> : null}</section>
       <section className="cr-settings-section">
         <button type="button" className="cr-button cr-button--danger" onClick={onSignOut}>{t('settings.signOut')}</button>
