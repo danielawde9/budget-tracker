@@ -188,3 +188,14 @@ unchecked pending the owner's explicit confirmation, including agreement to
 OpenAI's terms/guidelines, applicable-law compliance, no transfers/trades, content
 and API rights, under-18 suitability, and no targeting/sharing under-13 data.
 No submission or publication has occurred at this point.
+
+### Submission confirmed
+
+The owner explicitly confirmed all six publisher attestations and authorized
+submission. On resuming, the browser already showed all attestations checked
+and submission processing, so no duplicate submission was attempted. The portal
+then returned to Plugins and reports **Open Budget Tracker: In review**, MCP
+**Configured**, publication **Not published**. Its row displays version **1.0.0**
+(the prepared ZIP manifest was 0.1.0). Evidence is saved locally in ignored
+`artifacts/chatgpt/submitted-in-review.png`. OpenAI review/approval remains
+external; no approval or public publication is claimed.
