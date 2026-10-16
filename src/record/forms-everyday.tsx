@@ -37,7 +37,7 @@ interface SetByPerson {
   readonly amount: boolean;
 }
 
-/** Expense: the item pays; a shortfall is covered now from Ready to assign or a chosen item. */
+/** Expense: the item pays, then its group flexible balance, then unassigned; a chosen item overrides automatic cover. */
 export function ExpenseForm({ catalog, onDone, onCancel, walletId: initialWallet, itemId: initialItem, bill }: FormProps & {
   readonly walletId?: string;
   readonly itemId?: string;
@@ -106,7 +106,7 @@ export function ExpenseForm({ catalog, onDone, onCancel, walletId: initialWallet
       {item && shortfall === 0n ? (
         <p className="cr-helper">{t('record.itemHolds', { name: name(item), amount: money(item.balances[currency], currency) })}</p>
       ) : null}
-      <CoverChoice catalog={catalog} itemId={itemId} currency={currency} amount={amount} value={coverFrom} onChange={setCoverFrom} />
+      <CoverChoice catalog={catalog} itemId={itemId} currency={currency} amount={amount} value={coverFrom} onChange={setCoverFrom} groupFirst />
       <DateField value={on} onChange={setOn} max={space.today} />
       {command.error ? <ErrorNotice error={command.error} /> : null}
       <FormActions submitLabel="record.saveExpense" pending={command.pending} onCancel={onCancel} disabled={amount === null || !item} />

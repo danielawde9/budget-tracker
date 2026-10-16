@@ -97,6 +97,7 @@ export const messages = {
   'error.BUDGET_EXCHANGE_INVALID': { en: 'Exchange converts between two wallets in different currencies.', ar: 'التصريف يحوّل بين محفظتين بعملتين مختلفتين.' },
   'error.BUDGET_OVERPAY': { en: 'That is more principal than is owed ({owed}).', ar: 'هذا أكثر من الأصل المستحق ({owed}).' },
   'error.BUDGET_NO_CHANGE': { en: 'The value is unchanged.', ar: 'القيمة لم تتغير.' },
+  'error.BUDGET_BALANCE_CHANGED': { en: 'The balance changed since you reviewed it. Reload balances and review the total before saving again.', ar: 'تغيّر الرصيد منذ مراجعته. أعد تحميل الأرصدة وراجع الإجمالي قبل الحفظ مجددًا.' },
   'error.BUDGET_ENTRY_NOT_FOUND': { en: 'That record no longer exists.', ar: 'هذا القيد لم يعد موجودًا.' },
   'error.BUDGET_ALREADY_REVERSED': { en: 'This record was already corrected.', ar: 'تم تصحيح هذا القيد سابقًا.' },
   'error.BUDGET_CANNOT_REVERSE': { en: 'A correction can’t be corrected again. Record a new entry instead.', ar: 'لا يمكن تصحيح التصحيح. سجّل قيدًا جديدًا بدلًا من ذلك.' },

@@ -73,6 +73,7 @@ export interface Move {
   readonly to: string | null;
   readonly currency: Currency;
   readonly amount: bigint;
+  readonly expectedBalance?: bigint;
 }
 
 export interface PlanItemInput {
@@ -172,10 +173,15 @@ export function createBudgetApi(client: RpcClient, recovery?: SaveRecoveryStore)
     assignMoney: (input: Command & { on: string; moves: readonly Move[]; opening?: boolean; memo?: string | null }) =>
       call('assign_money', {
         ...cmd(input), p_on: input.on, p_opening: input.opening ?? false, p_memo: input.memo ?? null,
-        p_moves: input.moves.map((move) => ({ from: move.from, to: move.to, currency: move.currency, amountMinor: move.amount })),
+        p_moves: input.moves.map((move) => ({ from: move.from, to: move.to, currency: move.currency, amountMinor: move.amount,
+          ...(move.expectedBalance === undefined ? {} : { expectedBalanceMinor: move.expectedBalance }),
+        })),
       }, s.entryResult),
-    recordWalletOpening: (input: Command & { walletId: string; amount: bigint; on: string }) =>
-      call('record_wallet_opening', { ...cmd(input), p_wallet: input.walletId, p_amount: input.amount, p_on: input.on }, s.entryResult),
+    recordWalletOpening: (input: Command & { walletId: string; amount: bigint; on: string; expectedBalance?: bigint }) =>
+      call(input.expectedBalance === undefined ? 'record_wallet_opening' : 'record_wallet_opening_checked', {
+        ...cmd(input), p_wallet: input.walletId, p_amount: input.amount, p_on: input.on,
+        ...(input.expectedBalance === undefined ? {} : { p_expected_balance: input.expectedBalance }),
+      }, s.entryResult),
     recordIncome: (input: Command & { walletId: string; amount: bigint; on: string; memo?: string | null; itemId?: string | null }) =>
       call('record_income', {
         ...cmd(input), p_wallet: input.walletId, p_amount: input.amount, p_on: input.on, p_memo: input.memo ?? null, p_item: input.itemId ?? null,
