@@ -14,7 +14,7 @@ it('seeds expense/savings purposes and keeps purpose changes versioned through r
   const read = async (month: string) => h.call<{ groups: { groupId: string; nameEn: string; purpose: string }[] }>('plan_month', { p_space: h.spaceId, p_month: month });
   const initial = await read(monthOf(h.today));
   expect(initial.groups.map(g => [g.nameEn, g.purpose])).toEqual([
-    ['Essentials', 'expense'], ['Guilt free', 'expense'], ['Short-term goals', 'expense'], ['Savings', 'savings'], ['Investments', 'savings'],
+    ['Essentials', 'expense'], ['Guilt free', 'expense'], ['Short-term goals', 'savings'], ['Savings', 'savings'], ['Investments', 'savings'],
   ]);
   const { payload, revision } = await currentPlan(db.pool, h.spaceId, monthOf(h.today));
   const savings = payload.groups.find(g => g.nameEn === 'Savings')!;
@@ -133,4 +133,38 @@ it('retains the latest month purpose when archiving a group that had a different
   await h.command('save_plan', { p_month: '2026-10-01', p_expected_revision: latest.revision, p_plan: latest.payload });
   const activity = await h.call<{ entries: { entryId: string }[] }>('activity_page', { p_space: h.spaceId, p_filter: { purpose: 'expense', kind: 'expense', month: '2026-10-01' } });
   expect(activity.entries.map(e => e.entryId)).toEqual([spent.entryId]);
+});
+
+
+it.each([
+  ['Short-term goals', null],
+  [' Short term goals ', null],
+  ['SHORT-TERM GOALS', null],
+  [null, 'الأهداف قصيرة المدى'],
+])('defaults a new short-term savings group from its name (%s / %s)', async (en, ar) => {
+  const result = await db.pool.query<{ purpose: string }>(
+    'select budget.default_group_purpose($1,$2) as purpose', [en, ar],
+  );
+  expect(result.rows).toEqual([{ purpose: 'savings' }]);
+});
+
+it('preserves an explicit short-term expense override, prior month and money through rename and legacy save', async () => {
+  const h = await setupSpace(db.pool);
+  await h.wallet('Bank', 'cash', 'USD', 100000n);
+  await h.command('assign_money', { p_on: h.today, p_moves: [{ from: null, to: await h.item('Goals money'), currency: 'USD', amountMinor: '90000' }] });
+  const month = monthOf(h.today); const nextMonth = monthOf(h.today, 1);
+  const before = await identity(db.pool, h.spaceId, 'USD'); const entries = await h.entryCount();
+  const current = await currentPlan(db.pool, h.spaceId, month);
+  const group = current.payload.groups.find(g => g.nameEn === 'Short-term goals')!;
+  Object.assign(group, { purpose: 'expense' });
+  await h.command('save_plan', { p_month: nextMonth, p_expected_revision: current.revision, p_plan: current.payload });
+  const renamed = await currentPlan(db.pool, h.spaceId, nextMonth);
+  renamed.payload.groups.find(g => g.groupId === group.groupId)!.nameEn = 'Short term goals';
+  await h.command('save_plan', { p_month: nextMonth, p_expected_revision: renamed.revision, p_plan: renamed.payload });
+  const read = (on: string) => h.call<{ groups: { groupId: string; purpose: string }[] }>('plan_month', { p_space: h.spaceId, p_month: on });
+  expect((await read(month)).groups.find(g => g.groupId === group.groupId)?.purpose).toBe('savings');
+  expect((await read(nextMonth)).groups.find(g => g.groupId === group.groupId)?.purpose).toBe('expense');
+  expect(await identity(db.pool, h.spaceId, 'USD')).toEqual(before);
+  expect(await h.itemBalance('Goals money')).toBe(90000n);
+  expect(await h.entryCount()).toBe(entries);
 });

@@ -29,6 +29,37 @@ export function expenseEntries(entries: readonly Entry[], plan: PlanMonth): Entr
   return entries.map(entry => ({ ...entry, items: entry.items.filter(line => line.kind !== 'ready' && line.kind !== 'reserve' && (line.purpose ? line.purpose === 'expense' : ids.has(line.itemId))) }));
 }
 
+export interface ExpenseGroupRow {
+  readonly groupId: string;
+  readonly nameEn: string | null;
+  readonly nameAr: string | null;
+  readonly planned: bigint;
+  readonly spent: bigint;
+  /** No comparison is made between plan currency and another currency. */
+  readonly remaining: bigint | null;
+}
+
+/** Historical membership wins; an expense belongs to exactly one group. */
+export function expenseGroupRows(plan: PlanMonth, entries: readonly Entry[], currency: Currency, month: string, today: string): ExpenseGroupRow[] {
+  const groups = expenseGroups(plan);
+  const currentGroup = new Map(groups.flatMap(group => group.expenseItems.map(item => [item.itemId, group.groupId] as const)));
+  const rows = new Map(groups.map(group => [group.groupId, { groupId: group.groupId, nameEn: group.nameEn, nameAr: group.nameAr, planned: group.planned, spent: 0n }]));
+  for (const entry of expenseEntries(entries, plan)) {
+    if (!inMonth(entry, month, today)) continue;
+    for (const line of entry.items) {
+      if (!isSpendingLine(line, currency)) continue;
+      const groupId = line.groupId ?? currentGroup.get(line.itemId) ?? 'other-expenses';
+      let row = rows.get(groupId);
+      if (!row) {
+        row = { groupId, nameEn: line.groupNameEn ?? (line.groupId ? line.nameEn : 'Other expenses'), nameAr: line.groupNameAr ?? (line.groupId ? line.nameAr : 'مصروفات أخرى'), planned: 0n, spent: 0n };
+        rows.set(groupId, row);
+      }
+      row.spent -= line.amount;
+    }
+  }
+  return [...rows.values()].map(row => ({ ...row, remaining: currency === plan.planCurrency ? row.planned - row.spent : null }));
+}
+
 /** Load the complete month: a first page is not a monthly total. */
 export async function loadMonthActivity(api: Pick<BudgetApi, 'activity'>, spaceId: string, month: string): Promise<Entry[]> {
   const entries = new Map<string, Entry>();
@@ -51,9 +82,9 @@ export async function loadMonthActivity(api: Pick<BudgetApi, 'activity'>, spaceI
 export function spendingSeries(entries: readonly Entry[], currency: Currency, month: string, today: string) {
   const daily = new Map<string, bigint>();
   for (const entry of entries) {
-    if (entry.occurredOn < month || entry.occurredOn > today || entry.occurredOn.slice(0, 7) !== month.slice(0, 7)) continue;
+    if (!inMonth(entry, month, today)) continue;
     for (const line of entry.items) {
-      if (line.currency !== currency || line.kind === 'ready' || !['spend', 'refund', 'interest', 'fee'].includes(line.flow)) continue;
+      if (!isSpendingLine(line, currency)) continue;
       daily.set(entry.occurredOn, (daily.get(entry.occurredOn) ?? 0n) - line.amount);
     }
   }
@@ -64,6 +95,14 @@ export function spendingSeries(entries: readonly Entry[], currency: Currency, mo
     points.push({ on, amount });
   }
   return points;
+}
+
+function inMonth(entry: Entry, month: string, today: string) {
+  return entry.occurredOn >= month && entry.occurredOn <= today && entry.occurredOn.slice(0, 7) === month.slice(0, 7);
+}
+
+function isSpendingLine(line: Entry['items'][number], currency: Currency) {
+  return line.currency === currency && line.kind !== 'ready' && ['spend', 'refund', 'interest', 'fee'].includes(line.flow);
 }
 
 /** Saving and moving principal are allocations, not a spending allowance. */
