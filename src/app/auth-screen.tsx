@@ -10,14 +10,15 @@ import { BRAND_MARK_URL } from '../public-site/site.ts';
 
 const DemoSignIn = IS_DEMO ? lazy(() => import('../preview/demo-sign-in.tsx')) : null;
 
-export function AuthScreen({ client, onToggleLocale }: { readonly client: SupabaseClient; readonly onToggleLocale: () => void }) {
+export function AuthScreen({ client, onToggleLocale, invitation = false }: { readonly client: SupabaseClient; readonly onToggleLocale: () => void; readonly invitation?: boolean }) {
   const { t, locale, dir } = useI18n();
-  const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-in');
+  const [mode, setMode] = useState<'sign-in' | 'sign-up'>(invitation ? 'sign-up' : 'sign-in');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmEmail, setConfirmEmail] = useState(false);
   const signingUp = mode === 'sign-up';
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -25,11 +26,13 @@ export function AuthScreen({ client, onToggleLocale }: { readonly client: Supaba
     if (pending) return;
     setPending(true);
     setError(null);
+    setConfirmEmail(false);
     try {
       const result = signingUp
         ? await client.auth.signUp({ email, password })
         : await client.auth.signInWithPassword({ email, password });
       if (result.error) setError(signingUp ? t('auth.signUpFailed') : t('auth.signInFailed'));
+      else if (invitation && signingUp && !result.data.session) setConfirmEmail(true);
     } catch {
       setError(signingUp ? t('auth.signUpFailed') : t('auth.signInFailed'));
     } finally {
@@ -52,10 +55,11 @@ export function AuthScreen({ client, onToggleLocale }: { readonly client: Supaba
         </aside>
         <div className="auth-content">
           <div className="auth-intro">
-            <h1>{signingUp ? t('auth.createTitle') : t('auth.signInTitle')}</h1>
+            <h1>{invitation ? t('invite.authTitle') : signingUp ? t('auth.createTitle') : t('auth.signInTitle')}</h1>
+            {invitation ? <p className="cr-helper" id="invite-auth-help">{t('invite.authHelp')}</p> : null}
           </div>
           <form className="auth-form" onSubmit={(event) => void submit(event)}>
-            <label>{t('auth.email')}<input type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+            <label>{t('auth.email')}<input name="email" type="email" autoComplete="username" spellCheck={false} required aria-describedby={invitation ? 'invite-auth-help' : undefined} value={email} onChange={(event) => { setEmail(event.target.value); setConfirmEmail(false); }} /></label>
             <div className="auth-password-field">
               <label htmlFor="auth-password">{t('auth.password')}</label>
               <div className="auth-password-input">
@@ -65,12 +69,13 @@ export function AuthScreen({ client, onToggleLocale }: { readonly client: Supaba
               {signingUp ? <p id="auth-password-hint" className="cr-helper">{setupCopy(locale, 'passwordHint')}</p> : null}
             </div>
             {error ? <div className="error-notice" role="alert">{error}</div> : null}
+            {confirmEmail ? <p className="cr-explain" role="status">{t('invite.confirmEmail')}</p> : null}
             <button type="submit" className="cr-button cr-button--primary cr-button--block" disabled={pending}>
-              {signingUp ? t('auth.create') : t('auth.signIn')}
+              {invitation ? signingUp ? t('invite.register') : t('invite.signIn') : signingUp ? t('auth.create') : t('auth.signIn')}
             </button>
             <div className="auth-alternative">
               <span>{signingUp ? t('auth.haveAccount') : t('auth.noAccount')}</span>
-              <button type="button" className="text-button" disabled={pending} onClick={() => { setMode(signingUp ? 'sign-in' : 'sign-up'); setError(null); }}>
+              <button type="button" className="text-button" disabled={pending} onClick={() => { setMode(signingUp ? 'sign-in' : 'sign-up'); setError(null); setConfirmEmail(false); }}>
                 {signingUp ? t('auth.signIn') : t('auth.create')}
               </button>
             </div>

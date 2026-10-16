@@ -93,7 +93,7 @@ function SignedInGate({ client, api, onToggleLocale, recovery }: { readonly reco
   const route = useRoute();
   const { t } = useI18n();
   if (session.status === 'loading') return <main className="auth-page"><p role="status">{t('common.loading')}</p></main>;
-  if (session.status === 'signed-out') return <><PageMetadata page={route.name === 'invite' ? 'invite' : 'public'} /><AuthScreen client={client} onToggleLocale={onToggleLocale} /></>;
+  if (session.status === 'signed-out') return <><PageMetadata page={route.name === 'invite' ? 'invite' : 'public'} /><AuthScreen key={route.name === 'invite' ? route.token : 'public'} invitation={route.name === 'invite'} client={client} onToggleLocale={onToggleLocale} /></>;
   return <SpacesGate key={session.session.user.id} api={api} client={client} onToggleLocale={onToggleLocale} />;
 }
 

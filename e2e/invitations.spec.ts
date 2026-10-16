@@ -3,46 +3,63 @@ import { localStackUp, newUser, storyUser, signIn } from './support.ts';
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'node:fs';
 
-test('owner creates an invite in Settings and recipient joins the same space', async ({ page, browser }, testInfo) => {
-  test.skip(!(await localStackUp()), 'Start the local preview stack first.');
-  const owner = await storyUser();
-  const recipient = newUser();
-  const env = readFileSync('.env.demo.local', 'utf8');
-  const value = (name: string) => new RegExp(`^${name}=(.*)$`, 'm').exec(env)?.[1]?.trim() ?? '';
-  const client = createClient(value('VITE_SUPABASE_URL'), value('VITE_SUPABASE_ANON_KEY'), { auth: { persistSession: false } });
-  const signup = await client.auth.signUp(recipient);
-  expect(signup.error).toBeNull();
-  await signIn(page, owner);
-  await page.getByRole('link', { name: 'Settings', exact: true }).first().click();
-  await expect(page.getByRole('heading', { name: 'Invite a member' })).toBeVisible();
-  await page.getByLabel('Recipient email').fill(recipient.email);
-  await page.getByRole('button', { name: 'Create invite link' }).click();
-  const url = await page.getByLabel('Invite link').inputValue();
-  expect(url).toMatch(/#\/invite\/[a-f0-9]{64}$/);
-  expect(await page.locator('.cr-brand').evaluate(element => getComputedStyle(element).fontSize)).toBe('14px');
-  expect(await page.locator('.cr-brand-name').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
-  await page.screenshot({ path: testInfo.outputPath('settings-desktop.png'), fullPage: true });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByLabel('Recipient email')).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: testInfo.outputPath('settings-mobile.png'), fullPage: true });
-  await page.getByRole('button', { name: 'العربية', exact: true }).first().click();
-  await expect(page.getByRole('heading', { name: 'دعوة عضو' })).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: testInfo.outputPath('settings-arabic-mobile.png'), fullPage: true });
+for (const entry of ['registration', 'sign-in'] as const) {
+  test(`owner creates an invite and recipient joins through ${entry}`, async ({ page, browser }, testInfo) => {
+    test.skip(!(await localStackUp()), 'Start the local preview stack first.');
+    const viewport = page.viewportSize();
+    const owner = await storyUser();
+    const recipient = newUser();
+    const env = readFileSync('.env.demo.local', 'utf8');
+    const value = (name: string) => new RegExp(`^${name}=(.*)$`, 'm').exec(env)?.[1]?.trim() ?? '';
+    const client = createClient(value('VITE_SUPABASE_URL'), value('VITE_SUPABASE_ANON_KEY'), { auth: { persistSession: false } });
+    if (entry === 'sign-in') {
+      const signup = await client.auth.signUp(recipient);
+      expect(signup.error).toBeNull();
+    }
+    await signIn(page, owner);
+    await page.getByRole('link', { name: 'Settings', exact: true }).first().click();
+    await expect(page.getByRole('heading', { name: 'Invite a member' })).toBeVisible();
+    await page.getByLabel('Recipient email').fill(recipient.email);
+    await page.getByRole('button', { name: 'Create invite link' }).click();
+    const url = await page.getByLabel('Invite link').inputValue();
+    expect(url).toMatch(/#\/invite\/[a-f0-9]{64}$/);
+    expect(await page.locator('.cr-brand').evaluate(element => getComputedStyle(element).fontSize)).toBe('14px');
+    expect(await page.locator('.cr-brand-name').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath('settings-desktop.png'), fullPage: true });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByLabel('Recipient email')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath('settings-mobile.png'), fullPage: true });
+    await page.getByRole('button', { name: 'العربية', exact: true }).first().click();
+    await expect(page.getByRole('heading', { name: 'دعوة عضو' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath('settings-arabic-mobile.png'), fullPage: true });
 
-  const context = await browser.newContext();
-  const guest = await context.newPage();
-  try {
-    await guest.goto(url);
-    await expect(guest.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex, nofollow');
-    await guest.getByLabel('Email', { exact: true }).fill(recipient.email);
-    await guest.getByLabel('Password', { exact: true }).fill(recipient.password);
-    await guest.getByRole('button', { name: 'Sign in', exact: true }).click();
-    await guest.getByRole('button', { name: 'Accept invitation' }).click();
-    await expect(guest.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
-    await guest.getByRole('link', { name: 'Settings', exact: true }).first().click();
-    await expect(guest.getByText('Only the space owner can invite members.')).toBeVisible();
-    await expect(guest.getByLabel('Recipient email')).toHaveCount(0);
-  } finally { await context.close(); await client.auth.signOut(); }
-});
+    const context = await browser.newContext({ viewport });
+    const guest = await context.newPage();
+    try {
+      await guest.goto(url);
+      await expect(guest.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex, nofollow');
+      await expect(guest.getByRole('heading', { name: 'You’ve been invited to a shared budget' })).toBeVisible();
+      await expect(guest.getByRole('button', { name: 'Create account to continue' })).toBeVisible();
+      expect(await guest.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await guest.screenshot({ path: testInfo.outputPath('invitation-registration-en.png'), fullPage: true });
+      await guest.getByRole('button', { name: 'العربية', exact: true }).click();
+      await expect(guest.getByRole('heading', { name: 'تمت دعوتك إلى ميزانية مشتركة' })).toBeVisible();
+      expect(await guest.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await guest.screenshot({ path: testInfo.outputPath('invitation-registration-ar.png'), fullPage: true });
+      await guest.getByRole('button', { name: 'English', exact: true }).click();
+      if (entry === 'sign-in') await guest.getByRole('button', { name: 'Sign in', exact: true }).click();
+      await guest.getByLabel('Email', { exact: true }).fill(recipient.email);
+      await guest.getByLabel('Password', { exact: true }).fill(recipient.password);
+      await guest.getByRole('button', { name: entry === 'registration' ? 'Create account to continue' : 'Sign in to continue', exact: true }).click();
+      await expect(guest.getByRole('heading', { name: 'Join a shared budget' })).toBeVisible();
+      expect(new URL(guest.url()).hash).toBe(new URL(url).hash);
+      await guest.getByRole('button', { name: 'Accept invitation' }).click();
+      await expect(guest.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+      await guest.getByRole('link', { name: 'Settings', exact: true }).first().click();
+      await expect(guest.getByText('Only the space owner can invite members.')).toBeVisible();
+      await expect(guest.getByLabel('Recipient email')).toHaveCount(0);
+    } finally { await context.close(); await client.auth.signOut(); }
+  });
+}
