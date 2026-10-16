@@ -3,13 +3,30 @@ import type { ActivityCursor, Entry, PlanMonth } from '../../api/schemas.ts';
 import type { Currency } from '../../lib/money.ts';
 import { addDays } from '../describe.ts';
 
+/** Only spendable items in expense groups belong in the monthly allowance. */
+export function expenseGroups(plan: PlanMonth) {
+  return plan.groups.filter(group => group.purpose === 'expense').map(group => {
+    const items = [...group.items, ...(group.flex ? [group.flex] : [])].filter(isExpenseItem);
+    return { ...group, expenseItems: items, planned: items.reduce((sum, item) => sum + item.planned, 0n), spent: items.reduce((sum, item) => sum + item.spent, 0n) };
+  });
+}
+
+function isExpenseItem(item: PlanMonth['groups'][number]['items'][number]) {
+  return item.kind !== 'ready' && item.kind !== 'reserve';
+}
+
 export function dashboardTotals(plan: PlanMonth, currency: Currency) {
-  const items = plan.groups.flatMap(group => [...group.items, ...(group.flex ? [group.flex] : [])]);
-  const sum = (kinds: string[]) => items.filter(item => kinds.includes(item.kind)).reduce((total, item) => total + item.balances[currency], 0n);
+  const groups = expenseGroups(plan);
   return {
-    available: sum(['spending', 'flex']), reserves: sum(['reserve', 'loan_payment']), savings: sum(['goal']),
-    spent: currency === plan.planCurrency ? plan.groups.reduce((total, group) => total + group.spent, 0n) : null,
+    available: groups.flatMap(group => group.expenseItems).reduce((total, item) => total + item.balances[currency], 0n),
+    spent: currency === plan.planCurrency ? groups.reduce((total, group) => total + group.spent, 0n) : null,
   };
+}
+
+/** Net expense lines only; allocation, investment principal and savings stay separate. */
+export function expenseEntries(entries: readonly Entry[], plan: PlanMonth): Entry[] {
+  const ids = new Set(expenseGroups(plan).flatMap(group => group.expenseItems.map(item => item.itemId)));
+  return entries.map(entry => ({ ...entry, items: entry.items.filter(line => line.kind !== 'ready' && line.kind !== 'reserve' && (line.purpose ? line.purpose === 'expense' : ids.has(line.itemId))) }));
 }
 
 /** Load the complete month: a first page is not a monthly total. */
@@ -51,7 +68,5 @@ export function spendingSeries(entries: readonly Entry[], currency: Currency, mo
 
 /** Saving and moving principal are allocations, not a spending allowance. */
 export function plannedSpending(plan: PlanMonth): bigint {
-  return plan.groups.flatMap(group => [...group.items, ...(group.flex ? [group.flex] : [])])
-    .filter(item => item.kind === 'spending' || item.kind === 'flex')
-    .reduce((sum, item) => sum + item.planned, 0n);
+  return expenseGroups(plan).reduce((sum, group) => sum + group.planned, 0n);
 }

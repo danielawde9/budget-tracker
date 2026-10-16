@@ -23,10 +23,8 @@ it('distinguishes wallet cash from category assignments when Home is over-assign
   renderWithWorkspace(<HomeScreen onRecord={onRecord} />, fakeApi({ overview: async () => overview }));
   await user.click(await screen.findByRole('button', { name: 'Fix over-assignment' }));
   expect(onRecord).toHaveBeenCalledWith({ kind: 'move', currency: overview.planCurrency });
-  const label = await screen.findByText('In your wallets');
-  expect(label.closest('article')).toHaveTextContent('$8,712.60');
-  expect(screen.queryByText('Available to spend')).not.toBeInTheDocument();
-  expect(screen.getByText('Assigned to spending')).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: 'Monthly expenses' })).toBeInTheDocument();
+  expect(screen.queryByText('Assigned to spending')).not.toBeInTheDocument();
 });
 
 it('summarizes active cash wallets separately by currency without investments or archived balances', async () => {

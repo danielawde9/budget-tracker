@@ -87,6 +87,7 @@ export interface PlanItemInput {
 }
 
 export interface PlanGroupInput {
+  readonly purpose?: 'expense' | 'savings';
   readonly groupId: string | null;
   readonly nameEn: string | null;
   readonly nameAr: string | null;
@@ -173,6 +174,8 @@ export function createBudgetApi(client: RpcClient, recovery?: SaveRecoveryStore)
         ...cmd(input), p_on: input.on, p_opening: input.opening ?? false, p_memo: input.memo ?? null,
         p_moves: input.moves.map((move) => ({ from: move.from, to: move.to, currency: move.currency, amountMinor: move.amount })),
       }, s.entryResult),
+    recordWalletOpening: (input: Command & { walletId: string; amount: bigint; on: string }) =>
+      call('record_wallet_opening', { ...cmd(input), p_wallet: input.walletId, p_amount: input.amount, p_on: input.on }, s.entryResult),
     recordIncome: (input: Command & { walletId: string; amount: bigint; on: string; memo?: string | null; itemId?: string | null }) =>
       call('record_income', {
         ...cmd(input), p_wallet: input.walletId, p_amount: input.amount, p_on: input.on, p_memo: input.memo ?? null, p_item: input.itemId ?? null,
@@ -225,7 +228,7 @@ export function createBudgetApi(client: RpcClient, recovery?: SaveRecoveryStore)
           archiveItemIds: input.plan.archiveItemIds,
           archiveGroupIds: input.plan.archiveGroupIds,
           groups: input.plan.groups.map((group) => ({
-            groupId: group.groupId, nameEn: group.nameEn, nameAr: group.nameAr, percentBps: group.percentBps,
+            groupId: group.groupId, ...(group.purpose ? { purpose: group.purpose } : {}), nameEn: group.nameEn, nameAr: group.nameAr, percentBps: group.percentBps,
             items: group.items.map((item) => ({
               itemId: item.itemId, kind: item.kind, nameEn: item.nameEn, nameAr: item.nameAr, monthlyMinor: item.monthly,
               targetMinor: item.target, targetDate: item.targetDate, walletId: item.walletId,

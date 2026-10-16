@@ -217,7 +217,7 @@ input[type="checkbox"]:checked::after { opacity: 1; }
   border: 1px solid var(--cr-border, #dde4e1);
 }
 .locale-button:hover, .button-secondary:hover { background: var(--cr-surface-sunken, #ecefee); }
-.text-button { min-height: 44px; background: transparent; color: var(--cr-accent-strong, #0d5d48); padding-inline: 5px; border: 0; }
+.text-button { min-height: 44px; background: transparent; color: var(--cr-accent-strong, #0d5d48); padding: 8px 12px; border: 0; }
 .text-button:hover { background: var(--cr-accent-soft, #e2f2ec); }
 .danger-button { background: var(--cr-danger, #c4372b); border-color: var(--cr-danger, #c4372b); color: #ffffff; }
 .danger-button:hover { background: #a32b21; }

@@ -1,3 +1,4 @@
+import { useUiCopy } from '../../lib/ui-copy.ts';
 import { usePlanCopy } from './plan-copy.ts';
 import { MoneyHelp } from '../../ui/money-help.tsx';
 import './plan-redesign.css';
@@ -31,6 +32,7 @@ export function ItemStatementDialog({ item, month, onClose, onRecord }: {
   readonly onRecord: (intent: RecordIntent) => void;
 }) {
   const copy = usePlanCopy();
+  const c = useUiCopy();
   const i18n = useI18n();
   const { t, name, date } = i18n;
   const { api, space, version } = useWorkspace();
@@ -90,6 +92,7 @@ export function ItemStatementDialog({ item, month, onClose, onRecord }: {
               </ul>
             )}
             <div className="dialog-actions">
+              <button type="button" className="cr-button" onClick={() => onRecord({ kind: 'opening', target: 'category', itemId: item.itemId })}>{c('openingBalance')}</button>
               <button type="button" className="cr-button" onClick={() => onRecord({ kind: 'move', toItemId: item.itemId })}>{t('statement.moveIn')}</button>
               <button type="button" className="cr-button" onClick={() => onRecord({ kind: 'move', fromItemId: item.itemId })}>{t('statement.moveOut')}</button>
               <button type="button" className="cr-button cr-button--primary" onClick={() => onRecord({ kind: 'expense', itemId: item.itemId })}>{t('statement.spend')}</button>

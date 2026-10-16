@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { WalletStatementDialog } from './wallet-statement.tsx';
-import { ViewportDisclosure } from '../../ui/viewport-disclosure.tsx';
-import { MoreHorizontal, Wallet, TrendingUp, HandCoins } from 'lucide-react';
+import { Wallet, TrendingUp, HandCoins } from 'lucide-react';
 import { useUiCopy } from '../../lib/ui-copy.ts';
 import type { AccountWallet } from '../../api/schemas.ts';
 import { PageHeader } from '../../app/shell.tsx';
@@ -21,6 +20,7 @@ export function AccountsScreen({ onRecord }: { readonly onRecord: (intent: Recor
       <PageHeader
         title={t('nav.accounts')}
         subtitle={t('accounts.intro')}
+        actions={<button type="button" className="cr-button" onClick={() => onRecord({ kind: 'opening' })}>{c('openingBalance')}</button>}
       />
       <LoadState loaded={catalog}>
         {({ accounts }) => (
@@ -28,6 +28,7 @@ export function AccountsScreen({ onRecord }: { readonly onRecord: (intent: Recor
             <WalletBalances wallets={activeWallets(accounts, 'cash')} onAdd={() => onRecord({ kind: 'wallet' })} />
             <WalletList titleKey="accounts.cashTitle" introKey="accounts.cashIntro" wallets={activeWallets(accounts, 'cash')} onAdd={() => onRecord({ kind: 'wallet', walletKind: 'cash' })}
               actions={(wallet) => [
+                { label: c('openingBalance'), run: () => onRecord({ kind: 'opening', walletId: wallet.id }) },
                 { label: t('statement.check'), run: () => setStatementWallet(wallet) },
                 { label: t('record.kind.expense'), run: () => onRecord({ kind: 'expense', walletId: wallet.id }) },
                 { label: t('record.kind.income'), run: () => onRecord({ kind: 'income', walletId: wallet.id }) },
@@ -35,12 +36,13 @@ export function AccountsScreen({ onRecord }: { readonly onRecord: (intent: Recor
               ]} />
             <WalletList titleKey="accounts.investTitle" introKey="accounts.investIntro" wallets={activeWallets(accounts, 'investment')} onAdd={() => onRecord({ kind: 'wallet', walletKind: 'investment' })}
               actions={(wallet) => [
+                { label: c('openingBalance'), run: () => onRecord({ kind: 'opening', walletId: wallet.id }) },
                 { label: t('invest.contribute'), run: () => onRecord({ kind: 'invest', action: 'contribute', investmentId: wallet.id }) },
                 { label: t('invest.value'), run: () => onRecord({ kind: 'invest', action: 'value', investmentId: wallet.id }) },
                 { label: t('invest.withdraw'), run: () => onRecord({ kind: 'invest', action: 'withdraw', investmentId: wallet.id }) },
               ]} />
             <WalletList titleKey="accounts.loanTitle" introKey="accounts.loanIntro" wallets={activeWallets(accounts, 'loan')} onAdd={() => onRecord({ kind: 'wallet', walletKind: 'loan' })}
-              actions={(wallet) => wallet.loanDirection === 'i_owe'
+              actions={(wallet) => [{ label: c('openingBalance'), run: () => onRecord({ kind: 'opening', walletId: wallet.id }) }, ...(wallet.loanDirection === 'i_owe'
                 ? [
                     { label: t('loan.repay'), run: () => onRecord({ kind: 'loan', action: 'repay', loanId: wallet.id }) },
                     { label: t('loan.borrow'), run: () => onRecord({ kind: 'loan', action: 'borrow', loanId: wallet.id }) },
@@ -48,7 +50,7 @@ export function AccountsScreen({ onRecord }: { readonly onRecord: (intent: Recor
                 : [
                     { label: t('loan.collect'), run: () => onRecord({ kind: 'loan', action: 'collect', loanId: wallet.id }) },
                     { label: t('loan.lend'), run: () => onRecord({ kind: 'loan', action: 'lend', loanId: wallet.id }) },
-                  ]} />
+                  ])]} />
             <details className="cr-inline-disclosure"><summary>{c('spendableHelp')}</summary><p className="cr-helper">{t('accounts.spendableHelp')}</p></details>
           </div>
         )}
@@ -98,9 +100,9 @@ function WalletList({ titleKey, introKey, wallets, onAdd, actions }: {
                 <WalletFacts wallet={wallet} />
               </div>
               <Amount minor={wallet.loanDirection === 'i_owe' ? -wallet.balance : wallet.balance} currency={wallet.currency} />
-              <ViewportDisclosure className="cr-account-menu" panelClassName="cr-account-actions" summary={<><MoreHorizontal size={20} aria-hidden /><span className="cr-visually-hidden">{c('accountActions')}</span></>}>
-                {actions(wallet).map((action) => <button key={action.label} type="button" className="cr-button cr-button--sm" onClick={(event) => { const menu = event.currentTarget.closest('details'); if (menu) { menu.open = false; menu.querySelector('summary')?.focus(); } action.run(); }}>{action.label}</button>)}
-              </ViewportDisclosure>
+              <div className="cr-account-direct-actions" role="group" aria-label={`${c('accountActions')} · ${wallet.name}`}>
+                {actions(wallet).map(action => <button key={action.label} type="button" className="cr-button cr-button--sm" onClick={action.run}>{action.label}</button>)}
+              </div>
             </li>
           ))}
         </ul>

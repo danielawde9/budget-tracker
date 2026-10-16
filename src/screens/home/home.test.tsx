@@ -4,61 +4,42 @@ import { fakeApi, fixtures, renderWithWorkspace } from '../../test/harness.tsx';
 import { HomeScreen } from './home.tsx';
 
 describe('Home', () => {
-  it('shows cash held = set aside + ready to assign, straight from the database', async () => {
+  it('compares monthly expenses with their plan and omits assignment details', async () => {
     renderWithWorkspace(<HomeScreen onRecord={vi.fn()} />, fakeApi());
-    const money = await screen.findByRole('region', { name: 'Your money' });
-    expect(within(money).getByText('$8,712.60')).toBeInTheDocument();
-    expect(within(money).getByText('$7,392.60')).toBeInTheDocument();
-    expect(within(money).getAllByText('$1,320.00').length).toBeGreaterThanOrEqual(2);
-    expect(within(money).getByText('$16,225.60')).toBeInTheDocument();
+    const summary = await screen.findByRole('region', { name: 'Monthly expenses' });
+    expect(within(summary).getByText('$3,138.00')).toBeInTheDocument();
+    expect(screen.queryByText('Money breakdown')).not.toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Where your money was spent' })).toBeInTheDocument();
+    const progress = screen.getByRole('region', { name: 'Expenses by category' });
+    expect(within(progress).getAllByRole('progressbar')).toHaveLength(3);
+    expect(within(progress).queryByText('Savings')).not.toBeInTheDocument();
   });
 
-  it('keeps LBP in its own pile and never adds it to USD', async () => {
+  it('keeps LBP expenses separate and does not invent a plan in another currency', async () => {
     const user = userEvent.setup();
     renderWithWorkspace(<HomeScreen onRecord={vi.fn()} />, fakeApi());
-    const money = await screen.findByRole('region', { name: 'Your money' });
-    expect(within(money).queryByText(/2,685,000/)).not.toBeInTheDocument();
-    await user.click(within(money).getByRole('button', { name: 'LBP' }));
-    expect(within(money).getAllByText('LBP 2,685,000').length).toBeGreaterThanOrEqual(2);
-    expect(within(money).getByText(/≈ \$30\.00/)).toBeInTheDocument();
-    expect(within(money).queryByText('$8,712.60')).not.toBeInTheDocument();
+    await screen.findByRole('region', { name: 'Monthly expenses' });
+    await user.click(screen.getByRole('button', { name: 'LBP' }));
+    const summary = screen.getByRole('region', { name: 'Monthly expenses' });
+    expect(within(summary).queryByText('$3,138.00')).not.toBeInTheDocument();
+    expect(within(summary).getByText('Category progress is shown in your plan currency.')).toBeInTheDocument();
+    expect(within(summary).getAllByText('—')).toHaveLength(2);
   });
 
-  it('lists this month’s bills with their coverage and a pay action', async () => {
+  it('lists bills with coverage and a pay action', async () => {
     const onRecord = vi.fn();
-    const user = userEvent.setup();
     renderWithWorkspace(<HomeScreen onRecord={onRecord} />, fakeApi());
     const bills = await screen.findByRole('region', { name: 'Upcoming bills' });
-    const internet = (await within(bills).findByText('Internet')).closest('li');
-    if (!internet) throw new Error('no Internet row');
+    const internet = (await within(bills).findByText('Internet')).closest('li')!;
     expect(within(internet).getByText('Covered')).toBeInTheDocument();
-    await user.click(within(internet).getByRole('button', { name: 'Pay' }));
+    await userEvent.click(within(internet).getByRole('button', { name: 'Pay' }));
     expect(onRecord).toHaveBeenCalledWith(expect.objectContaining({ kind: 'expense', bill: expect.objectContaining({ name: 'Internet', amount: 4500n }) }));
   });
-});
 
-
-it('replaces the zero assignment hero with real spending and allocation charts', async () => {
-  const api = fakeApi({
-    overview: async () => ({ ...fixtures.overview, currencies: fixtures.overview.currencies.map(c => ({ ...c, ready: 0n })) }),
-    activity: async () => ({ ...fixtures.activity, next: null }),
+  it('shows an empty expense state when every group is savings', async () => {
+    renderWithWorkspace(<HomeScreen onRecord={vi.fn()} />, fakeApi({ planMonth: async () => ({ ...fixtures.plan, groups: fixtures.plan.groups.map(group => ({ ...group, purpose: 'savings' })) }) }));
+    const summary = await screen.findByRole('region', { name: 'Monthly expenses' });
+    expect(within(summary).getAllByText('$0.00')).toHaveLength(3);
+    expect(screen.queryAllByRole('progressbar')).toHaveLength(0);
   });
-  renderWithWorkspace(<HomeScreen onRecord={vi.fn()} />, api);
-  const chart = await screen.findByRole('img', { name: /Spending this month/ });
-  expect(chart).toBeInTheDocument();
-  expect(screen.getByRole('heading', { name: 'Where your money is assigned' })).toBeInTheDocument();
-  expect(screen.getByRole('heading', { name: 'Category progress' })).toBeInTheDocument();
-  const money = screen.getByRole('region', { name: 'Your money' });
-  expect(money.querySelector('.cr-hero')).toBeNull();
-  expect(screen.getAllByRole('progressbar').length).toBe(fixtures.plan.groups.length);
-});
-
-it('does not show reserve or savings tiles when those item types are not configured', async () => {
-  const plan = { ...fixtures.plan, groups: fixtures.plan.groups.map(g => ({ ...g, items: g.items.filter(i => i.kind === 'spending'), flex: g.flex })) };
-  const api = fakeApi({ planMonth: async () => plan, activity: async () => ({ ...fixtures.activity, next: null }) });
-  renderWithWorkspace(<HomeScreen onRecord={vi.fn()} />, api);
-  await screen.findByRole('img', { name: /Spending this month/ });
-  expect(screen.queryByText('Reserves and loan payments')).not.toBeInTheDocument();
-  expect(screen.queryByText('Available in your goals')).not.toBeInTheDocument();
-  expect(screen.getByText('Available to spend')).toBeInTheDocument();
 });

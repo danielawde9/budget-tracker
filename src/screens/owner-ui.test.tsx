@@ -6,30 +6,17 @@ import { AccountsScreen } from './accounts/accounts.tsx';
 import { ActivityScreen } from './activity/activity.tsx';
 
 describe('owner walkthrough simplification', () => {
-  it('starts with funding the current month and keeps the money breakdown on request', async () => {
-    const onRecord = vi.fn();
-    const user = userEvent.setup();
-    renderWithWorkspace(<HomeScreen onRecord={onRecord} />, fakeApi());
-    await user.click(await screen.findByRole('button', { name: 'Fund my plan' }));
-    expect(onRecord).toHaveBeenCalledWith({ kind: 'fund', month: fixtures.overview.month });
-    const summary = screen.getByText('Money breakdown').closest('details');
-    expect(summary).not.toHaveAttribute('open');
-    await user.click(screen.getByText('Money breakdown'));
-    expect(summary).toHaveAttribute('open');
+  it('keeps Home focused on monthly expenses', async () => {
+    renderWithWorkspace(<HomeScreen onRecord={vi.fn()} />, fakeApi());
+    expect(await screen.findByRole('heading', { name: 'Monthly expenses' })).toBeInTheDocument();
+    expect(screen.queryByText('Money breakdown')).not.toBeInTheDocument();
   });
 
-  it('keeps wallet actions in a contextual menu', async () => {
-    const user = userEvent.setup();
+  it('offers a visible expense action for each cash account', async () => {
     const onRecord = vi.fn();
     renderWithWorkspace(<AccountsScreen onRecord={onRecord} />, fakeApi());
-    const menu = (await screen.findAllByText('Account actions'))[0];
-    if (!menu) throw new Error('missing menu');
-    const details = menu.closest('details');
-    expect(details).not.toHaveAttribute('open');
-    await user.click(menu);
-    const region = menu.closest('li');
-    if (!region) throw new Error('missing wallet');
-    await user.click(within(region).getByRole('button', { name: 'Expense' }));
+    const bank = (await screen.findByText('Bank')).closest('li')!;
+    await userEvent.click(within(bank).getByRole('button', { name: 'Expense' }));
     expect(onRecord).toHaveBeenCalledWith(expect.objectContaining({ kind: 'expense', walletId: expect.any(String) }));
   });
 

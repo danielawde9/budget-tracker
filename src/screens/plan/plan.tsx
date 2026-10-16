@@ -30,6 +30,7 @@ export const KIND_LABEL: Readonly<Record<PlanItem['kind'], MessageKey>> = {
 
 export function PlanScreen({ month, onRecord }: { readonly month: string; readonly onRecord: (intent: RecordIntent) => void }) {
   const { t, date } = useI18n();
+  const c = useUiCopy();
   const { api, space, version } = useWorkspace();
   const plan = useLoad(() => api.planMonth(space.id, month), [api, space.id, month, version]);
   const [editing, setEditing] = useState<string | null>(null);
@@ -57,13 +58,16 @@ export function PlanScreen({ month, onRecord }: { readonly month: string; readon
             </section> : null}
             <PlanSummary plan={data} />
             <div className="cr-plan-actions">
+              <button type="button" className="cr-button" onClick={() => onRecord({ kind: 'opening', target: 'category' })}>{c('openingBalance')}</button>
               <button type="button" className="text-button" onClick={() => onRecord({ kind: 'move' })}>{t('plan.move')}</button>
               <button type="button" className="text-button" onClick={() => setEditing('')}>{t('plan.edit')}</button>
               {isCurrent && data.ready >= 0n ? <button type="button" className="cr-button cr-button--primary" onClick={() => onRecord({ kind: 'fund', month })}>{t('plan.fund')}</button> : null}
             </div>
-            {data.groups.map((group, index) => (
-              <GroupCard key={group.groupId} group={group} index={index} currency={data.planCurrency} today={data.today} onOpen={setStatement} onEdit={() => setEditing(group.groupId)} />
-            ))}
+            {(['expense', 'savings'] as const).map(purpose => <section key={purpose} className="cr-plan-purpose" aria-labelledby={`plan-${purpose}-heading`}>
+              <h2 id={`plan-${purpose}-heading`}>{c(purpose === 'expense' ? 'expenses' : 'savingsSection')}</h2>
+              <p className="cr-helper">{purpose === 'expense' ? c('expenseScope') : c('savingsScope')}</p>
+              {data.groups.filter(group => group.purpose === purpose).map(group => <GroupCard key={group.groupId} group={group} index={data.groups.indexOf(group)} currency={data.planCurrency} today={data.today} onOpen={setStatement} onEdit={() => setEditing(group.groupId)} onOpening={itemId => onRecord({ kind: 'opening', target: 'category', itemId })} />)}
+            </section>)}
             <BillsSection onRecord={onRecord} />
             {editing !== null ? <PlanEditorDialog plan={data} month={month} groupId={editing || undefined} onClose={() => setEditing(null)} /> : null}
             {statement ? <ItemStatementDialog item={statement} month={month} onClose={() => setStatement(null)} onRecord={(intent) => { setStatement(null); onRecord(intent); }} /> : null}
@@ -109,16 +113,18 @@ function PlanSummary({ plan }: { readonly plan: PlanMonth }) {
   );
 }
 
-function GroupCard({ group, index, currency, today, onOpen, onEdit }: {
+function GroupCard({ group, index, currency, today, onOpen, onEdit, onOpening }: {
   readonly group: PlanGroup;
   readonly index: number;
   readonly currency: PlanMonth['planCurrency'];
   readonly today: string;
   readonly onOpen: (item: PlanItem) => void;
   readonly onEdit: () => void;
+  readonly onOpening: (itemId: string) => void;
 }) {
   const { t, money, name, digits } = useI18n();
   const copy = usePlanCopy();
+  const ui = useUiCopy();
   const rows = [...group.items, ...(group.flex ? [group.flex] : [])];
   return (
     <details className="cr-card cr-group" open={index === 0}>
@@ -137,13 +143,13 @@ function GroupCard({ group, index, currency, today, onOpen, onEdit }: {
             <th scope="col">{t('common.item')}</th>
             <th scope="col">{t('plan.planned')}</th>
             <th scope="col">{t('plan.funded')}<MoneyHelp term="funded" /></th>
-            <th scope="col">{t('plan.spent')}<MoneyHelp term="spent" /></th>
+            <th scope="col">{group.purpose === 'savings' ? ui('usedSavings') : t('plan.spent')}<MoneyHelp term="spent" /></th>
             <th scope="col">{t('plan.available')}<MoneyHelp term="available" /></th>
           </tr>
         </thead>
         <tbody>
           {rows.map((item) => (
-            <ItemRow key={item.itemId} item={item} currency={currency} today={today} onOpen={() => onOpen(item)} />
+            <ItemRow key={item.itemId} item={item} currency={currency} today={today} onOpen={() => onOpen(item)} onOpening={() => onOpening(item.itemId)} />
           ))}
         </tbody>
       </table>
@@ -152,8 +158,9 @@ function GroupCard({ group, index, currency, today, onOpen, onEdit }: {
   );
 }
 
-function ItemRow({ item, currency, today, onOpen }: { readonly item: PlanItem; readonly currency: PlanMonth['planCurrency']; readonly today: string; readonly onOpen: () => void }) {
+function ItemRow({ item, currency, today, onOpen, onOpening }: { readonly item: PlanItem; readonly currency: PlanMonth['planCurrency']; readonly today: string; readonly onOpen: () => void; readonly onOpening: () => void }) {
   const { t, money, name, date, digits } = useI18n();
+  const c = useUiCopy();
   const other = currency === 'USD' ? 'LBP' : 'USD';
   // Progress toward a target only means something until its date has passed.
   const showProgress = item.targetMinor !== null && item.targetMinor > 0n && (item.targetDate === null || item.targetDate >= today);
@@ -164,6 +171,7 @@ function ItemRow({ item, currency, today, onOpen }: { readonly item: PlanItem; r
         <button type="button" className="cr-link-button" onClick={onOpen}>
           <bdi>{name(item)}</bdi>
         </button>
+        <button type="button" className="text-button cr-category-opening" onClick={onOpening}>{c('openingBalance')}</button>
         {item.broughtForward !== 0n ? <span className="cr-helper">{t('plan.broughtForward', { amount: money(item.broughtForward, currency) })}</span> : null}
         {item.opening !== 0n ? <span className="cr-helper">{t('plan.openingLine', { amount: money(item.opening, currency) })}</span> : null}
         {progress !== null && item.targetMinor ? (

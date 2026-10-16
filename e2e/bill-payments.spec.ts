@@ -27,7 +27,7 @@ for (const locale of ['en', 'ar'] as const) {
     const payment = await api.recordExpense({ ...cmd(), walletId: wallet.id, itemId: item.itemId, amount: 2000n, on: space.today, billId: source.billId, billDue: space.today, memo: 'Audit partial payment' });
     const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
     await signIn(page, user);
-    await expect(page.getByRole('region', { name: 'Your money', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
     await page.evaluate((locale) => localStorage.setItem('budget:locale', locale), locale);
     await page.reload();
     const row = page.getByRole('listitem').filter({ has: page.getByText('Audit bill source', { exact: true }) });

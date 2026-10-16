@@ -1624,7 +1624,7 @@
 .cr-icon-button:disabled { opacity: 0.4; cursor: not-allowed; }
 .cr-flip-rtl:dir(rtl) { transform: scaleX(-1); }
 
-.cr-link-button { background: none; border: 0; padding: 0; color: var(--cr-ink); font: inherit; font-weight: 700; text-align: start; cursor: pointer; }
+.cr-link-button { background: none; border: 0; padding: 6px 10px; border-radius: 6px; color: var(--cr-ink); font: inherit; font-weight: 700; text-align: start; cursor: pointer; }
 .cr-link-button:hover { color: var(--cr-accent-strong); text-decoration: underline; text-underline-offset: 3px; }
 .cr-link-button:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 2px; border-radius: 4px; }
 
@@ -1659,10 +1659,10 @@
 .cr-register-title { font-weight: 700; overflow-wrap: anywhere; }
 .cr-register-button {
   display: flex; align-items: center; gap: var(--cr-space-3); inline-size: 100%; min-block-size: 56px;
-  background: none; border: 0; padding: 0; color: inherit; font: inherit; text-align: start; cursor: pointer;
+  background: none; border: 0; padding: 12px 16px; border-radius: 12px; color: inherit; font: inherit; text-align: start; cursor: pointer;
 }
 .cr-register-button:hover .cr-register-title { color: var(--cr-accent-strong); }
-.cr-register-button:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 2px; border-radius: var(--cr-radius-sm); }
+.cr-register-button:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 2px; border-radius: 12px; }
 .cr-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--cr-space-2); }
 .cr-lines li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--cr-space-2); }
 
