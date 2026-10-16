@@ -29,6 +29,7 @@ const listing = overlay.interface;
 for (const field of ['displayName', 'shortDescription']) {
   assert.ok(listing[field]?.length > 0 && listing[field].length <= 30, `${field} must fit the listing limit`);
 }
+assert.equal(overlay.review.demo_recording_url, 'https://openbudgetracker.app/review/');
 assert.equal(overlay.review.test_cases.positive.length, 5);
 assert.equal(overlay.review.test_cases.negative.length, 3);
 for (const [kind, cases] of Object.entries(overlay.review.test_cases)) {
@@ -61,6 +62,5 @@ const contents = execFileSync('unzip', ['-Z1', archive], { encoding: 'utf8' }).t
 assert.deepEqual(contents, files);
 const sha256 = createHash('sha256').update(await readFile(archive)).digest('hex');
 await writeFile(`${archive}.sha256`, `${sha256}  ${manifest.name}-${manifest.version}.zip\n`);
-const missing = ['supportURL', 'privacyPolicyURL', 'termsOfServiceURL'].filter(field => !listing[field]);
 console.log(`Created ${archive}\nSHA-256 ${sha256}`);
-console.log(`Draft package only. Public review still requires ${missing.join(', ') || 'verified public listing URLs'}, publisher verification, a demo account, a walkthrough recording, and executed review cases.`);
+console.log('Upload package built. OpenAI portal validation, domain verification and final review submission remain portal steps.');

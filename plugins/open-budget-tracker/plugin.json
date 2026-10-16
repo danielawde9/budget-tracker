@@ -5,7 +5,13 @@
   "description": "Record expenses and income in your connected Open Budget Tracker space using USD or LBP.",
   "homepage": "https://openbudgetracker.app",
   "repository": "https://github.com/danielawde9/budget-tracker",
-  "keywords": ["budget", "expenses", "income", "USD", "LBP"],
+  "keywords": [
+    "budget",
+    "expenses",
+    "income",
+    "USD",
+    "LBP"
+  ],
   "extensions": {
     "com.openai": {
       "interface": {
@@ -14,7 +20,11 @@
         "longDescription": "Save expenses and income to the budget space you authorize. Uses your existing wallets and plan items, supports USD and Lebanese pounds, and returns a receipt after each save. Ask in English or Arabic. Missing or ambiguous amounts, wallets, currencies, or categories require clarification. Expense funding follows your budget's Ready to assign behavior. Access is limited to the authorized space and can be revoked in Budget Tracker Settings. Does not move money, connect bank accounts, provide investment advice, or expose balances and transaction history. ChatGPT may request confirmation before using write tools.",
         "developerName": "Daniel Awde",
         "category": "Productivity",
-        "capabilities": ["Read budget context", "Record expenses and income", "Check save receipts"],
+        "capabilities": [
+          "Read budget context",
+          "Record expenses and income",
+          "Check save receipts"
+        ],
         "websiteURL": "https://openbudgetracker.app",
         "supportURL": "https://openbudgetracker.app/support",
         "privacyPolicyURL": "https://openbudgetracker.app/privacy",
@@ -80,7 +90,8 @@
               "expected_behavior": "Use get_context if needed and explain the available wallets. Do not call record_entry."
             }
           ]
-        }
+        },
+        "demo_recording_url": "https://openbudgetracker.app/review/"
       },
       "publication": {
         "release_notes": "Initial hosted OAuth integration for budget context, direct expense/income recording, and idempotent save receipts."

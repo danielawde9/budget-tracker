@@ -134,3 +134,26 @@ Source package: `plugins/open-budget-tracker`. Build with
 positive/three negative review scenarios. Public submission still requires the
 support/privacy/terms URLs, verified publishing identity, a dedicated demo
 account, executed review cases and a walkthrough. See the package README.
+
+## Public review package — 2026-10-16
+
+Dedicated synthetic reviewer and isolation accounts are prepared; their private
+credentials stay in ignored `.wrangler/chatgpt-review/` files. The owner's
+personal ChatGPT connection remains primary. The synthetic ChatGPT connection
+is named **Plugin review (synthetic)**. Five positive and three negative cases
+were exercised using that account; direct activity verification confirmed the
+USD/LBP entries and no writes from negative scenarios. Ten hosted integration
+checks cover OAuth/PKCE, isolation, exact amounts, retry safety and revocation.
+
+The captioned walkthrough and transcript are at
+`https://openbudgetracker.app/review/`; only synthetic data is visible. Source
+assembly: `scripts/chatgpt/build-review-video.mjs` using ignored actual captures.
+The ZIP builder includes its public URL and only three allowlisted package
+files. The archive, digest and upload instructions are in `artifacts/chatgpt/`.
+Support, privacy and terms pages are live in English and Arabic. Public support
+is `hello@openbudgetracker.app`; publisher is Daniel Awde.
+
+The owner chose to upload the ZIP manually. OpenAI portal ZIP validation,
+domain challenge (token available after upload), private review credentials,
+submission attestations and OpenAI review remain portal steps. This preparation
+does not mean the plugin is approved or published.

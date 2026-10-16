@@ -1,6 +1,6 @@
 # Open Budget Tracker for ChatGPT
 
-This is a draft portable plugin for the hosted Budget MCP server. It records
+This is the prepared portable plugin for the hosted Budget MCP server. It records
 expenses and income in one authorized budget space. All execution is on
 Cloudflare Workers and Supabase; no local computer is required by the server.
 The plugin does not move money or connect to banks.
@@ -12,8 +12,7 @@ Created the personal cloud plugin through the owner's ChatGPT account in Brave:
 ChatGPT Settings reports OAuth connected and lists one write and two read tools.
 The actual ChatGPT connector's `get_context` call succeeded and returned only
 the authorized space's context. The owner confirmed this plugin appears in
-ChatGPT mobile. No expense or income was created for verification. A real
-expense request from the mobile app remains the first write acceptance check.
+ChatGPT mobile. No expense or income was created for verification. Desktop ChatGPT write scenarios were subsequently exercised with a separate synthetic account; a write from the mobile app itself remains unverified.
 This personal installation is not a public directory publication.
 
 Build the ZIP from the repository root:
@@ -56,34 +55,43 @@ After connecting, test **get_context** without adding a transaction. Then open
 the same account/workspace in ChatGPT mobile and check whether the plugin is
 selectable. If it is not, do not claim mobile support for the personal install.
 
-## Public directory submission remains unfinished
+## Upload and public review
 
-This ZIP is prepared for draft upload, not submission-ready. Do not invent
-working legal/support URLs or claim the review scenarios have been executed.
-Before submitting:
+The support, privacy and terms URLs in the manifest are live. The publisher is
+Daniel Awde and the public contact is hello@openbudgetracker.app. The dedicated
+synthetic demo account has Cash USD and Cash LBP wallets and a Groceries item.
+Five positive and three negative review scenarios were exercised in ChatGPT on
+2026-10-16 using only that account. Posted USD expense/income and LBP amounts
+were independently checked in its budget activity. Ten hosted integration
+checks also passed, including OAuth, isolation, idempotency and revocation.
 
-1. Confirm the verified publisher name and update `developerName` if needed.
-2. Publish genuine support, privacy, and terms pages. Add their HTTPS URLs to
-   the listing as `supportURL`, `privacyPolicyURL`, and `termsOfServiceURL`.
-3. Prepare a dedicated demo Budget account with sample data, wallets named
-   **Cash USD** and **Cash LBP**, and a **Groceries** expense item. Keep adequate
-   sample funding. Do not use the owner's personal account as a reviewer login.
-4. Execute all five positive and three negative cases using that demo account.
-   Capture evidence and record a walkthrough; then add its accessible URL as
-   `review.demo_recording_url` in `extensions.com.openai`.
-5. Rebuild and upload the ZIP in [OpenAI Platform Plugins](https://platform.openai.com/plugins)
-   under **With MCP**. Complete identity verification if requested.
-6. Connect the remote MCP, authorize the demo account, and satisfy the domain
-   challenge at the exact HTTPS origin shown in the portal. Do not replace
-   another plugin's existing challenge token.
-7. Enter reviewer credentials only in the portal's private review form. Resolve
-   automated findings, confirm submission attestations with the owner, and
-   submit for review. After approval, the owner chooses when to publish.
+The [captioned review walkthrough](https://openbudgetracker.app/review/) contains
+actual ChatGPT captures, edited with pauses on results, and a transcript. Its
+public URL is included as `review.demo_recording_url`. No credentials are in
+the recording, archive or public pages.
 
-Published plugins are expected to work on mobile, but approval and mobile
-behavior are not established by generating this package. A private connection
-or a public listing must still enforce OAuth per user. Publishing a listing
-does not share one user's authorized budget with other users.
+1. Open [OpenAI Platform Plugins](https://platform.openai.com/plugins).
+2. Select **Upload new or existing plugin**, choose the verified **Individual —
+   DANIEL AWDE** developer identity, and upload the generated ZIP. Use the
+   **With MCP** workflow where shown.
+3. Wait for validation. Resolve any portal findings before submission; complete
+   ZIP validation is still pending until this upload.
+4. Connect `https://mcp.openbudgetracker.app/mcp` with OAuth. Sign into the
+   dedicated demo Budget account and authorize its synthetic space.
+5. Complete the domain challenge at the exact HTTPS origin shown by the portal.
+   Its token is generated after upload and is not knowable in advance. Do not
+   replace a challenge belonging to another plugin.
+6. Provide the demo login privately in the reviewer-access section. Local
+   reviewer credentials are in `.wrangler/chatgpt-review/reviewer.json` (ignored,
+   mode 600); never publish or add that file to the ZIP. Use the demo credentials,
+   not the owner's budget login. The demo account needs no OTP/MFA.
+7. Review and confirm the submission attestations, then submit for OpenAI
+   review. Approval and publication have not happened yet.
+
+Each user connects their own Budget account through OAuth and authorizes one
+owned space. Public listing availability remains subject to OpenAI review and
+ChatGPT account/workspace eligibility. The owner's personal installation was
+confirmed visible on mobile; the hosted service needs no running Mac.
 
 ## References checked on 2026-10-16
 
