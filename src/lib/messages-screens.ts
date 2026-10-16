@@ -216,6 +216,8 @@ export const screenMessages = {
   'record.whatFor': { en: 'What was it for?', ar: 'لأي غرض؟' },
   'record.description': { en: 'Description', ar: 'الوصف' },
   'record.descriptionHint': { en: 'Start typing to reuse a past expense: it fills in the rest.', ar: 'ابدأ الكتابة لإعادة استخدام مصروف سابق: يُملأ الباقي تلقائيًا.' },
+  'record.pastExpenses': { en: 'Past expenses', ar: 'مصاريف سابقة' },
+  'record.filledFromPast': { en: 'Filled from past expense. Review before saving.', ar: 'تم الملء من مصروف سابق. راجع التفاصيل قبل الحفظ.' },
   'record.suggestionsFailed': { en: 'Past expenses could not be loaded, so there are no suggestions this time.', ar: 'تعذّر تحميل المصاريف السابقة، لذا لا توجد اقتراحات هذه المرة.' },
   'record.itemHolds': { en: '{name} holds {amount}.', ar: '{name} يحتوي {amount}.' },
   'record.shortfall': { en: '{name} has {available}. Take the missing {shortfall} from:', ar: '{name} فيه {available}. خذ المبلغ الناقص {shortfall} من:' },
