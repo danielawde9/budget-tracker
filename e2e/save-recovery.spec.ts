@@ -5,7 +5,7 @@ import { createBudgetApi } from '../src/api/budget-api.ts';
 import { translate, type MessageKey } from '../src/lib/i18n.tsx';
 import { formatMoney } from '../src/lib/money.ts';
 import { budgetRowsets, localDemoEnv } from './local-database.ts';
-import { localStackUp, signIn, storyUser } from './support.ts';
+import { expectMoneyState, localStackUp, signIn, storyUser } from './support.ts';
 
 test.beforeAll(async () => { if (!(await localStackUp())) throw new Error('Start the local preview stack first.'); });
 for (const locale of ['en', 'ar'] as const) {
@@ -81,13 +81,7 @@ for (const locale of ['en', 'ar'] as const) {
       expect(after.setAside).toBe(before.setAside - 100n);
       expect(after.ready).toBe(before.ready);
       expect(after.cashHeld).toBe(after.setAside + after.ready);
-      const money = page.getByRole('heading', { name: t('nav.home'), level: 1 });
-      await money.locator('details.cr-money-breakdown summary').click();
-      const equation = money.getByLabel(t('home.equationLabel'));
-      await expect(equation).toBeVisible();
-      for (const amount of [after.cashHeld, after.setAside, after.ready]) {
-        await expect(equation).toContainText(formatMoney(amount, 'USD', locale));
-      }
+      await expectMoneyState(page, formatMoney(after.cashHeld, 'USD', 'en'), formatMoney(after.setAside, 'USD', 'en'), formatMoney(after.ready, 'USD', 'en'), locale === 'ar' ? 'المصروفات الشهرية' : 'Monthly expenses');
       await page.goto('/#/activity');
       await expect(page.getByRole('listitem').filter({ hasText: memo })).toHaveCount(1);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

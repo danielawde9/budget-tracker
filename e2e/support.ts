@@ -71,7 +71,7 @@ export async function signUp(page: Page, user: TestUser): Promise<void> {
 
 /** Home intentionally omits the assignment equation. Verify the underlying
  * authenticated read while asserting the redesigned monthly view loads. */
-export async function expectMoneyState(page: Page, cash: string, setAside: string, ready: string): Promise<void> {
+export async function expectMoneyState(page: Page, cash: string, setAside: string, ready: string, summaryName = 'Monthly expenses'): Promise<void> {
   const read = page.waitForResponse(response => response.url().endsWith('/rest/v1/rpc/space_overview') && response.ok());
   await page.reload();
   const data = await (await read).json() as { currencies: { currency: string; cashHeld: string; setAside: string; ready: string }[] };
@@ -79,5 +79,5 @@ export async function expectMoneyState(page: Page, cash: string, setAside: strin
   expect(formatMoney(BigInt(usd.cashHeld), 'USD', 'en')).toBe(cash);
   expect(formatMoney(BigInt(usd.setAside), 'USD', 'en')).toBe(setAside);
   expect(formatMoney(BigInt(usd.ready), 'USD', 'en')).toBe(ready);
-  await expect(page.getByRole('region', { name: 'Monthly expenses' })).toBeVisible();
+  await expect(page.getByRole('region', { name: summaryName })).toBeVisible();
 }

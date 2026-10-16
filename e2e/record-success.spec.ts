@@ -7,7 +7,6 @@ test('exchange confirmation supports keyboard completion and a fresh repeat', as
   const opener = page.getByRole('button', { name: 'Record', exact: true }).filter({ visible: true }).first();
   await opener.click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByText('More actions', { exact: true }).click();
   await dialog.getByRole('button', { name: /^Exchange/ }).click();
   await dialog.getByLabel('You gave').fill('1');
   await dialog.getByLabel('You got').fill('89500');
