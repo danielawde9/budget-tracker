@@ -59,8 +59,9 @@ export function FundingBreakdown({ plan, onClose }: { readonly plan: PlanMonth; 
   const captionId = useId();
   const currency = plan.planCurrency;
   const detailed = plan.assignedFunding !== undefined && plan.spentFromReady !== undefined;
+  const scoped = plan.fundingScope === 'planned_groups';
   const assigned = plan.assignedFunding ?? plan.funded;
-  const groupedFunding = plan.groups.reduce((sum, group) => sum + group.funded, 0n);
+  const groupedFunding = plan.groups.reduce((sum, group) => sum + (scoped && group.planned === 0n ? 0n : group.funded), 0n);
   const outside = assigned - groupedFunding;
   const matches = !detailed || assigned + plan.spentFromReady! === plan.funded;
   return <Dialog title={c('fundingBreakdown')} description={date(plan.month, 'month')} onClose={onClose} wide>
@@ -69,7 +70,7 @@ export function FundingBreakdown({ plan, onClose }: { readonly plan: PlanMonth; 
       <dl className="cr-money-breakdown" aria-label={c('fundingBreakdown')}>
         <MoneyRow label={c('monthlyTarget')} amount={plan.groupsTotal} currency={currency} />
         {detailed ? <>
-          <MoneyRow label={c('assignedMonth')} amount={assigned} currency={currency} />
+          <MoneyRow label={c(scoped ? 'countedAssignments' : 'assignedMonth')} amount={assigned} currency={currency} />
           <MoneyRow label={c('directReadySpending')} amount={plan.spentFromReady!} currency={currency} />
         </> : null}
         <MoneyRow label={c('countedFunding')} amount={plan.funded} currency={currency} />
@@ -79,15 +80,24 @@ export function FundingBreakdown({ plan, onClose }: { readonly plan: PlanMonth; 
       <div className="cr-breakdown-table" role="region" aria-labelledby={captionId} tabIndex={0}>
         <table>
           <caption id={captionId}>{c('fundingCategories')}</caption>
-          <thead><tr><th scope="col">{t('common.item')}</th><th scope="col">{c('monthlyTarget')}</th><th scope="col">{c('assignedMonth')}</th><th scope="col">{detailed ? c('targetDifference') : t('plan.stillToFund')}</th></tr></thead>
+          <thead><tr><th scope="col">{t('common.item')}</th><th scope="col">{c('monthlyTarget')}</th><th scope="col">{c(scoped ? 'countedAssignment' : 'assignedMonth')}</th><th scope="col">{detailed ? c('targetDifference') : t('plan.stillToFund')}</th></tr></thead>
           <tbody>{plan.groups.map(group => {
             const items = [...group.items, ...(group.flex ? [group.flex] : [])];
-            const difference = detailed ? group.planned - group.funded : items.reduce((sum, item) => sum + item.stillToFund, 0n);
-            return <tr key={group.groupId}><th scope="row"><bdi>{name(group)}</bdi></th><td><Amount minor={group.planned} currency={currency} /></td><td><Amount minor={group.funded} currency={currency} /></td><td><Amount minor={difference} currency={currency} /></td></tr>;
+            const counted = scoped && group.planned === 0n ? 0n : group.funded;
+            const difference = detailed ? group.planned - counted : items.reduce((sum, item) => sum + item.stillToFund, 0n);
+            return <tr key={group.groupId}><th scope="row"><bdi>{name(group)}</bdi></th><td><Amount minor={group.planned} currency={currency} /></td><td><Amount minor={counted} currency={currency} /></td><td><Amount minor={difference} currency={currency} /></td></tr>;
           })}</tbody>
         </table>
       </div>
       {outside !== 0n ? <dl className="cr-money-breakdown"><MoneyRow label={c('outsidePlanFunding')} amount={outside} currency={currency} /></dl> : null}
+      {scoped && ((plan.assignedFundingExcluded ?? 0n) !== 0n || (plan.spentFromReadyExcluded ?? 0n) !== 0n) ? <section aria-label={c('excludedFunding')}>
+        <h3>{c('excludedFunding')}</h3>
+        <dl className="cr-money-breakdown">
+          <MoneyRow label={c('excludedAssignments')} amount={plan.assignedFundingExcluded ?? 0n} currency={currency} />
+          <MoneyRow label={c('excludedReadySpending')} amount={plan.spentFromReadyExcluded ?? 0n} currency={currency} />
+        </dl>
+      </section> : null}
+      {scoped ? <p className="cr-helper">{c('scopedFundingHelp')}</p> : null}
       <p className="cr-helper">{c(detailed ? 'fundingCreditHelp' : 'legacyFundingHelp')}</p>
     </div>
   </Dialog>;

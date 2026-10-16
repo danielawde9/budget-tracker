@@ -85,4 +85,23 @@ describe('money breakdowns', () => {
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).queryByText('Spending covered directly from Ready to assign')).not.toBeInTheDocument();
   });
+
+  it('separates paused savings assignments from the remaining expense funding gap', async () => {
+    const base = fundingPlan();
+    const raw = { ...base, groupsTotal: 267150n, funded: 231800n, assignedFunding: 102100n, spentFromReady: 129700n,
+      stillToFund: 35350n, fundingScope: 'planned_groups', assignedFundingExcluded: 91200n, spentFromReadyExcluded: 3000n,
+      groups: base.groups.map(g => g.purpose === 'savings' ? { ...g, planned: 0n, flex: g.flex ? { ...g.flex, planned: 0n, stillToFund: 0n } : null } : g),
+    };
+    const plan = planMonth.parse(JSON.parse(JSON.stringify(raw, (_, v: unknown) => typeof v === 'bigint' ? v.toString() : v)));
+    renderWithWorkspace(<PlanScreen month={plan.month} onRecord={vi.fn()} />, fakeApi({ planMonth: async () => plan }));
+    await userEvent.click(await screen.findByRole('button', { name: /Still to fund.*353.50/ }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('$2,318.00')).toBeVisible();
+    expect(within(dialog).getByText('$1,297.00')).toBeVisible();
+    expect(within(dialog).getByText('$912.00')).toBeVisible();
+    expect(within(dialog).getByText('$30.00')).toBeVisible();
+    const goals = within(dialog).getByRole('row', { name: /Short-term goals/ });
+    expect(within(goals).getAllByText('$0.00')).toHaveLength(3);
+    expect(within(dialog).queryByText('Assignments outside the categories shown')).not.toBeInTheDocument();
+  });
 });
