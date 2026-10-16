@@ -97,3 +97,21 @@ it('sends account opening money through its idempotent opening RPC as exact mino
   await createBudgetApi(client).recordWalletOpening({ spaceId: 's', requestId: 'same-request', walletId: 'w', amount: 9007199254740993n, on: '2026-10-01' });
   expect(calls).toEqual([{ name: 'record_wallet_opening', args: { p_space: 's', p_request: 'same-request', p_wallet: 'w', p_amount: '9007199254740993', p_on: '2026-10-01' } }]);
 });
+
+it('checks an observed account balance using the checked opening RPC and exact signed minor units', async () => {
+  const { client, calls } = fakeClient({ data: { entryId: 'e' } });
+  await createBudgetApi(client).recordWalletOpening({ spaceId: 's', requestId: 'r', walletId: 'w', amount: 9007199254740993n, on: '2026-10-01', expectedBalance: -12345n });
+  expect(calls).toEqual([{ name: 'record_wallet_opening_checked', args: { p_space: 's', p_request: 'r', p_wallet: 'w', p_amount: '9007199254740993', p_on: '2026-10-01', p_expected_balance: '-12345' } }]);
+});
+
+it('serializes an optional observed category balance only when provided, including zero', async () => {
+  const { client, calls } = fakeClient({ data: { entryId: 'e' } });
+  await createBudgetApi(client).assignMoney({ spaceId: 's', requestId: 'r', on: '2026-10-01', opening: true, moves: [
+    { from: null, to: 'i', currency: 'USD', amount: 100n, expectedBalance: 0n },
+    { from: null, to: 'j', currency: 'LBP', amount: 9007199254740993n },
+  ] });
+  expect(calls[0]!.args['p_moves']).toEqual([
+    { from: null, to: 'i', currency: 'USD', amountMinor: '100', expectedBalanceMinor: '0' },
+    { from: null, to: 'j', currency: 'LBP', amountMinor: '9007199254740993' },
+  ]);
+});
