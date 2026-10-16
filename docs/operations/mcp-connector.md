@@ -157,3 +157,22 @@ The owner chose to upload the ZIP manually. OpenAI portal ZIP validation,
 domain challenge (token available after upload), private review credentials,
 submission attestations and OpenAI review remain portal steps. This preparation
 does not mean the plugin is approved or published.
+
+## OpenAI portal configuration — 2026-10-16
+
+The owner uploaded version 0.1.0 to OpenAI Platform. Public-review plugin:
+`plugin_asdk_app_6ad26418177481919ad77f2ef88d9783`; draft:
+`appsub_6ad2641817d08191a6d60b56f297a9a0`.
+This is separate from the owner's original personal ChatGPT installation.
+
+Configured the portal MCP connection using the dedicated synthetic reviewer
+space. The portal reports **Authorized**, **Domain verified**, **Configured**,
+and **No findings in the latest MCP scan** with all three tools discovered.
+The parent-domain challenge is served as exact plaintext at
+`https://openbudgetracker.app/.well-known/openai-apps-challenge`. Frontend version:
+`f53e006b-b466-4e12-96b0-61012f574b17`.
+
+The listing has a non-blocking category warning for Productivity. Private
+reviewer-access entry was started but a Brave extension popup blocked password
+entry; the reviewer form still needs completion and saving. No submission
+attestations were accepted, no review was submitted, and nothing was published.
