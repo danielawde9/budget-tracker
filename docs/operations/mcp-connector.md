@@ -176,3 +176,15 @@ The listing has a non-blocking category warning for Productivity. Private
 reviewer-access entry was started but a Brave extension popup blocked password
 entry; the reviewer form still needs completion and saving. No submission
 attestations were accepted, no review was submitted, and nothing was published.
+
+### Reviewer-access completion
+
+Resumed after the browser popup was dismissed. Saved the dedicated demo
+username/password, login URL, synthetic tenant and detailed sign-in instructions
+in the portal's private reviewer form. The blocking incomplete-review-information
+finding disappeared. The final submission form is available; it shows only the
+non-blocking Productivity category warning. Its six publisher attestations are
+unchecked pending the owner's explicit confirmation, including agreement to
+OpenAI's terms/guidelines, applicable-law compliance, no transfers/trades, content
+and API rights, under-18 suitability, and no targeting/sharing under-13 data.
+No submission or publication has occurred at this point.
