@@ -1,0 +1,9 @@
+# Savings classification and remaining expense budgets
+
+Short-term goals now defaults to Savings for new groups (English/Arabic aliases). The migration changes only the default classifier. The owner's current October plan was independently saved through the normal authenticated save_plan command, preserving all other plan values and every financial ledger hash. Goals money remains $900; prior versions retain their classifications.
+
+Home shows planned minus net monthly spending by expense group beneath Left in monthly budget and in Expenses by category. This is separate from actual available cash. Savings groups are excluded; negative overspending, signed refunds/reversals and archived groups remain visible. Historical group IDs take priority over present membership, avoiding duplicate expense attribution. Other currencies show their spending without subtracting the plan currency's budget.
+
+Verification: 232 PostgreSQL tests and 200 UI tests passed; TypeScript/build succeeded. Regression tests failed before implementation. Independent review found no substantive issues. Real UI components with fixtures were inspected at 1280/390/320px in English/Arabic; an Arabic 320px totals overflow was fixed with a single-column mobile summary. The detector found no issues. Production password sign-in and authenticated browser financial writes were not exercised; browser fixture checks and authenticated SQL checks are separate evidence.
+
+A fresh private backup (18 tables, 424 rows, 73 entries) restored exactly in a disposable loopback database. The migration and current-plan classification were rehearsed, including receipt replay. Production classification and migration preserved all financial ledger rows. The separate requested balance updates require confirmed actual Cash total and treatment of existing expense allocations; do not infer assets or bypass affordability. Private release/operation evidence records the eventual monetary actions separately.

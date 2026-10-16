@@ -5,7 +5,7 @@ import { useUiCopy } from '../../lib/ui-copy.ts';
 import { LoadState, useLoad } from '../../ui/async.tsx';
 import { Amount } from '../../ui/money.tsx';
 import { endOfMonth } from '../describe.ts';
-import { expenseGroups, expenseEntries, loadMonthActivity, spendingSeries, plannedSpending } from './dashboard-model.ts';
+import { expenseEntries, expenseGroupRows, loadMonthActivity, spendingSeries, plannedSpending } from './dashboard-model.ts';
 
 export function Dashboard({ overview, view }: { readonly overview: Overview; readonly view: CurrencyOverview }) {
   const { api, space, version } = useWorkspace();
@@ -18,13 +18,10 @@ function DashboardPlan({ plan, entries, overview, view }: { readonly plan: PlanM
   const { name } = useI18n();
   const c = useUiCopy();
   const expenses = expenseEntries(entries, plan);
-  const groups = expenseGroups(plan).map(group => ({ groupId: group.groupId, nameEn: group.nameEn, nameAr: group.nameAr, planned: group.planned, itemIds: new Set(group.expenseItems.map(item => item.itemId)) }));
-  for (const entry of expenses) for (const line of entry.items) {
-    if (line.groupId && !groups.some(group => group.groupId === line.groupId)) groups.push({ groupId: line.groupId, nameEn: line.groupNameEn ?? line.nameEn, nameAr: line.groupNameAr ?? line.nameAr, planned: 0n, itemIds: new Set() });
-  }
-  const spent = spendingSeries(expenses, view.currency, overview.month, overview.today).at(-1)?.amount ?? 0n;
-  const planned = view.currency === plan.planCurrency ? plannedSpending(plan) : null;
-  const groupSpent = (group: typeof groups[number], currency = view.currency) => spendingSeries(expenses.map(entry => ({ ...entry, items: entry.items.filter(line => line.groupId === group.groupId || group.itemIds.has(line.itemId)) })), currency, overview.month, overview.today).at(-1)?.amount ?? 0n;
+  const groups = expenseGroupRows(plan, entries, view.currency, overview.month, overview.today);
+  const progressGroups = view.currency === plan.planCurrency ? groups : expenseGroupRows(plan, entries, plan.planCurrency, overview.month, overview.today);
+  const spent = groups.reduce((sum, group) => sum + group.spent, 0n);
+  const planned = view.currency === plan.planCurrency ? groups.reduce((sum, group) => sum + group.planned, 0n) : null;
   return <>
     <section className="cr-expense-summary" aria-labelledby="monthly-expenses-heading">
       <h2 id="monthly-expenses-heading">{c('monthlyExpenses')}</h2><p className="cr-helper">{c('expenseScope')}</p>
@@ -33,16 +30,21 @@ function DashboardPlan({ plan, entries, overview, view }: { readonly plan: PlanM
         <div><dt>{c('spentMonth')}</dt><dd><Amount minor={spent} currency={view.currency} /></dd></div>
         <div><dt>{c('remainingExpenses')}</dt><dd>{planned !== null ? <Amount minor={planned - spent} currency={view.currency} tone={spent > planned ? 'negative' : 'plain'} /> : '—'}</dd></div>
       </dl>{planned === null ? <p className="cr-helper">{c('currencyPlan')}</p> : null}
+      {planned !== null && groups.length > 0 ? <section className="cr-expense-remaining" aria-labelledby="remaining-categories-heading">
+        <h3 id="remaining-categories-heading">{c('remainingByCategory')}</h3>
+        <p className="cr-helper">{c('remainingBudgetHelp')}</p>
+        <dl className="cr-expense-remaining-groups">{groups.map(group => <div key={group.groupId}><dt><bdi>{name(group)}</bdi></dt><dd>{group.remaining !== null ? <Amount minor={group.remaining} currency={view.currency} tone={group.remaining < 0n ? 'negative' : 'plain'} /> : '—'}</dd></div>)}</dl>
+      </section> : null}
     </section>
     <div className="cr-dashboard-charts">
       <section className="cr-card" aria-labelledby="spending-heading"><h2 id="spending-heading">{c('spendingChart')}</h2><p className="cr-helper">{c('spendingHelp')}</p><SpendingChart entries={expenses} overview={overview} view={view} plan={plan} /></section>
-      <section className="cr-card" aria-labelledby="expense-breakdown-heading"><h2 id="expense-breakdown-heading">{c('spendingWhere')}</h2><p className="cr-helper">{c('netSpending')}</p>{groups.length ? <ul className="cr-chart-legend cr-expense-breakdown">{groups.map(group => <li key={group.groupId}><bdi>{name(group)}</bdi><Amount minor={groupSpent(group)} currency={view.currency} /></li>)}</ul> : <p className="cr-helper">{c('noCategories')}</p>}{spent === 0n ? <p className="cr-helper">{c('noSpending')}</p> : null}</section>
+      <section className="cr-card" aria-labelledby="expense-breakdown-heading"><h2 id="expense-breakdown-heading">{c('spendingWhere')}</h2><p className="cr-helper">{c('netSpending')}</p>{groups.length ? <ul className="cr-chart-legend cr-expense-breakdown">{groups.map(group => <li key={group.groupId}><bdi>{name(group)}</bdi><Amount minor={group.spent} currency={view.currency} /></li>)}</ul> : <p className="cr-helper">{c('noCategories')}</p>}{spent === 0n ? <p className="cr-helper">{c('noSpending')}</p> : null}</section>
     </div>
-    <section className="cr-card" aria-labelledby="progress-heading"><h2 id="progress-heading">{c('expenseProgress')}</h2><p className="cr-helper">{c('spentPlanned')} · {plan.planCurrency}</p>{groups.length === 0 ? <p className="cr-helper">{c('noCategories')}</p> : <ul className="cr-category-progress">{groups.map(group => {
-      const actual = groupSpent(group, plan.planCurrency);
+    <section className="cr-card" aria-labelledby="progress-heading"><h2 id="progress-heading">{c('expenseProgress')}</h2><p className="cr-helper">{c('spentPlanned')} · {plan.planCurrency}</p>{progressGroups.length === 0 ? <p className="cr-helper">{c('noCategories')}</p> : <ul className="cr-category-progress">{progressGroups.map(group => {
+      const actual = group.spent;
       const ratio = group.planned > 0n ? Number(actual * 10000n / group.planned) / 100 : actual > 0n ? 100 : 0;
       const over = actual > group.planned;
-      return <li key={group.groupId}><bdi>{name(group)}</bdi><progress aria-label={name(group)} max={100} value={Math.max(0, Math.min(100, ratio))} className={over ? 'cr-progress-over' : ''} /><span><Amount minor={actual} currency={plan.planCurrency} /> / <Amount minor={group.planned} currency={plan.planCurrency} />{over ? <small className="cr-over-label">{c('overspent')}</small> : null}</span></li>;
+      return <li key={group.groupId}><bdi>{name(group)}</bdi><progress aria-label={name(group)} max={100} value={Math.max(0, Math.min(100, ratio))} className={over ? 'cr-progress-over' : ''} /><span><Amount minor={actual} currency={plan.planCurrency} /> / <Amount minor={group.planned} currency={plan.planCurrency} /><small className="cr-category-remaining">{c('remainingCategory')}: {group.remaining !== null ? <Amount minor={group.remaining} currency={plan.planCurrency} tone={over ? 'negative' : 'plain'} /> : '—'}</small>{over ? <small className="cr-over-label">{c('overspent')}</small> : null}</span></li>;
     })}</ul>}</section>
   </>;
 }

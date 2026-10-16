@@ -8,11 +8,12 @@ import { RecordDialog } from '../record/record-dialog.tsx';
 import { ActivityScreen } from './activity/activity.tsx';
 
 it('keeps savings off Home and compares only expense groups', async () => {
-  const groups = fixtures.plan.groups.map(g => ({ ...g, purpose: ['Savings', 'Investments'].includes(g.nameEn ?? '') ? 'savings' as const : 'expense' as const }));
+  const groups = fixtures.plan.groups.map(g => ({ ...g, purpose: ['Savings', 'Investments', 'Short-term goals'].includes(g.nameEn ?? '') ? 'savings' as const : 'expense' as const }));
   renderWithWorkspace(<HomeScreen onRecord={vi.fn()} />, fakeApi({ planMonth: async () => ({ ...fixtures.plan, groups }), activity: async () => ({ ...fixtures.activity, next: null }) }));
   const progress = await screen.findByRole('region', { name: 'Expenses by category' });
-  expect(within(progress).getAllByRole('progressbar')).toHaveLength(3);
+  expect(within(progress).getAllByRole('progressbar')).toHaveLength(2);
   expect(within(progress).queryByText('Savings')).not.toBeInTheDocument();
+  expect(within(progress).queryByText('Short-term goals')).not.toBeInTheDocument();
   expect(screen.queryByText('Where your money is assigned')).not.toBeInTheDocument();
   expect(screen.queryByText('Money breakdown')).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'View this month’s plan' })).not.toBeInTheDocument();

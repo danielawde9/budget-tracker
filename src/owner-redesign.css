@@ -252,6 +252,13 @@ summary:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 3px
 .cr-expense-totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin: 24px 0 0; }
 .cr-expense-totals dt { color: var(--cr-ink-soft); font-size: 14px; }
 .cr-expense-totals dd { margin: 8px 0 0; font-size: clamp(20px, 2.5vw, 32px); font-weight: 700; overflow-wrap: anywhere; }
+.cr-expense-remaining { margin-block-start: 28px; }
+.cr-expense-remaining h3 { margin: 0 0 8px; font-size: 16px; }
+.cr-expense-remaining-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 8px 32px; margin: 16px 0 0; }
+.cr-expense-remaining-groups > div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; min-inline-size: 0; padding-block: 8px; }
+.cr-expense-remaining-groups dt { min-inline-size: 0; overflow-wrap: anywhere; }
+.cr-expense-remaining-groups dd { margin: 0; font-weight: 650; }
+.cr-category-remaining { display: block; margin-block-start: 6px; font-size: 12px; }
 .cr-expense-breakdown { margin-block: 24px; }
 .cr-expense-breakdown li { padding-block: 12px; border-block-end: 1px solid var(--cr-hairline); }
 .cr-account-direct-actions { display: flex; flex-wrap: wrap; gap: 8px; flex: 1 1 100%; padding-inline-start: 44px; }
@@ -263,9 +270,11 @@ summary:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 3px
 .cr-activity-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-block-start: 8px; }
 .cr-activity-tag { display: inline-block; padding: 3px 8px; background: var(--cr-surface-soft, #eef4f0); color: var(--cr-ink); border-radius: 6px; font-size: 12px; font-weight: 500; }
 @media (max-width: 600px) {
-  .cr-expense-totals { gap: 12px; }
-  .cr-expense-totals dt { min-block-size: 40px; font-size: 12px; }
-  .cr-expense-totals dd { font-size: 19px; }
+  .cr-expense-totals { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .cr-expense-totals > div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+  .cr-expense-totals dt { min-inline-size: 0; flex: 1; font-size: 14px; }
+  .cr-expense-totals dd { min-inline-size: 0; margin: 0; font-size: 19px; }
+  .cr-expense-totals dd .cr-amount { white-space: normal; overflow-wrap: anywhere; }
   .cr-activity-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cr-account-direct-actions { padding-inline-start: 0; }
   .cr-account-direct-actions .cr-button { flex: 1 1 auto; min-block-size: 44px; }
