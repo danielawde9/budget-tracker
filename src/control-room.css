@@ -1715,6 +1715,7 @@
 .cr-inline-disclosure[open] > :not(summary) { padding-block-end: var(--cr-space-3); }
 .cr-wallet-balance-amounts { display: flex; flex-wrap: wrap; gap: var(--cr-space-2) var(--cr-space-5); }
 .cr-wallet-balance-amounts > .cr-amount { font-size: var(--cr-hero-size); font-weight: 800; overflow-wrap: anywhere; }
+.cr-wallet-balance-amounts > .cr-amount-trigger { font-size: var(--cr-hero-size); font-weight: 800; }
 .cr-wallet-balances > .cr-button { align-self: start; margin-block-start: var(--cr-space-2); }
 .cr-account-section { display: flex; flex-direction: column; gap: var(--cr-space-3); padding-block: var(--cr-space-4); border-block-end: 1px solid var(--cr-border); }
 .cr-account-section .cr-section-header { flex-wrap: nowrap; align-items: start; }
@@ -1741,6 +1742,7 @@
   .cr-account-section .cr-account-icon { display: none; }
   .cr-account-section .cr-register-row { grid-template-columns: minmax(0, 1fr) auto auto; }
   .cr-wallet-balance-amounts > .cr-amount { font-size: 30px; }
+  .cr-wallet-balance-amounts > .cr-amount-trigger { font-size: 30px; }
 }
 .cr-home-columns { display: grid; gap: var(--cr-space-4); }
 @media (min-width: 1024px) { .cr-home-columns { grid-template-columns: 1fr 1fr; align-items: start; } }
@@ -1932,3 +1934,49 @@
 .cr-invitations .cr-helper { margin-block: var(--cr-space-1) 0; }
 
 .cr-invite-controls .cr-field, .cr-invite-controls .cr-field > input { inline-size: 100%; min-inline-size: 0; }
+
+/* Read-only financial drilldowns: current cash and monthly funding stay separate. */
+.cr-amount-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--cr-space-2);
+  max-inline-size: 100%;
+  min-block-size: 44px;
+  padding: var(--cr-space-2) var(--cr-space-3);
+  border: 0;
+  border-radius: var(--cr-radius-sm);
+  background: transparent;
+  color: var(--cr-ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.cr-amount-trigger .cr-amount { font-size: inherit; overflow-wrap: anywhere; }
+.cr-amount-trigger svg { flex: 0 0 auto; color: var(--cr-accent-strong); }
+.cr-amount-trigger:hover { background: var(--cr-accent-soft); }
+.cr-amount-trigger:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 2px; }
+.cr-money-breakdown { display: grid; margin: 0; }
+.cr-money-breakdown > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--cr-space-3);
+  align-items: baseline;
+  padding-block: var(--cr-space-3);
+  border-block-end: 1px solid var(--cr-hairline);
+}
+.cr-money-breakdown dt { overflow-wrap: anywhere; }
+.cr-money-breakdown dd { margin: 0; text-align: end; }
+.cr-money-breakdown .cr-breakdown-total { font-weight: 700; border-block-end: 0; }
+.cr-breakdown-table { max-inline-size: 100%; overflow-x: auto; }
+.cr-breakdown-table:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 2px; }
+.cr-breakdown-table table { inline-size: 100%; border-collapse: collapse; }
+.cr-breakdown-table caption { text-align: start; font-weight: 700; padding-block-end: var(--cr-space-3); }
+.cr-breakdown-table th, .cr-breakdown-table td { padding: var(--cr-space-3); text-align: end; border-block-end: 1px solid var(--cr-hairline); }
+.cr-breakdown-table th:first-child { text-align: start; }
+.cr-breakdown-table thead th { font-size: 13px; color: var(--cr-ink-soft); }
+.cr-breakdown-table .cr-amount { white-space: nowrap; }
+@media (max-width: 420px) {
+  .cr-money-breakdown > div { grid-template-columns: minmax(0, 1fr); gap: var(--cr-space-1); }
+  .cr-money-breakdown dd { text-align: start; }
+}

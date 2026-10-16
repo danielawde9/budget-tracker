@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { WalletStatementDialog } from './wallet-statement.tsx';
-import { Wallet, TrendingUp, HandCoins } from 'lucide-react';
+import { Wallet, TrendingUp, HandCoins, ChevronRight } from 'lucide-react';
 import { useUiCopy } from '../../lib/ui-copy.ts';
 import type { AccountWallet } from '../../api/schemas.ts';
 import { PageHeader } from '../../app/shell.tsx';
@@ -9,11 +9,14 @@ import { useI18n, type MessageKey } from '../../lib/i18n.tsx';
 import type { RecordIntent } from '../../record/record-dialog.tsx';
 import { LoadState } from '../../ui/async.tsx';
 import { Amount } from '../../ui/money.tsx';
+import { WalletBalanceBreakdown } from '../../ui/money-breakdowns.tsx';
+import type { Currency } from '../../lib/money.ts';
 
 export function AccountsScreen({ onRecord }: { readonly onRecord: (intent: RecordIntent) => void }) {
   const { t } = useI18n();
   const c = useUiCopy();
   const [statementWallet, setStatementWallet] = useState<AccountWallet | null>(null);
+  const [breakdownCurrency, setBreakdownCurrency] = useState<Currency | null>(null);
   const { catalog } = useWorkspace();
   return (
     <>
@@ -25,7 +28,7 @@ export function AccountsScreen({ onRecord }: { readonly onRecord: (intent: Recor
       <LoadState loaded={catalog}>
         {({ accounts }) => (
           <div className="cr-accounts">
-            <WalletBalances wallets={activeWallets(accounts, 'cash')} onAdd={() => onRecord({ kind: 'wallet' })} />
+            <WalletBalances wallets={activeWallets(accounts, 'cash')} onAdd={() => onRecord({ kind: 'wallet' })} onBreakdown={setBreakdownCurrency} />
             <WalletList titleKey="accounts.cashTitle" introKey="accounts.cashIntro" wallets={activeWallets(accounts, 'cash')} onAdd={() => onRecord({ kind: 'wallet', walletKind: 'cash' })}
               actions={(wallet) => [
                 { label: c('openingBalance'), run: () => onRecord({ kind: 'opening', walletId: wallet.id }) },
@@ -56,17 +59,22 @@ export function AccountsScreen({ onRecord }: { readonly onRecord: (intent: Recor
         )}
       </LoadState>
       {statementWallet ? <WalletStatementDialog wallet={statementWallet} onClose={() => setStatementWallet(null)} onRecord={(intent) => { setStatementWallet(null); onRecord(intent); }} /> : null}
+      {breakdownCurrency ? <WalletBalanceBreakdown currency={breakdownCurrency} onClose={() => setBreakdownCurrency(null)} /> : null}
     </>
   );
 }
 
-function WalletBalances({ wallets, onAdd }: { readonly wallets: readonly AccountWallet[]; readonly onAdd: () => void }) {
-  const { t } = useI18n();
+function WalletBalances({ wallets, onAdd, onBreakdown }: { readonly wallets: readonly AccountWallet[]; readonly onAdd: () => void; readonly onBreakdown: (currency: Currency) => void }) {
+  const { t, money } = useI18n();
   const c = useUiCopy();
   const currencies = [...new Set(wallets.map(wallet => wallet.currency))];
   return <section className="cr-card cr-wallet-balances" aria-label={c('walletSummary')}>
     <p className="cr-helper">{c('walletSummary')}</p>
-    <div className="cr-wallet-balance-amounts">{currencies.length ? currencies.map(currency => <Amount key={currency} minor={wallets.filter(wallet => wallet.currency === currency).reduce((total, wallet) => total + wallet.balance, 0n)} currency={currency} />) : <p className="cr-helper">{t('accounts.none')}</p>}</div>
+    <div className="cr-wallet-balance-amounts">{currencies.length ? currencies.map(currency => {
+      const total = wallets.filter(wallet => wallet.currency === currency).reduce((sum, wallet) => sum + wallet.balance, 0n);
+      return <button key={currency} type="button" className="cr-amount-trigger" aria-haspopup="dialog" aria-label={`${c('walletSummary')} · ${currency} · ${money(total, currency)} · ${c('viewBreakdown')}`} onClick={() => onBreakdown(currency)}><Amount minor={total} currency={currency} /><ChevronRight size={22} aria-hidden className="cr-flip-rtl" /></button>;
+    }) : <p className="cr-helper">{t('accounts.none')}</p>}</div>
+    {currencies.length ? <p className="cr-helper">{c('viewBreakdown')}</p> : null}
     <p className="cr-helper">{c('walletSummaryHelp')}</p>
     <button type="button" className="cr-button cr-button--primary" onClick={onAdd}>{t('accounts.add')}</button>
   </section>;
