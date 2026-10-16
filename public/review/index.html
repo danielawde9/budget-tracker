@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Plugin review walkthrough | Open Budget Tracker</title>
+<style>
+:root { color-scheme: light dark; font-family: system-ui, sans-serif; line-height: 1.6; }
+body { max-width: 72rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+a { color: light-dark(#25604b, #8cd8b9); } video { width: 100%; height: auto; background: #111; border-radius: .75rem; }
+h1 { line-height: 1.2; } li { margin-block: .6rem; } :focus-visible { outline: 3px solid #357d65; outline-offset: 4px; }
+</style>
+</head>
+<body>
+<header><a href="/">Open Budget Tracker</a></header>
+<main>
+<h1>ChatGPT plugin review walkthrough</h1>
+<p>Actual ChatGPT captures from October 16, 2026, using a dedicated synthetic budget. Edited with pauses on results; no simulated interface, personal transactions, or login credentials. This silent video includes English captions and the transcript below.</p>
+<video controls playsinline preload="metadata" aria-label="Open Budget Tracker plugin review walkthrough" aria-describedby="transcript">
+<source src="/review/walkthrough.mp4" type="video/mp4">
+<track src="/review/walkthrough.vtt" kind="captions" srclang="en" label="English" default>
+<a href="/review/walkthrough.mp4">Download the walkthrough video</a>.
+</video>
+<p><a href="/review/walkthrough.mp4">Download MP4</a> · <a href="/review/walkthrough.vtt">English captions</a></p>
+<section id="transcript" aria-labelledby="transcript-title">
+<h2 id="transcript-title">Transcript and review cases</h2>
+<ol>
+<li><strong>Read context.</strong> ChatGPT lists the authorized synthetic budget's Cash USD and Cash LBP wallets and expense categories. Nothing is saved.</li>
+<li><strong>USD expense.</strong> The user asks to record a $20 grocery expense from Cash USD. ChatGPT uses the hosted plugin and confirms the posted receipt.</li>
+<li><strong>Receipt check.</strong> The user asks whether that expense saved using its original request ID. ChatGPT confirms the receipt without creating another entry.</li>
+<li><strong>Income.</strong> A $500 income request is posted to Cash USD without an expense category.</li>
+<li><strong>Lebanese pounds.</strong> A 150,000 LBP grocery expense is posted to Cash LBP, preserving the memo <span lang="ar" dir="rtl">مشتريات تجريبية</span>. LBP uses whole lira.</li>
+<li><strong>Missing amount.</strong> “Add groceries from Cash USD today” prompts a clarification asking how much USD to record.</li>
+<li><strong>Unsupported transfer.</strong> A bank transfer request is declined because the plugin records budget entries and cannot move money.</li>
+<li><strong>Read-only request.</strong> ChatGPT shows available wallets for a $20 expense and saves nothing when explicitly instructed.</li>
+</ol>
+<p>Saved demo entries were also checked directly in the demo budget. Hosted integration checks cover OAuth, wallet isolation, exact amounts, retry safety, and revocation. Review credentials are provided privately in the submission portal.</p>
+</section>
+</main>
+<footer><a href="/support">Support</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></footer>
+</body>
+</html>

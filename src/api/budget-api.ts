@@ -132,6 +132,10 @@ export function createBudgetApi(client: RpcClient, recovery?: SaveRecoveryStore)
   const cmd = (input: Command) => ({ p_space: input.spaceId, p_request: input.requestId });
 
   return {
+    mcpGrantClient: (clientId: string, spaceId: string, name: string, tokenHash: string, codeHash: string) =>
+      call('mcp_grant_client', { p_client: clientId, p_space: spaceId, p_name: name, p_token_hash: tokenHash, p_code_hash: codeHash }, s.okResult),
+    mcpConnections: () => call('mcp_connections', {}, s.mcpConnection.array()),
+    mcpRevokeClient: (clientId: string) => call('mcp_revoke_client', { p_client: clientId }, s.okResult),
     // Reads
     mySpaces: () => call('my_spaces', {}, s.spaceSummary.array()),
     clockToday: (timezone = 'Asia/Beirut') => call('clock_today', { p_timezone: timezone }, s.spaceSummary.shape.today),

@@ -96,11 +96,13 @@ describe('ratchet: only signed-in users can execute public functions', () => {
     select p.oid::regprocedure::text as fn
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public'
-      and (has_function_privilege('anon', p.oid, 'execute')
+      and ((has_function_privilege('anon', p.oid, 'execute')
+          and p.proname not in ('mcp_context','mcp_record_entry','mcp_entry_status','mcp_exchange_code'))
         or has_function_privilege('service_role', p.oid, 'execute')
-        or not has_function_privilege('authenticated', p.oid, 'execute'))`;
+        or (not has_function_privilege('authenticated', p.oid, 'execute')
+          and p.proname not in ('mcp_context','mcp_record_entry','mcp_entry_status','mcp_exchange_code')))`;
 
-  it('finds no public function executable by anon or service_role', async () => {
+  it('exposes only credential-checked connector functions to anon and denies service_role', async () => {
     const result = await db.pool.query<{ fn: string }>(exposed);
     expect(result.rows).toEqual([]);
   });

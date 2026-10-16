@@ -4,7 +4,7 @@ const origin = 'https://openbudgetracker.app';
 
 it('ships each public page as readable HTML with its own canonical and language alternatives', () => {
   const titles = new Set<string>();
-  for (const slug of ['about', 'how-it-works', 'budgeting-usd-lbp', 'contribute'] as const) {
+  for (const slug of ['about', 'how-it-works', 'budgeting-usd-lbp', 'contribute', 'support', 'privacy', 'terms'] as const) {
     for (const locale of ['en', 'ar'] as const) {
       const path = `${locale === 'ar' ? '/ar' : ''}/${slug}`;
       const doc = new DOMParser().parseFromString(renderPublicPage(slug, locale, ['/assets/site.css']), 'text/html');
@@ -26,7 +26,7 @@ it('ships each public page as readable HTML with its own canonical and language 
       titles.add(doc.title);
     }
   }
-  expect(titles.size).toBe(8);
+  expect(titles.size).toBe(14);
 });
 
 it('lets visitors find every page, switch to the same article in Arabic, and contribute on GitHub', () => {
@@ -41,11 +41,11 @@ it('lets visitors find every page, switch to the same article in Arabic, and con
   expect(doc.querySelector('nav a[aria-current="page"]')?.getAttribute('href')).toBe('/contribute');
 });
 
-it('includes the homepage and all eight public language URLs in the sitemap, without private hash routes', () => {
+it('includes the homepage and all public language URLs in the sitemap, without private hash routes', () => {
   const doc = new DOMParser().parseFromString(renderSitemap(), 'application/xml');
   expect(doc.querySelector('parsererror')).toBeNull();
   const urls = [...doc.getElementsByTagName('loc')].map(loc => loc.textContent);
-  expect(urls).toHaveLength(9);
+  expect(urls).toHaveLength(15);
   expect(urls).toEqual(expect.arrayContaining([
     `${origin}/`, `${origin}/about`, `${origin}/ar/about`, `${origin}/how-it-works`,
     `${origin}/ar/how-it-works`, `${origin}/budgeting-usd-lbp`, `${origin}/ar/budgeting-usd-lbp`,

@@ -15,3 +15,8 @@ benchmark/results.md
 
 # Wrangler local dev state (wrangler dev)
 .wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+worker/mcp/env.d.ts
+artifacts/chatgpt/

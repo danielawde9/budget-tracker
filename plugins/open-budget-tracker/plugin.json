@@ -1,0 +1,101 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "open-budget-tracker",
+  "version": "0.1.0",
+  "description": "Record expenses and income in your connected Open Budget Tracker space using USD or LBP.",
+  "homepage": "https://openbudgetracker.app",
+  "repository": "https://github.com/danielawde9/budget-tracker",
+  "keywords": [
+    "budget",
+    "expenses",
+    "income",
+    "USD",
+    "LBP"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Open Budget Tracker",
+        "shortDescription": "Record expenses and income",
+        "longDescription": "Save expenses and income to the budget space you authorize. Uses your existing wallets and plan items, supports USD and Lebanese pounds, and returns a receipt after each save. Ask in English or Arabic. Missing or ambiguous amounts, wallets, currencies, or categories require clarification. Expense funding follows your budget's Ready to assign behavior. Access is limited to the authorized space and can be revoked in Budget Tracker Settings. Does not move money, connect bank accounts, provide investment advice, or expose balances and transaction history. ChatGPT may request confirmation before using write tools.",
+        "developerName": "Daniel Awde",
+        "category": "Productivity",
+        "capabilities": [
+          "Read budget context",
+          "Record expenses and income",
+          "Check save receipts"
+        ],
+        "websiteURL": "https://openbudgetracker.app",
+        "supportURL": "https://openbudgetracker.app/support",
+        "privacyPolicyURL": "https://openbudgetracker.app/privacy",
+        "termsOfServiceURL": "https://openbudgetracker.app/terms",
+        "defaultPrompt": [
+          "Show the wallets and categories available in my connected budget.",
+          "Record a $20 grocery expense today; ask me which wallet if needed.",
+          "Record $500 income today; ask me which wallet if needed."
+        ],
+        "brandColor": "#357D65",
+        "composerIcon": "./assets/icon.png",
+        "logo": "./assets/icon.png"
+      },
+      "review": {
+        "commerce": false,
+        "test_cases": {
+          "positive": [
+            {
+              "description": "Read the authorized demo space without changing it.",
+              "prompt": "Show my available wallets, currencies, and expense categories.",
+              "tools_triggered": "get_context",
+              "expected_behavior": "List only the authorized demo space's active wallets and plan items, with no financial write or invented balance."
+            },
+            {
+              "description": "Save an exact USD expense in the demo account.",
+              "prompt": "Record a $20 grocery expense from Cash USD on October 16, 2026, with memo plugin demo groceries.",
+              "tools_triggered": "get_context, record_entry",
+              "expected_behavior": "Resolve Cash USD and Groceries from context, use amountMinor 2000 and date 2026-10-16, and save once with a fresh request UUID. Report success only from a posted receipt with entryId; disclose any coveredMinor amount."
+            },
+            {
+              "description": "Save income without an expense plan item in the demo account.",
+              "prompt": "Record $500 income into Cash USD on October 16, 2026, with memo plugin demo income.",
+              "tools_triggered": "get_context, record_entry",
+              "expected_behavior": "Use the demo wallet's existing ID, kind income, amountMinor 50000 and no itemId. Return the posted receipt."
+            },
+            {
+              "description": "Save a Lebanese pound expense using whole lira, including an Arabic memo.",
+              "prompt": "Record LL 150,000 groceries from Cash LBP on October 16, 2026. Memo: مشتريات تجريبية.",
+              "tools_triggered": "get_context, record_entry",
+              "expected_behavior": "Use currency LBP and amountMinor 150000, preserve the Arabic memo, and return one posted receipt. Do not convert to USD or multiply by 100."
+            },
+            {
+              "description": "Reconcile the USD expense's original request without creating another entry; run after the USD case.",
+              "prompt": "Check whether that grocery expense saved using its original request ID. Do not create another expense.",
+              "tools_triggered": "get_entry_status",
+              "expected_behavior": "Use the original request UUID from this conversation and report its receipt. Never invent a UUID, call record_entry for this status request, or create a replacement entry."
+            }
+          ],
+          "negative": [
+            {
+              "description": "An expense missing an amount must require clarification.",
+              "prompt": "Add groceries from Cash USD today.",
+              "expected_behavior": "Ask for the amount; do not call record_entry or infer an amount from other data."
+            },
+            {
+              "description": "Transfers and real money movement are outside the tool capabilities.",
+              "prompt": "Transfer $100 from my bank to Cash USD.",
+              "expected_behavior": "Explain that the plugin records expenses and income and cannot transfer money. Do not simulate the transfer by posting income or expense entries."
+            },
+            {
+              "description": "An explicit request for no write must remain read-only.",
+              "prompt": "Show which wallets I could use for a $20 expense, but do not save anything.",
+              "expected_behavior": "Use get_context if needed and explain the available wallets. Do not call record_entry."
+            }
+          ]
+        },
+        "demo_recording_url": "https://openbudgetracker.app/review/"
+      },
+      "publication": {
+        "release_notes": "Initial hosted OAuth integration for budget context, direct expense/income recording, and idempotent save receipts."
+      }
+    }
+  }
+}
