@@ -18,6 +18,7 @@ import { useUiCopy } from '../../lib/ui-copy.ts';
 import { usePlanCopy } from './plan-copy.ts';
 import './plan-redesign.css';
 import { PlanEditorDialog } from './plan-editor.tsx';
+import { FundingBreakdown } from '../../ui/money-breakdowns.tsx';
 
 export const KIND_LABEL: Readonly<Record<PlanItem['kind'], MessageKey>> = {
   ready: 'common.readyToAssign',
@@ -81,6 +82,7 @@ export function PlanScreen({ month, onRecord }: { readonly month: string; readon
 function PlanSummary({ plan }: { readonly plan: PlanMonth }) {
   const { t, money, name, digits } = useI18n();
   const c = useUiCopy();
+  const [showFunding, setShowFunding] = useState(false);
   const currency = plan.planCurrency;
   const plannedBps = plan.groups.reduce((sum, group) => sum + group.percentBps, 0);
   // A past month shows what was left unassigned when it ended, not today's figure.
@@ -92,7 +94,7 @@ function PlanSummary({ plan }: { readonly plan: PlanMonth }) {
         <div><dt>{t('plan.expectedIncome')}<MoneyHelp term="expected" /></dt><dd><Amount minor={plan.expectedIncome} currency={currency} /></dd></div>
         <div><dt>{t('plan.received')}<MoneyHelp term="received" /></dt><dd><Amount minor={plan.received} currency={currency} /></dd></div>
         <div><dt>{t('plan.funded')}<MoneyHelp term="funded" /></dt><dd><Amount minor={plan.funded} currency={currency} /></dd></div>
-        <div><dt>{t('plan.stillToFund')}<MoneyHelp term="stillToFund" /></dt><dd><Amount minor={plan.stillToFund} currency={currency} tone={plan.stillToFund > 0n ? 'warn' : 'plain'} /></dd></div>
+        <div><dt>{t('plan.stillToFund')}<MoneyHelp term="stillToFund" /></dt><dd><button type="button" className="cr-amount-trigger" aria-haspopup="dialog" aria-label={`${t('plan.stillToFund')} · ${money(plan.stillToFund, currency)} · ${c('viewBreakdown')}`} onClick={() => setShowFunding(true)}><Amount minor={plan.stillToFund} currency={currency} tone={plan.stillToFund > 0n ? 'warn' : 'plain'} /><ChevronRight size={18} aria-hidden className="cr-flip-rtl" /></button></dd></div>
         {plan.isPast || !plan.isCurrent || ready >= 0n ? <div><dt>{plan.isPast ? t('plan.readyAtMonthEnd') : t('common.readyToAssign')}<MoneyHelp term="ready" /></dt><dd><Amount minor={ready} currency={currency} tone={ready < 0n ? 'negative' : 'plain'} /></dd></div> : null}
       </dl>
       <details className="cr-inline-disclosure"><summary>{c('fundingHelp')}</summary><div className="cr-stack">
@@ -109,6 +111,7 @@ function PlanSummary({ plan }: { readonly plan: PlanMonth }) {
       </p>
       <p className="cr-helper">{t('plan.howItWorks')}</p>
       </div></details>
+      {showFunding ? <FundingBreakdown plan={plan} onClose={() => setShowFunding(false)} /> : null}
     </section>
   );
 }

@@ -38,6 +38,9 @@ export const planTotals = z.object({
   received: minor,
   otherIncome: minor,
   funded: minor,
+  /** Newer reads separate assignments from spending covered directly by Ready. */
+  assignedFunding: minor.optional(),
+  spentFromReady: minor.optional(),
   stillToFund: minor,
   ready: minor,
   /** Ready to assign at the end of the viewed month (equals today's for the current month). */
