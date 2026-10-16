@@ -48,11 +48,41 @@
     }
   },
   "liveDatabaseAcceptance": "Passed against the local preview. The earlier offline claim came from checking the wrong port.",
-  "productionDeployment": "pending; not performed",
+  "productionDeployment": {
+    "status": "deployed and verified",
+    "frontendVersion": "eca72f9c-4ca2-400c-827a-38ad7ba8d229",
+    "mcpWorkerVersion": "d7f90bd9-8cc9-46fa-b006-772a9121f122",
+    "productionBrowserChecks": 31,
+    "productionMcpChecks": 4,
+    "liveAssetsMatched": 6,
+    "migrationsApplied": [
+      "20261016140000",
+      "20261016140100"
+    ],
+    "budgetTableHashesPreserved": 20,
+    "originalBudgetRowsPreserved": 590
+  },
   "realLocalScreenshotCount": 30,
   "integration": {
     "mainBase": "cabb8124f1463ee03148658d609f1582670a4560",
-    "schema": "Canonical monthly expense/savings classification; superseded global-purpose migration removed. Source and history migrations follow main."
+    "schema": "Canonical monthly expense/savings classification; superseded global-purpose migration removed. Source and history migrations follow main.",
+    "consolidatedSource": "c3a43d3",
+    "combinedChecks": {
+      "databaseTests": 257,
+      "uiTests": 232,
+      "mcpTests": 11,
+      "applicationAndWorkerTypecheck": "passed",
+      "productionBuild": "passed",
+      "deploymentDryRuns": "passed",
+      "independentReview": "passed after two MCP contract fixes",
+      "githubActions": "waived per owner instruction",
+      "localBrowserTests": 72,
+      "localBrowserProjects": [
+        "desktop",
+        "mobile",
+        "small"
+      ]
+    }
   },
   "migrations": [
     "20261016140000_expense_sources.sql",

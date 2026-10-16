@@ -199,3 +199,19 @@ then returned to Plugins and reports **Open Budget Tracker: In review**, MCP
 (the prepared ZIP manifest was 0.1.0). Evidence is saved locally in ignored
 `artifacts/chatgpt/submitted-in-review.png`. OpenAI review/approval remains
 external; no approval or public publication is claimed.
+
+
+## Main integration and rollout — 2026-10-16
+
+The MCP branch is integrated with the current dashboards, payment-source
+controls and expense-popup improvements on main. Notes are capped at the
+ledger's 200-character limit; context RPCs accept bounded responses up to
+1 MiB for supported large bilingual plans, while receipts retain the 64 KiB
+limit. Regression tests cover both contracts.
+
+Released MCP Worker: `d7f90bd9-8cc9-46fa-b006-772a9121f122`.
+Released frontend: `eca72f9c-4ca2-400c-827a-38ad7ba8d229`.
+Live synthetic OAuth/PKCE, context, refresh and revocation passed without
+financial calls. Browser checks confirm that settings and the consent route
+remain available alongside the dashboard release. The earlier OpenAI submission
+remains in review; this integration does not claim directory approval.
