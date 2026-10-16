@@ -228,7 +228,8 @@ summary:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 3px
 }
 .cr-term-help .cr-viewport-panel { padding: 12px; font-size: 14px; font-weight: 400; text-transform: none; letter-spacing: normal; }
 .cr-term-help .cr-viewport-panel p { margin: 0; line-height: 1.5; white-space: normal; }
-.cr-description-suggestions { display: grid; gap: 4px; min-inline-size: 0; max-block-size: 220px; overflow: auto; overscroll-behavior: contain; }
+/* Keep both lines inside each suggestion while the height-limited list scrolls. */
+.cr-description-suggestions { display: grid; grid-auto-rows: max-content; gap: 4px; min-inline-size: 0; max-block-size: 220px; overflow: auto; overscroll-behavior: contain; }
 .cr-description-suggestions button { display: flex; flex-direction: column; align-items: start; text-align: start; gap: 4px; padding: 12px; min-block-size: 48px; background: var(--cr-accent-soft); color: var(--cr-ink); border: 1px solid var(--cr-border); border-radius: 8px; overflow-wrap: anywhere; }
 .cr-description-suggestions button span { font-size: 13px; }
 .cr-dialog.dialog { overscroll-behavior: contain; max-block-size: calc(var(--dialog-viewport-height, 100dvh) - 48px); }
