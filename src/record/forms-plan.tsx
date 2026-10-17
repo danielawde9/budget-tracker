@@ -118,7 +118,7 @@ export function BillForm({ catalog, onDone, onCancel, bill }: FormProps & { read
       <Explain>{copy('A reminder to pay. Adding a bill does not spend money.', 'تذكير بالدفع. إضافة فاتورة لا تنفق المال.')}</Explain>
       <label className="cr-field">
         <span className="cr-label">{t('common.name')}</span>
-        <input type="text" required maxLength={60} value={name} data-autofocus="" onChange={(event) => setName(event.target.value)} />
+        <input type="text" required maxLength={60} placeholder={t('input.billName')} value={name} data-autofocus="" onChange={(event) => setName(event.target.value)} />
       </label>
       <ItemSelect label={t('bill.paidFrom')} groups={pickerGroups(catalog.plan)} value={itemId} onChange={setItemId} currency={currency} />
       <fieldset className="cr-choice">

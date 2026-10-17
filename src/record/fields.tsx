@@ -90,7 +90,7 @@ export function NoteField({ value, onChange }: { readonly value: string; readonl
   return (
     <details className="cr-record-details"><summary>{t('common.note')}</summary><label className="cr-field">
       <span className="cr-label">{t('common.note')}</span>
-      <input type="text" maxLength={200} value={value} onChange={(event) => onChange(event.target.value)} />
+      <input type="text" maxLength={200} placeholder={t('input.note')} value={value} onChange={(event) => onChange(event.target.value)} />
     </label></details>
   );
 }

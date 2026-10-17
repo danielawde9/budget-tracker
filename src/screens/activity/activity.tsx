@@ -27,6 +27,7 @@ export function ActivityScreen({ onRecord, walletId: initialWalletId, month: ini
   const c = useUiCopy();
   const [search, setSearch] = useState('');
   const [kind, setKind] = useState('');
+  const [selectedDay, setSelectedDay] = useState('');
   const { api, space, version, catalog } = useWorkspace();
   const [month, setMonth] = useState(initialMonth ?? '');
   const [walletId, setWalletId] = useState(initialWalletId ?? '');
@@ -78,12 +79,13 @@ export function ActivityScreen({ onRecord, walletId: initialWalletId, month: ini
     }
   }
   const months = Array.from(new Set([...(month ? [month] : []), ...Array.from({ length: 12 }, (_, index) => addMonths(space.currentMonth, -index))])).sort().reverse();
-  const visible = pages.filter((entry) => { const line = describeEntry(i18n, entry); const haystack = [line.title, line.detail, entry.memo, kindLabel(i18n, entry.kind), ...entry.wallets.map((wallet) => wallet.name), ...entry.items.flatMap(item => [i18n.name(item), item.groupNameEn, item.groupNameAr])].join(' ').toLocaleLowerCase(i18n.locale); return haystack.includes(search.trim().toLocaleLowerCase(i18n.locale)); });
+  const searched = pages.filter((entry) => { const line = describeEntry(i18n, entry); const haystack = [line.title, line.detail, entry.memo, kindLabel(i18n, entry.kind), ...entry.wallets.map((wallet) => wallet.name), ...entry.items.flatMap(item => [i18n.name(item), item.groupNameEn, item.groupNameAr])].join(' ').toLocaleLowerCase(i18n.locale); return haystack.includes(search.trim().toLocaleLowerCase(i18n.locale)); });
+  const visible = selectedDay ? searched.filter(entry => entry.occurredOn === selectedDay) : searched;
   return (
     <>
       <PageHeader title={t('nav.activity')} subtitle={t('activity.intro')} />
       <section className="cr-card">
-        <div className="cr-activity-toolbar"><label className="cr-field"><span className="cr-label">{c('search')}</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} /></label><SelectField label={c('allTypes')} value={kind} onChange={(event) => setKind(event.target.value)}><option value="">{c('allTypes')}</option>{entryKind.options.map((value) => <option key={value} value={value}>{kindLabel(i18n, value)}</option>)}</SelectField></div>
+        <div className="cr-activity-toolbar"><label className="cr-field"><span className="cr-label">{c('search')}</span><input type="search" placeholder={t('input.activitySearch')} value={search} onChange={(event) => setSearch(event.target.value)} /></label><SelectField label={c('allTypes')} value={kind} onChange={(event) => setKind(event.target.value)}><option value="">{c('allTypes')}</option>{entryKind.options.map((value) => <option key={value} value={value}>{kindLabel(i18n, value)}</option>)}</SelectField></div>
         <div className="cr-toolbar cr-filters cr-activity-filters">
           <SelectField label={c('purposeFilter')} value={purpose} onChange={event => setPurpose(event.target.value)}><option value="">{c('allPurposes')}</option><option value="expense">{c('expenses')}</option><option value="savings">{c('savingsSection')}</option></SelectField>
           <SelectField label={c('group')} value={groupId} onChange={event => setGroupId(event.target.value)}><option value="">{c('allGroups')}</option>{catalog.data?.plan.groups.map(group => <option key={group.groupId} value={group.groupId}>{i18n.name(group)}</option>)}{[...new Map([...knownItems.values()].filter(item => item.groupId && !catalog.data?.plan.groups.some(group => group.groupId === item.groupId)).map(item => [item.groupId!, item])).values()].map(item => <option key={item.groupId} value={item.groupId!}>{i18n.name({ nameEn: item.groupNameEn ?? null, nameAr: item.groupNameAr ?? null })}</option>)}</SelectField>
@@ -105,11 +107,11 @@ export function ActivityScreen({ onRecord, walletId: initialWalletId, month: ini
               <optgroup label={i18n.locale === 'ar' ? 'فئات سابقة' : 'Earlier categories'}>{[...knownItems.values()].filter(item => !catalog.data?.plan.groups.some(group => [...group.items, ...(group.flex ? [group.flex] : [])].some(candidate => candidate.itemId === item.itemId))).map(item => <option key={item.itemId} value={item.itemId}>{i18n.name(item)}</option>)}</optgroup>
             </SelectField>
         </div>
-        {first.status === 'ready' ? <ActivityCharts entries={visible} /> : null}
+        {first.status === 'ready' ? <ActivityCharts entries={searched} selectedDay={selectedDay} selectedKind={kind} onDayChange={setSelectedDay} onKindChange={setKind} /> : null}
         {first.status === 'error' ? <ErrorNotice error={first.error} onRetry={first.reload} /> : null}
         {first.status === 'loading' && pages.length === 0 ? <p role="status" className="cr-helper">{t('common.loading')}</p> : null}
         {first.status === 'ready' && pages.length === 0 ? <p className="cr-helper">{t('activity.empty')}</p> : null}
-        {pages.length > 0 && visible.length === 0 ? <p role="status" className="cr-helper">{c('noSearch')}</p> : null}
+        {pages.length > 0 && visible.length === 0 ? <p role="status" className="cr-helper">{selectedDay ? (i18n.locale === 'ar' ? 'لا توجد قيود محمّلة تطابق هذا اليوم والفلاتر. اعرض كل الأيام المحمّلة أو حمّل المزيد.' : 'No loaded records match this day and your filters. Show all loaded days or load more.') : c('noSearch')}</p> : null}
         <ul className="cr-register">
           {visible.map((entry) => {
             const line = describeEntry(i18n, entry);

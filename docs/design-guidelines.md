@@ -165,6 +165,33 @@ State is never color-only (icon or text accompanies tone). Motion honors
    tests updated in the same change).
 4. `pnpm check:ui` + affected e2e specs green before claiming done.
 
+### Interactive charts and form hints
+
+- Charts keep exact, visible readouts and compact axis ticks. `.cr-chart-explore`
+  contains horizontal overflow for long histories; `.cr-chart-interactive` pairs
+  an SVG with native `.cr-chart-hit-targets` buttons. Targets support pointer,
+  touch, and keyboard focus, retain native scrolling, and never overflow plot
+  endpoints. Visual time runs chronologically from left to right in both locales.
+- `.cr-chart-guide` marks the inspected point. `.cr-chart-hint` explains the
+  interaction; `.cr-chart-net` and `.cr-chart-insight` explain the selected
+  values. Savings and income history retain their explicit month controls.
+- `.cr-chart-scrubber` supplies a labeled native daily range input and a Latest
+  day action. Exact daily expenses remain available in the data table.
+- `.cr-budget-detail` is a native expandable category comparison with one
+  spent bar and a planned-limit marker. `.cr-budget-caption` labels both exact
+  values; `.cr-budget-items` reveals the item breakdown. Negative refunds and
+  over-plan amounts keep their signs in visible text.
+- `.cr-chart-tools` groups sorting controls; `.cr-allocation-options` pairs
+  native category buttons with the ring readout; `.cr-chart-footer` holds the
+  reset action. `.cr-type-breakdown-button` filters Journal using its existing
+  kind filter. Day filtering is explicit and applies to loaded matching records.
+- Editable text, search, email, password, numeric and money fields have
+  contextual bilingual placeholders in addition to their existing labels.
+  Native dates, radio/checkbox controls, populated read-only values, and selects
+  with meaningful current values retain their native presentation.
+- Motion uses the shared duration/easing tokens; workspace arrival and bar
+  transitions run only with `prefers-reduced-motion: no-preference`.
+
 ## 13. Wizards (multi-step forms)
 
 Long creation/edit flows are **step forms**, not scrolling dialogs. Precedent:

@@ -55,6 +55,7 @@ export function DescriptionField({ value, onChange, suggestions, catalog, autoFo
           ref={inputRef}
           type="text"
           maxLength={200}
+          placeholder={t('input.description')}
           autoComplete="off"
           onFocus={() => setFocused(true)}
           onKeyDown={(event) => {

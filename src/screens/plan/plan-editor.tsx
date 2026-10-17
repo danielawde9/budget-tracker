@@ -210,12 +210,12 @@ export function PlanEditorForm({ plan, month, onCancel, onSaved, cancelLabel, in
               <div className="cr-editor-group-head">
                 <label className="cr-field">
                   <span className="cr-label">{t('editor.groupName')}</span>
-                  <input type="text" required maxLength={60} value={localName(group)} onChange={(event) => setGroup(group.key, (current) => withName(current, event.target.value))} />
+                  <input type="text" required maxLength={60} placeholder={t(group.purpose === 'savings' ? 'input.savingsGroup' : 'input.expenseGroup')} value={localName(group)} onChange={(event) => setGroup(group.key, (current) => withName(current, event.target.value))} />
                 </label>
                 <label className="cr-field cr-editor-percent">
                   <span className="cr-label">{t('editor.percent')}</span>
                   <span className="cr-affix">
-                    <input type="text" inputMode="decimal" dir="ltr" required value={group.bpsText} aria-invalid={bps[groupIndex] === null}
+                    <input type="text" inputMode="decimal" dir="ltr" required placeholder={t('input.percent')} value={group.bpsText} aria-invalid={bps[groupIndex] === null}
                       onChange={(event) => setGroup(group.key, (current) => ({ ...current, bpsText: event.target.value }))} />
                     <span className="cr-affix-suffix" aria-hidden="true">%</span>
                   </span>
@@ -228,7 +228,7 @@ export function PlanEditorForm({ plan, month, onCancel, onSaved, cancelLabel, in
                   <li key={item.key} className="cr-editor-item">
                     <label className="cr-field">
                       <span className="cr-label">{t('editor.itemName')}</span>
-                      <input type="text" required maxLength={60} value={localName(item)} onChange={(event) => setItem(group.key, item.key, (current) => withName(current, event.target.value))} />
+                      <input type="text" required maxLength={60} placeholder={t(group.purpose === 'savings' ? 'input.savingsItem' : 'input.expenseItem')} value={localName(item)} onChange={(event) => setItem(group.key, item.key, (current) => withName(current, event.target.value))} />
                     </label>
                     <MoneyField label={t('editor.monthly')} currency={currency} value={item.monthly} allowZero
                       onChange={(monthly) => setItem(group.key, item.key, (current) => ({ ...current, monthly }))} />

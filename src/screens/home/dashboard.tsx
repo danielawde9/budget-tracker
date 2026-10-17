@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import type { CurrencyOverview, Overview, PlanMonth, Entry } from '../../api/schemas.ts';
 import { useWorkspace } from '../../app/workspace.tsx';
 import { useI18n } from '../../lib/i18n.tsx';
 import { useUiCopy } from '../../lib/ui-copy.ts';
 import { LoadState, useLoad } from '../../ui/async.tsx';
 import { Amount } from '../../ui/money.tsx';
+import { chartTick } from '../../ui/charts.tsx';
 import { endOfMonth } from '../describe.ts';
 import { expenseEntries, expenseGroupRows, loadMonthActivity, spendingSeries, plannedSpending } from './dashboard-model.ts';
 import { HistoryCharts } from './history-charts.tsx';
@@ -52,8 +54,10 @@ function DashboardPlan({ plan, entries, overview, view }: { readonly plan: PlanM
 }
 
 function SpendingChart({ entries, overview, view, plan }: { entries: Entry[]; overview: Overview; view: CurrencyOverview; plan: PlanMonth }) {
-  const { money, date } = useI18n();
+  const { money, date, locale } = useI18n();
   const c = useUiCopy();
+  const copy = (en: string, ar: string) => locale === 'ar' ? ar : en;
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const points = spendingSeries(entries, view.currency, overview.month, overview.today);
   const planned = view.currency === plan.planCurrency ? plannedSpending(plan) : 0n;
   const values = points.map(point => point.amount);
@@ -65,15 +69,29 @@ function SpendingChart({ entries, overview, view, plan }: { entries: Entry[]; ov
   const y = (amount: bigint) => 225 - Number((amount - min) * 10000n / range) / 10000 * 195;
   const path = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${x(index)} ${y(point.amount)}`).join(' ');
   const latest = points.at(-1)?.amount ?? 0n;
+  const lastRecordedDay = Math.max(1, points.length - 1);
+  const day = Math.max(1, Math.min(lastRecordedDay, selectedDay ?? lastRecordedDay));
+  const current = points[day] ?? points.at(-1)!;
+  const pace = planned * BigInt(day) / BigInt(lastDay);
+  const difference = current.amount - pace;
+  const inspect = (event: React.PointerEvent<SVGSVGElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const position = (event.clientX - bounds.x) / bounds.width * 610;
+    setSelectedDay(Math.max(1, Math.min(lastRecordedDay, Math.round((position - 66) / 510 * lastDay))));
+  };
   return <>
-    <div className="cr-chart-key"><span><i />{c('actual')}</span>{planned > 0n ? <span><i className="cr-chart-key-plan" />{c('plannedPace')}</span> : null}<strong>{money(latest, view.currency)}</strong></div>
-    <svg className="cr-spending-chart" viewBox="0 0 610 270" role="img" aria-label={`${c('spendingChart')}: ${money(latest, view.currency)}`}>
-      {[0, 1, 2].map(step => { const amount = min + range * BigInt(step) / 2n; return <g key={step}><line x1={66} x2={576} y1={y(amount)} y2={y(amount)} className="cr-chart-grid" /><text x={58} y={y(amount) + 4} textAnchor="end">{money(amount, view.currency)}</text></g>; })}
+    <div className="cr-chart-readout"><div><span className="cr-helper">{copy(`Spending through ${date(current.on, 'short')}`, `الإنفاق حتى ${date(current.on, 'short')}`)}</span><Amount minor={current.amount} currency={view.currency} /></div></div>
+    <div className="cr-chart-key"><span><i />{c('actual')}</span>{planned > 0n ? <span><i className="cr-chart-key-plan" />{c('plannedPace')}</span> : null}</div>
+    <svg className="cr-spending-chart" viewBox="0 0 610 270" role="img" aria-label={`${c('spendingChart')}: ${money(latest, view.currency)}`} onPointerMove={event => { if (event.pointerType === 'mouse') inspect(event); }} onPointerDown={inspect}>
+      {[0, 1, 2].map(step => { const amount = min + range * BigInt(step) / 2n; return <g key={step}><line x1={66} x2={576} y1={y(amount)} y2={y(amount)} className="cr-chart-grid" /><text x={58} y={y(amount) + 4} textAnchor="end">{chartTick(amount, view.currency, locale)}</text></g>; })}
       {planned > 0n ? <path d={`M ${x(0)} ${y(0n)} L ${x(lastDay)} ${y(planned)}`} className="cr-chart-pace" /> : null}
       <path d={`${path} L ${x(points.length - 1)} ${y(0n)} L ${x(0)} ${y(0n)} Z`} className="cr-chart-area" />
       <path d={path} className="cr-chart-actual" />
+      <line x1={x(day)} x2={x(day)} y1="25" y2="230" className="cr-chart-guide" /><circle cx={x(day)} cy={y(current.amount)} r="6" className="cr-chart-point" />
       {[1, Math.ceil(lastDay / 2), lastDay].map(day => <text key={day} x={x(day)} y={252} textAnchor="middle">{date(`${overview.month.slice(0, 7)}-${String(day).padStart(2, '0')}`, 'short')}</text>)}
     </svg>
+    <div className="cr-chart-scrubber"><label className="cr-field"><span className="cr-label">{copy('Explore spending by day', 'استكشاف الإنفاق حسب اليوم')}</span><input type="range" dir="ltr" min="1" max={lastRecordedDay} value={day} aria-valuetext={`${date(current.on, 'short')}: ${money(current.amount, view.currency)}`} onChange={event => setSelectedDay(Number(event.target.value))} /></label><button type="button" className="text-button" onClick={() => setSelectedDay(null)}>{copy('Latest day', 'أحدث يوم')}</button></div>
+    {planned > 0n ? <p className="cr-chart-insight"><strong>{money(difference < 0n ? -difference : difference, view.currency)} {difference > 0n ? copy('above planned pace', 'فوق الوتيرة المخططة') : copy('under planned pace', 'دون الوتيرة المخططة')}</strong><span className="cr-helper">{c('plannedPace')}: {money(pace, view.currency)}</span></p> : null}
     {values.every(value => value === 0n) ? <p className="cr-helper">{c('noSpending')}</p> : null}
     <details className="cr-chart-data"><summary>{c('dailyExpenses')}</summary><table><thead><tr><th>{c('actual')}</th><th>{c('spentMonth')}</th></tr></thead><tbody>{points.slice(1).map(point => <tr key={point.on}><td>{date(point.on, 'short')}</td><td>{money(point.amount, view.currency)}</td></tr>)}</tbody></table></details>
   </>;

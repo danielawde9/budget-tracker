@@ -63,7 +63,7 @@ function RateForm({ current, since }: { readonly current: string; readonly since
       {since ? <p className="cr-helper">{t('settings.rateSince', { date: date(since) })}</p> : null}
       <label className="cr-field">
         <span className="cr-label">{t('settings.rateLabel')}</span>
-        <input type="text" inputMode="decimal" dir="ltr" required value={rate} onChange={(event) => { setRate(event.target.value); setSaved(false); }} />
+        <input type="text" inputMode="decimal" dir="ltr" required placeholder={t('input.referenceRate')} value={rate} onChange={(event) => { setRate(event.target.value); setSaved(false); }} />
       </label>
       <label className="cr-field">
         <span className="cr-label">{t('settings.rateFrom')}</span>

@@ -52,7 +52,7 @@ function OwnerInvitations() {
   return <div className="cr-stack cr-invite-controls">
     <p className="cr-helper">{t('invite.help')}</p>
     <form className="cr-stack" onSubmit={event => void submit(event)}>
-      <label className="cr-field"><span className="cr-label">{t('invite.email')}</span><input name="recipient-email" type="email" autoComplete="email" dir="ltr" required maxLength={254} disabled={command.pending} value={email} onChange={event => {
+      <label className="cr-field"><span className="cr-label">{t('invite.email')}</span><input name="recipient-email" type="email" autoComplete="email" dir="ltr" placeholder={t('input.inviteEmail')} required maxLength={254} disabled={command.pending} value={email} onChange={event => {
         setEmail(event.target.value);
         command.resetRequest();
         setToken(newInviteToken());

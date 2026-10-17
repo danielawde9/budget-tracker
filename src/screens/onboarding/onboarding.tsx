@@ -97,7 +97,7 @@ function SpaceStep({ api, onCreated }: { readonly api: BudgetApi; readonly onCre
       <p className="cr-helper">{t('onboarding.welcomeIntro')}</p>
       <label className="cr-field">
         <span className="cr-label">{t('onboarding.spaceName')}</span>
-        <input type="text" required maxLength={80} value={name} onChange={(event) => setName(event.target.value)} />
+        <input type="text" required maxLength={80} placeholder={t('input.spaceName')} value={name} onChange={(event) => setName(event.target.value)} />
       </label>
       <MoneyField label={t('plan.expectedIncome')} currency="USD" value={income} onChange={setIncome} allowZero autoFocus hint={t('onboarding.incomeHint')} />
       <Explain>{setupCopy(locale, 'currencyHint')}</Explain>

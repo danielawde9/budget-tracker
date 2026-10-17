@@ -217,12 +217,12 @@ export function WalletForm({ onDone, onCancel, kind: initialKind, submitLabel, f
       ) : null}
       <label className="cr-field">
         <span className="cr-label">{t('common.name')}</span>
-        <input type="text" required maxLength={60} value={name} data-autofocus="" onChange={(event) => setName(event.target.value)} />
+        <input type="text" required maxLength={60} placeholder={t(kind === 'cash' ? 'input.cashName' : kind === 'investment' ? 'input.investmentName' : 'input.loanName')} value={name} data-autofocus="" onChange={(event) => setName(event.target.value)} />
       </label>
       {kind === 'loan' ? (
         <label className="cr-field">
           <span className="cr-label">{t('wallet.counterparty')}</span>
-          <input type="text" maxLength={60} value={counterparty} onChange={(event) => setCounterparty(event.target.value)} />
+          <input type="text" maxLength={60} placeholder={t('input.counterparty')} value={counterparty} onChange={(event) => setCounterparty(event.target.value)} />
         </label>
       ) : null}
       <fieldset className="cr-choice">
@@ -266,7 +266,7 @@ export function CorrectForm({ entry, onDone, onCancel }: Omit<FormProps, 'catalo
       </ul>
       <label className="cr-field">
         <span className="cr-label">{t('correct.reason')}</span>
-        <input type="text" required maxLength={200} value={reason} data-autofocus="" onChange={(event) => setReason(event.target.value)} />
+        <input type="text" required maxLength={200} placeholder={t('input.correctionReason')} value={reason} data-autofocus="" onChange={(event) => setReason(event.target.value)} />
       </label>
       {command.error ? <ErrorNotice error={command.error} /> : null}
       <FormActions submitLabel="correct.save" pending={command.pending} onCancel={onCancel} disabled={!reason.trim()} />

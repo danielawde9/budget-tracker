@@ -52,7 +52,7 @@ export function WalletStatementDialog({ wallet, onClose, onRecord }: {
       <fieldset className="cr-form-section" disabled={pending}>
         <legend>{t('statement.details')}</legend>
         <label className="cr-field"><span className="cr-label">{t('statement.date')}</span><input name="statementDate" type="date" required min="2000-01-01" max={space.today} value={on} onChange={(event) => { edited(); setOn(event.target.value); }} /></label>
-        <div className="cr-field"><label className="cr-label" htmlFor={amountId}>{t('statement.balance')}</label><span className="cr-affix"><input id={amountId} name="statementBalance" type="text" inputMode={wallet.currency === 'USD' ? 'decimal' : 'numeric'} dir="ltr" autoComplete="off" required value={text} onChange={(event) => { edited(); setText(event.target.value); }} /><span className="cr-affix-suffix" aria-hidden>{wallet.currency}</span></span></div>
+        <div className="cr-field"><label className="cr-label" htmlFor={amountId}>{t('statement.balance')}</label><span className="cr-affix"><input id={amountId} name="statementBalance" type="text" inputMode={wallet.currency === 'USD' ? 'decimal' : 'numeric'} dir="ltr" autoComplete="off" placeholder={t(wallet.currency === 'USD' ? 'input.amountUsd' : 'input.amountLbp')} required value={text} onChange={(event) => { edited(); setText(event.target.value); }} /><span className="cr-affix-suffix" aria-hidden>{wallet.currency}</span></span></div>
         <p className="cr-helper">{t(wallet.currency === 'USD' ? 'statement.cents' : 'statement.whole')}</p>
       </fieldset>
       {error ? <ErrorNotice error={error} /> : null}

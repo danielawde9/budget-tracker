@@ -1,9 +1,21 @@
-import { screen, within } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { fakeApi, fixtures, renderWithWorkspace } from '../../test/harness.tsx';
 import { HomeScreen } from './home.tsx';
 
 describe('Home', () => {
+  it('lets users scrub daily expenses and read exact spending against that day’s planned pace', async () => {
+    renderWithWorkspace(<HomeScreen onRecord={vi.fn()} />, fakeApi());
+    const chart = await screen.findByRole('region', { name: 'Actual vs. planned expenses' });
+    const slider = within(chart).getByRole('slider', { name: 'Explore spending by day' });
+    fireEvent.change(slider, { target: { value: '1' } });
+    expect(slider).toHaveValue('1');
+    expect(slider).toHaveAttribute('aria-valuetext', expect.stringContaining('Oct 1'));
+    expect(within(chart).getByText('Spending through Oct 1')).toBeInTheDocument();
+    await userEvent.click(within(chart).getByRole('button', { name: 'Latest day' }));
+    expect(slider).toHaveValue(String(Number(fixtures.overview.today.slice(-2))));
+  });
+
   it('compares monthly expenses with their plan and omits assignment details', async () => {
     renderWithWorkspace(<HomeScreen onRecord={vi.fn()} />, fakeApi());
     const summary = await screen.findByRole('region', { name: 'Monthly expenses' });

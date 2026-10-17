@@ -59,11 +59,11 @@ export function AuthScreen({ client, onToggleLocale, invitation = false }: { rea
             {invitation ? <p className="cr-helper" id="invite-auth-help">{t('invite.authHelp')}</p> : null}
           </div>
           <form className="auth-form" onSubmit={(event) => void submit(event)}>
-            <label>{t('auth.email')}<input name="email" type="email" autoComplete="username" spellCheck={false} required aria-describedby={invitation ? 'invite-auth-help' : undefined} value={email} onChange={(event) => { setEmail(event.target.value); setConfirmEmail(false); }} /></label>
+            <label>{t('auth.email')}<input name="email" type="email" autoComplete="username" placeholder={t('input.email')} spellCheck={false} required aria-describedby={invitation ? 'invite-auth-help' : undefined} value={email} onChange={(event) => { setEmail(event.target.value); setConfirmEmail(false); }} /></label>
             <div className="auth-password-field">
               <label htmlFor="auth-password">{t('auth.password')}</label>
               <div className="auth-password-input">
-                <input id="auth-password" type={passwordVisible ? 'text' : 'password'} autoComplete={signingUp ? 'new-password' : 'current-password'} minLength={8} required value={password} onChange={(event) => setPassword(event.target.value)} aria-describedby={signingUp ? 'auth-password-hint' : undefined} />
+                <input id="auth-password" type={passwordVisible ? 'text' : 'password'} autoComplete={signingUp ? 'new-password' : 'current-password'} placeholder={t(signingUp ? 'input.newPassword' : 'input.password')} minLength={8} required value={password} onChange={(event) => setPassword(event.target.value)} aria-describedby={signingUp ? 'auth-password-hint' : undefined} />
                 <button type="button" className="auth-password-toggle" aria-label={setupCopy(locale, passwordVisible ? 'hidePassword' : 'showPassword')} aria-pressed={passwordVisible} onClick={() => setPasswordVisible((visible) => !visible)}>{passwordVisible ? <EyeOff aria-hidden="true" size={20} /> : <Eye aria-hidden="true" size={20} />}</button>
               </div>
               {signingUp ? <p id="auth-password-hint" className="cr-helper">{setupCopy(locale, 'passwordHint')}</p> : null}

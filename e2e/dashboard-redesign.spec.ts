@@ -30,6 +30,10 @@ test('dashboard charts display recorded history and follow currency and activity
   await expect(income.getByText(formatMoney(latest.income.USD, 'USD', 'en'), { exact: true })).toBeVisible();
   await expect(income.getByText(formatMoney(latest.spent.USD, 'USD', 'en'), { exact: true })).toBeVisible();
   await expect(savings.getByText(formatMoney(latest.savings.USD, 'USD', 'en'), { exact: true })).toBeVisible();
+  const daily = page.getByRole('region', { name: 'Actual vs. planned expenses', exact: true });
+  await daily.getByRole('slider', { name: 'Explore spending by day' }).press('Home');
+  await expect(daily.getByRole('slider')).toHaveValue('1');
+  await daily.getByRole('button', { name: 'Latest day' }).click();
   await page.getByRole('group', { name: 'Currency', exact: true }).getByRole('button', { name: 'LBP', exact: true }).click();
   await expect(income.locator('.cr-chart-readout .cr-amount').first()).toHaveText(formatMoney(latest.income.LBP, 'LBP', 'en'));
   await expect(savings.locator('.cr-chart-readout .cr-amount')).toHaveText(formatMoney(latest.savings.LBP, 'LBP', 'en'));
@@ -40,10 +44,23 @@ test('dashboard charts display recorded history and follow currency and activity
   await page.goto('/#/plan');
   await expect(page.getByRole('region', { name: 'Planned vs spent', exact: true })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Your budget at a glance', exact: true }).getByRole('img')).toBeVisible();
+  const mix = page.getByRole('region', { name: 'Your budget at a glance', exact: true });
+  const essentials = mix.getByRole('button', { name: /Essentials/ });
+  await essentials.click();
+  await expect(essentials).toHaveAttribute('aria-pressed', 'true');
+  await mix.getByRole('button', { name: 'Show total budget' }).click();
+  await expect(essentials).toHaveAttribute('aria-pressed', 'false');
+  const category = page.getByRole('region', { name: 'Planned vs spent', exact: true }).locator('summary').filter({ hasText: 'Essentials' });
+  await category.click();
+  await expect(category.locator('..').getByText('Item breakdown')).toBeVisible();
   await expect(page.getByRole('region', { name: 'Funding progress', exact: true }).getByRole('progressbar').first()).toBeVisible();
 
   await page.goto('/#/activity');
   await expect(page.getByRole('img', { name: 'Records by day', exact: true })).toBeVisible();
+  const day = page.getByRole('group', { name: 'Filter loaded records by day' }).getByRole('button').first();
+  await day.click();
+  await expect(day).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Show all loaded days' }).click();
   const search = page.getByRole('searchbox');
   await search.fill('no-matching-dashboard-record');
   await expect(page.getByText('0 · Matching records', { exact: true })).toBeVisible();
@@ -66,7 +83,7 @@ test('all redesigned destinations fit the viewport in English and Arabic', async
     for (const destination of ['home', 'plan', 'activity', 'accounts', 'settings'] as const) {
       await page.goto(`/#/${destination}`);
       await expect(page.getByRole('heading', { level: 1, name: translate(locale, `nav.${destination}`), exact: true })).toBeVisible();
-      await expect(page.locator('main [role="status"]')).toHaveCount(0);
+      await expect(page.locator('main').getByText(translate(locale, 'common.loading'), { exact: true })).toHaveCount(0);
       await expect(page.locator('main .error-notice')).toHaveCount(0);
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
       if (destination === 'home') await expect(page.getByRole('region', { name: locale === 'en' ? 'Income vs spending' : 'الدخل مقابل الإنفاق', exact: true }).getByRole('img')).toBeVisible();

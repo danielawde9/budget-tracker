@@ -73,6 +73,7 @@ export function MoneyField({ label, currency, value, onChange, required = true, 
             autoComplete="off"
             enterKeyHint="done"
             dir="ltr"
+            placeholder={t(currency === 'USD' ? 'input.amountUsd' : 'input.amountLbp')}
             name={name}
             data-autofocus={autoFocus ? '' : undefined}
             required={required}

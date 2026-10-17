@@ -74,6 +74,30 @@ export const messages = {
   'common.saved': { en: 'Saved.', ar: 'تم الحفظ.' },
   'common.recorded': { en: 'Recorded.', ar: 'تم التسجيل.' },
 
+  // Examples supplement visible field labels without becoming saved values.
+  'input.amountUsd': { en: 'e.g. 25.00', ar: 'مثال: ٢٥٫٠٠' },
+  'input.amountLbp': { en: 'e.g. 100000', ar: 'مثال: ١٠٠٠٠٠' },
+  'input.email': { en: 'e.g. you@example.com', ar: 'مثال: you@example.com' },
+  'input.inviteEmail': { en: 'e.g. member@example.com', ar: 'مثال: member@example.com' },
+  'input.password': { en: 'Enter your password', ar: 'أدخل كلمة المرور' },
+  'input.newPassword': { en: 'At least 8 characters', ar: '٨ أحرف على الأقل' },
+  'input.spaceName': { en: 'e.g. Home budget', ar: 'مثال: ميزانية المنزل' },
+  'input.cashName': { en: 'e.g. Cash or bank account', ar: 'مثال: نقد أو حساب مصرفي' },
+  'input.investmentName': { en: 'e.g. Investment portfolio', ar: 'مثال: محفظة استثمارية' },
+  'input.loanName': { en: 'e.g. Car loan', ar: 'مثال: قرض السيارة' },
+  'input.counterparty': { en: 'e.g. Bank or person’s name', ar: 'مثال: اسم البنك أو الشخص' },
+  'input.correctionReason': { en: 'e.g. Recorded twice', ar: 'مثال: تم التسجيل مرتين' },
+  'input.description': { en: 'e.g. Groceries or lunch', ar: 'مثال: بقالة أو غداء' },
+  'input.note': { en: 'Add a detail to remember', ar: 'أضف تفصيلًا لتتذكره لاحقًا' },
+  'input.billName': { en: 'e.g. Rent or electricity', ar: 'مثال: الإيجار أو الكهرباء' },
+  'input.expenseGroup': { en: 'e.g. Living costs', ar: 'مثال: تكاليف المعيشة' },
+  'input.savingsGroup': { en: 'e.g. Savings and goals', ar: 'مثال: الادخار والأهداف' },
+  'input.expenseItem': { en: 'e.g. Groceries', ar: 'مثال: البقالة' },
+  'input.savingsItem': { en: 'e.g. Emergency fund', ar: 'مثال: صندوق الطوارئ' },
+  'input.percent': { en: 'e.g. 50', ar: 'مثال: ٥٠' },
+  'input.activitySearch': { en: 'Description, account or category', ar: 'وصف أو حساب أو فئة' },
+  'input.referenceRate': { en: 'e.g. 89500', ar: 'مثال: 89500' },
+
   // Plan
   'plan.flexGets': { en: '{name} gets {amount}', ar: '{name} يحصل على {amount}' },
 
