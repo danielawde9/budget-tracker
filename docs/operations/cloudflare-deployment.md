@@ -8,7 +8,7 @@ production-data access.
 
 ## Preconditions
 
-Use Node 22.22.0 and pnpm 11.17.0. Start from the reviewed `main` branch and
+Use Node 22.23.4 and pnpm 11.17.0. Start from the reviewed `main` branch and
 install the locked dependency graph:
 
 ```bash

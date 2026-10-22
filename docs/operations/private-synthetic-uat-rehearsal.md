@@ -36,7 +36,7 @@ Do not enter real financial data based on this rehearsal.
 
 ## Reproduce offline
 
-Prerequisites are Node `22.22.0`, pnpm `11.17.0`, the committed lockfile, the
+Prerequisites are Node `22.23.4`, pnpm `11.17.0`, the committed lockfile, the
 pnpm store already populated, and installed Google Chrome. Start from a clean
 checkout of the reported release head, with no Supabase or database environment
 variables required.

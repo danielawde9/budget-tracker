@@ -13,7 +13,7 @@ access. These gates use disposable/synthetic targets only.
 
 | Requirement | Version / value | Why |
 | --- | --- | --- |
-| Node | 22.22.0 | `.nvmrc`/`package.json` toolchain |
+| Node | 22.23.4 | `.nvmrc`/`package.json` toolchain |
 | pnpm | 11.17.0 | `packageManager` field |
 | Tailscale | up and authorized to the Budget tailnet | reaches the dev Postgres host |
 | Dev Postgres host | `lelabo@100.76.160.91` (Tailscale), Postgres ports `54421–54424` | `pnpm test:db` target |

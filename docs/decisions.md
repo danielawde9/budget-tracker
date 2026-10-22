@@ -4277,3 +4277,21 @@ Cash statement comparison is a read, using the journal as recorded now for the
 selected day. It creates no adjustment entries or stored statement data. Clock
 control exists only in disposable test databases; the production clock returns
 transaction now and API roles cannot change or execute the private helper.
+
+## 2026-10-22 — Node patch pin 22.22.0 → 22.23.4 (security release)
+
+**Decision:** `.nvmrc` and the operator docs that state the Node prerequisite
+(`docs/operations/cloudflare-deployment.md`, `local-gates.md`,
+`private-synthetic-uat-rehearsal.md`) now pin Node 22.23.4. This supersedes the
+Node half of "2026-09-07 — Foundation toolchain versions"; pnpm 11.17.0 is
+unchanged. Older dated entries, plans and verification records keep 22.22.0
+because they describe what was true and measured when they were written.
+
+**Why:** The Node security release of 2026-10-21 (CVE-2026-111497, a Brotli
+remote-code-execution issue, among others) fixed the 22.x line in 22.23.4. The
+owner asked for the exact patch pin to move.
+
+**If changed:** Dependencies are untouched and `pnpm-lock.yaml` has no Node
+pin, so reverting is a one-line `.nvmrc` change plus the three doc lines. The
+pin is not installed or exercised by this change; the first local gate run on
+22.23.4 is the check that nothing in the toolchain depends on 22.22.0.
