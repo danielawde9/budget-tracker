@@ -167,6 +167,14 @@ State is never color-only (icon or text accompanies tone). Motion honors
 
 ### Interactive charts and form hints
 
+- Active-month expense totals use `.cr-category-totals` with the shared currency
+  buttons, a visible exact total, and `.cr-category-table` for category, net
+  spending, and share. `.cr-category-share-track` adds a decorative comparison
+  bar alongside the visible percentage. Refund-only categories show a signed
+  amount and a text label instead of a negative percentage. USD and LBP stay
+  separate; all activity pages for the active budget month are loaded before
+  displaying totals.
+
 - Charts keep exact, visible readouts and compact axis ticks. `.cr-chart-explore`
   contains horizontal overflow for long histories; `.cr-chart-interactive` pairs
   an SVG with native `.cr-chart-hit-targets` buttons. Targets support pointer,

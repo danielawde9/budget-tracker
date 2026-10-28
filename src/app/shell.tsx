@@ -39,7 +39,7 @@ function SpaceControl({ space, spaces, onSelectSpace }: Pick<ShellProps, 'space'
 export function Shell({ route, space, spaces, onSelectSpace, onRecord, onToggleLocale, children }: ShellProps) {
   const { t } = useI18n();
   const tab = ({ name, label, Icon }: (typeof DESTINATIONS)[number]) => {
-    const active = route.name === name;
+    const active = route.name === name || (route.name === 'expenses' && name === 'activity');
     return (
       <a
         key={name}

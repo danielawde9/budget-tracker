@@ -27,7 +27,7 @@ function DashboardPlan({ plan, entries, overview, view }: { readonly plan: PlanM
   const planned = view.currency === plan.planCurrency ? groups.reduce((sum, group) => sum + group.planned, 0n) : null;
   return <>
     <section className="cr-expense-summary" aria-labelledby="monthly-expenses-heading">
-      <h2 id="monthly-expenses-heading">{c('monthlyExpenses')}</h2><p className="cr-helper">{c('expenseScope')}</p>
+      <div className="cr-section-header"><h2 id="monthly-expenses-heading">{c('monthlyExpenses')}</h2><a className="cr-button cr-button--sm" href="#/expenses">{c('viewCategoryExpenses')}</a></div><p className="cr-helper">{c('expenseScope')}</p>
       <dl className="cr-expense-totals">
         <div><dt>{c('plannedExpenses')}</dt><dd>{planned !== null ? <Amount minor={planned} currency={view.currency} /> : '—'}</dd></div>
         <div><dt>{c('spentMonth')}</dt><dd><Amount minor={spent} currency={view.currency} /></dd></div>

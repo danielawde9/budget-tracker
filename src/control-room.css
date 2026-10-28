@@ -1688,6 +1688,28 @@
 .cr-tabs > .cr-tab-button--active { background: var(--cr-accent-strong); color: var(--cr-accent-ink); }
 .cr-tabs > .cr-tab-button:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 2px; }
 .cr-home, .cr-plan, .cr-accounts { display: flex; flex-direction: column; gap: var(--cr-space-4); }
+
+/* Active-month category totals reuse the shared money, table, and currency controls. */
+.cr-category-totals .cr-tabs > .cr-tab-button { min-block-size: 44px; }
+.cr-category-total { margin-block: var(--cr-space-4) var(--cr-space-2); }
+.cr-category-total .cr-amount { font-size: 32px; overflow-wrap: anywhere; white-space: normal; }
+.cr-category-table { inline-size: 100%; border-collapse: collapse; margin-block-start: var(--cr-space-5); }
+.cr-category-table th, .cr-category-table td { padding: var(--cr-space-4) var(--cr-space-2); border-block-end: 1px solid var(--cr-hairline); text-align: end; vertical-align: middle; }
+.cr-category-table thead th { color: var(--cr-ink-soft); font-size: 12px; font-weight: 600; }
+.cr-category-table th:first-child { text-align: start; padding-inline-start: 0; }
+.cr-category-table th[scope="row"] { inline-size: 55%; font-weight: 600; overflow-wrap: anywhere; }
+.cr-category-table th[scope="row"] .cr-helper { display: block; }
+.cr-category-table td:last-child, .cr-category-table th:last-child { padding-inline-end: 0; font-variant-numeric: tabular-nums; }
+.cr-category-table tbody tr:last-child > * { border-block-end: 0; }
+.cr-category-share-track { display: block; block-size: var(--cr-space-1); background: var(--cr-surface-sunken); border-radius: var(--cr-radius-full); margin-block-start: var(--cr-space-2); overflow: hidden; }
+.cr-category-share-track > span { display: block; block-size: 100%; background: var(--cr-accent-strong); border-radius: inherit; }
+.cr-category-empty { display: grid; justify-items: start; gap: var(--cr-space-3); padding-block: var(--cr-space-5); }
+.cr-category-empty h3, .cr-category-empty p { margin: 0; }
+@media (max-width: 480px) {
+  .cr-category-table th, .cr-category-table td { padding-inline: var(--cr-space-1); font-size: 13px; }
+  .cr-category-table th[scope="row"] { inline-size: auto; }
+  .cr-category-table .cr-amount { font-size: inherit; white-space: nowrap; }
+}
 .cr-home > .cr-card + .cr-card, .cr-plan > .cr-card + .cr-card { margin-block-start: 0; }
 
 /* Shared approved money state and compact registers, 2026-10-09. */

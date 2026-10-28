@@ -1,5 +1,15 @@
 import { useI18n } from './i18n.tsx';
 const copy = {
+  activeMonth: ['Active month', 'الشهر النشط'],
+  totalExpenses: ['Total expenses', 'إجمالي المصروفات'],
+  categoryTotals: ['Category totals', 'الإجمالي حسب الفئة'],
+  expenseCategory: ['Category', 'الفئة'],
+  categoryShare: ['Share', 'النسبة'],
+  categoryShareHelp: ['Shares compare categories with positive net spending. Refund-only categories are shown separately.', 'تقارن النسب الفئات ذات صافي الإنفاق الموجب. تظهر الفئات ذات صافي الاسترداد بشكل منفصل.'],
+  netRefunds: ['Net refunds', 'صافي الاستردادات'],
+  noCategoryExpenses: ['No expenses recorded for this month.', 'لا توجد مصروفات مسجلة لهذا الشهر.'],
+  noCategoryExpensesHelp: ['Record an expense to see your category totals here.', 'سجّل مصروفًا لعرض الإجمالي حسب الفئة هنا.'],
+  viewCategoryExpenses: ['View expenses by category', 'عرض المصروفات حسب الفئة'],
   incomeVsSpending: ['Income vs spending', 'الدخل مقابل الإنفاق'],
   flowHistoryHelp: ['Compare money received and purchases across recorded months.', 'قارن الدخل المستلم والمشتريات عبر الأشهر المسجلة.'],
   savingsHistory: ['Savings over time', 'المدخرات عبر الأشهر'],

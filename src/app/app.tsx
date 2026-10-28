@@ -12,6 +12,7 @@ import { IS_DEMO, isLoopbackUrl } from '../preview/demo-mode.ts';
 import { RecordDialog, type RecordIntent } from '../record/record-dialog.tsx';
 import { AccountsScreen } from '../screens/accounts/accounts.tsx';
 import { ActivityScreen } from '../screens/activity/activity.tsx';
+import { ExpensesScreen } from '../screens/expenses/expenses.tsx';
 import { HomeScreen } from '../screens/home/home.tsx';
 import { Onboarding } from '../screens/onboarding/onboarding.tsx';
 import { PlanScreen } from '../screens/plan/plan.tsx';
@@ -160,6 +161,7 @@ export function Routes({ space, spaces, onSelectSpace, onToggleLocale, onSignOut
       {route.name === 'home' ? <HomeScreen onRecord={openRecord} /> : null}
       {route.name === 'plan' ? <PlanScreen month={route.month ?? space.currentMonth} onRecord={openRecord} /> : null}
       {route.name === 'activity' ? <ActivityScreen walletId={route.walletId ?? null} month={route.month ?? null} onRecord={openRecord} /> : null}
+      {route.name === 'expenses' ? <ExpensesScreen onRecord={openRecord} /> : null}
       {route.name === 'accounts' ? <AccountsScreen onRecord={openRecord} /> : null}
       {route.name === 'settings' ? <SettingsScreen onToggleLocale={onToggleLocale} onSignOut={onSignOut} /> : null}
       {IS_DEMO ? <DemoTourPanel /> : null}

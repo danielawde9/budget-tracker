@@ -83,7 +83,7 @@ export function ActivityScreen({ onRecord, walletId: initialWalletId, month: ini
   const visible = selectedDay ? searched.filter(entry => entry.occurredOn === selectedDay) : searched;
   return (
     <>
-      <PageHeader title={t('nav.activity')} subtitle={t('activity.intro')} />
+      <PageHeader title={t('nav.activity')} subtitle={t('activity.intro')} actions={<a className="cr-button" href="#/expenses">{c('viewCategoryExpenses')}</a>} />
       <section className="cr-card">
         <div className="cr-activity-toolbar"><label className="cr-field"><span className="cr-label">{c('search')}</span><input type="search" placeholder={t('input.activitySearch')} value={search} onChange={(event) => setSearch(event.target.value)} /></label><SelectField label={c('allTypes')} value={kind} onChange={(event) => setKind(event.target.value)}><option value="">{c('allTypes')}</option>{entryKind.options.map((value) => <option key={value} value={value}>{kindLabel(i18n, value)}</option>)}</SelectField></div>
         <div className="cr-toolbar cr-filters cr-activity-filters">

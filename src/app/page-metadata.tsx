@@ -8,6 +8,7 @@ const titles = {
   home: { en: 'Overview', ar: 'نظرة عامة' },
   plan: { en: 'Monthly Budget Plan', ar: 'خطة الميزانية الشهرية' },
   activity: { en: 'Income & Expense Activity', ar: 'حركة الدخل والمصروفات' },
+  expenses: { en: 'Expenses by Category', ar: 'المصروفات حسب الفئة' },
   accounts: { en: 'Wallets, Investments & Loans', ar: 'المحافظ والاستثمارات والقروض' },
   settings: { en: 'Settings', ar: 'الإعدادات' },
   onboarding: { en: 'Set Up Your Budget', ar: 'إعداد ميزانيتك' },
