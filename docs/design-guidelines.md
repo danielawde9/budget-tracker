@@ -167,13 +167,25 @@ State is never color-only (icon or text accompanies tone). Motion honors
 
 ### Interactive charts and form hints
 
-- Active-month expense totals use `.cr-category-totals` with the shared currency
-  buttons, a visible exact total, and `.cr-category-table` for category, net
-  spending, and share. `.cr-category-share-track` adds a decorative comparison
-  bar alongside the visible percentage. Refund-only categories show a signed
-  amount and a text label instead of a negative percentage. USD and LBP stay
-  separate; all activity pages for the active budget month are loaded before
-  displaying totals.
+- Spending reports use `.cr-spending-report`: `.cr-report-period` has native
+  month/date inputs, month navigation, presets, and an explicit custom-date
+  apply action. Always show the exact applied dates. `.cr-report-totals` shows
+  both currencies, each with net expenses, purchases/charges, refunds, and record
+  count. Stack the currency totals below 640px; never combine currencies.
+- `.cr-category-totals` uses shared currency buttons, category/group controls,
+  and `.cr-category-table` for exact net spending and share. Category names are
+  44px buttons that filter the transaction register. `.cr-report-group` uses
+  native disclosures to expand historical groups into their categories.
+  `.cr-category-share-track` is decorative alongside a visible percentage;
+  refund-only categories have a signed amount and text label. Keep fully
+  refunded categories visible. Grouped percentages describe the displayed group.
+- Report totals use every activity page in the inclusive applied date range.
+  The visible transaction list can page independently; totals must remain
+  complete. Preserve original entry details and correction behavior. A failed
+  page shows an error/retry instead of a partial or stale range total.
+- Wallet-only investment fees use a reporting category named Investment fees
+  under Fees & interest. This includes signed corrections and preserves the
+  original entry details. Category-backed wallet fee mirrors count once.
 
 - Charts keep exact, visible readouts and compact axis ticks. `.cr-chart-explore`
   contains horizontal overflow for long histories; `.cr-chart-interactive` pairs

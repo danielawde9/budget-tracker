@@ -1,7 +1,7 @@
 import { SaveRecoveryStore } from '../api/save-recovery.ts';
 import { SaveRecoveryProvider, SaveRecoveryNotice } from './save-recovery.tsx';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createBudgetApi, type BudgetApi } from '../api/budget-api.ts';
 import type { SpaceSummary } from '../api/schemas.ts';
 import { I18nProvider, useI18n } from '../lib/i18n.tsx';
@@ -12,7 +12,6 @@ import { IS_DEMO, isLoopbackUrl } from '../preview/demo-mode.ts';
 import { RecordDialog, type RecordIntent } from '../record/record-dialog.tsx';
 import { AccountsScreen } from '../screens/accounts/accounts.tsx';
 import { ActivityScreen } from '../screens/activity/activity.tsx';
-import { ExpensesScreen } from '../screens/expenses/expenses.tsx';
 import { HomeScreen } from '../screens/home/home.tsx';
 import { Onboarding } from '../screens/onboarding/onboarding.tsx';
 import { PlanScreen } from '../screens/plan/plan.tsx';
@@ -30,6 +29,7 @@ import { WorkspaceProvider } from './workspace.tsx';
 
 const LOCALE_KEY = 'budget:locale';
 const SPACE_KEY = 'budget:space';
+const ExpensesScreen = lazy(() => import('../screens/expenses/expenses.tsx').then(module => ({ default: module.ExpensesScreen })));
 
 function readStored(key: string): string | null {
   try {
@@ -149,6 +149,7 @@ export function Routes({ space, spaces, onSelectSpace, onToggleLocale, onSignOut
   readonly onSignOut: () => void;
 }) {
   const route = useRoute();
+  const { t } = useI18n();
   const [record, setRecord] = useState<RecordIntent | null>(() => quickAddIntent());
   const previousSpace = useRef(space.id);
   useEffect(() => {
@@ -161,7 +162,7 @@ export function Routes({ space, spaces, onSelectSpace, onToggleLocale, onSignOut
       {route.name === 'home' ? <HomeScreen onRecord={openRecord} /> : null}
       {route.name === 'plan' ? <PlanScreen month={route.month ?? space.currentMonth} onRecord={openRecord} /> : null}
       {route.name === 'activity' ? <ActivityScreen walletId={route.walletId ?? null} month={route.month ?? null} onRecord={openRecord} /> : null}
-      {route.name === 'expenses' ? <ExpensesScreen onRecord={openRecord} /> : null}
+      {route.name === 'expenses' ? <Suspense fallback={<p className="cr-helper" role="status">{t('common.loading')}</p>}><ExpensesScreen onRecord={openRecord} /></Suspense> : null}
       {route.name === 'accounts' ? <AccountsScreen onRecord={openRecord} /> : null}
       {route.name === 'settings' ? <SettingsScreen onToggleLocale={onToggleLocale} onSignOut={onSignOut} /> : null}
       {IS_DEMO ? <DemoTourPanel /> : null}

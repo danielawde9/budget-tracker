@@ -1689,7 +1689,49 @@
 .cr-tabs > .cr-tab-button:focus-visible { outline: 2px solid var(--cr-accent); outline-offset: 2px; }
 .cr-home, .cr-plan, .cr-accounts { display: flex; flex-direction: column; gap: var(--cr-space-4); }
 
-/* Active-month category totals reuse the shared money, table, and currency controls. */
+/* Spending reports reuse the shared money, table, and currency controls. */
+.cr-spending-report { display: grid; gap: var(--cr-space-4); }
+.cr-spending-report > .cr-header, .cr-spending-report > .cr-card { margin-block: 0; }
+.cr-spending-report .cr-button:where(a) { display: inline-flex; align-items: center; text-decoration: none; }
+.cr-report-period-controls, .cr-report-month-controls, .cr-report-breakdown-controls { display: flex; flex-wrap: wrap; align-items: end; gap: var(--cr-space-3); min-inline-size: 0; }
+.cr-report-period-controls > .cr-field { flex: 1 1 12rem; min-inline-size: 0; }
+.cr-report-month-controls { flex: 1 1 16rem; flex-wrap: nowrap; gap: var(--cr-space-2); }
+.cr-report-month-controls > .cr-field { flex: 1; min-inline-size: 0; }
+.cr-report-month-controls .cr-icon-button { flex: none; }
+.cr-report-month-controls:dir(rtl) svg { transform: rotate(180deg); }
+.cr-report-period input { inline-size: 100%; min-inline-size: 0; max-inline-size: 100%; box-sizing: border-box; }
+.cr-report-custom-dates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) auto; align-items: end; gap: var(--cr-space-3); margin-block-start: var(--cr-space-4); }
+.cr-report-custom-dates .error-notice { grid-column: 1 / -1; margin: 0; }
+.cr-report-applied-dates { margin-block: var(--cr-space-4) 0; }
+.cr-report-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--cr-space-5); margin-block: var(--cr-space-5); }
+.cr-report-currency-total { min-inline-size: 0; }
+.cr-report-currency-total + .cr-report-currency-total { border-inline-start: 1px solid var(--cr-hairline); padding-inline-start: var(--cr-space-5); }
+.cr-report-currency-total h3 { margin: 0; font-size: 15px; color: var(--cr-ink-soft); }
+.cr-report-summary-lines { display: grid; gap: var(--cr-space-2); margin: 0; }
+.cr-report-summary-lines > div { display: flex; align-items: baseline; justify-content: space-between; gap: var(--cr-space-3); }
+.cr-report-summary-lines dt { color: var(--cr-ink-soft); font-size: 13px; }
+.cr-report-summary-lines dd { margin: 0; font-size: 13px; }
+.cr-report-breakdown-controls .cr-tabs { margin: 0; }
+.cr-report-group { padding-block: var(--cr-space-3); border-block-end: 1px solid var(--cr-hairline); }
+.cr-report-group:last-child { border-block-end: 0; }
+.cr-report-group > summary { display: flex; align-items: center; gap: var(--cr-space-2); min-block-size: 44px; cursor: pointer; list-style: none; }
+.cr-report-group > summary::-webkit-details-marker { display: none; }
+.cr-report-group > summary > bdi { flex: 1; min-inline-size: 0; overflow-wrap: anywhere; font-weight: 600; }
+.cr-report-group > summary > svg { flex: none; }
+.cr-report-group[open] > summary > svg { transform: rotate(180deg); }
+.cr-report-group .cr-category-table { margin-block-start: var(--cr-space-2); }
+.cr-report-category-button { inline-size: 100%; min-block-size: 44px; padding: 0; font: inherit; font-weight: 600; text-align: start; overflow-wrap: anywhere; border-radius: var(--cr-radius-sm); }
+.cr-report-detail-summary { margin-block: var(--cr-space-3); }
+.cr-report-detail-summary p { margin: 0; }
+.cr-report-detail-summary .cr-helper { display: block; margin-block-start: var(--cr-space-1); }
+.cr-report-more { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--cr-space-3); margin-block-start: var(--cr-space-4); }
+@media (max-width: 640px) {
+  .cr-report-custom-dates, .cr-report-totals { grid-template-columns: minmax(0, 1fr); }
+  .cr-report-custom-dates > button { justify-self: start; }
+  .cr-report-currency-total + .cr-report-currency-total { border-inline-start: 0; padding-inline-start: 0; border-block-start: 1px solid var(--cr-hairline); padding-block-start: var(--cr-space-5); }
+  .cr-report-breakdown-controls { inline-size: 100%; justify-content: space-between; }
+  .cr-report-group > summary { flex-wrap: wrap; }
+}
 .cr-category-totals .cr-tabs > .cr-tab-button { min-block-size: 44px; }
 .cr-category-total { margin-block: var(--cr-space-4) var(--cr-space-2); }
 .cr-category-total .cr-amount { font-size: 32px; overflow-wrap: anywhere; white-space: normal; }
