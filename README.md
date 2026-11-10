@@ -96,9 +96,4 @@ pnpm test:e2e
 <a href="https://neon.com"><img alt="Neon" src="docs/assets/neon-logo.svg" width="240"></a>
 
 This project is supported by [Neon](https://neon.com), a hosted Postgres
-service. The running app does not take a Postgres connection string. It uses
-the Supabase client (`VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`), and
-the migrations call `auth.uid()` and reference `auth.users`. Local preview
-runs the Supabase stack, and database tests use the Supabase Postgres image
-with a test-only Auth stand-in. A Neon database on its own does not provide
-that Auth schema or the Supabase API, so it is not a drop-in host for this app.
+service. 
